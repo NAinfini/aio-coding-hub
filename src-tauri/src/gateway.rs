@@ -1,5 +1,6 @@
 mod codex_session_id;
 mod events;
+pub(crate) mod listen;
 mod manager;
 mod proxy;
 mod response_fixer;
@@ -18,6 +19,7 @@ pub struct GatewayStatus {
     pub running: bool,
     pub port: Option<u16>,
     pub base_url: Option<String>,
+    pub listen_addr: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]

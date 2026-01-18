@@ -70,7 +70,7 @@ fn bash_single_quote(value: &str) -> String {
     if value.is_empty() {
         return "''".to_string();
     }
-    format!("'{}'", value.replace('\'', r#"'\"'\"'"#))
+    format!("'{}'", value.replace('\'', r#"'"'"'"#))
 }
 
 pub fn detect() -> WslDetection {
@@ -115,6 +115,7 @@ pub fn host_ipv4_best_effort() -> Option<String> {
 
     let output = hide_window_cmd("ipconfig").output().ok()?;
     let text = String::from_utf8_lossy(&output.stdout).to_string();
+    use std::net::Ipv4Addr;
 
     let mut in_wsl_adapter = false;
     for raw_line in text.lines() {
@@ -143,7 +144,9 @@ pub fn host_ipv4_best_effort() -> Option<String> {
             if ip.is_empty() || ip.contains(':') {
                 continue;
             }
-            return Some(ip.to_string());
+            if ip.parse::<Ipv4Addr>().is_ok() {
+                return Some(ip.to_string());
+            }
         }
     }
 
@@ -363,16 +366,36 @@ cleanup() {{ rm -f "$tmp_config" "$tmp_auth"; }}
 trap cleanup EXIT
 
 if [ -s "$config_path" ]; then
-  awk -v provider_key="$provider_key" '
-    BEGIN {{ in_root=1; seen_model=0; skipping=0 }}
+  awk -v provider_key="$provider_key" -v base_url="$base_url" '
+    BEGIN {{ in_root=1; seen_pref=0; seen_model=0; skipping=0 }}
     function ltrim(s) {{ sub(/^[[:space:]]+/, "", s); return s }}
     function rtrim(s) {{ sub(/[[:space:]]+$/, "", s); return s }}
+    function extract_header(s) {{
+      if (match(s, /^\[[^\]]+\]/)) {{
+        return substr(s, RSTART, RLENGTH)
+      }}
+      return s
+    }}
+    function is_target_section(h, pk) {{
+      header = extract_header(h)
+      base1 = "[model_providers." pk "]"
+      base2 = "[model_providers.\"" pk "\"]"
+      base3 = "[model_providers.'"'"'" pk "'"'"']"
+      prefix1 = "[model_providers." pk "."
+      prefix2 = "[model_providers.\"" pk "\"."
+      prefix3 = "[model_providers.'"'"'" pk "'"'"'."
+      return (header == base1 || header == base2 || header == base3 || index(header, prefix1) == 1 || index(header, prefix2) == 1 || index(header, prefix3) == 1)
+    }}
     {{
       line=$0
       trimmed=rtrim(ltrim(line))
 
+      # skipping check BEFORE comment check to delete comments inside skipped section
       if (skipping) {{
         if (substr(trimmed, 1, 1) == "[") {{
+          if (is_target_section(trimmed, provider_key)) {{
+            next
+          }}
           skipping=0
         }} else {{
           next
@@ -382,55 +405,89 @@ if [ -s "$config_path" ]; then
       if (trimmed ~ /^#/) {{ print line; next }}
 
       if (in_root && substr(trimmed, 1, 1) == "[") {{
-        if (!seen_model) {{ print "model_provider = \"" provider_key "\""; print ""; seen_model=1 }}
+        inserted=0
+        if (!seen_pref) {{ print "preferred_auth_method = \"apikey\""; seen_pref=1; inserted=1 }}
+        if (!seen_model) {{ print "model_provider = \"" provider_key "\""; seen_model=1; inserted=1 }}
+        if (inserted) print ""
         in_root=0
       }}
 
-      if (trimmed == "[model_providers." provider_key "]") {{
+      if (is_target_section(trimmed, provider_key)) {{
         skipping=1
         next
       }}
 
+      if (in_root && trimmed ~ /^preferred_auth_method[[:space:]]*=/) {{
+        if (!seen_pref) {{ print "preferred_auth_method = \"apikey\""; seen_pref=1 }}
+        next
+      }}
       if (in_root && trimmed ~ /^model_provider[[:space:]]*=/) {{
-        print "model_provider = \"" provider_key "\""
-        seen_model=1
+        if (!seen_model) {{ print "model_provider = \"" provider_key "\""; seen_model=1 }}
         next
       }}
 
       print line
     }}
     END {{
-      if (in_root && !seen_model) {{ print "model_provider = \"" provider_key "\""; print "" }}
+      if (in_root) {{
+        if (!seen_pref) print "preferred_auth_method = \"apikey\""
+        if (!seen_model) print "model_provider = \"" provider_key "\""
+      }}
+      print ""
+      print "[model_providers." provider_key "]"
+      print "name = \"" provider_key "\""
+      print "base_url = \"" base_url "\""
+      print "wire_api = \"responses\""
+      print "requires_openai_auth = true"
     }}
   ' "$config_path" > "$tmp_config"
 else
   cat > "$tmp_config" <<EOF
+preferred_auth_method = "apikey"
 model_provider = "$provider_key"
 
-EOF
-fi
-
-if [ -s "$tmp_config" ]; then
-  last_line="$(tail -n 1 "$tmp_config" 2>/dev/null | tr -d '\r' || true)"
-  if [ "$last_line" != "" ]; then
-    printf "\n" >> "$tmp_config"
-  fi
-fi
-
-cat >> "$tmp_config" <<EOF
 [model_providers.$provider_key]
 name = "$provider_key"
 base_url = "$base_url"
 wire_api = "responses"
 requires_openai_auth = true
 EOF
+fi
 
 if [ ! -s "$tmp_config" ]; then
   echo "Sanity check failed: generated config.toml is empty" >&2
   exit 2
 fi
-grep -qF "model_provider" "$tmp_config" || {{ echo "Sanity check failed: missing model_provider" >&2; exit 2; }}
-grep -qF "[model_providers." "$tmp_config" || {{ echo "Sanity check failed: missing model_providers table" >&2; exit 2; }}
+grep -qF 'preferred_auth_method = "apikey"' "$tmp_config" || {{ echo "Sanity check failed: missing preferred_auth_method" >&2; exit 2; }}
+grep -qF "model_provider = \"$provider_key\"" "$tmp_config" || {{ echo "Sanity check failed: missing model_provider" >&2; exit 2; }}
+grep -qF "base_url = \"$base_url\"" "$tmp_config" || {{ echo "Sanity check failed: missing provider base_url" >&2; exit 2; }}
+
+count_section="$(awk -v pk="$provider_key" '
+  BEGIN {{ c=0 }}
+  function extract_header(s) {{
+    if (match(s, /^\[[^\]]+\]/)) {{
+      return substr(s, RSTART, RLENGTH)
+    }}
+    return s
+  }}
+  {{
+    line=$0
+    sub(/^[[:space:]]+/, "", line)
+    sub(/[[:space:]]+$/, "", line)
+    if (line ~ /^#/) next
+    if (substr(line, 1, 1) != "[") next
+    header = extract_header(line)
+    base1 = "[model_providers." pk "]"
+    base2 = "[model_providers.\"" pk "\"]"
+    base3 = "[model_providers.'"'"'" pk "'"'"']"
+    if (header == base1 || header == base2 || header == base3) c++
+  }}
+  END {{ print c }}
+' "$tmp_config")"
+if [ "$count_section" -ne 1 ]; then
+  echo "Sanity check failed: expected exactly one [model_providers.$provider_key] section, got $count_section" >&2
+  exit 2
+fi
 
 if command -v jq >/dev/null 2>&1; then
   if [ -s "$auth_path" ]; then
@@ -596,6 +653,76 @@ fi
 
 if [ ! -s "$tmp_path" ]; then
   echo "Sanity check failed: generated .env is empty" >&2
+  exit 2
+fi
+
+count_base="$(awk '
+  BEGIN{{c=0}}
+  {{
+    line=$0
+    sub(/^[[:space:]]+/, "", line)
+    if (line ~ /^#/) next
+    if (line ~ /^export[[:space:]]+/) sub(/^export[[:space:]]+/, "", line)
+    if (line ~ /^GOOGLE_GEMINI_BASE_URL[[:space:]]*=/) c++
+  }}
+  END{{print c}}
+' "$tmp_path")"
+if [ "$count_base" -ne 1 ]; then
+  echo "Sanity check failed: expected exactly one GOOGLE_GEMINI_BASE_URL, got $count_base" >&2
+  exit 2
+fi
+
+count_key="$(awk '
+  BEGIN{{c=0}}
+  {{
+    line=$0
+    sub(/^[[:space:]]+/, "", line)
+    if (line ~ /^#/) next
+    if (line ~ /^export[[:space:]]+/) sub(/^export[[:space:]]+/, "", line)
+    if (line ~ /^GEMINI_API_KEY[[:space:]]*=/) c++
+  }}
+  END{{print c}}
+' "$tmp_path")"
+if [ "$count_key" -ne 1 ]; then
+  echo "Sanity check failed: expected exactly one GEMINI_API_KEY, got $count_key" >&2
+  exit 2
+fi
+
+actual_base="$(awk '
+  {{
+    line=$0
+    sub(/^[[:space:]]+/, "", line)
+    if (line ~ /^#/) next
+    if (line ~ /^export[[:space:]]+/) sub(/^export[[:space:]]+/, "", line)
+    if (line ~ /^GOOGLE_GEMINI_BASE_URL[[:space:]]*=/) {{
+      sub(/^GOOGLE_GEMINI_BASE_URL[[:space:]]*=/, "", line)
+      sub(/[[:space:]]+$/, "", line)
+      print line
+      exit
+    }}
+  }}
+' "$tmp_path")"
+if [ "$actual_base" != "$gemini_base_url" ]; then
+  echo "Sanity check failed: GOOGLE_GEMINI_BASE_URL mismatch" >&2
+  exit 2
+fi
+
+actual_key="$(awk '
+  {{
+    line=$0
+    sub(/^[[:space:]]+/, "", line)
+    if (line ~ /^#/) next
+    if (line ~ /^export[[:space:]]+/) sub(/^export[[:space:]]+/, "", line)
+    if (line ~ /^GEMINI_API_KEY[[:space:]]*=/) {{
+      sub(/^GEMINI_API_KEY[[:space:]]*=/, "", line)
+      sub(/[[:space:]]+$/, "", line)
+      print line
+      exit
+    }}
+  }}
+' "$tmp_path")"
+if [ "$actual_key" != "$api_key" ]; then
+  echo "Sanity check failed: GEMINI_API_KEY mismatch" >&2
   exit 2
 fi
 

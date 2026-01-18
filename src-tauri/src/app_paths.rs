@@ -14,7 +14,8 @@ fn is_safe_dotdir_name(name: &str) -> bool {
     if name.contains('/') || name.contains('\\') {
         return false;
     }
-    name.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_')
+    name.chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_')
 }
 
 pub fn app_data_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {

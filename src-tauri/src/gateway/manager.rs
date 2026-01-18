@@ -1,14 +1,15 @@
 use crate::{
     circuit_breaker, provider_circuit_breakers, providers, request_attempt_logs, request_logs,
-    session_manager, settings,
+    session_manager, settings, wsl,
 };
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use tauri::Emitter;
 use tokio::sync::oneshot;
 
 use super::codex_session_id::CodexSessionIdCache;
 use super::events::GatewayLogEvent;
+use super::listen;
 use super::proxy::{ProviderBaseUrlPingCache, RecentErrorCache};
 use super::routes::build_router;
 use super::util::now_unix_seconds;
@@ -17,6 +18,7 @@ use super::{GatewayProviderCircuitStatus, GatewayStatus};
 struct RunningGateway {
     port: u16,
     base_url: String,
+    listen_addr: String,
     circuit: Arc<circuit_breaker::CircuitBreaker>,
     session: Arc<session_manager::SessionManager>,
     shutdown: oneshot::Sender<()>,
@@ -73,22 +75,24 @@ fn port_candidates(preferred: Option<u16>) -> impl Iterator<Item = u16> {
     candidates.into_iter()
 }
 
-fn bind_first_available(preferred: Option<u16>) -> Result<(u16, std::net::TcpListener), String> {
+fn bind_host_port(bind_host: &str, port: u16) -> Option<std::net::TcpListener> {
+    let std_listener = std::net::TcpListener::bind((bind_host, port)).ok()?;
+    std_listener.set_nonblocking(true).ok()?;
+    Some(std_listener)
+}
+
+fn bind_first_available(
+    bind_host: &str,
+    preferred: Option<u16>,
+) -> Result<(u16, std::net::TcpListener), String> {
     for port in port_candidates(preferred) {
-        let std_listener = match std::net::TcpListener::bind(("127.0.0.1", port)) {
-            Ok(l) => l,
-            Err(_) => continue,
-        };
-
-        if std_listener.set_nonblocking(true).is_err() {
-            continue;
+        if let Some(std_listener) = bind_host_port(bind_host, port) {
+            return Ok((port, std_listener));
         }
-
-        return Ok((port, std_listener));
     }
 
     Err(format!(
-        "no available port in range {}..{}",
+        "no available port in range {}..{} for host {bind_host}",
         settings::DEFAULT_GATEWAY_PORT,
         settings::MAX_GATEWAY_PORT
     ))
@@ -101,11 +105,13 @@ impl GatewayManager {
                 running: true,
                 port: Some(r.port),
                 base_url: Some(r.base_url.clone()),
+                listen_addr: Some(r.listen_addr.clone()),
             },
             None => GatewayStatus {
                 running: false,
                 port: None,
                 base_url: None,
+                listen_addr: None,
             },
         }
     }
@@ -134,12 +140,43 @@ impl GatewayManager {
             .filter(|p| *p > 0)
             .unwrap_or(settings::DEFAULT_GATEWAY_PORT);
 
-        let (port, std_listener) = bind_first_available(preferred_port)?;
+        let cfg = settings::read(app).unwrap_or_default();
+        let (bind_host, fixed_port) = match cfg.gateway_listen_mode {
+            settings::GatewayListenMode::Localhost => ("127.0.0.1".to_string(), None),
+            settings::GatewayListenMode::Lan => ("0.0.0.0".to_string(), None),
+            settings::GatewayListenMode::WslAuto => (
+                wsl::host_ipv4_best_effort().unwrap_or_else(|| "127.0.0.1".to_string()),
+                None,
+            ),
+            settings::GatewayListenMode::Custom => {
+                let parsed =
+                    listen::parse_custom_listen_address(&cfg.gateway_custom_listen_address)?;
+                (parsed.host, parsed.port)
+            }
+        };
 
-        let base_url = format!("http://127.0.0.1:{port}");
-        let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port);
+        let (port, std_listener) = if let Some(port) = fixed_port {
+            let listener = bind_host_port(&bind_host, port)
+                .ok_or_else(|| format!("failed to bind {bind_host}:{port}"))?;
+            (port, listener)
+        } else {
+            bind_first_available(&bind_host, preferred_port)?
+        };
 
-        if port != requested_port {
+        let listen_addr = listen::format_host_port(&bind_host, port);
+        let base_host = match cfg.gateway_listen_mode {
+            settings::GatewayListenMode::Lan => "127.0.0.1".to_string(),
+            settings::GatewayListenMode::Custom if listen::is_wildcard_host(&bind_host) => {
+                "127.0.0.1".to_string()
+            }
+            _ => bind_host.clone(),
+        };
+        let base_url = format!("http://{}", listen::format_host_port(&base_host, port));
+        let bind_addr = std_listener
+            .local_addr()
+            .unwrap_or_else(|_| SocketAddr::from(([127, 0, 0, 1], port)));
+
+        if fixed_port.is_none() && port != requested_port {
             if let Ok(mut current) = settings::read(app) {
                 if current.preferred_port != port {
                     current.preferred_port = port;
@@ -248,6 +285,7 @@ impl GatewayManager {
         self.running = Some(RunningGateway {
             port,
             base_url,
+            listen_addr,
             circuit: circuit_for_manager,
             session,
             shutdown: shutdown_tx,

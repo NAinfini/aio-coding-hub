@@ -420,6 +420,34 @@ fn upsert_root_model_provider(lines: &mut Vec<String>, value: &str) {
     }
 }
 
+fn upsert_root_preferred_auth_method(lines: &mut Vec<String>, value: &str) {
+    let first_table = lines
+        .iter()
+        .position(|l| l.trim().starts_with('['))
+        .unwrap_or(lines.len());
+
+    if let Some(line) = lines
+        .iter_mut()
+        .take(first_table)
+        .find(|line| line.trim_start().starts_with("preferred_auth_method"))
+    {
+        *line = format!("preferred_auth_method = \"{value}\"");
+        return;
+    }
+
+    let mut insert_at = 0;
+    while insert_at < first_table {
+        let trimmed = lines[insert_at].trim_start();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            insert_at += 1;
+            continue;
+        }
+        break;
+    }
+
+    lines.insert(insert_at, format!("preferred_auth_method = \"{value}\""));
+}
+
 fn build_codex_config_toml(current: Option<Vec<u8>>, base_url: &str) -> Result<Vec<u8>, String> {
     let input = current
         .as_deref()
@@ -433,6 +461,7 @@ fn build_codex_config_toml(current: Option<Vec<u8>>, base_url: &str) -> Result<V
     };
 
     upsert_root_model_provider(&mut lines, CODEX_PROVIDER_KEY);
+    upsert_root_preferred_auth_method(&mut lines, "apikey");
     remove_toml_table_block(
         &mut lines,
         &format!("[model_providers.{CODEX_PROVIDER_KEY}]"),

@@ -29,6 +29,7 @@ mod skills;
 mod sort_modes;
 mod usage;
 mod usage_stats;
+mod wsl;
 
 use std::sync::Mutex;
 use tauri::utils::config::BundleType;
@@ -121,6 +122,8 @@ fn notice_send(
 async fn settings_set(
     app: tauri::AppHandle,
     preferred_port: u16,
+    gateway_listen_mode: Option<settings::GatewayListenMode>,
+    gateway_custom_listen_address: Option<String>,
     auto_start: bool,
     tray_enabled: Option<bool>,
     log_retention_days: u32,
@@ -140,6 +143,8 @@ async fn settings_set(
     circuit_breaker_failure_threshold: Option<u32>,
     circuit_breaker_open_duration_minutes: Option<u32>,
     update_releases_url: Option<String>,
+    wsl_auto_config: Option<bool>,
+    wsl_target_cli: Option<settings::WslTargetCli>,
 ) -> Result<settings::AppSettings, String> {
     let app_for_work = app.clone();
     let next_settings = blocking::run("settings_set", move || {
@@ -148,6 +153,13 @@ async fn settings_set(
         let tray_enabled = tray_enabled.unwrap_or(previous.tray_enabled);
         let provider_cooldown_seconds =
             provider_cooldown_seconds.unwrap_or(previous.provider_cooldown_seconds);
+        let gateway_listen_mode = gateway_listen_mode.unwrap_or(previous.gateway_listen_mode);
+        let gateway_custom_listen_address = gateway_custom_listen_address
+            .unwrap_or(previous.gateway_custom_listen_address)
+            .trim()
+            .to_string();
+        let wsl_auto_config = wsl_auto_config.unwrap_or(previous.wsl_auto_config);
+        let wsl_target_cli = wsl_target_cli.unwrap_or(previous.wsl_target_cli);
         let provider_base_url_ping_cache_ttl_seconds = provider_base_url_ping_cache_ttl_seconds
             .unwrap_or(previous.provider_base_url_ping_cache_ttl_seconds);
         let upstream_first_byte_timeout_seconds = upstream_first_byte_timeout_seconds
@@ -201,6 +213,10 @@ async fn settings_set(
         let settings = settings::AppSettings {
             schema_version: settings::SCHEMA_VERSION,
             preferred_port,
+            gateway_listen_mode,
+            gateway_custom_listen_address,
+            wsl_auto_config,
+            wsl_target_cli,
             auto_start: next_auto_start,
             tray_enabled,
             log_retention_days,
@@ -341,11 +357,26 @@ fn gateway_status(state: tauri::State<'_, GatewayState>) -> gateway::GatewayStat
 }
 
 #[tauri::command]
-fn gateway_check_port_available(port: u16) -> bool {
+fn gateway_check_port_available(app: tauri::AppHandle, port: u16) -> bool {
     if port < 1024 {
         return false;
     }
-    std::net::TcpListener::bind(("127.0.0.1", port)).is_ok()
+
+    let cfg = settings::read(&app).unwrap_or_default();
+    let host = match cfg.gateway_listen_mode {
+        settings::GatewayListenMode::Localhost => "127.0.0.1".to_string(),
+        settings::GatewayListenMode::Lan => "0.0.0.0".to_string(),
+        settings::GatewayListenMode::WslAuto => {
+            wsl::host_ipv4_best_effort().unwrap_or_else(|| "127.0.0.1".to_string())
+        }
+        settings::GatewayListenMode::Custom => {
+            gateway::listen::parse_custom_listen_address(&cfg.gateway_custom_listen_address)
+                .map(|v| v.host)
+                .unwrap_or_else(|_| "127.0.0.1".to_string())
+        }
+    };
+
+    std::net::TcpListener::bind((host.as_str(), port)).is_ok()
 }
 
 #[tauri::command]
@@ -544,6 +575,115 @@ async fn gateway_stop(
     let status = gateway_status(state);
     let _ = app.emit("gateway:status", status.clone());
     Ok(status)
+}
+
+#[tauri::command]
+fn wsl_detect() -> wsl::WslDetection {
+    wsl::detect()
+}
+
+#[tauri::command]
+fn wsl_host_address_get() -> Option<String> {
+    wsl::host_ipv4_best_effort()
+}
+
+#[tauri::command]
+fn wsl_config_status_get() -> Vec<wsl::WslDistroConfigStatus> {
+    let detection = wsl::detect();
+    if !detection.detected || detection.distros.is_empty() {
+        return Vec::new();
+    }
+    wsl::get_config_status(&detection.distros)
+}
+
+#[tauri::command]
+async fn wsl_configure_clients(
+    app: tauri::AppHandle,
+    db_state: tauri::State<'_, DbInitState>,
+    targets: settings::WslTargetCli,
+) -> Result<wsl::WslConfigureReport, String> {
+    if !cfg!(windows) {
+        return Ok(wsl::WslConfigureReport {
+            ok: false,
+            message: "WSL configuration is only available on Windows".to_string(),
+            distros: Vec::new(),
+        });
+    }
+
+    ensure_db_ready(app.clone(), db_state.inner()).await?;
+
+    let cfg = blocking::run("wsl_configure_clients_read_settings", {
+        let app = app.clone();
+        move || Ok(settings::read(&app).unwrap_or_default())
+    })
+    .await?;
+
+    if cfg.gateway_listen_mode == settings::GatewayListenMode::Localhost {
+        return Ok(wsl::WslConfigureReport {
+            ok: false,
+            message: "监听模式为“仅本地(127.0.0.1)”时，WSL 无法访问网关。请先切换到：WSL 自动检测 / 局域网 / 自定义地址。".to_string(),
+            distros: Vec::new(),
+        });
+    }
+
+    let detection = wsl::detect();
+    if !detection.detected || detection.distros.is_empty() {
+        return Ok(wsl::WslConfigureReport {
+            ok: false,
+            message: "WSL not detected".to_string(),
+            distros: Vec::new(),
+        });
+    }
+
+    let preferred_port = cfg.preferred_port;
+    let status = blocking::run("wsl_configure_clients_ensure_gateway", {
+        let app = app.clone();
+        move || {
+            let state = app.state::<GatewayState>();
+            let mut manager = state.0.lock().map_err(|_| "gateway state poisoned")?;
+            manager.start(&app, Some(preferred_port))
+        }
+    })
+    .await?;
+
+    let port = status
+        .port
+        .ok_or_else(|| "gateway_start returned no port".to_string())?;
+
+    let host = match cfg.gateway_listen_mode {
+        settings::GatewayListenMode::Localhost => "127.0.0.1".to_string(),
+        settings::GatewayListenMode::WslAuto | settings::GatewayListenMode::Lan => {
+            wsl::host_ipv4_best_effort().unwrap_or_else(|| "127.0.0.1".to_string())
+        }
+        settings::GatewayListenMode::Custom => {
+            let parsed = match gateway::listen::parse_custom_listen_address(
+                &cfg.gateway_custom_listen_address,
+            ) {
+                Ok(v) => v,
+                Err(err) => {
+                    return Ok(wsl::WslConfigureReport {
+                        ok: false,
+                        message: format!("自定义监听地址无效：{err}"),
+                        distros: Vec::new(),
+                    });
+                }
+            };
+            if gateway::listen::is_wildcard_host(&parsed.host) {
+                wsl::host_ipv4_best_effort().unwrap_or_else(|| "127.0.0.1".to_string())
+            } else {
+                parsed.host
+            }
+        }
+    };
+
+    let proxy_origin = format!("http://{}", gateway::listen::format_host_port(&host, port));
+    let distros = detection.distros;
+    let report = blocking::run("wsl_configure_clients", move || {
+        Ok(wsl::configure_clients(&distros, &targets, &proxy_origin))
+    })
+    .await?;
+
+    Ok(report)
 }
 
 #[tauri::command]
@@ -1731,15 +1871,21 @@ pub fn run() {
 
             #[cfg(debug_assertions)]
             {
-                let identifier = &app.config().identifier;
-                let product_name = app.config().product_name.as_deref().unwrap_or("<missing>");
-                eprintln!("[dev] tauri identifier: {identifier}");
-                eprintln!("[dev] productName: {product_name}");
-                if let Ok(dotdir_name) = std::env::var("AIO_CODING_HUB_DOTDIR_NAME") {
-                    eprintln!("[dev] AIO_CODING_HUB_DOTDIR_NAME: {}", dotdir_name);
-                }
-                if let Ok(dir) = app_paths::app_data_dir(app.handle()) {
-                    eprintln!("[dev] app data dir: {}", dir.display());
+                let enabled = std::env::var("AIO_CODING_HUB_DEV_DIAGNOSTICS")
+                    .ok()
+                    .map(|v| v.trim().to_ascii_lowercase())
+                    .is_some_and(|v| v == "1" || v == "true" || v == "yes");
+                if enabled {
+                    let identifier = &app.config().identifier;
+                    let product_name = app.config().product_name.as_deref().unwrap_or("<missing>");
+                    eprintln!("[dev] tauri identifier: {identifier}");
+                    eprintln!("[dev] productName: {product_name}");
+                    if let Ok(dotdir_name) = std::env::var("AIO_CODING_HUB_DOTDIR_NAME") {
+                        eprintln!("[dev] AIO_CODING_HUB_DOTDIR_NAME: {}", dotdir_name);
+                    }
+                    if let Ok(dir) = app_paths::app_data_dir(app.handle()) {
+                        eprintln!("[dev] app data dir: {}", dir.display());
+                    }
                 }
             }
 
@@ -1817,6 +1963,10 @@ pub fn run() {
             gateway_stop,
             gateway_status,
             gateway_check_port_available,
+            wsl_detect,
+            wsl_host_address_get,
+            wsl_config_status_get,
+            wsl_configure_clients,
             gateway_sessions_list,
             providers_list,
             provider_upsert,

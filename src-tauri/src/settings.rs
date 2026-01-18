@@ -4,12 +4,13 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::Manager;
 
-pub const SCHEMA_VERSION: u32 = 11;
+pub const SCHEMA_VERSION: u32 = 12;
 const SCHEMA_VERSION_DISABLE_UPSTREAM_TIMEOUTS: u32 = 7;
 const SCHEMA_VERSION_ADD_GATEWAY_RECTIFIERS: u32 = 8;
 const SCHEMA_VERSION_ADD_CIRCUIT_BREAKER_NOTICE: u32 = 9;
 const SCHEMA_VERSION_ADD_PROVIDER_BASE_URL_PING_CACHE_TTL: u32 = 10;
 const SCHEMA_VERSION_ADD_CODEX_SESSION_ID_COMPLETION: u32 = 11;
+const SCHEMA_VERSION_ADD_GATEWAY_NETWORK_SETTINGS: u32 = 12;
 pub const DEFAULT_GATEWAY_PORT: u16 = 37123;
 pub const MAX_GATEWAY_PORT: u16 = 37199;
 const DEFAULT_LOG_RETENTION_DAYS: u32 = 30;
@@ -45,11 +46,51 @@ const DEFAULT_UPDATE_RELEASES_URL: &str = "https://github.com/dyndynjyxa/aio-cod
 
 static LOG_RETENTION_DAYS_FAIL_OPEN_WARNED: AtomicBool = AtomicBool::new(false);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GatewayListenMode {
+    Localhost,
+    WslAuto,
+    Lan,
+    Custom,
+}
+
+impl Default for GatewayListenMode {
+    fn default() -> Self {
+        Self::Localhost
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(default)]
+pub struct WslTargetCli {
+    pub claude: bool,
+    pub codex: bool,
+    pub gemini: bool,
+}
+
+impl Default for WslTargetCli {
+    fn default() -> Self {
+        Self {
+            claude: true,
+            codex: true,
+            gemini: true,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AppSettings {
     pub schema_version: u32,
     pub preferred_port: u16,
+    // Gateway listen mode (aligned with code-switch-r): localhost / wsl_auto / lan / custom.
+    pub gateway_listen_mode: GatewayListenMode,
+    // Custom listen address input (host or host:port).
+    pub gateway_custom_listen_address: String,
+    // WSL auto-config enable switch and target CLI selection.
+    pub wsl_auto_config: bool,
+    pub wsl_target_cli: WslTargetCli,
     pub auto_start: bool,
     pub tray_enabled: bool,
     pub log_retention_days: u32,
@@ -81,6 +122,10 @@ impl Default for AppSettings {
         Self {
             schema_version: SCHEMA_VERSION,
             preferred_port: DEFAULT_GATEWAY_PORT,
+            gateway_listen_mode: GatewayListenMode::Localhost,
+            gateway_custom_listen_address: String::new(),
+            wsl_auto_config: false,
+            wsl_target_cli: WslTargetCli::default(),
             auto_start: false,
             tray_enabled: true,
             log_retention_days: DEFAULT_LOG_RETENTION_DAYS,
@@ -360,6 +405,33 @@ fn migrate_add_codex_session_id_completion(
     changed
 }
 
+fn migrate_add_gateway_network_settings(
+    settings: &mut AppSettings,
+    schema_version_present: bool,
+) -> bool {
+    // v12: Add gateway listen mode + WSL network settings (default disabled / all CLI enabled).
+    if schema_version_present
+        && settings.schema_version >= SCHEMA_VERSION_ADD_GATEWAY_NETWORK_SETTINGS
+    {
+        return false;
+    }
+
+    let mut changed = false;
+
+    // If schema_version is missing, force a write to persist schema_version so we don't keep "migrating"
+    // on every startup.
+    if !schema_version_present {
+        changed = true;
+    }
+
+    if settings.schema_version != SCHEMA_VERSION_ADD_GATEWAY_NETWORK_SETTINGS {
+        settings.schema_version = SCHEMA_VERSION_ADD_GATEWAY_NETWORK_SETTINGS;
+        changed = true;
+    }
+
+    changed
+}
+
 fn settings_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     Ok(app_paths::app_data_dir(app)?.join("settings.json"))
 }
@@ -412,6 +484,7 @@ pub fn read(app: &tauri::AppHandle) -> Result<AppSettings, String> {
                 migrate_add_provider_base_url_ping_cache_ttl(&mut settings, schema_version_present);
             repaired |=
                 migrate_add_codex_session_id_completion(&mut settings, schema_version_present);
+            repaired |= migrate_add_gateway_network_settings(&mut settings, schema_version_present);
             repaired |= sanitize_failover_settings(&mut settings);
             repaired |= sanitize_circuit_breaker_settings(&mut settings);
             repaired |= sanitize_provider_cooldown_seconds(&mut settings);
@@ -449,6 +522,7 @@ pub fn read(app: &tauri::AppHandle) -> Result<AppSettings, String> {
     repaired |= migrate_add_circuit_breaker_notice(&mut settings, schema_version_present);
     repaired |= migrate_add_provider_base_url_ping_cache_ttl(&mut settings, schema_version_present);
     repaired |= migrate_add_codex_session_id_completion(&mut settings, schema_version_present);
+    repaired |= migrate_add_gateway_network_settings(&mut settings, schema_version_present);
     repaired |= sanitize_failover_settings(&mut settings);
     repaired |= sanitize_circuit_breaker_settings(&mut settings);
     repaired |= sanitize_provider_cooldown_seconds(&mut settings);

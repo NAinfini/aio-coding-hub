@@ -172,7 +172,7 @@ function SortableProviderCard({
             <Button
               onClick={() => onValidateModel(provider)}
               variant="secondary"
-              className="!p-2"
+              size="icon"
               title="模型验证"
             >
               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -186,12 +186,7 @@ function SortableProviderCard({
             </Button>
           ) : null}
 
-          <Button
-            onClick={() => onEdit(provider)}
-            variant="secondary"
-            className="!p-2"
-            title="编辑"
-          >
+          <Button onClick={() => onEdit(provider)} variant="secondary" size="icon" title="编辑">
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 strokeLinecap="round"
@@ -205,7 +200,8 @@ function SortableProviderCard({
           <Button
             onClick={() => onDelete(provider)}
             variant="secondary"
-            className="!p-2 hover:!bg-rose-50 hover:!text-rose-600"
+            size="icon"
+            className="hover:!bg-rose-50 hover:!text-rose-600"
             title="删除"
           >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

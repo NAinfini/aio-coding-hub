@@ -79,6 +79,43 @@ type KeywordEvidenceLine = {
   matchedKeywords: string[];
 };
 
+function TextEvidenceSection({
+  title,
+  lines,
+  keyPrefix,
+}: {
+  title: string;
+  lines: KeywordEvidenceLine[];
+  keyPrefix: string;
+}) {
+  if (lines.length === 0) return null;
+
+  return (
+    <div className="space-y-1.5">
+      <div className="text-[11px] font-semibold text-amber-900">{title}</div>
+      <div className="space-y-1">
+        {lines.map((line) => (
+          <div
+            key={`${keyPrefix}_${line.lineNumber}`}
+            className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1"
+          >
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <span className="font-mono text-[11px] text-amber-950">
+                L{line.lineNumber}: {line.lineText || "—"}
+              </span>
+              {line.matchedKeywords.length > 0 ? (
+                <span className="font-mono text-[10px] text-amber-700">
+                  hit: {line.matchedKeywords.join(", ")}
+                </span>
+              ) : null}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function collectKeywordEvidenceLines(
   text: string,
   keywords: string[],
@@ -465,59 +502,16 @@ export function ClaudeModelValidationResultPanel({ templateKey, result }: Props)
                     </div>
                   ) : null}
 
-                  {reverseProxyEvidence.output.length > 0 ? (
-                    <div className="space-y-1.5">
-                      <div className="text-[11px] font-semibold text-amber-900">
-                        output（输出预览）
-                      </div>
-                      <div className="space-y-1">
-                        {reverseProxyEvidence.output.map((line) => (
-                          <div
-                            key={`output_${line.lineNumber}`}
-                            className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1"
-                          >
-                            <div className="flex flex-wrap items-baseline justify-between gap-2">
-                              <span className="font-mono text-[11px] text-amber-950">
-                                L{line.lineNumber}: {line.lineText || "—"}
-                              </span>
-                              {line.matchedKeywords.length > 0 ? (
-                                <span className="font-mono text-[10px] text-amber-700">
-                                  hit: {line.matchedKeywords.join(", ")}
-                                </span>
-                              ) : null}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {reverseProxyEvidence.sse.length > 0 ? (
-                    <div className="space-y-1.5">
-                      <div className="text-[11px] font-semibold text-amber-900">
-                        sse（流式原文）
-                      </div>
-                      <div className="space-y-1">
-                        {reverseProxyEvidence.sse.map((line) => (
-                          <div
-                            key={`sse_${line.lineNumber}`}
-                            className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1"
-                          >
-                            <div className="flex flex-wrap items-baseline justify-between gap-2">
-                              <span className="font-mono text-[11px] text-amber-950">
-                                L{line.lineNumber}: {line.lineText || "—"}
-                              </span>
-                              {line.matchedKeywords.length > 0 ? (
-                                <span className="font-mono text-[10px] text-amber-700">
-                                  hit: {line.matchedKeywords.join(", ")}
-                                </span>
-                              ) : null}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
+                  <TextEvidenceSection
+                    title="output（输出预览）"
+                    keyPrefix="output"
+                    lines={reverseProxyEvidence.output}
+                  />
+                  <TextEvidenceSection
+                    title="sse（流式原文）"
+                    keyPrefix="sse"
+                    lines={reverseProxyEvidence.sse}
+                  />
 
                   {reverseProxyEvidenceEmpty ? (
                     <div className="text-xs text-amber-800">

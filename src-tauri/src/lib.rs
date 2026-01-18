@@ -573,6 +573,8 @@ async fn provider_upsert(
     enabled: bool,
     cost_multiplier: f64,
     priority: Option<i64>,
+    supported_models: Option<std::collections::HashMap<String, bool>>,
+    model_mapping: Option<std::collections::HashMap<String, String>>,
 ) -> Result<providers::ProviderSummary, String> {
     ensure_db_ready(app.clone(), db_state.inner()).await?;
     blocking::run("provider_upsert", move || {
@@ -587,6 +589,8 @@ async fn provider_upsert(
             enabled,
             cost_multiplier,
             priority,
+            supported_models,
+            model_mapping,
         )
     })
     .await
@@ -1722,6 +1726,20 @@ pub fn run() {
 
                 if let Err(err) = resident::setup_tray(app.handle()) {
                     eprintln!("tray init error: {err}");
+                }
+            }
+
+            #[cfg(debug_assertions)]
+            {
+                let identifier = &app.config().identifier;
+                let product_name = app.config().product_name.as_deref().unwrap_or("<missing>");
+                eprintln!("[dev] tauri identifier: {identifier}");
+                eprintln!("[dev] productName: {product_name}");
+                if let Ok(dotdir_name) = std::env::var("AIO_CODING_HUB_DOTDIR_NAME") {
+                    eprintln!("[dev] AIO_CODING_HUB_DOTDIR_NAME: {}", dotdir_name);
+                }
+                if let Ok(dir) = app_paths::app_data_dir(app.handle()) {
+                    eprintln!("[dev] app data dir: {}", dir.display());
                 }
             }
 

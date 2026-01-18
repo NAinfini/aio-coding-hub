@@ -191,6 +191,21 @@ fn url_decode_component(input: &str) -> String {
     String::from_utf8_lossy(&out).to_string()
 }
 
+fn url_encode_component(input: &str) -> String {
+    let mut out = String::with_capacity(input.len().saturating_mul(3));
+    for b in input.as_bytes() {
+        let c = *b as char;
+        let is_unreserved = matches!(c, 'A'..='Z' | 'a'..='z' | '0'..='9' | '-' | '.' | '_' | '~');
+        if is_unreserved {
+            out.push(c);
+            continue;
+        }
+        out.push('%');
+        out.push_str(&format!("{:02X}", b));
+    }
+    out
+}
+
 fn sanitize_model(model: &str) -> Option<String> {
     let model = model.trim();
     if model.is_empty() {
@@ -230,22 +245,47 @@ fn extract_model_from_path(path: &str) -> Option<String> {
     sanitize_model(&rest[..end])
 }
 
-pub(super) fn infer_requested_model_from_json(
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum RequestedModelLocation {
+    BodyJson,
+    Query,
+    Path,
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct RequestedModelInfo {
+    pub(super) model: Option<String>,
+    pub(super) location: Option<RequestedModelLocation>,
+}
+
+pub(super) fn infer_requested_model_info(
     forwarded_path: &str,
     query: Option<&str>,
     body_json: Option<&serde_json::Value>,
-) -> Option<String> {
+) -> RequestedModelInfo {
     if let Some(value) = body_json {
         if let Some(model) = value.get("model") {
             if let Some(s) = model.as_str() {
-                return sanitize_model(s);
+                let model = sanitize_model(s);
+                return RequestedModelInfo {
+                    location: model.as_ref().map(|_| RequestedModelLocation::BodyJson),
+                    model,
+                };
             }
             if let Some(obj) = model.as_object() {
                 if let Some(s) = obj.get("name").and_then(|v| v.as_str()) {
-                    return sanitize_model(s);
+                    let model = sanitize_model(s);
+                    return RequestedModelInfo {
+                        location: model.as_ref().map(|_| RequestedModelLocation::BodyJson),
+                        model,
+                    };
                 }
                 if let Some(s) = obj.get("id").and_then(|v| v.as_str()) {
-                    return sanitize_model(s);
+                    let model = sanitize_model(s);
+                    return RequestedModelInfo {
+                        location: model.as_ref().map(|_| RequestedModelLocation::BodyJson),
+                        model,
+                    };
                 }
             }
         }
@@ -253,11 +293,22 @@ pub(super) fn infer_requested_model_from_json(
 
     if let Some(q) = query {
         if let Some(model) = extract_model_from_query(q) {
-            return Some(model);
+            return RequestedModelInfo {
+                model: Some(model),
+                location: Some(RequestedModelLocation::Query),
+            };
         }
     }
 
-    extract_model_from_path(forwarded_path)
+    let model = extract_model_from_path(forwarded_path);
+    RequestedModelInfo {
+        location: model.as_ref().map(|_| RequestedModelLocation::Path),
+        model,
+    }
+}
+
+pub(super) fn encode_url_component(input: &str) -> String {
+    url_encode_component(input)
 }
 
 pub(super) fn new_trace_id() -> String {

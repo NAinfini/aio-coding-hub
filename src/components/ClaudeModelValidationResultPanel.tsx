@@ -391,14 +391,22 @@ export function ClaudeModelValidationResultPanel({ templateKey, result }: Props)
       return { headerName, headerValue: truncateText(headerValue, maxLineLength), matchedKeywords };
     });
 
-    const output = collectKeywordEvidenceLines(outputPreview, reverseProxy.sources.outputPreview.hits, {
-      maxLines: maxLinesPerSource,
-      maxLineLength,
-    });
-    const sse = collectKeywordEvidenceLines(result.raw_excerpt ?? "", reverseProxy.sources.rawExcerpt.hits, {
-      maxLines: maxLinesPerSource,
-      maxLineLength,
-    });
+    const output = collectKeywordEvidenceLines(
+      outputPreview,
+      reverseProxy.sources.outputPreview.hits,
+      {
+        maxLines: maxLinesPerSource,
+        maxLineLength,
+      }
+    );
+    const sse = collectKeywordEvidenceLines(
+      result.raw_excerpt ?? "",
+      reverseProxy.sources.rawExcerpt.hits,
+      {
+        maxLines: maxLinesPerSource,
+        maxLineLength,
+      }
+    );
 
     return { headers, output, sse };
   })();
@@ -409,7 +417,9 @@ export function ClaudeModelValidationResultPanel({ templateKey, result }: Props)
     sse: reverseProxyEvidence.sse.length,
   };
   const reverseProxyEvidenceEmpty =
-    reverseProxyEvidenceCounts.headers + reverseProxyEvidenceCounts.output + reverseProxyEvidenceCounts.sse ===
+    reverseProxyEvidenceCounts.headers +
+      reverseProxyEvidenceCounts.output +
+      reverseProxyEvidenceCounts.sse ===
     0;
 
   return (

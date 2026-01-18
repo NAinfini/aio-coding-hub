@@ -8,6 +8,8 @@ export type ProviderSummary = {
   name: string;
   base_urls: string[];
   base_url_mode: "order" | "ping";
+  supported_models: Record<string, boolean>;
+  model_mapping: Record<string, string>;
   enabled: boolean;
   priority: number;
   cost_multiplier: number;
@@ -29,6 +31,8 @@ export async function providerUpsert(input: {
   enabled: boolean;
   cost_multiplier: number;
   priority?: number | null;
+  supported_models?: Record<string, boolean> | null;
+  model_mapping?: Record<string, string> | null;
 }) {
   return invokeTauriOrNull<ProviderSummary>("provider_upsert", {
     providerId: input.provider_id ?? null,
@@ -40,6 +44,8 @@ export async function providerUpsert(input: {
     enabled: input.enabled,
     costMultiplier: input.cost_multiplier,
     priority: input.priority ?? null,
+    supportedModels: input.supported_models ?? null,
+    modelMapping: input.model_mapping ?? null,
   });
 }
 

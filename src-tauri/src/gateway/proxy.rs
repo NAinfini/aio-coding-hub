@@ -29,9 +29,9 @@ use super::streams::{
 use super::thinking_signature_rectifier;
 use super::util::{
     body_for_introspection, build_target_url, compute_all_providers_unavailable_fingerprint,
-    compute_request_fingerprint, extract_idempotency_key_hash, infer_requested_model_from_json,
-    inject_provider_auth, new_trace_id, now_unix_millis, now_unix_seconds, strip_hop_headers,
-    MAX_REQUEST_BODY_BYTES,
+    compute_request_fingerprint, encode_url_component, extract_idempotency_key_hash,
+    infer_requested_model_info, inject_provider_auth, new_trace_id, now_unix_millis,
+    now_unix_seconds, strip_hop_headers, RequestedModelLocation, MAX_REQUEST_BODY_BYTES,
 };
 use super::warmup;
 
@@ -850,6 +850,85 @@ fn build_response(status: StatusCode, headers: &HeaderMap, trace_id: &str, body:
     }
 }
 
+fn replace_model_in_query(query: &str, model: &str) -> String {
+    let encoded = encode_url_component(model);
+    let mut changed = false;
+    let mut out: Vec<String> = Vec::new();
+
+    for part in query.split('&') {
+        let Some((key, value)) = part.split_once('=') else {
+            out.push(part.to_string());
+            continue;
+        };
+        if key == "model" {
+            out.push(format!("model={encoded}"));
+            changed = changed || value != encoded;
+        } else {
+            out.push(part.to_string());
+        }
+    }
+
+    if !changed {
+        return query.to_string();
+    }
+    out.join("&")
+}
+
+fn replace_model_in_path(path: &str, model: &str) -> Option<String> {
+    let needle = "/models/";
+    let idx = path.find(needle)?;
+    let start = idx + needle.len();
+    let rest = &path[start..];
+    if rest.is_empty() {
+        return None;
+    }
+    let end_rel = rest.find(['/', ':', '?']).unwrap_or(rest.len());
+    let end = start + end_rel;
+
+    let mut out = String::with_capacity(path.len().saturating_add(model.len()));
+    out.push_str(&path[..start]);
+    out.push_str(&encode_url_component(model));
+    out.push_str(&path[end..]);
+    Some(out)
+}
+
+fn replace_model_in_body_json(root: &mut serde_json::Value, model: &str) -> bool {
+    let Some(obj) = root.as_object_mut() else {
+        return false;
+    };
+
+    let replacement = serde_json::Value::String(model.to_string());
+    match obj.get_mut("model") {
+        Some(current) => match current {
+            serde_json::Value::String(_) => {
+                *current = replacement;
+                true
+            }
+            serde_json::Value::Object(m) => {
+                if m.get("name").and_then(|v| v.as_str()).is_some() {
+                    m.insert("name".to_string(), replacement);
+                    return true;
+                }
+                if m.get("id").and_then(|v| v.as_str()).is_some() {
+                    m.insert("id".to_string(), replacement);
+                    return true;
+                }
+
+                *current = replacement;
+                true
+            }
+            _ => {
+                *current = replacement;
+                true
+            }
+        },
+        None => {
+            obj.insert("model".to_string(), replacement);
+            true
+        }
+    }
+}
+
 const PROVIDER_BASE_URL_PING_TIMEOUT_MS: u64 = 2000;
 
 async fn select_provider_base_url_for_request(
@@ -997,11 +1076,13 @@ pub(super) async fn proxy_impl(
         let introspection_body = body_for_introspection(&headers, &body_bytes);
         serde_json::from_slice::<serde_json::Value>(introspection_body.as_ref()).ok()
     };
-    let requested_model = infer_requested_model_from_json(
+    let requested_model_info = infer_requested_model_info(
         &forwarded_path,
         query.as_deref(),
         introspection_json.as_ref(),
     );
+    let requested_model = requested_model_info.model;
+    let requested_model_location = requested_model_info.location;
 
     let settings_cfg = settings::read(&state.app).ok();
     let intercept_warmup = settings_cfg
@@ -1333,6 +1414,100 @@ pub(super) async fn proxy_impl(
         .await;
         return resp;
     }
+
+    if let Some(model) = requested_model.as_deref() {
+        let candidates_before = providers.len();
+        let mut filtered_total = 0usize;
+        let mut filtered_preview: Vec<serde_json::Value> = Vec::new();
+        providers.retain(|p| {
+            let ok = p.is_model_supported(model);
+            if !ok {
+                filtered_total = filtered_total.saturating_add(1);
+                if filtered_preview.len() < 50 {
+                    filtered_preview.push(serde_json::json!({
+                        "id": p.id,
+                        "name": p.name.clone(),
+                    }));
+                }
+            }
+            ok
+        });
+
+        if providers.is_empty() {
+            let message =
+                format!("no provider supports requested_model={model} (candidates={candidates_before}, filtered={filtered_total})");
+
+            let location = requested_model_location.unwrap_or(RequestedModelLocation::BodyJson);
+            if let Ok(mut settings) = special_settings.lock() {
+                settings.push(serde_json::json!({
+                    "type": "model_filter",
+                    "scope": "request",
+                    "hit": true,
+                    "requestedModel": model,
+                    "location": match location {
+                        RequestedModelLocation::BodyJson => "body",
+                        RequestedModelLocation::Query => "query",
+                        RequestedModelLocation::Path => "path",
+                    },
+                    "candidatesCount": candidates_before,
+                    "filteredCount": filtered_total,
+                    "filteredProvidersPreview": filtered_preview,
+                }));
+            }
+            let special_settings_json = response_fixer::special_settings_json(&special_settings);
+            let resp = error_response(
+                StatusCode::NOT_FOUND,
+                trace_id.clone(),
+                "GW_NO_PROVIDER_FOR_MODEL",
+                message,
+                vec![],
+            );
+
+            emit_request_event(
+                &state.app,
+                trace_id.clone(),
+                cli_key.clone(),
+                method_hint.clone(),
+                forwarded_path.clone(),
+                query.clone(),
+                Some(StatusCode::NOT_FOUND.as_u16()),
+                None,
+                Some("GW_NO_PROVIDER_FOR_MODEL"),
+                started.elapsed().as_millis(),
+                None,
+                vec![],
+                None,
+            );
+
+            enqueue_request_log_with_backpressure(
+                &state.app,
+                &state.log_tx,
+                RequestLogEnqueueArgs {
+                    trace_id,
+                    cli_key,
+                    session_id: session_id.clone(),
+                    method: method_hint,
+                    path: forwarded_path,
+                    query,
+                    excluded_from_stats: false,
+                    special_settings_json,
+                    status: Some(StatusCode::NOT_FOUND.as_u16()),
+                    error_code: Some("GW_NO_PROVIDER_FOR_MODEL"),
+                    duration_ms: started.elapsed().as_millis(),
+                    ttfb_ms: None,
+                    attempts_json: "[]".to_string(),
+                    requested_model,
+                    created_at_ms,
+                    created_at,
+                    usage: None,
+                },
+            )
+            .await;
+
+            return resp;
+        }
+    }
+
     let mut session_bound_provider_id: Option<i64> = None;
     if allow_session_reuse {
         if let Some(bound_provider_id) = session_id
@@ -1598,9 +1773,61 @@ pub(super) async fn proxy_impl(
             None => None,
         };
 
+        let mut upstream_forwarded_path = forwarded_path.clone();
+        let mut upstream_query = query.clone();
         let mut upstream_body_bytes = body_bytes.clone();
         let mut strip_request_content_encoding = strip_request_content_encoding_seed;
         let mut thinking_signature_rectifier_retried = false;
+
+        if let Some(requested_model) = requested_model.as_deref() {
+            let effective_model = provider.get_effective_model(requested_model);
+            if effective_model != requested_model {
+                let location = requested_model_location.unwrap_or(RequestedModelLocation::BodyJson);
+                match location {
+                    RequestedModelLocation::BodyJson => {
+                        if let Some(root) = introspection_json.as_ref() {
+                            let mut next = root.clone();
+                            let replaced = replace_model_in_body_json(&mut next, &effective_model);
+                            if replaced {
+                                if let Ok(bytes) = serde_json::to_vec(&next) {
+                                    upstream_body_bytes = Bytes::from(bytes);
+                                    strip_request_content_encoding = true;
+                                }
+                            }
+                        }
+                    }
+                    RequestedModelLocation::Query => {
+                        if let Some(q) = upstream_query.as_deref() {
+                            upstream_query = Some(replace_model_in_query(q, &effective_model));
+                        }
+                    }
+                    RequestedModelLocation::Path => {
+                        if let Some(next_path) =
+                            replace_model_in_path(&upstream_forwarded_path, &effective_model)
+                        {
+                            upstream_forwarded_path = next_path;
+                        }
+                    }
+                }
+
+                if let Ok(mut settings) = special_settings.lock() {
+                    settings.push(serde_json::json!({
+                        "type": "model_mapping",
+                        "scope": "attempt",
+                        "hit": true,
+                        "providerId": provider_id,
+                        "providerName": provider_name_base.clone(),
+                        "requestedModel": requested_model,
+                        "effectiveModel": effective_model,
+                        "location": match location {
+                            RequestedModelLocation::BodyJson => "body",
+                            RequestedModelLocation::Query => "query",
+                            RequestedModelLocation::Path => "path",
+                        },
+                    }));
+                }
+            }
+        }
 
         for retry_index in 1..=max_attempts_per_provider {
             let attempt_index = attempts.len().saturating_add(1) as u32;
@@ -1610,8 +1837,8 @@ pub(super) async fn proxy_impl(
 
             let url = match build_target_url(
                 &provider_base_url_base,
-                &forwarded_path,
-                query.as_deref(),
+                &upstream_forwarded_path,
+                upstream_query.as_deref(),
             ) {
                 Ok(u) => u,
                 Err(err) => {

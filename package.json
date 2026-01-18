@@ -16,7 +16,7 @@
     "postinstall": "node scripts/install-git-hooks.mjs",
     "preview": "vite preview",
     "tauri": "tauri",
-    "tauri:dev": "tauri dev",
+    "tauri:dev": "node scripts/tauri-dev.mjs",
     "tauri:fmt": "cd src-tauri && cargo fmt -- --check",
     "tauri:check": "cd src-tauri && cargo check --locked",
     "tauri:clippy": "cd src-tauri && cargo clippy --all-targets --locked -- -D warnings",

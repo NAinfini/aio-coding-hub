@@ -13,9 +13,12 @@ import { Switch } from "../../ui/Switch";
 import { cn } from "../../utils/cn";
 import { normalizeBaseUrlRows } from "./baseUrl";
 import { BaseUrlEditor } from "./BaseUrlEditor";
+import { ModelMappingEditor } from "./ModelMappingEditor";
+import { ModelWhitelistEditor } from "./ModelWhitelistEditor";
 import type { BaseUrlRow, ProviderBaseUrlMode } from "./types";
 import {
   parseAndValidateCostMultiplier,
+  validateProviderModelConfig,
   validateProviderApiKeyForCreate,
   validateProviderName,
 } from "./validators";
@@ -107,6 +110,8 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
   const [pingingAll, setPingingAll] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [costMultiplier, setCostMultiplier] = useState("1.0");
+  const [supportedModels, setSupportedModels] = useState<Record<string, boolean>>({});
+  const [modelMapping, setModelMapping] = useState<Record<string, string>>({});
   const [enabled, setEnabled] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -128,6 +133,8 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
       setPingingAll(false);
       setApiKey("");
       setCostMultiplier("1.0");
+      setSupportedModels({});
+      setModelMapping({});
       setEnabled(true);
       return;
     }
@@ -139,6 +146,8 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
     setApiKey("");
     setEnabled(props.provider.enabled);
     setCostMultiplier(String(props.provider.cost_multiplier ?? 1.0));
+    setSupportedModels(props.provider.supported_models ?? {});
+    setModelMapping(props.provider.model_mapping ?? {});
   }, [cliKey, editingProviderId, mode, open]);
 
   async function save() {
@@ -170,6 +179,14 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
       return;
     }
 
+    if (cliKey === "claude") {
+      const modelError = validateProviderModelConfig({ supportedModels, modelMapping });
+      if (modelError) {
+        toast(modelError);
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       const saved = await providerUpsert({
@@ -181,6 +198,9 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
         api_key: apiKey,
         enabled,
         cost_multiplier: parsedCost.value,
+        ...(cliKey === "claude"
+          ? { supported_models: supportedModels, model_mapping: modelMapping }
+          : {}),
       });
 
       if (!saved) {
@@ -197,6 +217,8 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
         base_url_mode: saved.base_url_mode,
         enabled: saved.enabled,
         cost_multiplier: saved.cost_multiplier,
+        supported_models: saved.supported_models,
+        model_mapping: saved.model_mapping,
       });
       toast(mode === "create" ? "Provider 已保存" : "Provider 已更新");
 
@@ -254,6 +276,29 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
             disabled={saving}
           />
         </FormField>
+
+        {cliKey === "claude" ? (
+          <>
+            <FormField label="模型白名单 (supportedModels)" hint="支持 *；为空表示支持所有模型">
+              <ModelWhitelistEditor
+                value={supportedModels}
+                onChange={setSupportedModels}
+                disabled={saving}
+              />
+            </FormField>
+
+            <FormField
+              label="模型映射 (modelMapping)"
+              hint="支持 *；当同时配置白名单时会校验目标模型"
+            >
+              <ModelMappingEditor
+                value={modelMapping}
+                onChange={setModelMapping}
+                disabled={saving}
+              />
+            </FormField>
+          </>
+        ) : null}
 
         <div className="grid gap-3 sm:grid-cols-2">
           <FormField label="API Key" hint={mode === "edit" ? "留空保持不变" : "保存后不回显"}>

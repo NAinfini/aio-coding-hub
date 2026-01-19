@@ -1,3 +1,5 @@
+// Usage: Manage installed/local skills. Backend commands: `skills_installed_list`, `skills_local_list`, `skill_set_enabled`, `skill_uninstall`, `skill_import_local`.
+
 import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";

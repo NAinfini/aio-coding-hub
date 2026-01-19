@@ -1,3 +1,5 @@
+// Usage: Manage prompt templates. Backend commands: `prompts_*`, `prompt_*` (incl. default sync via `prompts_default_sync_from_files`).
+
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Pencil, Trash2 } from "lucide-react";

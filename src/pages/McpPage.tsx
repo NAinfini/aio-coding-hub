@@ -1,3 +1,5 @@
+// Usage: Manage MCP servers per CLI. Backend commands: `mcp_servers_list`, `mcp_server_*`, `mcp_parse_json`, `mcp_import_servers`.
+
 import { useEffect, useMemo, useState } from "react";
 import { Terminal, Globe, Edit2, Trash2, Command, Link } from "lucide-react";
 import { toast } from "sonner";

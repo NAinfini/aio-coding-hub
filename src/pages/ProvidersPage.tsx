@@ -1,4 +1,4 @@
-// Usage: Main page for managing providers and sort modes (renders sub-views under `src/pages/providers/*`).
+// Usage: Main page for managing providers and sort modes (renders sub-views under `src/pages/providers/*`). Backend commands: `providers_*`, `sort_modes_*`.
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";

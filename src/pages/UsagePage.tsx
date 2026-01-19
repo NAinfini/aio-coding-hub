@@ -1,3 +1,5 @@
+// Usage: Usage analytics page. Backend commands: `usage_summary_v2`, `usage_leaderboard_v2` (and related `usage_*`).
+
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {

@@ -1,3 +1,5 @@
+// Usage: Diagnostics console and request detail viewer. Backend commands: `request_logs_*` (incl. `request_log_get_by_trace_id`), `request_attempt_logs_by_trace_id`.
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { clearConsoleLogs, useConsoleLogs } from "../services/consoleLog";
 import { requestLogGetByTraceId, type RequestLogDetail } from "../services/requestLogs";

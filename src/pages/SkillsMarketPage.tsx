@@ -1,3 +1,5 @@
+// Usage: Discover and install skills from repos. Backend commands: `skills_discover_available`, `skill_install`, `skill_repos_*`, `skills_installed_list`.
+
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";

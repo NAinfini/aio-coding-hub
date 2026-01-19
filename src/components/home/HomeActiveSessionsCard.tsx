@@ -7,6 +7,7 @@ import type { GatewayActiveSession } from "../../services/gateway";
 import { Card } from "../../ui/Card";
 import { cn } from "../../utils/cn";
 import { formatDurationMs, formatInteger, formatUsd } from "../../utils/formatters";
+import { DollarSign } from "lucide-react";
 
 export type HomeActiveSessionsCardProps = {
   activeSessions: GatewayActiveSession[];
@@ -56,10 +57,10 @@ export function HomeActiveSessionsCard({
             return (
               <div
                 key={`${row.cli_key}:${row.session_id}`}
-                className="rounded-xl border border-slate-200/60 bg-slate-50/50 px-3 py-2 shadow-sm transition-all duration-200 hover:bg-slate-100 hover:border-accent/20"
+                className="flex-1 rounded-xl border border-slate-200/60 bg-slate-50/50 px-3 py-2 shadow-sm transition-all duration-200 hover:bg-slate-100 hover:border-accent/20"
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 text-xs text-slate-700">
                       <span
                         className={cn(
@@ -70,23 +71,26 @@ export function HomeActiveSessionsCard({
                         {cliShortLabel(row.cli_key)}
                       </span>
                       <span className="font-mono text-xs text-slate-400">{row.session_suffix}</span>
-                      <span className="truncate">{providerLabel}</span>
+                      <span className="truncate max-w-[150px]">{providerLabel}</span>
                     </div>
 
-                    <div className="mt-1.5 grid grid-cols-5 gap-x-2 text-[10px] font-mono text-slate-500">
-                      <span>请求</span>
-                      <span>输入</span>
-                      <span>输出</span>
-                      <span>成本</span>
-                      <span>耗时</span>
-                      <span className="tabular-nums">{formatInteger(row.request_count)}</span>
-                      <span className="tabular-nums">{formatInteger(row.total_input_tokens)}</span>
-                      <span className="tabular-nums">{formatInteger(row.total_output_tokens)}</span>
-                      <span className="tabular-nums">{formatUsd(row.total_cost_usd)}</span>
-                      <span className="tabular-nums">
-                        {formatDurationMs(row.total_duration_ms)}
+                    <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] text-slate-500 shadow-sm">
+                      <DollarSign className="h-3 w-3 text-slate-400" />
+                      <span className="font-mono font-medium text-slate-700">
+                        {formatUsd(row.total_cost_usd)}
                       </span>
                     </div>
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-x-4 text-[10px] font-mono text-slate-500">
+                    <span>请求</span>
+                    <span>输入</span>
+                    <span>输出</span>
+                    <span>耗时</span>
+                    <span className="tabular-nums">{formatInteger(row.request_count)}</span>
+                    <span className="tabular-nums">{formatInteger(row.total_input_tokens)}</span>
+                    <span className="tabular-nums">{formatInteger(row.total_output_tokens)}</span>
+                    <span className="tabular-nums">{formatDurationMs(row.total_duration_ms)}</span>
                   </div>
                 </div>
               </div>

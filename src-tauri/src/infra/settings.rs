@@ -6,13 +6,14 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::Manager;
 
-pub const SCHEMA_VERSION: u32 = 12;
+pub const SCHEMA_VERSION: u32 = 13;
 const SCHEMA_VERSION_DISABLE_UPSTREAM_TIMEOUTS: u32 = 7;
 const SCHEMA_VERSION_ADD_GATEWAY_RECTIFIERS: u32 = 8;
 const SCHEMA_VERSION_ADD_CIRCUIT_BREAKER_NOTICE: u32 = 9;
 const SCHEMA_VERSION_ADD_PROVIDER_BASE_URL_PING_CACHE_TTL: u32 = 10;
 const SCHEMA_VERSION_ADD_CODEX_SESSION_ID_COMPLETION: u32 = 11;
 const SCHEMA_VERSION_ADD_GATEWAY_NETWORK_SETTINGS: u32 = 12;
+const SCHEMA_VERSION_ADD_RESPONSE_FIXER_LIMITS: u32 = 13;
 pub const DEFAULT_GATEWAY_PORT: u16 = 37123;
 pub const MAX_GATEWAY_PORT: u16 = 37199;
 const DEFAULT_LOG_RETENTION_DAYS: u32 = 30;
@@ -27,12 +28,14 @@ const DEFAULT_CIRCUIT_BREAKER_FAILURE_THRESHOLD: u32 = 5;
 const DEFAULT_CIRCUIT_BREAKER_OPEN_DURATION_MINUTES: u32 = 30;
 const DEFAULT_ENABLE_CIRCUIT_BREAKER_NOTICE: bool = false;
 const DEFAULT_INTERCEPT_ANTHROPIC_WARMUP_REQUESTS: bool = false;
-const DEFAULT_ENABLE_THINKING_SIGNATURE_RECTIFIER: bool = false;
-const DEFAULT_ENABLE_CODEX_SESSION_ID_COMPLETION: bool = false;
-const DEFAULT_ENABLE_RESPONSE_FIXER: bool = false;
+const DEFAULT_ENABLE_THINKING_SIGNATURE_RECTIFIER: bool = true;
+const DEFAULT_ENABLE_CODEX_SESSION_ID_COMPLETION: bool = true;
+const DEFAULT_ENABLE_RESPONSE_FIXER: bool = true;
 const DEFAULT_RESPONSE_FIXER_FIX_ENCODING: bool = true;
 const DEFAULT_RESPONSE_FIXER_FIX_SSE_FORMAT: bool = true;
 const DEFAULT_RESPONSE_FIXER_FIX_TRUNCATED_JSON: bool = true;
+const DEFAULT_RESPONSE_FIXER_MAX_JSON_DEPTH: u32 = 200;
+const DEFAULT_RESPONSE_FIXER_MAX_FIX_SIZE: u32 = 1024 * 1024;
 const MAX_PROVIDER_COOLDOWN_SECONDS: u32 = 60 * 60;
 const MAX_PROVIDER_BASE_URL_PING_CACHE_TTL_SECONDS: u32 = 60 * 60;
 const MAX_UPSTREAM_FIRST_BYTE_TIMEOUT_SECONDS: u32 = 60 * 60;
@@ -43,6 +46,8 @@ const MAX_FAILOVER_MAX_PROVIDERS_TO_TRY: u32 = 20;
 const MAX_FAILOVER_TOTAL_ATTEMPTS: u32 = 100;
 const MAX_CIRCUIT_BREAKER_FAILURE_THRESHOLD: u32 = 50;
 const MAX_CIRCUIT_BREAKER_OPEN_DURATION_MINUTES: u32 = 24 * 60;
+const MAX_RESPONSE_FIXER_MAX_JSON_DEPTH: u32 = 2000;
+const MAX_RESPONSE_FIXER_MAX_FIX_SIZE: u32 = 16 * 1024 * 1024;
 const LEGACY_IDENTIFIER: &str = "io.aio.gateway";
 const DEFAULT_UPDATE_RELEASES_URL: &str = "https://github.com/dyndynjyxa/aio-coding-hub/releases";
 
@@ -108,15 +113,18 @@ pub struct AppSettings {
     pub circuit_breaker_open_duration_minutes: u32,
     // Circuit breaker notice toggle (default disabled).
     pub enable_circuit_breaker_notice: bool,
-    // CCH v0.4.1-aligned gateway feature toggles (default disabled).
+    // CCH-aligned gateway feature toggles (warmup default disabled; others default enabled).
     pub intercept_anthropic_warmup_requests: bool,
     pub enable_thinking_signature_rectifier: bool,
-    // Codex Session ID completion (default disabled).
+    // Codex Session ID completion (default enabled).
     pub enable_codex_session_id_completion: bool,
+    // Response fixer (default enabled).
     pub enable_response_fixer: bool,
     pub response_fixer_fix_encoding: bool,
     pub response_fixer_fix_sse_format: bool,
     pub response_fixer_fix_truncated_json: bool,
+    pub response_fixer_max_json_depth: u32,
+    pub response_fixer_max_fix_size: u32,
 }
 
 impl Default for AppSettings {
@@ -151,6 +159,8 @@ impl Default for AppSettings {
             response_fixer_fix_encoding: DEFAULT_RESPONSE_FIXER_FIX_ENCODING,
             response_fixer_fix_sse_format: DEFAULT_RESPONSE_FIXER_FIX_SSE_FORMAT,
             response_fixer_fix_truncated_json: DEFAULT_RESPONSE_FIXER_FIX_TRUNCATED_JSON,
+            response_fixer_max_json_depth: DEFAULT_RESPONSE_FIXER_MAX_JSON_DEPTH,
+            response_fixer_max_fix_size: DEFAULT_RESPONSE_FIXER_MAX_FIX_SIZE,
         }
     }
 }
@@ -256,6 +266,30 @@ fn sanitize_upstream_timeouts(settings: &mut AppSettings) -> bool {
     {
         settings.upstream_request_timeout_non_streaming_seconds =
             MAX_UPSTREAM_REQUEST_TIMEOUT_NON_STREAMING_SECONDS;
+        changed = true;
+    }
+
+    changed
+}
+
+fn sanitize_response_fixer_limits(settings: &mut AppSettings) -> bool {
+    let mut changed = false;
+
+    if settings.response_fixer_max_json_depth == 0 {
+        settings.response_fixer_max_json_depth = DEFAULT_RESPONSE_FIXER_MAX_JSON_DEPTH;
+        changed = true;
+    }
+    if settings.response_fixer_max_json_depth > MAX_RESPONSE_FIXER_MAX_JSON_DEPTH {
+        settings.response_fixer_max_json_depth = MAX_RESPONSE_FIXER_MAX_JSON_DEPTH;
+        changed = true;
+    }
+
+    if settings.response_fixer_max_fix_size == 0 {
+        settings.response_fixer_max_fix_size = DEFAULT_RESPONSE_FIXER_MAX_FIX_SIZE;
+        changed = true;
+    }
+    if settings.response_fixer_max_fix_size > MAX_RESPONSE_FIXER_MAX_FIX_SIZE {
+        settings.response_fixer_max_fix_size = MAX_RESPONSE_FIXER_MAX_FIX_SIZE;
         changed = true;
     }
 
@@ -434,6 +468,32 @@ fn migrate_add_gateway_network_settings(
     changed
 }
 
+fn migrate_add_response_fixer_limits(
+    settings: &mut AppSettings,
+    schema_version_present: bool,
+) -> bool {
+    // v13: Add response fixer config limits (max_json_depth / max_fix_size).
+    if schema_version_present && settings.schema_version >= SCHEMA_VERSION_ADD_RESPONSE_FIXER_LIMITS
+    {
+        return false;
+    }
+
+    let mut changed = false;
+
+    // If schema_version is missing, force a write to persist schema_version so we don't keep "migrating"
+    // on every startup.
+    if !schema_version_present {
+        changed = true;
+    }
+
+    if settings.schema_version != SCHEMA_VERSION_ADD_RESPONSE_FIXER_LIMITS {
+        settings.schema_version = SCHEMA_VERSION_ADD_RESPONSE_FIXER_LIMITS;
+        changed = true;
+    }
+
+    changed
+}
+
 fn settings_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     Ok(app_paths::app_data_dir(app)?.join("settings.json"))
 }
@@ -487,11 +547,13 @@ pub fn read(app: &tauri::AppHandle) -> Result<AppSettings, String> {
             repaired |=
                 migrate_add_codex_session_id_completion(&mut settings, schema_version_present);
             repaired |= migrate_add_gateway_network_settings(&mut settings, schema_version_present);
+            repaired |= migrate_add_response_fixer_limits(&mut settings, schema_version_present);
             repaired |= sanitize_failover_settings(&mut settings);
             repaired |= sanitize_circuit_breaker_settings(&mut settings);
             repaired |= sanitize_provider_cooldown_seconds(&mut settings);
             repaired |= sanitize_provider_base_url_ping_cache_ttl_seconds(&mut settings);
             repaired |= sanitize_upstream_timeouts(&mut settings);
+            repaired |= sanitize_response_fixer_limits(&mut settings);
             if repaired {
                 // best-effort: persist sanitized defaults
             }
@@ -525,11 +587,13 @@ pub fn read(app: &tauri::AppHandle) -> Result<AppSettings, String> {
     repaired |= migrate_add_provider_base_url_ping_cache_ttl(&mut settings, schema_version_present);
     repaired |= migrate_add_codex_session_id_completion(&mut settings, schema_version_present);
     repaired |= migrate_add_gateway_network_settings(&mut settings, schema_version_present);
+    repaired |= migrate_add_response_fixer_limits(&mut settings, schema_version_present);
     repaired |= sanitize_failover_settings(&mut settings);
     repaired |= sanitize_circuit_breaker_settings(&mut settings);
     repaired |= sanitize_provider_cooldown_seconds(&mut settings);
     repaired |= sanitize_provider_base_url_ping_cache_ttl_seconds(&mut settings);
     repaired |= sanitize_upstream_timeouts(&mut settings);
+    repaired |= sanitize_response_fixer_limits(&mut settings);
     if repaired {
         // Best-effort: persist repaired values while keeping read semantics.
         let _ = write(app, &settings);
@@ -590,6 +654,22 @@ pub fn write(app: &tauri::AppHandle, settings: &AppSettings) -> Result<AppSettin
     {
         return Err(format!(
             "upstream_request_timeout_non_streaming_seconds must be <= {MAX_UPSTREAM_REQUEST_TIMEOUT_NON_STREAMING_SECONDS}"
+        ));
+    }
+    if settings.response_fixer_max_json_depth == 0 {
+        return Err("response_fixer_max_json_depth must be >= 1".to_string());
+    }
+    if settings.response_fixer_max_json_depth > MAX_RESPONSE_FIXER_MAX_JSON_DEPTH {
+        return Err(format!(
+            "response_fixer_max_json_depth must be <= {MAX_RESPONSE_FIXER_MAX_JSON_DEPTH}"
+        ));
+    }
+    if settings.response_fixer_max_fix_size == 0 {
+        return Err("response_fixer_max_fix_size must be >= 1".to_string());
+    }
+    if settings.response_fixer_max_fix_size > MAX_RESPONSE_FIXER_MAX_FIX_SIZE {
+        return Err(format!(
+            "response_fixer_max_fix_size must be <= {MAX_RESPONSE_FIXER_MAX_FIX_SIZE}"
         ));
     }
     if settings.failover_max_attempts_per_provider == 0 {

@@ -36,6 +36,8 @@ export type AppSettings = {
   response_fixer_fix_encoding: boolean;
   response_fixer_fix_sse_format: boolean;
   response_fixer_fix_truncated_json: boolean;
+  response_fixer_max_json_depth: number;
+  response_fixer_max_fix_size: number;
 };
 
 export async function settingsGet() {

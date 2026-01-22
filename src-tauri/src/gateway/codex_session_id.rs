@@ -25,6 +25,7 @@ pub(super) struct CodexSessionIdCache {
 #[derive(Debug, Clone)]
 pub(super) struct CodexSessionCompletionResult {
     pub applied: bool,
+    pub session_id: String,
     pub source: &'static str,
     pub action: &'static str,
     pub changed_headers: bool,
@@ -255,6 +256,23 @@ pub(super) fn complete_codex_session_identifiers(
         .and_then(|v| v.get("prompt_cache_key"))
         .and_then(|v| v.as_str())
         .and_then(|v| normalize_codex_session_id(Some(v)));
+    let body_metadata_session_id = request_body
+        .as_deref()
+        .and_then(|v| v.get("metadata"))
+        .and_then(|v| v.as_object())
+        .and_then(|meta| meta.get("session_id"))
+        .and_then(|v| v.as_str())
+        .and_then(|v| normalize_codex_session_id(Some(v)));
+    let body_previous_response_id = request_body
+        .as_deref()
+        .and_then(|v| v.get("previous_response_id"))
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .and_then(|v| {
+            let candidate = format!("codex_prev_{v}");
+            normalize_codex_session_id(Some(&candidate))
+        });
 
     let missing_header = header_session_id.is_none() && header_x_session_id.is_none();
     let missing_body = body_prompt_cache_key.is_none();
@@ -271,6 +289,16 @@ pub(super) fn complete_codex_session_identifiers(
             body_prompt_cache_key
                 .clone()
                 .map(|v| (v, "body_prompt_cache_key"))
+        })
+        .or_else(|| {
+            body_metadata_session_id
+                .clone()
+                .map(|v| (v, "body_metadata_session_id"))
+        })
+        .or_else(|| {
+            body_previous_response_id
+                .clone()
+                .map(|v| (v, "body_previous_response_id"))
         });
 
     let (mut session_id, mut source, mut action) = if let Some((value, src)) = existing.clone() {
@@ -290,6 +318,7 @@ pub(super) fn complete_codex_session_identifiers(
     if header_session_id.is_some() && body_prompt_cache_key.is_some() && existing.is_some() {
         return CodexSessionCompletionResult {
             applied: false,
+            session_id,
             source,
             action,
             changed_headers: false,
@@ -350,9 +379,121 @@ pub(super) fn complete_codex_session_identifiers(
 
     CodexSessionCompletionResult {
         applied,
+        session_id,
         source,
         action,
         changed_headers,
         changed_body,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn prefers_prompt_cache_key_over_metadata_session_id() {
+        let mut cache = CodexSessionIdCache::default();
+        let now_unix = 123;
+        let now_unix_ms = 123_000;
+        let mut headers = HeaderMap::new();
+        let mut body = serde_json::json!({
+            "prompt_cache_key": "01234567-89ab-cdef-0123-456789abcdef",
+            "metadata": { "session_id": "11111111-2222-3333-4444-555555555555" }
+        });
+
+        let result = complete_codex_session_identifiers(
+            &mut cache,
+            now_unix,
+            now_unix_ms,
+            &mut headers,
+            Some(&mut body),
+        );
+
+        assert!(result.applied);
+        assert_eq!(result.source, "body_prompt_cache_key");
+        assert_eq!(result.action, "completed_missing_fields");
+        assert_eq!(
+            result.session_id,
+            "01234567-89ab-cdef-0123-456789abcdef".to_string()
+        );
+        assert_eq!(
+            headers.get("session_id").unwrap().to_str().unwrap(),
+            result.session_id
+        );
+        assert_eq!(
+            headers.get("x-session-id").unwrap().to_str().unwrap(),
+            result.session_id
+        );
+        assert_eq!(
+            body.get("prompt_cache_key").unwrap().as_str().unwrap(),
+            result.session_id
+        );
+    }
+
+    #[test]
+    fn uses_metadata_session_id_when_prompt_cache_key_missing() {
+        let mut cache = CodexSessionIdCache::default();
+        let now_unix = 123;
+        let now_unix_ms = 123_000;
+        let mut headers = HeaderMap::new();
+        let mut body = serde_json::json!({
+            "metadata": { "session_id": "01234567-89ab-cdef-0123-456789abcdef" }
+        });
+
+        let result = complete_codex_session_identifiers(
+            &mut cache,
+            now_unix,
+            now_unix_ms,
+            &mut headers,
+            Some(&mut body),
+        );
+
+        assert!(result.applied);
+        assert_eq!(result.source, "body_metadata_session_id");
+        assert_eq!(result.action, "completed_missing_fields");
+        assert_eq!(
+            headers.get("session_id").unwrap().to_str().unwrap(),
+            result.session_id
+        );
+        assert_eq!(
+            body.get("prompt_cache_key").unwrap().as_str().unwrap(),
+            result.session_id
+        );
+    }
+
+    #[test]
+    fn uses_previous_response_id_when_other_sources_missing() {
+        let mut cache = CodexSessionIdCache::default();
+        let now_unix = 123;
+        let now_unix_ms = 123_000;
+        let mut headers = HeaderMap::new();
+        let mut body = serde_json::json!({
+            "previous_response_id": "resp_01234567-89ab-cdef-0123-456789abcdef"
+        });
+
+        let result = complete_codex_session_identifiers(
+            &mut cache,
+            now_unix,
+            now_unix_ms,
+            &mut headers,
+            Some(&mut body),
+        );
+
+        assert!(result.applied);
+        assert_eq!(result.source, "body_previous_response_id");
+        assert_eq!(result.action, "completed_missing_fields");
+        assert_eq!(
+            result.session_id,
+            "codex_prev_resp_01234567-89ab-cdef-0123-456789abcdef".to_string()
+        );
+        assert_eq!(
+            headers.get("session_id").unwrap().to_str().unwrap(),
+            result.session_id
+        );
+        assert_eq!(
+            body.get("prompt_cache_key").unwrap().as_str().unwrap(),
+            result.session_id
+        );
     }
 }

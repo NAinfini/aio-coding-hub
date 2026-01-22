@@ -865,11 +865,11 @@ pub(super) async fn proxy_impl(
     let enable_thinking_signature_rectifier = settings_cfg
         .as_ref()
         .map(|cfg| cfg.enable_thinking_signature_rectifier)
-        .unwrap_or(false);
+        .unwrap_or(true);
     let enable_response_fixer = settings_cfg
         .as_ref()
         .map(|cfg| cfg.enable_response_fixer)
-        .unwrap_or(false);
+        .unwrap_or(true);
     let response_fixer_fix_encoding = settings_cfg
         .as_ref()
         .map(|cfg| cfg.response_fixer_fix_encoding)
@@ -882,6 +882,14 @@ pub(super) async fn proxy_impl(
         .as_ref()
         .map(|cfg| cfg.response_fixer_fix_truncated_json)
         .unwrap_or(true);
+    let response_fixer_max_json_depth = settings_cfg
+        .as_ref()
+        .map(|cfg| cfg.response_fixer_max_json_depth)
+        .unwrap_or(response_fixer::DEFAULT_MAX_JSON_DEPTH as u32);
+    let response_fixer_max_fix_size = settings_cfg
+        .as_ref()
+        .map(|cfg| cfg.response_fixer_max_fix_size)
+        .unwrap_or(response_fixer::DEFAULT_MAX_FIX_SIZE as u32);
     let provider_base_url_ping_cache_ttl_seconds = settings_cfg
         .as_ref()
         .map(|cfg| cfg.provider_base_url_ping_cache_ttl_seconds)
@@ -889,7 +897,22 @@ pub(super) async fn proxy_impl(
     let enable_codex_session_id_completion = settings_cfg
         .as_ref()
         .map(|cfg| cfg.enable_codex_session_id_completion)
-        .unwrap_or(false);
+        .unwrap_or(true);
+
+    let response_fixer_stream_config = response_fixer::ResponseFixerConfig {
+        fix_encoding: response_fixer_fix_encoding,
+        fix_sse_format: response_fixer_fix_sse_format,
+        fix_truncated_json: response_fixer_fix_truncated_json,
+        max_json_depth: response_fixer_max_json_depth as usize,
+        max_fix_size: response_fixer_max_fix_size as usize,
+    };
+    let response_fixer_non_stream_config = response_fixer::ResponseFixerConfig {
+        fix_encoding: response_fixer_fix_encoding,
+        fix_sse_format: false,
+        fix_truncated_json: response_fixer_fix_truncated_json,
+        max_json_depth: response_fixer_max_json_depth as usize,
+        max_fix_size: response_fixer_max_fix_size as usize,
+    };
 
     let is_warmup_request = if cli_key == "claude" && intercept_warmup {
         let introspection_body = body_for_introspection(&headers, &body_bytes);
@@ -1026,6 +1049,7 @@ pub(super) async fn proxy_impl(
                 "type": "codex_session_id_completion",
                 "scope": "request",
                 "hit": result.applied,
+                "sessionId": result.session_id,
                 "action": result.action,
                 "source": result.source,
                 "changedHeader": result.changed_headers,
@@ -2223,16 +2247,9 @@ pub(super) async fn proxy_impl(
                                             first_chunk,
                                             resp.bytes_stream(),
                                         ));
-                                        let config = response_fixer::ResponseFixerConfig {
-                                            fix_encoding: response_fixer_fix_encoding,
-                                            fix_sse_format: response_fixer_fix_sse_format,
-                                            fix_truncated_json: response_fixer_fix_truncated_json,
-                                            max_json_depth: response_fixer::DEFAULT_MAX_JSON_DEPTH,
-                                            max_fix_size: response_fixer::DEFAULT_MAX_FIX_SIZE,
-                                        };
                                         let upstream = response_fixer::ResponseFixerStream::new(
                                             upstream,
-                                            config,
+                                            response_fixer_stream_config,
                                             special_settings.clone(),
                                         );
                                         if use_sse_relay {
@@ -2255,16 +2272,9 @@ pub(super) async fn proxy_impl(
                                     (true, false) => {
                                         let upstream =
                                             FirstChunkStream::new(first_chunk, resp.bytes_stream());
-                                        let config = response_fixer::ResponseFixerConfig {
-                                            fix_encoding: response_fixer_fix_encoding,
-                                            fix_sse_format: response_fixer_fix_sse_format,
-                                            fix_truncated_json: response_fixer_fix_truncated_json,
-                                            max_json_depth: response_fixer::DEFAULT_MAX_JSON_DEPTH,
-                                            max_fix_size: response_fixer::DEFAULT_MAX_FIX_SIZE,
-                                        };
                                         let upstream = response_fixer::ResponseFixerStream::new(
                                             upstream,
-                                            config,
+                                            response_fixer_stream_config,
                                             special_settings.clone(),
                                         );
                                         if use_sse_relay {
@@ -2809,14 +2819,10 @@ pub(super) async fn proxy_impl(
                             && !has_non_identity_content_encoding(&response_headers);
                         if enable_response_fixer_for_this_response {
                             response_headers.remove(header::CONTENT_LENGTH);
-                            let config = response_fixer::ResponseFixerConfig {
-                                fix_encoding: response_fixer_fix_encoding,
-                                fix_sse_format: false,
-                                fix_truncated_json: response_fixer_fix_truncated_json,
-                                max_json_depth: response_fixer::DEFAULT_MAX_JSON_DEPTH,
-                                max_fix_size: response_fixer::DEFAULT_MAX_FIX_SIZE,
-                            };
-                            let outcome = response_fixer::process_non_stream(body_bytes, config);
+                            let outcome = response_fixer::process_non_stream(
+                                body_bytes,
+                                response_fixer_non_stream_config,
+                            );
                             response_headers.insert(
                                 "x-cch-response-fixer",
                                 HeaderValue::from_static(outcome.header_value),
@@ -3152,15 +3158,10 @@ pub(super) async fn proxy_impl(
                                     && !has_non_identity_content_encoding(&response_headers);
                                 if enable_response_fixer_for_this_response {
                                     response_headers.remove(header::CONTENT_LENGTH);
-                                    let config = response_fixer::ResponseFixerConfig {
-                                        fix_encoding: response_fixer_fix_encoding,
-                                        fix_sse_format: false,
-                                        fix_truncated_json: response_fixer_fix_truncated_json,
-                                        max_json_depth: response_fixer::DEFAULT_MAX_JSON_DEPTH,
-                                        max_fix_size: response_fixer::DEFAULT_MAX_FIX_SIZE,
-                                    };
-                                    let outcome =
-                                        response_fixer::process_non_stream(body_to_return, config);
+                                    let outcome = response_fixer::process_non_stream(
+                                        body_to_return,
+                                        response_fixer_non_stream_config,
+                                    );
                                     response_headers.insert(
                                         "x-cch-response-fixer",
                                         HeaderValue::from_static(outcome.header_value),

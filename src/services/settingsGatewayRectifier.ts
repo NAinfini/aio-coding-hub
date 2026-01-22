@@ -8,6 +8,8 @@ export type GatewayRectifierSettingsPatch = {
   response_fixer_fix_encoding: boolean;
   response_fixer_fix_sse_format: boolean;
   response_fixer_fix_truncated_json: boolean;
+  response_fixer_max_json_depth: number;
+  response_fixer_max_fix_size: number;
 };
 
 export async function settingsGatewayRectifierSet(input: GatewayRectifierSettingsPatch) {
@@ -18,5 +20,7 @@ export async function settingsGatewayRectifierSet(input: GatewayRectifierSetting
     responseFixerFixEncoding: input.response_fixer_fix_encoding,
     responseFixerFixSseFormat: input.response_fixer_fix_sse_format,
     responseFixerFixTruncatedJson: input.response_fixer_fix_truncated_json,
+    responseFixerMaxJsonDepth: input.response_fixer_max_json_depth,
+    responseFixerMaxFixSize: input.response_fixer_max_fix_size,
   });
 }

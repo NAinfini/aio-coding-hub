@@ -129,6 +129,8 @@ pub(crate) async fn settings_set(
             response_fixer_fix_encoding,
             response_fixer_fix_sse_format,
             response_fixer_fix_truncated_json,
+            response_fixer_max_json_depth: previous.response_fixer_max_json_depth,
+            response_fixer_max_fix_size: previous.response_fixer_max_fix_size,
         };
 
         let next_settings = settings::write(&app_for_work, &settings)?;
@@ -151,6 +153,8 @@ pub(crate) async fn settings_gateway_rectifier_set(
     response_fixer_fix_encoding: bool,
     response_fixer_fix_sse_format: bool,
     response_fixer_fix_truncated_json: bool,
+    response_fixer_max_json_depth: u32,
+    response_fixer_max_fix_size: u32,
 ) -> Result<settings::AppSettings, String> {
     let app_for_work = app.clone();
     blocking::run("settings_gateway_rectifier_set", move || {
@@ -163,6 +167,8 @@ pub(crate) async fn settings_gateway_rectifier_set(
         settings.response_fixer_fix_encoding = response_fixer_fix_encoding;
         settings.response_fixer_fix_sse_format = response_fixer_fix_sse_format;
         settings.response_fixer_fix_truncated_json = response_fixer_fix_truncated_json;
+        settings.response_fixer_max_json_depth = response_fixer_max_json_depth;
+        settings.response_fixer_max_fix_size = response_fixer_max_fix_size;
 
         settings::write(&app_for_work, &settings)
     })

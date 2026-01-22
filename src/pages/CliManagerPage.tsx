@@ -36,11 +36,13 @@ const TABS: Array<{ key: TabKey; label: string }> = [
 
 const DEFAULT_RECTIFIER: GatewayRectifierSettingsPatch = {
   intercept_anthropic_warmup_requests: false,
-  enable_thinking_signature_rectifier: false,
-  enable_response_fixer: false,
+  enable_thinking_signature_rectifier: true,
+  enable_response_fixer: true,
   response_fixer_fix_encoding: true,
   response_fixer_fix_sse_format: true,
   response_fixer_fix_truncated_json: true,
+  response_fixer_max_json_depth: 200,
+  response_fixer_max_fix_size: 1024 * 1024,
 };
 
 const MAX_CLAUDE_MCP_TIMEOUT_MS = 24 * 60 * 60 * 1000;
@@ -56,7 +58,7 @@ export function CliManagerPage() {
   const [rectifier, setRectifier] = useState<GatewayRectifierSettingsPatch>(DEFAULT_RECTIFIER);
   const [circuitBreakerNoticeEnabled, setCircuitBreakerNoticeEnabled] = useState(false);
   const [circuitBreakerNoticeSaving, setCircuitBreakerNoticeSaving] = useState(false);
-  const [codexSessionIdCompletionEnabled, setCodexSessionIdCompletionEnabled] = useState(false);
+  const [codexSessionIdCompletionEnabled, setCodexSessionIdCompletionEnabled] = useState(true);
   const [codexSessionIdCompletionSaving, setCodexSessionIdCompletionSaving] = useState(false);
   const [commonSettingsSaving, setCommonSettingsSaving] = useState(false);
   const [upstreamFirstByteTimeoutSeconds, setUpstreamFirstByteTimeoutSeconds] = useState<number>(0);
@@ -111,9 +113,11 @@ export function CliManagerPage() {
           response_fixer_fix_encoding: settings.response_fixer_fix_encoding,
           response_fixer_fix_sse_format: settings.response_fixer_fix_sse_format,
           response_fixer_fix_truncated_json: settings.response_fixer_fix_truncated_json,
+          response_fixer_max_json_depth: settings.response_fixer_max_json_depth,
+          response_fixer_max_fix_size: settings.response_fixer_max_fix_size,
         });
         setCircuitBreakerNoticeEnabled(settings.enable_circuit_breaker_notice ?? false);
-        setCodexSessionIdCompletionEnabled(settings.enable_codex_session_id_completion ?? false);
+        setCodexSessionIdCompletionEnabled(settings.enable_codex_session_id_completion ?? true);
         setUpstreamFirstByteTimeoutSeconds(settings.upstream_first_byte_timeout_seconds);
         setUpstreamStreamIdleTimeoutSeconds(settings.upstream_stream_idle_timeout_seconds);
         setUpstreamRequestTimeoutNonStreamingSeconds(
@@ -179,6 +183,8 @@ export function CliManagerPage() {
         response_fixer_fix_encoding: updated.response_fixer_fix_encoding,
         response_fixer_fix_sse_format: updated.response_fixer_fix_sse_format,
         response_fixer_fix_truncated_json: updated.response_fixer_fix_truncated_json,
+        response_fixer_max_json_depth: updated.response_fixer_max_json_depth,
+        response_fixer_max_fix_size: updated.response_fixer_max_fix_size,
       });
     } catch (err) {
       logToConsole("error", "更新网关整流配置失败", { error: String(err) });

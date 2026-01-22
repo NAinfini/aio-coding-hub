@@ -348,11 +348,11 @@ export function ClaudeModelValidationResultPanel({ templateKey, result }: Props)
     requestedModel && respondedModel ? requestedModel === respondedModel : null;
 
   const cache5m = get<number>(usage, "cache_creation_5m_input_tokens");
-  const cacheDetailPass = cache5m != null;
 
   const inputTokens = get<number>(usage, "input_tokens");
   const outputTokens = get<number>(usage, "output_tokens");
   const cacheCreate = cache5m ?? get<number>(usage, "cache_creation_input_tokens");
+  const cacheDetailPass = cacheCreate != null;
   const cacheRead = get<number>(usage, "cache_read_input_tokens");
   const cacheReadStep2 = get<number>(signals, "roundtrip_step2_cache_read_input_tokens");
 
@@ -779,7 +779,7 @@ export function ClaudeModelValidationResultPanel({ templateKey, result }: Props)
                 <CheckRow
                   label="缓存明细 (Cache Breakdown)"
                   ok={cacheDetailCheck?.ok ?? cacheDetailPass}
-                  value={`${cache5m ?? "-"}`}
+                  value={`${cacheCreate ?? "-"}`}
                   helpText={cacheDetailCheck?.title ?? null}
                 />
               ) : null}

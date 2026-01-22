@@ -122,11 +122,11 @@ fn force_stream_true(body: &mut serde_json::Value) -> bool {
 
 fn infer_cache_min_tokens_for_model(model: Option<&str>) -> usize {
     let m = model.unwrap_or("").trim().to_lowercase();
-    if m.contains("opus-4-5") || m.contains("haiku-4-5") {
+    if m.contains("haiku-4-5") {
         return 4096;
     }
-    if m.contains("sonnet-4-5") || m.contains("sonnet-4") || m.contains("opus-4") {
-        return 1024;
+    if m.contains("haiku-3-5") || m.contains("haiku-3") {
+        return 2048;
     }
     1024
 }

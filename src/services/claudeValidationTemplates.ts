@@ -510,11 +510,22 @@ export function evaluateClaudeValidation(
   if (requireCacheDetail) {
     const usage = result?.usage as unknown;
     const cache5m = get<number>(usage, "cache_creation_5m_input_tokens");
-    const ok = typeof cache5m === "number" && Number.isFinite(cache5m);
+    const cache1h = get<number>(usage, "cache_creation_1h_input_tokens");
+    const cacheCreation = get<number>(usage, "cache_creation_input_tokens");
+
+    const has5m = typeof cache5m === "number" && Number.isFinite(cache5m);
+    const has1h = typeof cache1h === "number" && Number.isFinite(cache1h);
+    const hasCreation = typeof cacheCreation === "number" && Number.isFinite(cacheCreation);
+    const ok = has5m || has1h || hasCreation;
+
+    const fields: string[] = [];
+    if (has5m) fields.push(`cache_creation_5m_input_tokens=${cache5m}`);
+    if (has1h) fields.push(`cache_creation_1h_input_tokens=${cache1h}`);
+    if (hasCreation) fields.push(`cache_creation_input_tokens=${cacheCreation}`);
     checksOut.cacheDetail = {
       ok,
       label: "Cache 细分",
-      title: `cache_creation_5m_input_tokens: ${typeof cache5m === "number" ? cache5m : "—"}`,
+      title: fields.length > 0 ? fields.join("; ") : "缺少 cache_creation 相关字段",
     };
   }
 

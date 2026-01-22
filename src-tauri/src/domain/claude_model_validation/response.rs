@@ -62,7 +62,8 @@ pub(super) fn has_cache_creation_detail(usage: Option<&serde_json::Value>) -> bo
     let Some(obj) = usage.and_then(|v| v.as_object()) else {
         return false;
     };
-    obj.contains_key("cache_creation_5m_input_tokens")
+    obj.contains_key("cache_creation_input_tokens")
+        || obj.contains_key("cache_creation_5m_input_tokens")
         || obj.contains_key("cache_creation_1h_input_tokens")
 }
 

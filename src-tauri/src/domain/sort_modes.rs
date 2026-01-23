@@ -1,10 +1,10 @@
 //! Usage: Sort mode persistence and provider ordering configuration helpers.
 
 use crate::db;
+use crate::shared::time::now_unix_seconds;
 use rusqlite::{params, params_from_iter, Connection, OptionalExtension};
 use serde::Serialize;
 use std::collections::HashSet;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct SortModeSummary {
@@ -19,13 +19,6 @@ pub struct SortModeActiveRow {
     pub cli_key: String,
     pub mode_id: Option<i64>,
     pub updated_at: i64,
-}
-
-fn now_unix_seconds() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
 }
 
 fn validate_cli_key(cli_key: &str) -> Result<(), String> {
@@ -107,8 +100,8 @@ WHERE cli_key = ?1
     .ok_or_else(|| "DB_NOT_FOUND: sort_mode_active not found".to_string())
 }
 
-pub fn list_modes(app: &tauri::AppHandle) -> Result<Vec<SortModeSummary>, String> {
-    let conn = db::open_connection(app)?;
+pub fn list_modes(db: &db::Db) -> Result<Vec<SortModeSummary>, String> {
+    let conn = db.open_connection()?;
     let mut stmt = conn
         .prepare(
             r#"
@@ -134,9 +127,9 @@ ORDER BY id ASC
     Ok(items)
 }
 
-pub fn create_mode(app: &tauri::AppHandle, name: &str) -> Result<SortModeSummary, String> {
+pub fn create_mode(db: &db::Db, name: &str) -> Result<SortModeSummary, String> {
     let name = validate_mode_name(name)?;
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
     let now = now_unix_seconds();
 
     conn.execute(
@@ -175,13 +168,9 @@ WHERE id = ?1
     .map_err(|e| format!("DB_ERROR: failed to query inserted sort_mode: {e}"))
 }
 
-pub fn rename_mode(
-    app: &tauri::AppHandle,
-    mode_id: i64,
-    name: &str,
-) -> Result<SortModeSummary, String> {
+pub fn rename_mode(db: &db::Db, mode_id: i64, name: &str) -> Result<SortModeSummary, String> {
     let name = validate_mode_name(name)?;
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
     ensure_mode_exists(&conn, mode_id)?;
     let now = now_unix_seconds();
 
@@ -214,8 +203,8 @@ WHERE id = ?1
     .map_err(|e| format!("DB_ERROR: failed to query sort_mode: {e}"))
 }
 
-pub fn delete_mode(app: &tauri::AppHandle, mode_id: i64) -> Result<(), String> {
-    let conn = db::open_connection(app)?;
+pub fn delete_mode(db: &db::Db, mode_id: i64) -> Result<(), String> {
+    let conn = db.open_connection()?;
     ensure_mode_exists(&conn, mode_id)?;
 
     let changed = conn
@@ -227,8 +216,8 @@ pub fn delete_mode(app: &tauri::AppHandle, mode_id: i64) -> Result<(), String> {
     Ok(())
 }
 
-pub fn list_active(app: &tauri::AppHandle) -> Result<Vec<SortModeActiveRow>, String> {
-    let conn = db::open_connection(app)?;
+pub fn list_active(db: &db::Db) -> Result<Vec<SortModeActiveRow>, String> {
+    let conn = db.open_connection()?;
     let mut stmt = conn
         .prepare(
             r#"
@@ -260,14 +249,14 @@ ORDER BY cli_key ASC
 }
 
 pub fn set_active(
-    app: &tauri::AppHandle,
+    db: &db::Db,
     cli_key: &str,
     mode_id: Option<i64>,
 ) -> Result<SortModeActiveRow, String> {
     let cli_key = cli_key.trim();
     validate_cli_key(cli_key)?;
 
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
     if let Some(mode_id) = mode_id {
         ensure_mode_exists(&conn, mode_id)?;
     }
@@ -291,14 +280,10 @@ ON CONFLICT(cli_key) DO UPDATE SET
     read_active_row(&conn, cli_key)
 }
 
-pub fn list_mode_providers(
-    app: &tauri::AppHandle,
-    mode_id: i64,
-    cli_key: &str,
-) -> Result<Vec<i64>, String> {
+pub fn list_mode_providers(db: &db::Db, mode_id: i64, cli_key: &str) -> Result<Vec<i64>, String> {
     let cli_key = cli_key.trim();
     validate_cli_key(cli_key)?;
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
     ensure_mode_exists(&conn, mode_id)?;
 
     let mut stmt = conn
@@ -375,7 +360,7 @@ fn ensure_providers_belong_to_cli(
 }
 
 pub fn set_mode_providers_order(
-    app: &tauri::AppHandle,
+    db: &db::Db,
     mode_id: i64,
     cli_key: &str,
     ordered_provider_ids: Vec<i64>,
@@ -383,7 +368,7 @@ pub fn set_mode_providers_order(
     let cli_key = cli_key.trim();
     validate_cli_key(cli_key)?;
 
-    let mut conn = db::open_connection(app)?;
+    let mut conn = db.open_connection()?;
     ensure_mode_exists(&conn, mode_id)?;
     ensure_providers_belong_to_cli(&conn, cli_key, &ordered_provider_ids)?;
 
@@ -417,5 +402,5 @@ INSERT INTO sort_mode_providers(
     tx.commit()
         .map_err(|e| format!("DB_ERROR: failed to commit transaction: {e}"))?;
 
-    list_mode_providers(app, mode_id, cli_key)
+    list_mode_providers(db, mode_id, cli_key)
 }

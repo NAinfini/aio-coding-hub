@@ -2,9 +2,9 @@
 
 use crate::db;
 use crate::prompt_sync;
+use crate::shared::time::now_unix_seconds;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct PromptSummary {
@@ -27,13 +27,6 @@ pub struct DefaultPromptSyncItem {
 #[derive(Debug, Clone, Serialize)]
 pub struct DefaultPromptSyncReport {
     pub items: Vec<DefaultPromptSyncItem>,
-}
-
-fn now_unix_seconds() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
 }
 
 fn validate_cli_key(cli_key: &str) -> Result<(), String> {
@@ -93,11 +86,11 @@ WHERE id = ?1
     .ok_or_else(|| "DB_NOT_FOUND: prompt not found".to_string())
 }
 
-pub fn list_by_cli(app: &tauri::AppHandle, cli_key: &str) -> Result<Vec<PromptSummary>, String> {
+pub fn list_by_cli(db: &db::Db, cli_key: &str) -> Result<Vec<PromptSummary>, String> {
     let cli_key = cli_key.trim();
     validate_cli_key(cli_key)?;
 
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
 
     let mut stmt = conn
         .prepare(
@@ -173,8 +166,11 @@ fn count_prompts_by_cli(conn: &Connection, cli_key: &str) -> Result<i64, String>
     .map_err(|e| format!("DB_ERROR: failed to count prompts: {e}"))
 }
 
-pub fn default_sync_from_files(app: &tauri::AppHandle) -> Result<DefaultPromptSyncReport, String> {
-    let conn = db::open_connection(app)?;
+pub fn default_sync_from_files(
+    app: &tauri::AppHandle,
+    db: &db::Db,
+) -> Result<DefaultPromptSyncReport, String> {
+    let conn = db.open_connection()?;
     let now = now_unix_seconds();
 
     let mut items: Vec<DefaultPromptSyncItem> = Vec::new();
@@ -322,6 +318,7 @@ fn clear_enabled_for_cli(tx: &Connection, cli_key: &str) -> Result<(), String> {
 
 pub fn upsert(
     app: &tauri::AppHandle,
+    db: &db::Db,
     prompt_id: Option<i64>,
     cli_key: &str,
     name: &str,
@@ -341,7 +338,7 @@ pub fn upsert(
         return Err("SEC_INVALID_INPUT: prompt content is required".to_string());
     }
 
-    let mut conn = db::open_connection(app)?;
+    let mut conn = db.open_connection()?;
     let now = now_unix_seconds();
 
     match prompt_id {
@@ -497,10 +494,11 @@ WHERE id = ?5
 
 pub fn set_enabled(
     app: &tauri::AppHandle,
+    db: &db::Db,
     prompt_id: i64,
     enabled: bool,
 ) -> Result<PromptSummary, String> {
-    let mut conn = db::open_connection(app)?;
+    let mut conn = db.open_connection()?;
     let before = get_by_id(&conn, prompt_id)?;
     let cli_key = before.cli_key.as_str();
 
@@ -577,8 +575,8 @@ pub fn set_enabled(
     get_by_id(&conn, prompt_id)
 }
 
-pub fn delete(app: &tauri::AppHandle, prompt_id: i64) -> Result<(), String> {
-    let mut conn = db::open_connection(app)?;
+pub fn delete(app: &tauri::AppHandle, db: &db::Db, prompt_id: i64) -> Result<(), String> {
+    let mut conn = db.open_connection()?;
     let before = get_by_id(&conn, prompt_id)?;
 
     let cli_key = before.cli_key.as_str();

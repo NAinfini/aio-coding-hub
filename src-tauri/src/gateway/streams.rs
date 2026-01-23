@@ -1,4 +1,4 @@
-use crate::{circuit_breaker, request_logs, session_manager, usage};
+use crate::{circuit_breaker, db, request_logs, session_manager, usage};
 use axum::body::{Body, Bytes};
 use flate2::write::GzDecoder;
 use futures_core::Stream;
@@ -18,6 +18,7 @@ use super::util::now_unix_seconds;
 
 pub(super) struct StreamFinalizeCtx {
     pub(super) app: tauri::AppHandle,
+    pub(super) db: db::Db,
     pub(super) log_tx: tokio::sync::mpsc::Sender<request_logs::RequestLogInsert>,
     pub(super) circuit: Arc<circuit_breaker::CircuitBreaker>,
     pub(super) session: Arc<session_manager::SessionManager>,
@@ -359,6 +360,7 @@ where
 
         spawn_enqueue_request_log_with_backpressure(
             self.ctx.app.clone(),
+            self.ctx.db.clone(),
             self.ctx.log_tx.clone(),
             RequestLogEnqueueArgs {
                 trace_id: self.ctx.trace_id.clone(),
@@ -669,6 +671,7 @@ where
 
         spawn_enqueue_request_log_with_backpressure(
             self.ctx.app.clone(),
+            self.ctx.db.clone(),
             self.ctx.log_tx.clone(),
             RequestLogEnqueueArgs {
                 trace_id: self.ctx.trace_id.clone(),
@@ -883,6 +886,7 @@ where
 
         spawn_enqueue_request_log_with_backpressure(
             self.ctx.app.clone(),
+            self.ctx.db.clone(),
             self.ctx.log_tx.clone(),
             RequestLogEnqueueArgs {
                 trace_id: self.ctx.trace_id.clone(),

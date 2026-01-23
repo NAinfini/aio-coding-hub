@@ -10,9 +10,9 @@ pub(crate) async fn usage_summary(
     range: String,
     cli_key: Option<String>,
 ) -> Result<usage_stats::UsageSummary, String> {
-    ensure_db_ready(app.clone(), db_state.inner()).await?;
+    let db = ensure_db_ready(app, db_state.inner()).await?;
     blocking::run("usage_summary", move || {
-        usage_stats::summary(&app, &range, cli_key.as_deref())
+        usage_stats::summary(&db, &range, cli_key.as_deref())
     })
     .await
 }
@@ -26,9 +26,9 @@ pub(crate) async fn usage_summary_v2(
     end_ts: Option<i64>,
     cli_key: Option<String>,
 ) -> Result<usage_stats::UsageSummary, String> {
-    ensure_db_ready(app.clone(), db_state.inner()).await?;
+    let db = ensure_db_ready(app, db_state.inner()).await?;
     blocking::run("usage_summary_v2", move || {
-        usage_stats::summary_v2(&app, &period, start_ts, end_ts, cli_key.as_deref())
+        usage_stats::summary_v2(&db, &period, start_ts, end_ts, cli_key.as_deref())
     })
     .await
 }
@@ -41,10 +41,10 @@ pub(crate) async fn usage_leaderboard_provider(
     cli_key: Option<String>,
     limit: Option<u32>,
 ) -> Result<Vec<usage_stats::UsageProviderRow>, String> {
-    ensure_db_ready(app.clone(), db_state.inner()).await?;
+    let db = ensure_db_ready(app, db_state.inner()).await?;
     let limit = limit.unwrap_or(10).clamp(1, 50) as usize;
     blocking::run("usage_leaderboard_provider", move || {
-        usage_stats::leaderboard_provider(&app, &range, cli_key.as_deref(), limit)
+        usage_stats::leaderboard_provider(&db, &range, cli_key.as_deref(), limit)
     })
     .await
 }
@@ -57,10 +57,10 @@ pub(crate) async fn usage_leaderboard_day(
     cli_key: Option<String>,
     limit: Option<u32>,
 ) -> Result<Vec<usage_stats::UsageDayRow>, String> {
-    ensure_db_ready(app.clone(), db_state.inner()).await?;
+    let db = ensure_db_ready(app, db_state.inner()).await?;
     let limit = limit.unwrap_or(10).clamp(1, 50) as usize;
     blocking::run("usage_leaderboard_day", move || {
-        usage_stats::leaderboard_day(&app, &range, cli_key.as_deref(), limit)
+        usage_stats::leaderboard_day(&db, &range, cli_key.as_deref(), limit)
     })
     .await
 }
@@ -77,11 +77,11 @@ pub(crate) async fn usage_leaderboard_v2(
     cli_key: Option<String>,
     limit: Option<u32>,
 ) -> Result<Vec<usage_stats::UsageLeaderboardRow>, String> {
-    ensure_db_ready(app.clone(), db_state.inner()).await?;
+    let db = ensure_db_ready(app, db_state.inner()).await?;
     let limit = limit.unwrap_or(25).clamp(1, 200) as usize;
     blocking::run("usage_leaderboard_v2", move || {
         usage_stats::leaderboard_v2(
-            &app,
+            &db,
             &scope,
             &period,
             start_ts,
@@ -99,10 +99,10 @@ pub(crate) async fn usage_hourly_series(
     db_state: tauri::State<'_, DbInitState>,
     days: u32,
 ) -> Result<Vec<usage_stats::UsageHourlyRow>, String> {
-    ensure_db_ready(app.clone(), db_state.inner()).await?;
+    let db = ensure_db_ready(app, db_state.inner()).await?;
     let days = days.clamp(1, 60);
     blocking::run("usage_hourly_series", move || {
-        usage_stats::hourly_series(&app, days)
+        usage_stats::hourly_series(&db, days)
     })
     .await
 }

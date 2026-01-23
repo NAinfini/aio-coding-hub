@@ -9,9 +9,9 @@ pub(crate) async fn providers_list(
     db_state: tauri::State<'_, DbInitState>,
     cli_key: String,
 ) -> Result<Vec<providers::ProviderSummary>, String> {
-    ensure_db_ready(app.clone(), db_state.inner()).await?;
+    let db = ensure_db_ready(app, db_state.inner()).await?;
     blocking::run("providers_list", move || {
-        providers::list_by_cli(&app, &cli_key)
+        providers::list_by_cli(&db, &cli_key)
     })
     .await
 }
@@ -32,10 +32,10 @@ pub(crate) async fn provider_upsert(
     priority: Option<i64>,
     claude_models: Option<providers::ClaudeModels>,
 ) -> Result<providers::ProviderSummary, String> {
-    ensure_db_ready(app.clone(), db_state.inner()).await?;
+    let db = ensure_db_ready(app, db_state.inner()).await?;
     blocking::run("provider_upsert", move || {
         providers::upsert(
-            &app,
+            &db,
             provider_id,
             &cli_key,
             &name,
@@ -58,9 +58,9 @@ pub(crate) async fn provider_set_enabled(
     provider_id: i64,
     enabled: bool,
 ) -> Result<providers::ProviderSummary, String> {
-    ensure_db_ready(app.clone(), db_state.inner()).await?;
+    let db = ensure_db_ready(app, db_state.inner()).await?;
     blocking::run("provider_set_enabled", move || {
-        providers::set_enabled(&app, provider_id, enabled)
+        providers::set_enabled(&db, provider_id, enabled)
     })
     .await
 }
@@ -71,9 +71,9 @@ pub(crate) async fn provider_delete(
     db_state: tauri::State<'_, DbInitState>,
     provider_id: i64,
 ) -> Result<bool, String> {
-    ensure_db_ready(app.clone(), db_state.inner()).await?;
+    let db = ensure_db_ready(app, db_state.inner()).await?;
     blocking::run("provider_delete", move || {
-        providers::delete(&app, provider_id)?;
+        providers::delete(&db, provider_id)?;
         Ok(true)
     })
     .await
@@ -86,9 +86,9 @@ pub(crate) async fn providers_reorder(
     cli_key: String,
     ordered_provider_ids: Vec<i64>,
 ) -> Result<Vec<providers::ProviderSummary>, String> {
-    ensure_db_ready(app.clone(), db_state.inner()).await?;
+    let db = ensure_db_ready(app, db_state.inner()).await?;
     blocking::run("providers_reorder", move || {
-        providers::reorder(&app, &cli_key, ordered_provider_ids)
+        providers::reorder(&db, &cli_key, ordered_provider_ids)
     })
     .await
 }

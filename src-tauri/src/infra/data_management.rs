@@ -70,8 +70,8 @@ pub fn db_disk_usage_get(app: &tauri::AppHandle) -> Result<DbDiskUsage, String> 
     })
 }
 
-pub fn request_logs_clear_all(app: &tauri::AppHandle) -> Result<ClearRequestLogsResult, String> {
-    let mut conn = db::open_connection(app)?;
+pub fn request_logs_clear_all(db: &db::Db) -> Result<ClearRequestLogsResult, String> {
+    let mut conn = db.open_connection()?;
 
     let tx = conn
         .transaction_with_behavior(TransactionBehavior::Immediate)

@@ -21,10 +21,11 @@ pub(crate) async fn cli_proxy_set_enabled(
     enabled: bool,
 ) -> Result<cli_proxy::CliProxyResult, String> {
     let base_origin = if enabled {
-        ensure_db_ready(app.clone(), db_state.inner()).await?;
+        let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
 
         blocking::run("cli_proxy_set_enabled_ensure_gateway", {
             let app = app.clone();
+            let db = db.clone();
             move || {
                 let state = app.state::<GatewayState>();
                 let mut manager = state.0.lock_or_recover();
@@ -32,7 +33,7 @@ pub(crate) async fn cli_proxy_set_enabled(
                     manager.status()
                 } else {
                     let settings = settings::read(&app).unwrap_or_default();
-                    let status = manager.start(&app, Some(settings.preferred_port))?;
+                    let status = manager.start(&app, db, Some(settings.preferred_port))?;
                     let _ = app.emit("gateway:status", status.clone());
                     status
                 };

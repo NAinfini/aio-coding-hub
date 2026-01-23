@@ -1,4 +1,4 @@
-use crate::{blocking, claude_model_validation_history, usage};
+use crate::{blocking, claude_model_validation_history, db, usage};
 use reqwest::header::HeaderMap;
 use serde::Serialize;
 use std::time::{Duration, Instant};
@@ -669,14 +669,14 @@ async fn perform_request(
 }
 
 pub async fn validate_provider_model(
-    app: &tauri::AppHandle,
+    db: db::Db,
     provider_id: i64,
     base_url: &str,
     request_json: &str,
 ) -> Result<ClaudeModelValidationResult, String> {
     let started = Instant::now();
 
-    let provider = provider::load_provider(app.clone(), provider_id).await?;
+    let provider = provider::load_provider(db.clone(), provider_id).await?;
     if provider.cli_key != "claude" {
         return Err("SEC_INVALID_INPUT: only cli_key=claude is supported".to_string());
     }
@@ -1177,13 +1177,14 @@ pub async fn validate_provider_model(
     //
     // 安全要求：request_json 不得落库明文 key，因此入库的 request_json 使用后端构造的 sanitized_request
     //（headers 已统一 mask 为 "***"，且回显的是“实际发送”的 Step1 body：包含 stream=true 与 auto padding 决策）。
-    let app_handle = app.clone();
+    let db_for_history = db.clone();
+    let provider_id_for_history = provider.id;
     let request_json_text = sanitized_request_text;
     let result_json = serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string());
     let _ = blocking::run("claude_validation_history_insert", move || {
         claude_model_validation_history::insert_run_and_prune(
-            &app_handle,
-            provider.id,
+            &db_for_history,
+            provider_id_for_history,
             &request_json_text,
             &result_json,
             Some(50),
@@ -1196,10 +1197,10 @@ pub async fn validate_provider_model(
 }
 
 pub async fn get_provider_api_key_plaintext(
-    app: &tauri::AppHandle,
+    db: db::Db,
     provider_id: i64,
 ) -> Result<String, String> {
-    let provider = provider::load_provider(app.clone(), provider_id).await?;
+    let provider = provider::load_provider(db, provider_id).await?;
     if provider.cli_key != "claude" {
         return Err("SEC_INVALID_INPUT: only cli_key=claude is supported".to_string());
     }

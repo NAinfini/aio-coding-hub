@@ -1,10 +1,10 @@
 //! Usage: Manage local CLI proxy configuration files (infra adapter).
 
 use crate::app_paths;
+use crate::shared::time::now_unix_seconds;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::Manager;
 
 const MANIFEST_SCHEMA_VERSION: u32 = 1;
@@ -57,13 +57,6 @@ struct TargetFile {
     kind: &'static str,
     path: PathBuf,
     backup_name: &'static str,
-}
-
-fn now_unix_seconds() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
 }
 
 fn new_trace_id(prefix: &str) -> String {

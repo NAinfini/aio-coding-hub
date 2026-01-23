@@ -1,10 +1,10 @@
 //! Usage: Sync/backup/restore MCP configuration files across supported CLIs (infra adapter).
 
 use crate::app_paths;
+use crate::shared::time::now_unix_seconds;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::Manager;
 
 const MANIFEST_SCHEMA_VERSION: u32 = 1;
@@ -40,13 +40,6 @@ struct McpSyncManifest {
     updated_at: i64,
     file: McpSyncFileEntry,
     managed_keys: Vec<String>,
-}
-
-fn now_unix_seconds() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
 }
 
 fn validate_cli_key(cli_key: &str) -> Result<(), String> {

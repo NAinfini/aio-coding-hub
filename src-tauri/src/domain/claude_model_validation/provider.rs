@@ -26,7 +26,7 @@ fn base_urls_from_row(base_url_fallback: &str, base_urls_json: &str) -> Vec<Stri
 }
 
 pub(super) async fn load_provider(
-    app: tauri::AppHandle,
+    db: db::Db,
     provider_id: i64,
 ) -> Result<super::ProviderForValidation, String> {
     blocking::run("claude_provider_validate_model_load_provider", move || {
@@ -36,7 +36,7 @@ pub(super) async fn load_provider(
             ));
         }
 
-        let conn = db::open_connection(&app)?;
+        let conn = db.open_connection()?;
         let row: Option<(i64, String, String, String, String, String)> = conn
             .query_row(
                 r#"

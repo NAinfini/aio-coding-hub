@@ -27,9 +27,9 @@ pub(crate) async fn request_logs_clear_all(
     app: tauri::AppHandle,
     db_state: tauri::State<'_, DbInitState>,
 ) -> Result<data_management::ClearRequestLogsResult, String> {
-    ensure_db_ready(app.clone(), db_state.inner()).await?;
+    let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
     blocking::run("request_logs_clear_all", move || {
-        data_management::request_logs_clear_all(&app)
+        data_management::request_logs_clear_all(&db)
     })
     .await
 }

@@ -12,7 +12,7 @@ pub(super) use types::ErrorCategory;
 
 use crate::shared::mutex_ext::MutexExt;
 use crate::{
-    circuit_breaker, cli_proxy, providers, request_logs, session_manager, settings, usage,
+    circuit_breaker, cli_proxy, db, providers, request_logs, session_manager, settings, usage,
 };
 use axum::{
     body::{to_bytes, Body, Bytes},
@@ -250,6 +250,7 @@ fn error_response_with_retry_after(
 
 struct RequestAbortGuard {
     app: tauri::AppHandle,
+    db: db::Db,
     log_tx: tokio::sync::mpsc::Sender<request_logs::RequestLogInsert>,
     trace_id: String,
     cli_key: String,
@@ -266,6 +267,7 @@ impl RequestAbortGuard {
     #[allow(clippy::too_many_arguments)]
     fn new(
         app: tauri::AppHandle,
+        db: db::Db,
         log_tx: tokio::sync::mpsc::Sender<request_logs::RequestLogInsert>,
         trace_id: String,
         cli_key: String,
@@ -278,6 +280,7 @@ impl RequestAbortGuard {
     ) -> Self {
         Self {
             app,
+            db,
             log_tx,
             trace_id,
             cli_key,
@@ -321,6 +324,7 @@ impl Drop for RequestAbortGuard {
 
         spawn_enqueue_request_log_with_backpressure(
             self.app.clone(),
+            self.db.clone(),
             self.log_tx.clone(),
             RequestLogEnqueueArgs {
                 trace_id: self.trace_id.clone(),
@@ -762,6 +766,7 @@ pub(super) async fn proxy_impl(
 
             enqueue_request_log_with_backpressure(
                 &state.app,
+                &state.db,
                 &state.log_tx,
                 RequestLogEnqueueArgs {
                     trace_id,
@@ -822,6 +827,7 @@ pub(super) async fn proxy_impl(
 
             enqueue_request_log_with_backpressure(
                 &state.app,
+                &state.db,
                 &state.log_tx,
                 RequestLogEnqueueArgs {
                     trace_id,
@@ -1104,7 +1110,7 @@ pub(super) async fn proxy_impl(
     let (effective_sort_mode_id, mut providers) = match bound_sort_mode_id {
         Some(sort_mode_id) => {
             let providers = match providers::list_enabled_for_gateway_in_mode(
-                &state.app,
+                &state.db,
                 &cli_key,
                 sort_mode_id,
             ) {
@@ -1115,7 +1121,7 @@ pub(super) async fn proxy_impl(
         }
         None => {
             let selection =
-                match providers::list_enabled_for_gateway_using_active_mode(&state.app, &cli_key) {
+                match providers::list_enabled_for_gateway_using_active_mode(&state.db, &cli_key) {
                     Ok(v) => v,
                     Err(err) => return respond_invalid_cli_key(err),
                 };
@@ -1192,6 +1198,7 @@ pub(super) async fn proxy_impl(
 
         enqueue_request_log_with_backpressure(
             &state.app,
+            &state.db,
             &state.log_tx,
             RequestLogEnqueueArgs {
                 trace_id,
@@ -1338,6 +1345,7 @@ pub(super) async fn proxy_impl(
 
     let mut abort_guard = RequestAbortGuard::new(
         state.app.clone(),
+        state.db.clone(),
         state.log_tx.clone(),
         trace_id.clone(),
         cli_key.clone(),
@@ -1691,6 +1699,7 @@ pub(super) async fn proxy_impl(
                     emit_attempt_event(&state.app, attempt_event.clone());
                     enqueue_attempt_log_with_backpressure(
                         &state.app,
+                        &state.db,
                         &state.attempt_log_tx,
                         &attempt_event,
                         created_at,
@@ -1892,6 +1901,7 @@ pub(super) async fn proxy_impl(
                                     emit_attempt_event(&state.app, attempt_event.clone());
                                     enqueue_attempt_log_with_backpressure(
                                         &state.app,
+                                        &state.db,
                                         &state.attempt_log_tx,
                                         &attempt_event,
                                         created_at,
@@ -1995,6 +2005,7 @@ pub(super) async fn proxy_impl(
                                     emit_attempt_event(&state.app, attempt_event.clone());
                                     enqueue_attempt_log_with_backpressure(
                                         &state.app,
+                                        &state.db,
                                         &state.attempt_log_tx,
                                         &attempt_event,
                                         created_at,
@@ -2105,6 +2116,7 @@ pub(super) async fn proxy_impl(
                                 emit_attempt_event(&state.app, attempt_event.clone());
                                 enqueue_attempt_log_with_backpressure(
                                     &state.app,
+                                    &state.db,
                                     &state.attempt_log_tx,
                                     &attempt_event,
                                     created_at,
@@ -2185,6 +2197,7 @@ pub(super) async fn proxy_impl(
                             emit_attempt_event(&state.app, attempt_event.clone());
                             enqueue_attempt_log_with_backpressure(
                                 &state.app,
+                                &state.db,
                                 &state.attempt_log_tx,
                                 &attempt_event,
                                 created_at,
@@ -2195,6 +2208,7 @@ pub(super) async fn proxy_impl(
                                 .unwrap_or_else(|_| "[]".to_string());
                             let ctx = StreamFinalizeCtx {
                                 app: state.app.clone(),
+                                db: state.db.clone(),
                                 log_tx: state.log_tx.clone(),
                                 circuit: state.circuit.clone(),
                                 session: state.session.clone(),
@@ -2426,6 +2440,7 @@ pub(super) async fn proxy_impl(
                                 emit_attempt_event(&state.app, attempt_event.clone());
                                 enqueue_attempt_log_with_backpressure(
                                     &state.app,
+                                    &state.db,
                                     &state.attempt_log_tx,
                                     &attempt_event,
                                     created_at,
@@ -2434,6 +2449,7 @@ pub(super) async fn proxy_impl(
 
                                 let ctx = StreamFinalizeCtx {
                                     app: state.app.clone(),
+                                    db: state.db.clone(),
                                     log_tx: state.log_tx.clone(),
                                     circuit: state.circuit.clone(),
                                     session: state.session.clone(),
@@ -2546,6 +2562,7 @@ pub(super) async fn proxy_impl(
                                 emit_attempt_event(&state.app, attempt_event.clone());
                                 enqueue_attempt_log_with_backpressure(
                                     &state.app,
+                                    &state.db,
                                     &state.attempt_log_tx,
                                     &attempt_event,
                                     created_at,
@@ -2554,6 +2571,7 @@ pub(super) async fn proxy_impl(
 
                                 let ctx = StreamFinalizeCtx {
                                     app: state.app.clone(),
+                                    db: state.db.clone(),
                                     log_tx: state.log_tx.clone(),
                                     circuit: state.circuit.clone(),
                                     session: state.session.clone(),
@@ -2725,6 +2743,7 @@ pub(super) async fn proxy_impl(
                                 emit_attempt_event(&state.app, attempt_event.clone());
                                 enqueue_attempt_log_with_backpressure(
                                     &state.app,
+                                    &state.db,
                                     &state.attempt_log_tx,
                                     &attempt_event,
                                     created_at,
@@ -2806,6 +2825,7 @@ pub(super) async fn proxy_impl(
                         emit_attempt_event(&state.app, attempt_event.clone());
                         enqueue_attempt_log_with_backpressure(
                             &state.app,
+                            &state.db,
                             &state.attempt_log_tx,
                             &attempt_event,
                             created_at,
@@ -2924,6 +2944,7 @@ pub(super) async fn proxy_impl(
                         );
                         enqueue_request_log_with_backpressure(
                             &state.app,
+                            &state.db,
                             &state.log_tx,
                             RequestLogEnqueueArgs {
                                 trace_id,
@@ -2984,6 +3005,7 @@ pub(super) async fn proxy_impl(
                                 );
                                 enqueue_request_log_with_backpressure(
                                     &state.app,
+                                    &state.db,
                                     &state.log_tx,
                                     RequestLogEnqueueArgs {
                                         trace_id: trace_id.clone(),
@@ -3127,6 +3149,7 @@ pub(super) async fn proxy_impl(
                         emit_attempt_event(&state.app, attempt_event.clone());
                         enqueue_attempt_log_with_backpressure(
                             &state.app,
+                            &state.db,
                             &state.attempt_log_tx,
                             &attempt_event,
                             created_at,
@@ -3200,6 +3223,7 @@ pub(super) async fn proxy_impl(
                                 );
                                 enqueue_request_log_with_backpressure(
                                     &state.app,
+                                    &state.db,
                                     &state.log_tx,
                                     RequestLogEnqueueArgs {
                                         trace_id: trace_id.clone(),
@@ -3341,6 +3365,7 @@ pub(super) async fn proxy_impl(
                     emit_attempt_event(&state.app, attempt_event.clone());
                     enqueue_attempt_log_with_backpressure(
                         &state.app,
+                        &state.db,
                         &state.attempt_log_tx,
                         &attempt_event,
                         created_at,
@@ -3373,6 +3398,7 @@ pub(super) async fn proxy_impl(
                                 .unwrap_or_else(|_| "[]".to_string());
                             let ctx = StreamFinalizeCtx {
                                 app: state.app.clone(),
+                                db: state.db.clone(),
                                 log_tx: state.log_tx.clone(),
                                 circuit: state.circuit.clone(),
                                 session: state.session.clone(),
@@ -3482,6 +3508,7 @@ pub(super) async fn proxy_impl(
                     emit_attempt_event(&state.app, attempt_event.clone());
                     enqueue_attempt_log_with_backpressure(
                         &state.app,
+                        &state.db,
                         &state.attempt_log_tx,
                         &attempt_event,
                         created_at,
@@ -3574,6 +3601,7 @@ pub(super) async fn proxy_impl(
                     emit_attempt_event(&state.app, attempt_event.clone());
                     enqueue_attempt_log_with_backpressure(
                         &state.app,
+                        &state.db,
                         &state.attempt_log_tx,
                         &attempt_event,
                         created_at,
@@ -3648,6 +3676,7 @@ pub(super) async fn proxy_impl(
 
         enqueue_request_log_with_backpressure(
             &state.app,
+            &state.db,
             &state.log_tx,
             RequestLogEnqueueArgs {
                 trace_id: trace_id.clone(),
@@ -3735,6 +3764,7 @@ pub(super) async fn proxy_impl(
 
     enqueue_request_log_with_backpressure(
         &state.app,
+        &state.db,
         &state.log_tx,
         RequestLogEnqueueArgs {
             trace_id,

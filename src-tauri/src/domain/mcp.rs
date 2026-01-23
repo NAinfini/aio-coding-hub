@@ -2,10 +2,10 @@
 
 use crate::db;
 use crate::mcp_sync;
+use crate::shared::time::now_unix_seconds;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct McpServerSummary {
@@ -51,13 +51,6 @@ pub struct McpParseResult {
 pub struct McpImportReport {
     pub inserted: u32,
     pub updated: u32,
-}
-
-fn now_unix_seconds() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
 }
 
 fn enabled_to_int(enabled: bool) -> i64 {
@@ -215,8 +208,8 @@ WHERE id = ?1
     .ok_or_else(|| "DB_NOT_FOUND: mcp server not found".to_string())
 }
 
-pub fn list_all(app: &tauri::AppHandle) -> Result<Vec<McpServerSummary>, String> {
-    let conn = db::open_connection(app)?;
+pub fn list_all(db: &db::Db) -> Result<Vec<McpServerSummary>, String> {
+    let conn = db.open_connection()?;
 
     let mut stmt = conn
         .prepare(
@@ -340,6 +333,7 @@ fn sync_one_cli(app: &tauri::AppHandle, conn: &Connection, cli_key: &str) -> Res
 #[allow(clippy::too_many_arguments)]
 pub fn upsert(
     app: &tauri::AppHandle,
+    db: &db::Db,
     server_id: Option<i64>,
     server_key: &str,
     name: &str,
@@ -385,7 +379,7 @@ pub fn upsert(
     let env_json = map_to_json(&env, "env")?;
     let headers_json = map_to_json(&headers, "headers")?;
 
-    let mut conn = db::open_connection(app)?;
+    let mut conn = db.open_connection()?;
     let now = now_unix_seconds();
 
     let tx = conn
@@ -552,13 +546,14 @@ WHERE id = ?14
 
 pub fn set_enabled(
     app: &tauri::AppHandle,
+    db: &db::Db,
     server_id: i64,
     cli_key: &str,
     enabled: bool,
 ) -> Result<McpServerSummary, String> {
     validate_cli_key(cli_key)?;
 
-    let mut conn = db::open_connection(app)?;
+    let mut conn = db.open_connection()?;
     let now = now_unix_seconds();
     let tx = conn
         .transaction()
@@ -597,8 +592,8 @@ pub fn set_enabled(
     get_by_id(&conn, server_id)
 }
 
-pub fn delete(app: &tauri::AppHandle, server_id: i64) -> Result<(), String> {
-    let mut conn = db::open_connection(app)?;
+pub fn delete(app: &tauri::AppHandle, db: &db::Db, server_id: i64) -> Result<(), String> {
+    let mut conn = db.open_connection()?;
     let tx = conn
         .transaction()
         .map_err(|e| format!("DB_ERROR: failed to start transaction: {e}"))?;
@@ -1083,13 +1078,14 @@ WHERE id = ?14
 
 pub fn import_servers(
     app: &tauri::AppHandle,
+    db: &db::Db,
     servers: Vec<McpImportServer>,
 ) -> Result<McpImportReport, String> {
     if servers.is_empty() {
         return Err("SEC_INVALID_INPUT: servers is required".to_string());
     }
 
-    let mut conn = db::open_connection(app)?;
+    let mut conn = db.open_connection()?;
     let now = now_unix_seconds();
 
     let tx = conn

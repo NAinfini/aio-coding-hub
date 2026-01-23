@@ -38,7 +38,7 @@ pub(crate) async fn wsl_configure_clients(
         });
     }
 
-    ensure_db_ready(app.clone(), db_state.inner()).await?;
+    let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
 
     let cfg = blocking::run("wsl_configure_clients_read_settings", {
         let app = app.clone();
@@ -66,10 +66,11 @@ pub(crate) async fn wsl_configure_clients(
     let preferred_port = cfg.preferred_port;
     let status = blocking::run("wsl_configure_clients_ensure_gateway", {
         let app = app.clone();
+        let db = db.clone();
         move || {
             let state = app.state::<GatewayState>();
             let mut manager = state.0.lock_or_recover();
-            manager.start(&app, Some(preferred_port))
+            manager.start(&app, db, Some(preferred_port))
         }
     })
     .await?;

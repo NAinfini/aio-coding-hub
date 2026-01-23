@@ -517,12 +517,8 @@ fn summary_query(
     .map_err(|e| format!("DB_ERROR: failed to query usage summary: {e}"))
 }
 
-pub fn summary(
-    app: &tauri::AppHandle,
-    range: &str,
-    cli_key: Option<&str>,
-) -> Result<UsageSummary, String> {
-    let conn = db::open_connection(app)?;
+pub fn summary(db: &db::Db, range: &str, cli_key: Option<&str>) -> Result<UsageSummary, String> {
+    let conn = db.open_connection()?;
     let range = parse_range(range)?;
     let start_ts = compute_start_ts(&conn, range)?;
     let cli_key = normalize_cli_filter(cli_key)?;
@@ -531,13 +527,13 @@ pub fn summary(
 }
 
 pub fn summary_v2(
-    app: &tauri::AppHandle,
+    db: &db::Db,
     period: &str,
     start_ts: Option<i64>,
     end_ts: Option<i64>,
     cli_key: Option<&str>,
 ) -> Result<UsageSummary, String> {
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
     let period = parse_period_v2(period)?;
     let (start_ts, end_ts) = compute_bounds_v2(&conn, period, start_ts, end_ts)?;
     let cli_key = normalize_cli_filter(cli_key)?;
@@ -997,7 +993,7 @@ AND (?3 IS NULL OR cli_key = ?3)
 }
 
 pub fn leaderboard_v2(
-    app: &tauri::AppHandle,
+    db: &db::Db,
     scope: &str,
     period: &str,
     start_ts: Option<i64>,
@@ -1005,7 +1001,7 @@ pub fn leaderboard_v2(
     cli_key: Option<&str>,
     limit: usize,
 ) -> Result<Vec<UsageLeaderboardRow>, String> {
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
     let scope = parse_scope_v2(scope)?;
     let period = parse_period_v2(period)?;
     let (start_ts, end_ts) = compute_bounds_v2(&conn, period, start_ts, end_ts)?;
@@ -1014,12 +1010,12 @@ pub fn leaderboard_v2(
 }
 
 pub fn leaderboard_provider(
-    app: &tauri::AppHandle,
+    db: &db::Db,
     range: &str,
     cli_key: Option<&str>,
     limit: usize,
 ) -> Result<Vec<UsageProviderRow>, String> {
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
     let range = parse_range(range)?;
     let start_ts = compute_start_ts(&conn, range)?;
     let cli_key = normalize_cli_filter(cli_key)?;
@@ -1203,12 +1199,12 @@ AND (?2 IS NULL OR cli_key = ?2)
 }
 
 pub fn leaderboard_day(
-    app: &tauri::AppHandle,
+    db: &db::Db,
     range: &str,
     cli_key: Option<&str>,
     limit: usize,
 ) -> Result<Vec<UsageDayRow>, String> {
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
     let range = parse_range(range)?;
     let start_ts = compute_start_ts(&conn, range)?;
     let cli_key = normalize_cli_filter(cli_key)?;
@@ -1268,8 +1264,8 @@ LIMIT ?3
     Ok(out)
 }
 
-pub fn hourly_series(app: &tauri::AppHandle, days: u32) -> Result<Vec<UsageHourlyRow>, String> {
-    let conn = db::open_connection(app)?;
+pub fn hourly_series(db: &db::Db, days: u32) -> Result<Vec<UsageHourlyRow>, String> {
+    let conn = db.open_connection()?;
     let days = days.clamp(1, 60);
     let start_ts = compute_start_ts_last_n_days(&conn, days)?;
 

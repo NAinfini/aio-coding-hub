@@ -9,8 +9,8 @@ pub(crate) async fn prompts_list(
     db_state: tauri::State<'_, DbInitState>,
     cli_key: String,
 ) -> Result<Vec<prompts::PromptSummary>, String> {
-    ensure_db_ready(app.clone(), db_state.inner()).await?;
-    blocking::run("prompts_list", move || prompts::list_by_cli(&app, &cli_key)).await
+    let db = ensure_db_ready(app, db_state.inner()).await?;
+    blocking::run("prompts_list", move || prompts::list_by_cli(&db, &cli_key)).await
 }
 
 #[tauri::command]
@@ -18,9 +18,9 @@ pub(crate) async fn prompts_default_sync_from_files(
     app: tauri::AppHandle,
     db_state: tauri::State<'_, DbInitState>,
 ) -> Result<prompts::DefaultPromptSyncReport, String> {
-    ensure_db_ready(app.clone(), db_state.inner()).await?;
+    let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
     blocking::run("prompts_default_sync_from_files", move || {
-        prompts::default_sync_from_files(&app)
+        prompts::default_sync_from_files(&app, &db)
     })
     .await
 }
@@ -35,9 +35,9 @@ pub(crate) async fn prompt_upsert(
     content: String,
     enabled: bool,
 ) -> Result<prompts::PromptSummary, String> {
-    ensure_db_ready(app.clone(), db_state.inner()).await?;
+    let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
     blocking::run("prompt_upsert", move || {
-        prompts::upsert(&app, prompt_id, &cli_key, &name, &content, enabled)
+        prompts::upsert(&app, &db, prompt_id, &cli_key, &name, &content, enabled)
     })
     .await
 }
@@ -49,9 +49,9 @@ pub(crate) async fn prompt_set_enabled(
     prompt_id: i64,
     enabled: bool,
 ) -> Result<prompts::PromptSummary, String> {
-    ensure_db_ready(app.clone(), db_state.inner()).await?;
+    let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
     blocking::run("prompt_set_enabled", move || {
-        prompts::set_enabled(&app, prompt_id, enabled)
+        prompts::set_enabled(&app, &db, prompt_id, enabled)
     })
     .await
 }
@@ -62,9 +62,9 @@ pub(crate) async fn prompt_delete(
     db_state: tauri::State<'_, DbInitState>,
     prompt_id: i64,
 ) -> Result<bool, String> {
-    ensure_db_ready(app.clone(), db_state.inner()).await?;
+    let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
     blocking::run("prompt_delete", move || {
-        prompts::delete(&app, prompt_id)?;
+        prompts::delete(&app, &db, prompt_id)?;
         Ok(true)
     })
     .await

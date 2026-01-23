@@ -26,6 +26,8 @@ sha2 = "0.10"
 axum = "0.7"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "sync"] }
 rusqlite = { version = "0.31", features = ["bundled"] }
+r2d2 = "0.8"
+r2d2_sqlite = "0.24"
 reqwest = { version = "0.12.28", default-features = false, features = ["rustls-tls-native-roots", "stream"] }
 futures-core = "0.3"
 flate2 = "1.1.5"

@@ -1,7 +1,7 @@
 use crate::db;
+use crate::shared::time::now_unix_seconds;
 use rusqlite::{params, OptionalExtension};
 use serde::Serialize;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 const DEFAULT_KEEP_PER_PROVIDER: usize = 50;
 
@@ -12,13 +12,6 @@ pub struct ClaudeModelValidationRunRow {
     pub created_at: i64,
     pub request_json: String,
     pub result_json: String,
-}
-
-fn now_unix_seconds() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
 }
 
 fn ensure_provider_is_claude(conn: &rusqlite::Connection, provider_id: i64) -> Result<(), String> {
@@ -51,7 +44,7 @@ fn ensure_provider_is_claude(conn: &rusqlite::Connection, provider_id: i64) -> R
 }
 
 pub fn insert_run_and_prune(
-    app: &tauri::AppHandle,
+    db: &db::Db,
     provider_id: i64,
     request_json: &str,
     result_json: &str,
@@ -65,7 +58,7 @@ pub fn insert_run_and_prune(
         return Err("SEC_INVALID_INPUT: result_json is required".to_string());
     }
 
-    let mut conn = db::open_connection(app)?;
+    let mut conn = db.open_connection()?;
     ensure_provider_is_claude(&conn, provider_id)?;
 
     let tx = conn
@@ -111,14 +104,14 @@ WHERE provider_id = ?1
 }
 
 pub fn list_runs(
-    app: &tauri::AppHandle,
+    db: &db::Db,
     provider_id: i64,
     limit: Option<usize>,
 ) -> Result<Vec<ClaudeModelValidationRunRow>, String> {
     let limit = limit.unwrap_or(DEFAULT_KEEP_PER_PROVIDER).clamp(1, 500);
     let fetch_limit = limit;
 
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
     ensure_provider_is_claude(&conn, provider_id)?;
 
     let mut stmt = conn
@@ -159,8 +152,8 @@ LIMIT ?2
     Ok(items)
 }
 
-pub fn clear_provider(app: &tauri::AppHandle, provider_id: i64) -> Result<bool, String> {
-    let conn = db::open_connection(app)?;
+pub fn clear_provider(db: &db::Db, provider_id: i64) -> Result<bool, String> {
+    let conn = db.open_connection()?;
     ensure_provider_is_claude(&conn, provider_id)?;
 
     conn.execute(

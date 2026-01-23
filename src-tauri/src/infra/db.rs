@@ -1,20 +1,31 @@
 //! Usage: SQLite connection setup, schema migrations, and common DB helpers.
 
 use crate::app_paths;
+use crate::shared::time::now_unix_seconds;
+use r2d2::Pool;
+use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::Connection;
 use serde::Deserialize;
 use std::path::PathBuf;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 const DB_FILE_NAME: &str = "aio-coding-hub.db";
 const LATEST_SCHEMA_VERSION: i64 = 28;
 const BUSY_TIMEOUT: Duration = Duration::from_millis(2000);
 
-fn now_unix_seconds() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
+#[derive(Clone)]
+pub(crate) struct Db {
+    pool: Pool<SqliteConnectionManager>,
+}
+
+impl Db {
+    pub(crate) fn open_connection(
+        &self,
+    ) -> Result<r2d2::PooledConnection<SqliteConnectionManager>, String> {
+        self.pool
+            .get()
+            .map_err(|e| format!("DB_ERROR: failed to get connection from pool: {e}"))
+    }
 }
 
 pub(crate) fn sql_placeholders(count: usize) -> String {
@@ -36,39 +47,33 @@ pub fn db_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     Ok(app_paths::app_data_dir(app)?.join(DB_FILE_NAME))
 }
 
-pub fn open_connection(app: &tauri::AppHandle) -> Result<Connection, String> {
+pub fn init(app: &tauri::AppHandle) -> Result<Db, String> {
     let path = db_path(app)?;
     let path_hint = path.to_string_lossy();
-    let conn = Connection::open(&path)
-        .map_err(|e| format!("failed to open sqlite db at {path_hint}: {e}"))?;
 
-    conn.busy_timeout(BUSY_TIMEOUT)
-        .map_err(|e| format!("failed to set sqlite busy_timeout for {path_hint}: {e}"))?;
+    let manager = SqliteConnectionManager::file(&path).with_init(|conn| {
+        conn.busy_timeout(BUSY_TIMEOUT)?;
+        configure_connection(conn)
+    });
 
-    configure_connection(&conn).map_err(|e| format!("sqlite init failed at {path_hint}: {e}"))?;
-
-    Ok(conn)
-}
-
-pub fn init(app: &tauri::AppHandle) -> Result<(), String> {
-    let path = db_path(app)?;
-    let path_hint = path.to_string_lossy();
-    let mut conn = open_connection(app)?;
+    let pool = Pool::new(manager).map_err(|e| format!("failed to create db pool: {e}"))?;
+    let mut conn = pool
+        .get()
+        .map_err(|e| format!("failed to get startup connection: {e}"))?;
 
     apply_migrations(&mut conn)
         .map_err(|e| format!("sqlite migration failed at {path_hint}: {e}"))?;
 
-    Ok(())
+    Ok(Db { pool })
 }
 
-fn configure_connection(conn: &Connection) -> Result<(), String> {
+fn configure_connection(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch(
         r#"
 PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
 "#,
-    )
-    .map_err(|e| format!("failed to configure sqlite pragmas: {e}"))?;
+    )?;
 
     Ok(())
 }

@@ -1,9 +1,9 @@
 //! Usage: Model price persistence (sqlite CRUD helpers).
 
 use crate::db;
+use crate::shared::time::now_unix_seconds;
 use rusqlite::{params, OptionalExtension};
 use serde::Serialize;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ModelPriceSummary {
@@ -13,13 +13,6 @@ pub struct ModelPriceSummary {
     pub currency: String,
     pub created_at: i64,
     pub updated_at: i64,
-}
-
-fn now_unix_seconds() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
 }
 
 fn validate_cli_key(cli_key: &str) -> Result<(), String> {
@@ -40,12 +33,9 @@ fn row_to_summary(row: &rusqlite::Row<'_>) -> Result<ModelPriceSummary, rusqlite
     })
 }
 
-pub fn list_by_cli(
-    app: &tauri::AppHandle,
-    cli_key: &str,
-) -> Result<Vec<ModelPriceSummary>, String> {
+pub fn list_by_cli(db: &db::Db, cli_key: &str) -> Result<Vec<ModelPriceSummary>, String> {
     validate_cli_key(cli_key)?;
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
 
     let mut stmt = conn
         .prepare(
@@ -76,7 +66,7 @@ ORDER BY model ASC, id DESC
 }
 
 pub fn upsert(
-    app: &tauri::AppHandle,
+    db: &db::Db,
     cli_key: &str,
     model: &str,
     price_json: &str,
@@ -97,7 +87,7 @@ pub fn upsert(
         return Err("SEC_INVALID_INPUT: price_json is empty".to_string());
     }
 
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
     let now = now_unix_seconds();
 
     conn.execute(

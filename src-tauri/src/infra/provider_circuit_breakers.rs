@@ -1,20 +1,13 @@
 //! Usage: Persist provider circuit breaker state to sqlite (buffered writer + load helpers).
 
+use crate::shared::time::now_unix_seconds;
 use crate::{circuit_breaker, db};
 use rusqlite::{params, params_from_iter};
 use std::collections::HashMap;
-use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc;
 
 const WRITE_BUFFER_CAPACITY: usize = 512;
 const WRITE_BATCH_MAX: usize = 200;
-
-fn now_unix_seconds() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
-}
 
 fn u32_from_i64(value: i64) -> u32 {
     if value <= 0 {
@@ -27,22 +20,19 @@ fn u32_from_i64(value: i64) -> u32 {
 }
 
 pub fn start_buffered_writer(
-    app: tauri::AppHandle,
+    db: db::Db,
 ) -> (
     mpsc::Sender<circuit_breaker::CircuitPersistedState>,
     tauri::async_runtime::JoinHandle<()>,
 ) {
     let (tx, rx) = mpsc::channel::<circuit_breaker::CircuitPersistedState>(WRITE_BUFFER_CAPACITY);
     let task = tauri::async_runtime::spawn_blocking(move || {
-        writer_loop(app, rx);
+        writer_loop(db, rx);
     });
     (tx, task)
 }
 
-fn writer_loop(
-    app: tauri::AppHandle,
-    mut rx: mpsc::Receiver<circuit_breaker::CircuitPersistedState>,
-) {
+fn writer_loop(db: db::Db, mut rx: mpsc::Receiver<circuit_breaker::CircuitPersistedState>) {
     let mut buffer: Vec<circuit_breaker::CircuitPersistedState> =
         Vec::with_capacity(WRITE_BATCH_MAX);
 
@@ -57,21 +47,21 @@ fn writer_loop(
             }
         }
 
-        if let Err(err) = insert_batch(&app, &buffer) {
+        if let Err(err) = insert_batch(&db, &buffer) {
             tracing::error!("熔断器状态批量插入失败: {}", err);
         }
         buffer.clear();
     }
 
     if !buffer.is_empty() {
-        if let Err(err) = insert_batch(&app, &buffer) {
+        if let Err(err) = insert_batch(&db, &buffer) {
             tracing::error!("熔断器状态最终批量插入失败: {}", err);
         }
     }
 }
 
 fn insert_batch(
-    app: &tauri::AppHandle,
+    db: &db::Db,
     items: &[circuit_breaker::CircuitPersistedState],
 ) -> Result<(), String> {
     if items.is_empty() {
@@ -84,7 +74,7 @@ fn insert_batch(
         latest_by_provider.insert(item.provider_id, item.clone());
     }
 
-    let mut conn = db::open_connection(app)?;
+    let mut conn = db.open_connection()?;
     let tx = conn
         .transaction()
         .map_err(|e| format!("DB_ERROR: failed to start transaction: {e}"))?;
@@ -134,9 +124,9 @@ ON CONFLICT(provider_id) DO UPDATE SET
 }
 
 pub fn load_all(
-    app: &tauri::AppHandle,
+    db: &db::Db,
 ) -> Result<HashMap<i64, circuit_breaker::CircuitPersistedState>, String> {
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
     let mut stmt = conn
         .prepare(
             r#"
@@ -175,11 +165,11 @@ FROM provider_circuit_breakers
     Ok(items)
 }
 
-pub fn delete_by_provider_id(app: &tauri::AppHandle, provider_id: i64) -> Result<usize, String> {
+pub fn delete_by_provider_id(db: &db::Db, provider_id: i64) -> Result<usize, String> {
     if provider_id <= 0 {
         return Ok(0);
     }
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
     conn.execute(
         "DELETE FROM provider_circuit_breakers WHERE provider_id = ?1",
         params![provider_id],
@@ -187,21 +177,18 @@ pub fn delete_by_provider_id(app: &tauri::AppHandle, provider_id: i64) -> Result
     .map_err(|e| format!("DB_ERROR: failed to delete circuit breaker state: {e}"))
 }
 
-pub fn delete_by_provider_ids(
-    app: &tauri::AppHandle,
-    provider_ids: &[i64],
-) -> Result<usize, String> {
+pub fn delete_by_provider_ids(db: &db::Db, provider_ids: &[i64]) -> Result<usize, String> {
     let ids: Vec<i64> = provider_ids.iter().copied().filter(|id| *id > 0).collect();
 
     if ids.is_empty() {
         return Ok(0);
     }
 
-    let placeholders = db::sql_placeholders(ids.len());
+    let placeholders = crate::db::sql_placeholders(ids.len());
     let sql =
         format!("DELETE FROM provider_circuit_breakers WHERE provider_id IN ({placeholders})");
 
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
     conn.execute(&sql, params_from_iter(ids.iter()))
         .map_err(|e| format!("DB_ERROR: failed to delete circuit breaker states: {e}"))
 }

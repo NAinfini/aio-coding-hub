@@ -1,6 +1,6 @@
 //! Usage: Best-effort enqueue to DB log tasks with backpressure and fallbacks.
 
-use crate::{request_attempt_logs, request_logs, usage};
+use crate::{db, request_attempt_logs, request_logs, usage};
 use std::time::Duration;
 
 use super::super::events::{emit_gateway_log, GatewayAttemptEvent};
@@ -35,6 +35,7 @@ fn attempt_log_insert_from_event(
 
 pub(super) async fn enqueue_attempt_log_with_backpressure(
     app: &tauri::AppHandle,
+    db: &db::Db,
     attempt_log_tx: &tokio::sync::mpsc::Sender<request_attempt_logs::RequestAttemptLogInsert>,
     attempt: &GatewayAttemptEvent,
     created_at: i64,
@@ -58,7 +59,7 @@ pub(super) async fn enqueue_attempt_log_with_backpressure(
                     attempt.trace_id, attempt.cli_key
                 ),
             );
-            request_attempt_logs::spawn_write_through(app.clone(), insert);
+            request_attempt_logs::spawn_write_through(app.clone(), db.clone(), insert);
         }
         Err(_) => {
             if attempt_log_tx.try_send(insert).is_ok() {
@@ -161,6 +162,7 @@ fn request_log_insert_from_args(
 
 pub(super) async fn enqueue_request_log_with_backpressure(
     app: &tauri::AppHandle,
+    db: &db::Db,
     log_tx: &tokio::sync::mpsc::Sender<request_logs::RequestLogInsert>,
     args: super::RequestLogEnqueueArgs,
 ) {
@@ -185,7 +187,7 @@ pub(super) async fn enqueue_request_log_with_backpressure(
                     trace_id, cli_key
                 ),
             );
-            request_logs::spawn_write_through(app.clone(), insert);
+            request_logs::spawn_write_through(app.clone(), db.clone(), insert);
         }
         Err(_) => {
             if log_tx.try_send(insert).is_ok() {
@@ -220,10 +222,11 @@ pub(super) async fn enqueue_request_log_with_backpressure(
 
 pub(in crate::gateway) fn spawn_enqueue_request_log_with_backpressure(
     app: tauri::AppHandle,
+    db: db::Db,
     log_tx: tokio::sync::mpsc::Sender<request_logs::RequestLogInsert>,
     args: super::RequestLogEnqueueArgs,
 ) {
     tauri::async_runtime::spawn(async move {
-        enqueue_request_log_with_backpressure(&app, &log_tx, args).await;
+        enqueue_request_log_with_backpressure(&app, &db, &log_tx, args).await;
     });
 }

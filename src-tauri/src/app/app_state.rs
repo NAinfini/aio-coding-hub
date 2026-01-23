@@ -8,12 +8,12 @@ use tokio::sync::OnceCell;
 pub(crate) struct GatewayState(pub(crate) Mutex<gateway::GatewayManager>);
 
 #[derive(Default)]
-pub(crate) struct DbInitState(pub(crate) OnceCell<Result<(), String>>);
+pub(crate) struct DbInitState(pub(crate) OnceCell<Result<db::Db, String>>);
 
 pub(crate) async fn ensure_db_ready(
     app: tauri::AppHandle,
     state: &DbInitState,
-) -> Result<(), String> {
+) -> Result<db::Db, String> {
     state
         .0
         .get_or_init(|| async move { blocking::run("db_init", move || db::init(&app)).await })

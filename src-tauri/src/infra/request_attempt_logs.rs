@@ -1,9 +1,10 @@
 //! Usage: Attempt log persistence (sqlite buffered writer, queries, and cleanup).
 
+use crate::shared::time::now_unix_seconds;
 use crate::{db, settings};
 use rusqlite::{params, ErrorCode};
 use serde::Serialize;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
 const WRITE_BUFFER_CAPACITY: usize = 1024;
@@ -99,13 +100,6 @@ pub struct RequestAttemptLog {
     pub created_at: i64,
 }
 
-fn now_unix_seconds() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
-}
-
 fn validate_cli_key(cli_key: &str) -> Result<(), String> {
     match cli_key {
         "claude" | "codex" | "gemini" => Ok(()),
@@ -115,27 +109,28 @@ fn validate_cli_key(cli_key: &str) -> Result<(), String> {
 
 pub fn start_buffered_writer(
     app: tauri::AppHandle,
+    db: db::Db,
 ) -> (
     mpsc::Sender<RequestAttemptLogInsert>,
     tauri::async_runtime::JoinHandle<()>,
 ) {
     let (tx, rx) = mpsc::channel::<RequestAttemptLogInsert>(WRITE_BUFFER_CAPACITY);
     let task = tauri::async_runtime::spawn_blocking(move || {
-        writer_loop(app, rx);
+        writer_loop(app, db, rx);
     });
     (tx, task)
 }
 
-pub fn spawn_write_through(app: tauri::AppHandle, item: RequestAttemptLogInsert) {
+pub fn spawn_write_through(_app: tauri::AppHandle, db: db::Db, item: RequestAttemptLogInsert) {
     tauri::async_runtime::spawn_blocking(move || {
         let items = [item];
-        if let Err(err) = insert_batch_with_retries(&app, &items) {
+        if let Err(err) = insert_batch_with_retries(&db, &items) {
             tracing::error!(error = %err.message, "尝试日志直写插入失败");
         }
     });
 }
 
-fn writer_loop(app: tauri::AppHandle, mut rx: mpsc::Receiver<RequestAttemptLogInsert>) {
+fn writer_loop(app: tauri::AppHandle, db: db::Db, mut rx: mpsc::Receiver<RequestAttemptLogInsert>) {
     let mut buffer: Vec<RequestAttemptLogInsert> = Vec::with_capacity(WRITE_BATCH_MAX);
     let now = Instant::now();
     let mut last_cleanup = now.checked_sub(CLEANUP_MIN_INTERVAL).unwrap_or(now);
@@ -152,14 +147,14 @@ fn writer_loop(app: tauri::AppHandle, mut rx: mpsc::Receiver<RequestAttemptLogIn
             }
         }
 
-        if let Err(err) = insert_batch_with_retries(&app, &buffer) {
+        if let Err(err) = insert_batch_with_retries(&db, &buffer) {
             tracing::error!(error = %err.message, "尝试日志批量插入失败");
         }
         buffer.clear();
 
         if cleanup_due || last_cleanup.elapsed() >= CLEANUP_MIN_INTERVAL {
             let retention_days = settings::log_retention_days_fail_open(&app);
-            if let Err(err) = cleanup_expired(&app, retention_days) {
+            if let Err(err) = cleanup_expired(&db, retention_days) {
                 tracing::warn!("尝试日志清理失败: {}", err);
             }
             cleanup_due = false;
@@ -168,19 +163,19 @@ fn writer_loop(app: tauri::AppHandle, mut rx: mpsc::Receiver<RequestAttemptLogIn
     }
 
     if !buffer.is_empty() {
-        if let Err(err) = insert_batch_with_retries(&app, &buffer) {
+        if let Err(err) = insert_batch_with_retries(&db, &buffer) {
             tracing::error!(error = %err.message, "尝试日志最终批量插入失败");
         }
     }
 }
 
 fn insert_batch_with_retries(
-    app: &tauri::AppHandle,
+    db: &db::Db,
     items: &[RequestAttemptLogInsert],
 ) -> Result<(), DbWriteError> {
     let mut attempt: u32 = 0;
     loop {
-        match insert_batch_once(app, items) {
+        match insert_batch_once(db, items) {
             Ok(()) => return Ok(()),
             Err(err) => {
                 attempt = attempt.saturating_add(1);
@@ -193,15 +188,12 @@ fn insert_batch_with_retries(
     }
 }
 
-fn insert_batch_once(
-    app: &tauri::AppHandle,
-    items: &[RequestAttemptLogInsert],
-) -> Result<(), DbWriteError> {
+fn insert_batch_once(db: &db::Db, items: &[RequestAttemptLogInsert]) -> Result<(), DbWriteError> {
     if items.is_empty() {
         return Ok(());
     }
 
-    let mut conn = db::open_connection(app).map_err(DbWriteError::other)?;
+    let mut conn = db.open_connection().map_err(DbWriteError::other)?;
     let tx = conn
         .transaction()
         .map_err(|e| DbWriteError::from_rusqlite("failed to start transaction", e))?;
@@ -269,7 +261,7 @@ ON CONFLICT(trace_id, attempt_index) DO UPDATE SET
     Ok(())
 }
 
-pub fn cleanup_expired(app: &tauri::AppHandle, retention_days: u32) -> Result<u64, String> {
+pub fn cleanup_expired(db: &db::Db, retention_days: u32) -> Result<u64, String> {
     if retention_days == 0 {
         return Err("SEC_INVALID_INPUT: log_retention_days must be >= 1".to_string());
     }
@@ -277,7 +269,7 @@ pub fn cleanup_expired(app: &tauri::AppHandle, retention_days: u32) -> Result<u6
     let now = now_unix_seconds();
     let cutoff = now.saturating_sub((retention_days as i64).saturating_mul(86400));
 
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
     let changed = conn
         .execute(
             "DELETE FROM request_attempt_logs WHERE created_at < ?1",
@@ -309,7 +301,7 @@ fn row_to_log(row: &rusqlite::Row<'_>) -> Result<RequestAttemptLog, rusqlite::Er
 }
 
 pub fn list_by_trace_id(
-    app: &tauri::AppHandle,
+    db: &db::Db,
     trace_id: &str,
     limit: usize,
 ) -> Result<Vec<RequestAttemptLog>, String> {
@@ -319,7 +311,7 @@ pub fn list_by_trace_id(
     }
 
     let limit = limit.clamp(1, 200);
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
 
     let mut stmt = conn
         .prepare(

@@ -8,8 +8,8 @@ pub(crate) async fn sort_modes_list(
     app: tauri::AppHandle,
     db_state: tauri::State<'_, DbInitState>,
 ) -> Result<Vec<sort_modes::SortModeSummary>, String> {
-    ensure_db_ready(app.clone(), db_state.inner()).await?;
-    blocking::run("sort_modes_list", move || sort_modes::list_modes(&app)).await
+    let db = ensure_db_ready(app, db_state.inner()).await?;
+    blocking::run("sort_modes_list", move || sort_modes::list_modes(&db)).await
 }
 
 #[tauri::command]
@@ -18,9 +18,9 @@ pub(crate) async fn sort_mode_create(
     db_state: tauri::State<'_, DbInitState>,
     name: String,
 ) -> Result<sort_modes::SortModeSummary, String> {
-    ensure_db_ready(app.clone(), db_state.inner()).await?;
+    let db = ensure_db_ready(app, db_state.inner()).await?;
     blocking::run("sort_mode_create", move || {
-        sort_modes::create_mode(&app, &name)
+        sort_modes::create_mode(&db, &name)
     })
     .await
 }
@@ -32,9 +32,9 @@ pub(crate) async fn sort_mode_rename(
     mode_id: i64,
     name: String,
 ) -> Result<sort_modes::SortModeSummary, String> {
-    ensure_db_ready(app.clone(), db_state.inner()).await?;
+    let db = ensure_db_ready(app, db_state.inner()).await?;
     blocking::run("sort_mode_rename", move || {
-        sort_modes::rename_mode(&app, mode_id, &name)
+        sort_modes::rename_mode(&db, mode_id, &name)
     })
     .await
 }
@@ -45,9 +45,9 @@ pub(crate) async fn sort_mode_delete(
     db_state: tauri::State<'_, DbInitState>,
     mode_id: i64,
 ) -> Result<bool, String> {
-    ensure_db_ready(app.clone(), db_state.inner()).await?;
+    let db = ensure_db_ready(app, db_state.inner()).await?;
     blocking::run("sort_mode_delete", move || {
-        sort_modes::delete_mode(&app, mode_id)?;
+        sort_modes::delete_mode(&db, mode_id)?;
         Ok(true)
     })
     .await
@@ -58,9 +58,9 @@ pub(crate) async fn sort_mode_active_list(
     app: tauri::AppHandle,
     db_state: tauri::State<'_, DbInitState>,
 ) -> Result<Vec<sort_modes::SortModeActiveRow>, String> {
-    ensure_db_ready(app.clone(), db_state.inner()).await?;
+    let db = ensure_db_ready(app, db_state.inner()).await?;
     blocking::run("sort_mode_active_list", move || {
-        sort_modes::list_active(&app)
+        sort_modes::list_active(&db)
     })
     .await
 }
@@ -72,9 +72,9 @@ pub(crate) async fn sort_mode_active_set(
     cli_key: String,
     mode_id: Option<i64>,
 ) -> Result<sort_modes::SortModeActiveRow, String> {
-    ensure_db_ready(app.clone(), db_state.inner()).await?;
+    let db = ensure_db_ready(app, db_state.inner()).await?;
     blocking::run("sort_mode_active_set", move || {
-        sort_modes::set_active(&app, &cli_key, mode_id)
+        sort_modes::set_active(&db, &cli_key, mode_id)
     })
     .await
 }
@@ -86,9 +86,9 @@ pub(crate) async fn sort_mode_providers_list(
     mode_id: i64,
     cli_key: String,
 ) -> Result<Vec<i64>, String> {
-    ensure_db_ready(app.clone(), db_state.inner()).await?;
+    let db = ensure_db_ready(app, db_state.inner()).await?;
     blocking::run("sort_mode_providers_list", move || {
-        sort_modes::list_mode_providers(&app, mode_id, &cli_key)
+        sort_modes::list_mode_providers(&db, mode_id, &cli_key)
     })
     .await
 }
@@ -101,9 +101,9 @@ pub(crate) async fn sort_mode_providers_set_order(
     cli_key: String,
     ordered_provider_ids: Vec<i64>,
 ) -> Result<Vec<i64>, String> {
-    ensure_db_ready(app.clone(), db_state.inner()).await?;
+    let db = ensure_db_ready(app, db_state.inner()).await?;
     blocking::run("sort_mode_providers_set_order", move || {
-        sort_modes::set_mode_providers_order(&app, mode_id, &cli_key, ordered_provider_ids)
+        sort_modes::set_mode_providers_order(&db, mode_id, &cli_key, ordered_provider_ids)
     })
     .await
 }

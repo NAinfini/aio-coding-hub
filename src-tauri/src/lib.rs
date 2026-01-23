@@ -82,10 +82,13 @@ pub fn run() {
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 let db_state = app_handle.state::<DbInitState>();
-                if let Err(err) = ensure_db_ready(app_handle.clone(), db_state.inner()).await {
-                    tracing::error!("数据库初始化失败: {}", err);
-                    return;
-                }
+                let db = match ensure_db_ready(app_handle.clone(), db_state.inner()).await {
+                    Ok(db) => db,
+                    Err(err) => {
+                        tracing::error!("数据库初始化失败: {}", err);
+                        return;
+                    }
+                };
 
                 // M1: auto-start gateway on app launch (required for seamless CLI proxy experience).
                 // Port conflicts are handled by the gateway's bind-first-available strategy.
@@ -108,10 +111,11 @@ pub fn run() {
 
                 let status = match blocking::run("startup_gateway_autostart", {
                     let app_handle = app_handle.clone();
+                    let db = db.clone();
                     move || {
                         let state = app_handle.state::<GatewayState>();
                         let mut manager = state.0.lock_or_recover();
-                        manager.start(&app_handle, Some(settings.preferred_port))
+                        manager.start(&app_handle, db, Some(settings.preferred_port))
                     }
                 })
                 .await

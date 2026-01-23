@@ -4,6 +4,8 @@ use crate::app_paths;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{OnceLock, RwLock};
+use std::time::{Duration, Instant};
 use tauri::Manager;
 
 pub const SCHEMA_VERSION: u32 = 13;
@@ -50,8 +52,17 @@ const MAX_RESPONSE_FIXER_MAX_JSON_DEPTH: u32 = 2000;
 const MAX_RESPONSE_FIXER_MAX_FIX_SIZE: u32 = 16 * 1024 * 1024;
 const LEGACY_IDENTIFIER: &str = "io.aio.gateway";
 const DEFAULT_UPDATE_RELEASES_URL: &str = "https://github.com/dyndynjyxa/aio-coding-hub/releases";
+const CACHE_TTL: Duration = Duration::from_secs(5);
 
 static LOG_RETENTION_DAYS_FAIL_OPEN_WARNED: AtomicBool = AtomicBool::new(false);
+
+#[derive(Clone)]
+struct CachedSettings {
+    data: AppSettings,
+    last_updated: Instant,
+}
+
+static SETTINGS_CACHE: OnceLock<RwLock<Option<CachedSettings>>> = OnceLock::new();
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -517,6 +528,16 @@ fn parse_settings_json(content: &str) -> Result<(AppSettings, bool), String> {
 }
 
 pub fn read(app: &tauri::AppHandle) -> Result<AppSettings, String> {
+    let cache = SETTINGS_CACHE.get_or_init(|| RwLock::new(None));
+
+    if let Ok(guard) = cache.read() {
+        if let Some(cached) = guard.as_ref() {
+            if cached.last_updated.elapsed() < CACHE_TTL {
+                return Ok(cached.data.clone());
+            }
+        }
+    }
+
     let path = settings_path(app)?;
 
     if !path.exists() {
@@ -558,12 +579,26 @@ pub fn read(app: &tauri::AppHandle) -> Result<AppSettings, String> {
                 // best-effort: persist sanitized defaults
             }
             let _ = write(app, &settings);
+
+            if let Ok(mut guard) = cache.write() {
+                *guard = Some(CachedSettings {
+                    data: settings.clone(),
+                    last_updated: Instant::now(),
+                });
+            }
             return Ok(settings);
         }
 
         let settings = AppSettings::default();
         // Best-effort: create default settings.json on first read to make the config discoverable/editable.
         let _ = write(app, &settings);
+
+        if let Ok(mut guard) = cache.write() {
+            *guard = Some(CachedSettings {
+                data: settings.clone(),
+                last_updated: Instant::now(),
+            });
+        }
         return Ok(settings);
     }
 
@@ -597,6 +632,13 @@ pub fn read(app: &tauri::AppHandle) -> Result<AppSettings, String> {
     if repaired {
         // Best-effort: persist repaired values while keeping read semantics.
         let _ = write(app, &settings);
+    }
+
+    if let Ok(mut guard) = cache.write() {
+        *guard = Some(CachedSettings {
+            data: settings.clone(),
+            last_updated: Instant::now(),
+        });
     }
 
     Ok(settings)
@@ -742,6 +784,14 @@ pub fn write(app: &tauri::AppHandle, settings: &AppSettings) -> Result<AppSettin
 
     if backup_path.exists() {
         let _ = std::fs::remove_file(&backup_path);
+    }
+
+    let cache = SETTINGS_CACHE.get_or_init(|| RwLock::new(None));
+    if let Ok(mut guard) = cache.write() {
+        *guard = Some(CachedSettings {
+            data: settings.clone(),
+            last_updated: Instant::now(),
+        });
     }
 
     Ok(settings.clone())

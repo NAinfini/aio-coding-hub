@@ -1,5 +1,5 @@
 use crate::{
-    circuit_breaker, provider_circuit_breakers, providers, request_attempt_logs, request_logs,
+    circuit_breaker, db, provider_circuit_breakers, providers, request_attempt_logs, request_logs,
     session_manager, settings, wsl,
 };
 use std::net::SocketAddr;
@@ -44,6 +44,7 @@ pub struct GatewayManager {
 #[derive(Clone)]
 pub(super) struct GatewayAppState {
     pub(super) app: tauri::AppHandle,
+    pub(super) db: db::Db,
     pub(super) client: reqwest::Client,
     pub(super) log_tx: tokio::sync::mpsc::Sender<request_logs::RequestLogInsert>,
     pub(super) attempt_log_tx:
@@ -130,6 +131,7 @@ impl GatewayManager {
     pub fn start(
         &mut self,
         app: &tauri::AppHandle,
+        db: db::Db,
         preferred_port: Option<u16>,
     ) -> Result<GatewayStatus, String> {
         if self.running.is_some() {
@@ -203,26 +205,25 @@ impl GatewayManager {
             .build()
             .map_err(|e| format!("GW_HTTP_CLIENT_INIT: {e}"))?;
 
-        let (log_tx, log_task) = request_logs::start_buffered_writer(app.clone());
+        let (log_tx, log_task) = request_logs::start_buffered_writer(app.clone(), db.clone());
         let (attempt_log_tx, attempt_log_task) =
-            request_attempt_logs::start_buffered_writer(app.clone());
+            request_attempt_logs::start_buffered_writer(app.clone(), db.clone());
         let (circuit_tx, circuit_task) =
-            provider_circuit_breakers::start_buffered_writer(app.clone());
+            provider_circuit_breakers::start_buffered_writer(db.clone());
 
         let retention_days = settings::log_retention_days_fail_open(app);
-        let app_for_cleanup = app.clone();
+        let db_for_cleanup = db.clone();
         std::mem::drop(tauri::async_runtime::spawn_blocking(move || {
-            if let Err(err) = request_logs::cleanup_expired(&app_for_cleanup, retention_days) {
+            if let Err(err) = request_logs::cleanup_expired(&db_for_cleanup, retention_days) {
                 tracing::warn!("请求日志启动清理失败: {}", err);
             }
-            if let Err(err) =
-                request_attempt_logs::cleanup_expired(&app_for_cleanup, retention_days)
+            if let Err(err) = request_attempt_logs::cleanup_expired(&db_for_cleanup, retention_days)
             {
                 tracing::warn!("尝试日志启动清理失败: {}", err);
             }
         }));
 
-        let circuit_initial = match provider_circuit_breakers::load_all(app) {
+        let circuit_initial = match provider_circuit_breakers::load_all(&db) {
             Ok(v) => v,
             Err(err) => {
                 tracing::warn!("熔断器状态加载失败，使用默认值: {}", err);
@@ -251,6 +252,7 @@ impl GatewayManager {
 
         let state = GatewayAppState {
             app: app.clone(),
+            db,
             client,
             log_tx,
             attempt_log_tx,
@@ -301,9 +303,10 @@ impl GatewayManager {
     pub fn circuit_status(
         &self,
         app: &tauri::AppHandle,
+        db: &db::Db,
         cli_key: &str,
     ) -> Result<Vec<GatewayProviderCircuitStatus>, String> {
-        let provider_ids: Vec<i64> = providers::list_by_cli(app, cli_key)?
+        let provider_ids: Vec<i64> = providers::list_by_cli(db, cli_key)?
             .into_iter()
             .map(|p| p.id)
             .collect();
@@ -332,7 +335,7 @@ impl GatewayManager {
                 .collect());
         }
 
-        let persisted = provider_circuit_breakers::load_all(app).unwrap_or_default();
+        let persisted = provider_circuit_breakers::load_all(db).unwrap_or_default();
         let cfg = settings::read(app).unwrap_or_default();
         let failure_threshold = cfg.circuit_breaker_failure_threshold.max(1);
 
@@ -374,11 +377,7 @@ impl GatewayManager {
             .collect())
     }
 
-    pub fn circuit_reset_provider(
-        &self,
-        app: &tauri::AppHandle,
-        provider_id: i64,
-    ) -> Result<(), String> {
+    pub fn circuit_reset_provider(&self, db: &db::Db, provider_id: i64) -> Result<(), String> {
         if provider_id <= 0 {
             return Err("SEC_INVALID_INPUT: provider_id must be > 0".to_string());
         }
@@ -388,16 +387,12 @@ impl GatewayManager {
             r.circuit.reset(provider_id, now_unix);
         }
 
-        let _ = provider_circuit_breakers::delete_by_provider_id(app, provider_id)?;
+        let _ = provider_circuit_breakers::delete_by_provider_id(db, provider_id)?;
         Ok(())
     }
 
-    pub fn circuit_reset_cli(
-        &self,
-        app: &tauri::AppHandle,
-        cli_key: &str,
-    ) -> Result<usize, String> {
-        let provider_ids: Vec<i64> = providers::list_by_cli(app, cli_key)?
+    pub fn circuit_reset_cli(&self, db: &db::Db, cli_key: &str) -> Result<usize, String> {
+        let provider_ids: Vec<i64> = providers::list_by_cli(db, cli_key)?
             .into_iter()
             .map(|p| p.id)
             .collect();
@@ -413,7 +408,7 @@ impl GatewayManager {
             }
         }
 
-        let _ = provider_circuit_breakers::delete_by_provider_ids(app, &provider_ids)?;
+        let _ = provider_circuit_breakers::delete_by_provider_ids(db, &provider_ids)?;
         Ok(provider_ids.len())
     }
 

@@ -200,7 +200,7 @@ fn cost_usd_from_femto(v: i64) -> f64 {
 }
 
 pub fn summary_v1(
-    app: &tauri::AppHandle,
+    db: &db::Db,
     period: &str,
     start_ts: Option<i64>,
     end_ts: Option<i64>,
@@ -208,7 +208,7 @@ pub fn summary_v1(
     provider_id: Option<i64>,
     model: Option<&str>,
 ) -> Result<CostSummaryV1, String> {
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
 
     let period = parse_period_v1(period)?;
     let (start_ts, end_ts, _) = compute_bounds_v1(&conn, period, start_ts, end_ts)?;
@@ -284,7 +284,7 @@ AND (?5 IS NULL OR {model_key_expr} = ?5)
 }
 
 pub fn trend_v1(
-    app: &tauri::AppHandle,
+    db: &db::Db,
     period: &str,
     start_ts: Option<i64>,
     end_ts: Option<i64>,
@@ -292,7 +292,7 @@ pub fn trend_v1(
     provider_id: Option<i64>,
     model: Option<&str>,
 ) -> Result<Vec<CostTrendRowV1>, String> {
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
 
     let period = parse_period_v1(period)?;
     let (start_ts, end_ts, bucket) = compute_bounds_v1(&conn, period, start_ts, end_ts)?;
@@ -377,7 +377,7 @@ ORDER BY {order_by_fields}
 
 #[allow(clippy::too_many_arguments)]
 pub fn breakdown_provider_v1(
-    app: &tauri::AppHandle,
+    db: &db::Db,
     period: &str,
     start_ts: Option<i64>,
     end_ts: Option<i64>,
@@ -386,7 +386,7 @@ pub fn breakdown_provider_v1(
     model: Option<&str>,
     limit: usize,
 ) -> Result<Vec<CostProviderBreakdownRowV1>, String> {
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
 
     let period = parse_period_v1(period)?;
     let (start_ts, end_ts, _) = compute_bounds_v1(&conn, period, start_ts, end_ts)?;
@@ -462,7 +462,7 @@ LIMIT ?6
 
 #[allow(clippy::too_many_arguments)]
 pub fn breakdown_model_v1(
-    app: &tauri::AppHandle,
+    db: &db::Db,
     period: &str,
     start_ts: Option<i64>,
     end_ts: Option<i64>,
@@ -471,7 +471,7 @@ pub fn breakdown_model_v1(
     model: Option<&str>,
     limit: usize,
 ) -> Result<Vec<CostModelBreakdownRowV1>, String> {
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
 
     let period = parse_period_v1(period)?;
     let (start_ts, end_ts, _) = compute_bounds_v1(&conn, period, start_ts, end_ts)?;
@@ -540,7 +540,7 @@ LIMIT ?6
 
 #[allow(clippy::too_many_arguments)]
 pub fn scatter_cli_provider_model_v1(
-    app: &tauri::AppHandle,
+    db: &db::Db,
     period: &str,
     start_ts: Option<i64>,
     end_ts: Option<i64>,
@@ -549,7 +549,7 @@ pub fn scatter_cli_provider_model_v1(
     model: Option<&str>,
     limit: usize,
 ) -> Result<Vec<CostScatterCliProviderModelRowV1>, String> {
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
 
     let period = parse_period_v1(period)?;
     let (start_ts, end_ts, _) = compute_bounds_v1(&conn, period, start_ts, end_ts)?;
@@ -627,7 +627,7 @@ LIMIT ?6
 
 #[allow(clippy::too_many_arguments)]
 pub fn top_requests_v1(
-    app: &tauri::AppHandle,
+    db: &db::Db,
     period: &str,
     start_ts: Option<i64>,
     end_ts: Option<i64>,
@@ -636,7 +636,7 @@ pub fn top_requests_v1(
     model: Option<&str>,
     limit: usize,
 ) -> Result<Vec<CostTopRequestRowV1>, String> {
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
 
     let period = parse_period_v1(period)?;
     let (start_ts, end_ts, _) = compute_bounds_v1(&conn, period, start_ts, end_ts)?;
@@ -736,7 +736,7 @@ fn has_any_cost_usage(usage: &cost::CostUsage) -> bool {
 
 #[allow(clippy::too_many_arguments)]
 pub fn backfill_missing_v1(
-    app: &tauri::AppHandle,
+    db: &db::Db,
     period: &str,
     start_ts: Option<i64>,
     end_ts: Option<i64>,
@@ -745,7 +745,7 @@ pub fn backfill_missing_v1(
     model: Option<&str>,
     max_rows: usize,
 ) -> Result<CostBackfillReportV1, String> {
-    let mut conn = db::open_connection(app)?;
+    let mut conn = db.open_connection()?;
 
     let period = parse_period_v1(period)?;
     let (start_ts, end_ts, _) = compute_bounds_v1(&conn, period, start_ts, end_ts)?;

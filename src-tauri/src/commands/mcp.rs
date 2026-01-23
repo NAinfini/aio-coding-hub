@@ -8,8 +8,8 @@ pub(crate) async fn mcp_servers_list(
     app: tauri::AppHandle,
     db_state: tauri::State<'_, DbInitState>,
 ) -> Result<Vec<mcp::McpServerSummary>, String> {
-    ensure_db_ready(app.clone(), db_state.inner()).await?;
-    blocking::run("mcp_servers_list", move || mcp::list_all(&app)).await
+    let db = ensure_db_ready(app, db_state.inner()).await?;
+    blocking::run("mcp_servers_list", move || mcp::list_all(&db)).await
 }
 
 #[tauri::command]
@@ -31,10 +31,11 @@ pub(crate) async fn mcp_server_upsert(
     enabled_codex: bool,
     enabled_gemini: bool,
 ) -> Result<mcp::McpServerSummary, String> {
-    ensure_db_ready(app.clone(), db_state.inner()).await?;
+    let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
     blocking::run("mcp_server_upsert", move || {
         mcp::upsert(
             &app,
+            &db,
             server_id,
             &server_key,
             &name,
@@ -61,9 +62,9 @@ pub(crate) async fn mcp_server_set_enabled(
     cli_key: String,
     enabled: bool,
 ) -> Result<mcp::McpServerSummary, String> {
-    ensure_db_ready(app.clone(), db_state.inner()).await?;
+    let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
     blocking::run("mcp_server_set_enabled", move || {
-        mcp::set_enabled(&app, server_id, &cli_key, enabled)
+        mcp::set_enabled(&app, &db, server_id, &cli_key, enabled)
     })
     .await
 }
@@ -74,9 +75,9 @@ pub(crate) async fn mcp_server_delete(
     db_state: tauri::State<'_, DbInitState>,
     server_id: i64,
 ) -> Result<bool, String> {
-    ensure_db_ready(app.clone(), db_state.inner()).await?;
+    let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
     blocking::run("mcp_server_delete", move || {
-        mcp::delete(&app, server_id)?;
+        mcp::delete(&app, &db, server_id)?;
         Ok(true)
     })
     .await
@@ -93,9 +94,9 @@ pub(crate) async fn mcp_import_servers(
     db_state: tauri::State<'_, DbInitState>,
     servers: Vec<mcp::McpImportServer>,
 ) -> Result<mcp::McpImportReport, String> {
-    ensure_db_ready(app.clone(), db_state.inner()).await?;
+    let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
     blocking::run("mcp_import_servers", move || {
-        mcp::import_servers(&app, servers)
+        mcp::import_servers(&app, &db, servers)
     })
     .await
 }

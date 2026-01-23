@@ -1,5 +1,6 @@
 //! Usage: Sync model price data from external sources and persist into sqlite.
 
+use crate::shared::time::now_unix_seconds;
 use crate::{app_paths, blocking, db};
 use reqwest::header::{HeaderMap, HeaderValue, IF_MODIFIED_SINCE, IF_NONE_MATCH, LAST_MODIFIED};
 use rusqlite::params;
@@ -7,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 const BASELLM_ALL_JSON_URL: &str = "https://basellm.github.io/llm-metadata/api/all.json";
 
@@ -32,13 +33,6 @@ struct ModelPriceRow {
     cli_key: String,
     model: String,
     price_json: String,
-}
-
-fn now_unix_seconds() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
 }
 
 fn model_prices_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
@@ -358,10 +352,7 @@ fn load_existing_price_map(
     Ok(map)
 }
 
-fn upsert_rows(
-    app: &tauri::AppHandle,
-    mut rows: Vec<ModelPriceRow>,
-) -> Result<ModelPricesSyncReport, String> {
+fn upsert_rows(db: &db::Db, mut rows: Vec<ModelPriceRow>) -> Result<ModelPricesSyncReport, String> {
     // De-dup by (cli_key, model) to avoid conflicting writes if basellm contains duplicates.
     // Keep the first occurrence deterministically by stable sort + dedup.
     rows.sort_by(|a, b| {
@@ -369,7 +360,7 @@ fn upsert_rows(
     });
     rows.dedup_by(|a, b| a.cli_key == b.cli_key && a.model == b.model);
 
-    let mut conn = db::open_connection(app)?;
+    let mut conn = db.open_connection()?;
     let tx = conn
         .transaction()
         .map_err(|e| format!("DB_ERROR: failed to start sqlite transaction: {e}"))?;
@@ -475,6 +466,7 @@ fn add_cache_headers(mut headers: HeaderMap, cache: &BasellmCacheMeta) -> Header
 
 pub async fn sync_basellm(
     app: &tauri::AppHandle,
+    db: db::Db,
     force: bool,
 ) -> Result<ModelPricesSyncReport, String> {
     let app_handle = app.clone();
@@ -536,8 +528,8 @@ pub async fn sync_basellm(
     .await?;
 
     let report = blocking::run("basellm_upsert_rows", {
-        let app_handle = app_handle.clone();
-        move || upsert_rows(&app_handle, rows)
+        let db = db.clone();
+        move || upsert_rows(&db, rows)
     })
     .await?;
 

@@ -2,6 +2,7 @@
 
 use crate::app_paths;
 use crate::db;
+use crate::shared::time::now_unix_seconds;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
 use std::collections::{BTreeMap, HashSet};
@@ -64,13 +65,6 @@ pub struct LocalSkillSummary {
     pub path: String,
     pub name: String,
     pub description: String,
-}
-
-fn now_unix_seconds() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
 }
 
 fn now_unix_nanos() -> u128 {
@@ -1187,6 +1181,7 @@ pub fn local_list(app: &tauri::AppHandle, cli_key: &str) -> Result<Vec<LocalSkil
 
 pub fn import_local(
     app: &tauri::AppHandle,
+    db: &db::Db,
     cli_key: &str,
     dir_name: &str,
 ) -> Result<InstalledSkillSummary, String> {
@@ -1218,7 +1213,7 @@ pub fn import_local(
     };
     let normalized_name = normalize_name(&name);
 
-    let mut conn = db::open_connection(app)?;
+    let mut conn = db.open_connection()?;
     if skill_key_exists(&conn, &dir_name)? {
         return Err("SKILL_IMPORT_CONFLICT: same skill_key already exists".to_string());
     }
@@ -1397,8 +1392,8 @@ fn row_to_installed(row: &rusqlite::Row<'_>) -> Result<InstalledSkillSummary, ru
     })
 }
 
-pub fn repos_list(app: &tauri::AppHandle) -> Result<Vec<SkillRepoSummary>, String> {
-    let conn = db::open_connection(app)?;
+pub fn repos_list(db: &db::Db) -> Result<Vec<SkillRepoSummary>, String> {
+    let conn = db.open_connection()?;
     let mut stmt = conn
         .prepare(
             r#"
@@ -1444,7 +1439,7 @@ ORDER BY updated_at DESC, id DESC
 }
 
 pub fn repo_upsert(
-    app: &tauri::AppHandle,
+    db: &db::Db,
     repo_id: Option<i64>,
     git_url: &str,
     branch: &str,
@@ -1456,7 +1451,7 @@ pub fn repo_upsert(
     }
     let branch = normalize_repo_branch(branch);
 
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
     let now = now_unix_seconds();
 
     match repo_id {
@@ -1588,8 +1583,8 @@ WHERE id = ?1
     .ok_or_else(|| "DB_NOT_FOUND: skill repo not found".to_string())
 }
 
-pub fn repo_delete(app: &tauri::AppHandle, repo_id: i64) -> Result<(), String> {
-    let conn = db::open_connection(app)?;
+pub fn repo_delete(db: &db::Db, repo_id: i64) -> Result<(), String> {
+    let conn = db.open_connection()?;
     let changed = conn
         .execute("DELETE FROM skill_repos WHERE id = ?1", params![repo_id])
         .map_err(|e| format!("DB_ERROR: failed to delete skill repo: {e}"))?;
@@ -1599,8 +1594,8 @@ pub fn repo_delete(app: &tauri::AppHandle, repo_id: i64) -> Result<(), String> {
     Ok(())
 }
 
-pub fn installed_list(app: &tauri::AppHandle) -> Result<Vec<InstalledSkillSummary>, String> {
-    let conn = db::open_connection(app)?;
+pub fn installed_list(db: &db::Db) -> Result<Vec<InstalledSkillSummary>, String> {
+    let conn = db.open_connection()?;
     let mut stmt = conn
         .prepare(
             r#"
@@ -1662,6 +1657,7 @@ FROM skills
 
 pub fn discover_available(
     app: &tauri::AppHandle,
+    db: &db::Db,
     refresh: bool,
 ) -> Result<Vec<AvailableSkillSummary>, String> {
     fn subdir_score(source_subdir: &str) -> i32 {
@@ -1713,7 +1709,7 @@ pub fn discover_available(
         b.source_subdir < a.source_subdir
     }
 
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
 
     let installed_sources = installed_source_set(&conn)?;
 
@@ -1884,8 +1880,10 @@ WHERE id = ?1
     .ok_or_else(|| "DB_NOT_FOUND: skill not found".to_string())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn install(
     app: &tauri::AppHandle,
+    db: &db::Db,
     git_url: &str,
     branch: &str,
     source_subdir: &str,
@@ -1896,7 +1894,7 @@ pub fn install(
     ensure_skills_roots(app)?;
     validate_relative_subdir(source_subdir)?;
 
-    let mut conn = db::open_connection(app)?;
+    let mut conn = db.open_connection()?;
     let now = now_unix_seconds();
 
     // Ensure source not already installed.
@@ -2019,13 +2017,14 @@ INSERT INTO skills(
 
 pub fn set_enabled(
     app: &tauri::AppHandle,
+    db: &db::Db,
     skill_id: i64,
     cli_key: &str,
     enabled: bool,
 ) -> Result<InstalledSkillSummary, String> {
     validate_cli_key(cli_key)?;
 
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
     let now = now_unix_seconds();
 
     let current = get_skill_by_id(&conn, skill_id)?;
@@ -2055,8 +2054,8 @@ pub fn set_enabled(
     get_skill_by_id(&conn, skill_id)
 }
 
-pub fn uninstall(app: &tauri::AppHandle, skill_id: i64) -> Result<(), String> {
-    let conn = db::open_connection(app)?;
+pub fn uninstall(app: &tauri::AppHandle, db: &db::Db, skill_id: i64) -> Result<(), String> {
+    let conn = db.open_connection()?;
     let skill = get_skill_by_id(&conn, skill_id)?;
 
     // Safety: ensure we will only delete managed dirs.

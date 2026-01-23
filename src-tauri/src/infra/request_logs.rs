@@ -1,10 +1,11 @@
 //! Usage: Request log persistence (sqlite buffered writer, queries, and cleanup).
 
+use crate::shared::time::now_unix_seconds;
 use crate::{cost, db, model_price_aliases, settings};
 use rusqlite::{params, params_from_iter, ErrorCode, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
 const WRITE_BUFFER_CAPACITY: usize = 512;
@@ -250,13 +251,6 @@ pub struct RequestLogDetail {
     pub created_at: i64,
 }
 
-fn now_unix_seconds() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
-}
-
 fn validate_cli_key(cli_key: &str) -> Result<(), String> {
     match cli_key {
         "claude" | "codex" | "gemini" => Ok(()),
@@ -353,28 +347,29 @@ fn has_any_cost_usage(usage: &cost::CostUsage) -> bool {
 
 pub fn start_buffered_writer(
     app: tauri::AppHandle,
+    db: db::Db,
 ) -> (
     mpsc::Sender<RequestLogInsert>,
     tauri::async_runtime::JoinHandle<()>,
 ) {
     let (tx, rx) = mpsc::channel::<RequestLogInsert>(WRITE_BUFFER_CAPACITY);
     let task = tauri::async_runtime::spawn_blocking(move || {
-        writer_loop(app, rx);
+        writer_loop(app, db, rx);
     });
     (tx, task)
 }
 
-pub fn spawn_write_through(app: tauri::AppHandle, item: RequestLogInsert) {
+pub fn spawn_write_through(app: tauri::AppHandle, db: db::Db, item: RequestLogInsert) {
     tauri::async_runtime::spawn_blocking(move || {
         let mut cache = InsertBatchCache::default();
         let items = [item];
-        if let Err(err) = insert_batch_with_retries(&app, &items, &mut cache) {
+        if let Err(err) = insert_batch_with_retries(&app, &db, &items, &mut cache) {
             tracing::error!(error = %err.message, "请求日志直写插入失败");
         }
     });
 }
 
-fn writer_loop(app: tauri::AppHandle, mut rx: mpsc::Receiver<RequestLogInsert>) {
+fn writer_loop(app: tauri::AppHandle, db: db::Db, mut rx: mpsc::Receiver<RequestLogInsert>) {
     let mut buffer: Vec<RequestLogInsert> = Vec::with_capacity(WRITE_BATCH_MAX);
     let now = Instant::now();
     let mut last_cleanup = now.checked_sub(CLEANUP_MIN_INTERVAL).unwrap_or(now);
@@ -392,14 +387,14 @@ fn writer_loop(app: tauri::AppHandle, mut rx: mpsc::Receiver<RequestLogInsert>) 
             }
         }
 
-        if let Err(err) = insert_batch_with_retries(&app, &buffer, &mut cache) {
+        if let Err(err) = insert_batch_with_retries(&app, &db, &buffer, &mut cache) {
             tracing::error!(error = %err.message, "请求日志批量插入失败");
         }
         buffer.clear();
 
         if cleanup_due || last_cleanup.elapsed() >= CLEANUP_MIN_INTERVAL {
             let retention_days = settings::log_retention_days_fail_open(&app);
-            if let Err(err) = cleanup_expired(&app, retention_days) {
+            if let Err(err) = cleanup_expired(&db, retention_days) {
                 tracing::warn!("请求日志清理失败: {}", err);
             }
             cleanup_due = false;
@@ -408,7 +403,7 @@ fn writer_loop(app: tauri::AppHandle, mut rx: mpsc::Receiver<RequestLogInsert>) 
     }
 
     if !buffer.is_empty() {
-        if let Err(err) = insert_batch_with_retries(&app, &buffer, &mut cache) {
+        if let Err(err) = insert_batch_with_retries(&app, &db, &buffer, &mut cache) {
             tracing::error!(error = %err.message, "请求日志最终批量插入失败");
         }
     }
@@ -416,12 +411,13 @@ fn writer_loop(app: tauri::AppHandle, mut rx: mpsc::Receiver<RequestLogInsert>) 
 
 fn insert_batch_with_retries(
     app: &tauri::AppHandle,
+    db: &db::Db,
     items: &[RequestLogInsert],
     cache: &mut InsertBatchCache,
 ) -> Result<(), DbWriteError> {
     let mut attempt: u32 = 0;
     loop {
-        match insert_batch_once(app, items, cache) {
+        match insert_batch_once(app, db, items, cache) {
             Ok(()) => return Ok(()),
             Err(err) => {
                 attempt = attempt.saturating_add(1);
@@ -436,6 +432,7 @@ fn insert_batch_with_retries(
 
 fn insert_batch_once(
     app: &tauri::AppHandle,
+    db: &db::Db,
     items: &[RequestLogInsert],
     cache: &mut InsertBatchCache,
 ) -> Result<(), DbWriteError> {
@@ -445,7 +442,7 @@ fn insert_batch_once(
 
     let now_unix = now_unix_seconds();
     let price_aliases = model_price_aliases::read_fail_open(app);
-    let mut conn = db::open_connection(app).map_err(DbWriteError::other)?;
+    let mut conn = db.open_connection().map_err(DbWriteError::other)?;
     let tx = conn
         .transaction()
         .map_err(|e| DbWriteError::from_rusqlite("failed to start transaction", e))?;
@@ -655,7 +652,7 @@ fn insert_batch_once(
     Ok(())
 }
 
-pub fn cleanup_expired(app: &tauri::AppHandle, retention_days: u32) -> Result<u64, String> {
+pub fn cleanup_expired(db: &db::Db, retention_days: u32) -> Result<u64, String> {
     if retention_days == 0 {
         return Err("SEC_INVALID_INPUT: log_retention_days must be >= 1".to_string());
     }
@@ -663,7 +660,7 @@ pub fn cleanup_expired(app: &tauri::AppHandle, retention_days: u32) -> Result<u6
     let now = now_unix_seconds();
     let cutoff = now.saturating_sub((retention_days as i64).saturating_mul(86400));
 
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
     let changed = conn
         .execute(
             "DELETE FROM request_logs WHERE created_at < ?1",
@@ -721,12 +718,12 @@ fn row_to_summary(row: &rusqlite::Row<'_>) -> Result<RequestLogSummary, rusqlite
 }
 
 pub fn list_recent(
-    app: &tauri::AppHandle,
+    db: &db::Db,
     cli_key: &str,
     limit: usize,
 ) -> Result<Vec<RequestLogSummary>, String> {
     validate_cli_key(cli_key)?;
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
 
     let mut stmt = conn
         .prepare(
@@ -773,11 +770,8 @@ LIMIT ?2
     Ok(items)
 }
 
-pub fn list_recent_all(
-    app: &tauri::AppHandle,
-    limit: usize,
-) -> Result<Vec<RequestLogSummary>, String> {
-    let conn = db::open_connection(app)?;
+pub fn list_recent_all(db: &db::Db, limit: usize) -> Result<Vec<RequestLogSummary>, String> {
+    let conn = db.open_connection()?;
 
     let mut stmt = conn
         .prepare(
@@ -824,13 +818,13 @@ pub fn list_recent_all(
 }
 
 pub fn list_after_id(
-    app: &tauri::AppHandle,
+    db: &db::Db,
     cli_key: &str,
     after_id: i64,
     limit: usize,
 ) -> Result<Vec<RequestLogSummary>, String> {
     validate_cli_key(cli_key)?;
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
 
     let after_id = after_id.max(0);
     let mut stmt = conn
@@ -879,11 +873,11 @@ pub fn list_after_id(
 }
 
 pub fn list_after_id_all(
-    app: &tauri::AppHandle,
+    db: &db::Db,
     after_id: i64,
     limit: usize,
 ) -> Result<Vec<RequestLogSummary>, String> {
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
 
     let after_id = after_id.max(0);
     let mut stmt = conn
@@ -931,8 +925,8 @@ pub fn list_after_id_all(
     Ok(items)
 }
 
-pub fn get_by_id(app: &tauri::AppHandle, log_id: i64) -> Result<RequestLogDetail, String> {
-    let conn = db::open_connection(app)?;
+pub fn get_by_id(db: &db::Db, log_id: i64) -> Result<RequestLogDetail, String> {
+    let conn = db.open_connection()?;
     conn.query_row(
         r#"
 	SELECT
@@ -1004,15 +998,12 @@ pub fn get_by_id(app: &tauri::AppHandle, log_id: i64) -> Result<RequestLogDetail
     .ok_or_else(|| "DB_NOT_FOUND: request_log not found".to_string())
 }
 
-pub fn get_by_trace_id(
-    app: &tauri::AppHandle,
-    trace_id: &str,
-) -> Result<Option<RequestLogDetail>, String> {
+pub fn get_by_trace_id(db: &db::Db, trace_id: &str) -> Result<Option<RequestLogDetail>, String> {
     if trace_id.trim().is_empty() {
         return Err("SEC_INVALID_INPUT: trace_id is required".to_string());
     }
 
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
     conn.query_row(
         r#"
 	SELECT
@@ -1093,7 +1084,7 @@ pub struct SessionStatsAggregate {
 }
 
 pub fn aggregate_by_session_ids(
-    app: &tauri::AppHandle,
+    db: &db::Db,
     session_ids: &[String],
 ) -> Result<HashMap<(String, String), SessionStatsAggregate>, String> {
     let ids: Vec<String> = session_ids
@@ -1110,7 +1101,7 @@ pub fn aggregate_by_session_ids(
         return Ok(HashMap::new());
     }
 
-    let placeholders = db::sql_placeholders(ids.len());
+    let placeholders = crate::db::sql_placeholders(ids.len());
     let sql = format!(
         r#"
 SELECT
@@ -1128,7 +1119,7 @@ GROUP BY cli_key, session_id
 "#
     );
 
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
     let mut stmt = conn
         .prepare(&sql)
         .map_err(|e| format!("DB_ERROR: failed to prepare session aggregate query: {e}"))?;

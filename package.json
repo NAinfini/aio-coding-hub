@@ -21,10 +21,10 @@
     "tauri:check": "cd src-tauri && cargo check --locked",
     "tauri:clippy": "cd src-tauri && cargo clippy --all-targets --locked -- -D warnings",
     "tauri:test": "cd src-tauri && cargo test --locked",
-    "tauri:build": "tauri build",
-    "tauri:build:mac:arm64": "tauri build --target aarch64-apple-darwin",
-    "tauri:build:mac:x64": "tauri build --target x86_64-apple-darwin",
-    "tauri:build:mac:universal": "tauri build --target universal-apple-darwin"
+    "tauri:build": "node scripts/tauri-build.mjs",
+    "tauri:build:mac:arm64": "node scripts/tauri-build.mjs --target aarch64-apple-darwin",
+    "tauri:build:mac:x64": "node scripts/tauri-build.mjs --target x86_64-apple-darwin",
+    "tauri:build:mac:universal": "node scripts/tauri-build.mjs --target universal-apple-darwin"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

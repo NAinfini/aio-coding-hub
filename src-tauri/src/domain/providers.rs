@@ -1,10 +1,10 @@
 //! Usage: Provider configuration persistence and gateway selection helpers.
 
 use crate::db;
+use crate::shared::time::now_unix_seconds;
 use rusqlite::{params, params_from_iter, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 const DEFAULT_PRIORITY: i64 = 100;
 const MAX_MODEL_NAME_LEN: usize = 200;
@@ -158,13 +158,6 @@ pub(crate) struct GatewayProvidersSelection {
     pub providers: Vec<ProviderForGateway>,
 }
 
-fn now_unix_seconds() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
-}
-
 fn validate_cli_key(cli_key: &str) -> Result<(), String> {
     match cli_key {
         "claude" | "codex" | "gemini" => Ok(()),
@@ -297,10 +290,7 @@ WHERE id = ?1
     .ok_or_else(|| "DB_NOT_FOUND: provider not found".to_string())
 }
 
-pub fn names_by_id(
-    app: &tauri::AppHandle,
-    provider_ids: &[i64],
-) -> Result<HashMap<i64, String>, String> {
+pub fn names_by_id(db: &db::Db, provider_ids: &[i64]) -> Result<HashMap<i64, String>, String> {
     let ids: Vec<i64> = provider_ids
         .iter()
         .copied()
@@ -313,9 +303,9 @@ pub fn names_by_id(
         return Ok(HashMap::new());
     }
 
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
 
-    let placeholders = db::sql_placeholders(ids.len());
+    let placeholders = crate::db::sql_placeholders(ids.len());
     let sql = format!("SELECT id, name FROM providers WHERE id IN ({placeholders})");
 
     let mut stmt = conn
@@ -343,9 +333,9 @@ pub fn names_by_id(
     Ok(out)
 }
 
-pub fn list_by_cli(app: &tauri::AppHandle, cli_key: &str) -> Result<Vec<ProviderSummary>, String> {
+pub fn list_by_cli(db: &db::Db, cli_key: &str) -> Result<Vec<ProviderSummary>, String> {
     validate_cli_key(cli_key)?;
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
 
     let mut stmt = conn
         .prepare(
@@ -493,11 +483,11 @@ ORDER BY sort_order ASC, id DESC
 }
 
 pub(crate) fn list_enabled_for_gateway_using_active_mode(
-    app: &tauri::AppHandle,
+    db: &db::Db,
     cli_key: &str,
 ) -> Result<GatewayProvidersSelection, String> {
     validate_cli_key(cli_key)?;
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
 
     let active_mode_id: Option<i64> = conn
         .query_row(
@@ -525,12 +515,12 @@ pub(crate) fn list_enabled_for_gateway_using_active_mode(
 }
 
 pub(crate) fn list_enabled_for_gateway_in_mode(
-    app: &tauri::AppHandle,
+    db: &db::Db,
     cli_key: &str,
     sort_mode_id: Option<i64>,
 ) -> Result<Vec<ProviderForGateway>, String> {
     validate_cli_key(cli_key)?;
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
 
     match sort_mode_id {
         Some(mode_id) => list_enabled_for_gateway_in_sort_mode(&conn, cli_key, mode_id),
@@ -549,7 +539,7 @@ fn next_sort_order(conn: &Connection, cli_key: &str) -> Result<i64, String> {
 
 #[allow(clippy::too_many_arguments)]
 pub fn upsert(
-    app: &tauri::AppHandle,
+    db: &db::Db,
     provider_id: Option<i64>,
     cli_key: &str,
     name: &str,
@@ -589,7 +579,7 @@ pub fn upsert(
         }
     }
 
-    let mut conn = db::open_connection(app)?;
+    let mut conn = db.open_connection()?;
     let now = now_unix_seconds();
 
     match provider_id {
@@ -757,11 +747,11 @@ WHERE id = ?11
 }
 
 pub fn set_enabled(
-    app: &tauri::AppHandle,
+    db: &db::Db,
     provider_id: i64,
     enabled: bool,
 ) -> Result<ProviderSummary, String> {
-    let conn = db::open_connection(app)?;
+    let conn = db.open_connection()?;
     let now = now_unix_seconds();
     let changed = conn
         .execute(
@@ -777,8 +767,8 @@ pub fn set_enabled(
     get_by_id(&conn, provider_id)
 }
 
-pub fn delete(app: &tauri::AppHandle, provider_id: i64) -> Result<(), String> {
-    let conn = db::open_connection(app)?;
+pub fn delete(db: &db::Db, provider_id: i64) -> Result<(), String> {
+    let conn = db.open_connection()?;
     let changed = conn
         .execute("DELETE FROM providers WHERE id = ?1", params![provider_id])
         .map_err(|e| format!("DB_ERROR: failed to delete provider: {e}"))?;
@@ -791,7 +781,7 @@ pub fn delete(app: &tauri::AppHandle, provider_id: i64) -> Result<(), String> {
 }
 
 pub fn reorder(
-    app: &tauri::AppHandle,
+    db: &db::Db,
     cli_key: &str,
     ordered_provider_ids: Vec<i64>,
 ) -> Result<Vec<ProviderSummary>, String> {
@@ -804,7 +794,7 @@ pub fn reorder(
         }
     }
 
-    let mut conn = db::open_connection(app)?;
+    let mut conn = db.open_connection()?;
     let tx = conn
         .transaction()
         .map_err(|e| format!("DB_ERROR: failed to start transaction: {e}"))?;
@@ -853,7 +843,7 @@ pub fn reorder(
     tx.commit()
         .map_err(|e| format!("DB_ERROR: failed to commit transaction: {e}"))?;
 
-    list_by_cli(app, cli_key)
+    list_by_cli(db, cli_key)
 }
 
 #[cfg(test)]

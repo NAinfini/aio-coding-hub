@@ -1,6 +1,7 @@
 //! Usage: Windows WSL related Tauri commands.
 
 use crate::app_state::{ensure_db_ready, DbInitState, GatewayState};
+use crate::shared::mutex_ext::MutexExt;
 use crate::{blocking, gateway, settings, wsl};
 use tauri::Manager;
 
@@ -67,7 +68,7 @@ pub(crate) async fn wsl_configure_clients(
         let app = app.clone();
         move || {
             let state = app.state::<GatewayState>();
-            let mut manager = state.0.lock().map_err(|_| "gateway state poisoned")?;
+            let mut manager = state.0.lock_or_recover();
             manager.start(&app, Some(preferred_port))
         }
     })

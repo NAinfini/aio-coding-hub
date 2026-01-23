@@ -10,6 +10,7 @@ pub(super) use logging::spawn_enqueue_request_log_with_backpressure;
 use logging::{enqueue_attempt_log_with_backpressure, enqueue_request_log_with_backpressure};
 pub(super) use types::ErrorCategory;
 
+use crate::shared::mutex_ext::MutexExt;
 use crate::{
     circuit_breaker, cli_proxy, providers, request_logs, session_manager, settings, usage,
 };
@@ -567,7 +568,8 @@ async fn select_provider_base_url_for_request(
     }
 
     let now_unix_ms = now_unix_millis();
-    if let Ok(mut cache) = state.latency_cache.lock() {
+    {
+        let mut cache = state.latency_cache.lock_or_recover();
         if let Some(best) =
             cache.get_valid_best_base_url(provider.id, now_unix_ms, &provider.base_urls)
         {
@@ -608,7 +610,8 @@ async fn select_provider_base_url_for_request(
         return primary;
     };
 
-    if let Ok(mut cache) = state.latency_cache.lock() {
+    {
+        let mut cache = state.latency_cache.lock_or_recover();
         cache.put_best_base_url(provider.id, best_base_url.clone(), expires_at_unix_ms);
     }
 
@@ -638,7 +641,7 @@ fn cli_proxy_enabled_cached(app: &tauri::AppHandle, cli_key: &str) -> CliProxyEn
     let cache = CLI_PROXY_ENABLED_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
 
     {
-        let cache = cache.lock().unwrap_or_else(|e| e.into_inner());
+        let cache = cache.lock_or_recover();
         if let Some(entry) = cache.get(cli_key) {
             if entry.expires_at_unix_ms > now_unix_ms {
                 let cache_ttl_ms = if entry.error.is_some() {
@@ -667,7 +670,7 @@ fn cli_proxy_enabled_cached(app: &tauri::AppHandle, cli_key: &str) -> CliProxyEn
     };
 
     {
-        let mut cache = cache.lock().unwrap_or_else(|e| e.into_inner());
+        let mut cache = cache.lock_or_recover();
         cache.insert(
             cli_key.to_string(),
             CliProxyEnabledCacheEntry {

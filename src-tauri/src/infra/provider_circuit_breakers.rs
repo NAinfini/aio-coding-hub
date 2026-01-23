@@ -58,14 +58,14 @@ fn writer_loop(
         }
 
         if let Err(err) = insert_batch(&app, &buffer) {
-            eprintln!("provider_circuit_breakers insert_batch error: {err}");
+            tracing::error!("熔断器状态批量插入失败: {}", err);
         }
         buffer.clear();
     }
 
     if !buffer.is_empty() {
         if let Err(err) = insert_batch(&app, &buffer) {
-            eprintln!("provider_circuit_breakers final insert_batch error: {err}");
+            tracing::error!("熔断器状态最终批量插入失败: {}", err);
         }
     }
 }

@@ -283,7 +283,7 @@ fn read_manifest(app: &tauri::AppHandle, cli_key: &str) -> Result<Option<McpSync
 
     if !path.exists() {
         if let Err(err) = try_migrate_legacy_mcp_sync_dir(app, cli_key) {
-            eprintln!("mcp sync migrate error: {err}");
+            tracing::warn!("MCP 同步迁移失败: {}", err);
         }
     }
 
@@ -883,7 +883,7 @@ pub fn sync_cli(
     // Best-effort: sanity check to avoid duplicated keys in manifest.
     let set: HashSet<String> = manifest.managed_keys.iter().cloned().collect();
     if set.len() != manifest.managed_keys.len() {
-        eprintln!("mcp sync warning: duplicated managed_keys for cli_key={cli_key}");
+        tracing::warn!(cli_key = %cli_key, "MCP 同步警告: managed_keys 存在重复");
     }
 
     Ok(())

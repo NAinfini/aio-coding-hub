@@ -1,6 +1,7 @@
 //! Usage: Gateway lifecycle / status / session / circuit commands.
 
 use crate::app_state::{ensure_db_ready, DbInitState, GatewayState};
+use crate::shared::mutex_ext::MutexExt;
 use crate::{blocking, cli_proxy, gateway, providers, request_logs, settings, wsl};
 use tauri::Emitter;
 use tauri::Manager;
@@ -22,7 +23,7 @@ pub(crate) struct GatewayActiveSessionSummary {
 
 #[tauri::command]
 pub(crate) fn gateway_status(state: tauri::State<'_, GatewayState>) -> gateway::GatewayStatus {
-    let manager = state.0.lock().unwrap_or_else(|e| e.into_inner());
+    let manager = state.0.lock_or_recover();
     manager.status()
 }
 
@@ -65,7 +66,7 @@ pub(crate) async fn gateway_sessions_list(
         .unwrap_or(0);
 
     let sessions = {
-        let manager = state.0.lock().map_err(|_| "gateway state poisoned")?;
+        let manager = state.0.lock_or_recover();
         manager.active_sessions(now_unix, limit)
     };
 
@@ -133,7 +134,7 @@ pub(crate) async fn gateway_circuit_status(
     ensure_db_ready(app.clone(), db_state.inner()).await?;
     blocking::run("gateway_circuit_status", move || {
         let state = app.state::<GatewayState>();
-        let manager = state.0.lock().map_err(|_| "gateway state poisoned")?;
+        let manager = state.0.lock_or_recover();
         manager.circuit_status(&app, &cli_key)
     })
     .await
@@ -148,7 +149,7 @@ pub(crate) async fn gateway_circuit_reset_provider(
     ensure_db_ready(app.clone(), db_state.inner()).await?;
     blocking::run("gateway_circuit_reset_provider", move || {
         let state = app.state::<GatewayState>();
-        let manager = state.0.lock().map_err(|_| "gateway state poisoned")?;
+        let manager = state.0.lock_or_recover();
         manager.circuit_reset_provider(&app, provider_id)?;
         Ok(true)
     })
@@ -164,7 +165,7 @@ pub(crate) async fn gateway_circuit_reset_cli(
     ensure_db_ready(app.clone(), db_state.inner()).await?;
     blocking::run("gateway_circuit_reset_cli", move || {
         let state = app.state::<GatewayState>();
-        let manager = state.0.lock().map_err(|_| "gateway state poisoned")?;
+        let manager = state.0.lock_or_recover();
         manager.circuit_reset_cli(&app, &cli_key)
     })
     .await
@@ -181,7 +182,7 @@ pub(crate) async fn gateway_start(
         let app = app.clone();
         move || {
             let state = app.state::<GatewayState>();
-            let mut manager = state.0.lock().map_err(|_| "gateway state poisoned")?;
+            let mut manager = state.0.lock_or_recover();
             manager.start(&app, preferred_port)
         }
     })
@@ -206,7 +207,7 @@ pub(crate) async fn gateway_stop(
     state: tauri::State<'_, GatewayState>,
 ) -> Result<gateway::GatewayStatus, String> {
     let running = {
-        let mut manager = state.0.lock().map_err(|_| "gateway state poisoned")?;
+        let mut manager = state.0.lock_or_recover();
         manager.take_running()
     };
 
@@ -226,7 +227,7 @@ pub(crate) async fn gateway_stop(
         };
 
         if tokio::time::timeout(stop_timeout, join_all).await.is_err() {
-            eprintln!("gateway stop timeout; aborting server task");
+            tracing::warn!("网关停止超时，正在中止服务器任务");
             task.abort();
 
             let abort_grace = std::time::Duration::from_secs(1);

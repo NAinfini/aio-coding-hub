@@ -307,9 +307,7 @@ export function SkillsPage() {
                       <span className="text-xs text-slate-600">启用</span>
                       <Switch
                         checked={enabledForCli(skill, activeCli)}
-                        disabled={
-                          togglingSkillId === skill.id || uninstallingSkillId === skill.id
-                        }
+                        disabled={togglingSkillId === skill.id || uninstallingSkillId === skill.id}
                         onCheckedChange={(next) => void toggleSkillEnabled(skill, next)}
                       />
                       <Button
@@ -385,9 +383,7 @@ export function SkillsPage() {
                   {skill.description ? (
                     <div className="mt-1.5 text-xs text-slate-500">{skill.description}</div>
                   ) : null}
-                  <div className="mt-2 truncate font-mono text-xs text-slate-500">
-                    {skill.path}
-                  </div>
+                  <div className="mt-2 truncate font-mono text-xs text-slate-500">{skill.path}</div>
                 </div>
               ))
             )}

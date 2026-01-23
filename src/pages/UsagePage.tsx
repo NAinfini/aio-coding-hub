@@ -497,7 +497,6 @@ export function UsagePage() {
       <Card padding="md">
         <div className="flex items-center justify-between gap-4">
           <div className="text-sm font-semibold text-slate-900">{tableTitle}</div>
-          <div className="text-xs text-slate-500">默认按 requests_total 降序排序（P0）。</div>
         </div>
 
         <div className="mt-4">

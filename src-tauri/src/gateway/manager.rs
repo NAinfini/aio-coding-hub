@@ -213,19 +213,19 @@ impl GatewayManager {
         let app_for_cleanup = app.clone();
         std::mem::drop(tauri::async_runtime::spawn_blocking(move || {
             if let Err(err) = request_logs::cleanup_expired(&app_for_cleanup, retention_days) {
-                eprintln!("request_logs startup cleanup error: {err}");
+                tracing::warn!("请求日志启动清理失败: {}", err);
             }
             if let Err(err) =
                 request_attempt_logs::cleanup_expired(&app_for_cleanup, retention_days)
             {
-                eprintln!("request_attempt_logs startup cleanup error: {err}");
+                tracing::warn!("尝试日志启动清理失败: {}", err);
             }
         }));
 
         let circuit_initial = match provider_circuit_breakers::load_all(app) {
             Ok(v) => v,
             Err(err) => {
-                eprintln!("provider_circuit_breakers load_all error: {err}");
+                tracing::warn!("熔断器状态加载失败，使用默认值: {}", err);
                 Default::default()
             }
         };
@@ -268,7 +268,7 @@ impl GatewayManager {
             let listener = match tokio::net::TcpListener::from_std(std_listener) {
                 Ok(l) => l,
                 Err(err) => {
-                    eprintln!("gateway listener error on {bind_addr}: {err}");
+                    tracing::error!(bind_addr = %bind_addr, "网关监听器初始化失败: {}", err);
                     return;
                 }
             };
@@ -278,7 +278,7 @@ impl GatewayManager {
             });
 
             if let Err(err) = serve.await {
-                eprintln!("gateway server error on {bind_addr}: {err}");
+                tracing::error!(bind_addr = %bind_addr, "网关服务器运行错误: {}", err);
             }
         });
 

@@ -20,9 +20,7 @@ export function PageHeader({ title, subtitle, actions }: PageHeaderProps) {
           {subtitle ? <p className="mt-1 text-sm text-slate-600">{subtitle}</p> : null}
         </div>
       </div>
-      {actions ? (
-        <div className="flex min-h-12 flex-wrap items-center gap-2">{actions}</div>
-      ) : null}
+      {actions ? <div className="flex min-h-12 flex-wrap items-center gap-2">{actions}</div> : null}
     </div>
   );
 }

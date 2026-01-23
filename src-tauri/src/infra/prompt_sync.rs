@@ -270,7 +270,7 @@ fn read_manifest(
 
     if !path.exists() {
         if let Err(err) = try_migrate_legacy_prompt_sync_dir(app, cli_key) {
-            eprintln!("prompt sync migrate error: {err}");
+            tracing::warn!("提示词同步迁移失败: {}", err);
         }
     }
 
@@ -413,7 +413,7 @@ fn restore_from_manifest(
             }
         }
 
-        eprintln!("PROMPT_SYNC_NO_BACKUP: no backup found for cli_key={cli_key}");
+        tracing::warn!(cli_key = %cli_key, "提示词同步: 未找到备份");
         return Ok(());
     }
 
@@ -511,9 +511,7 @@ pub fn restore_disabled_prompt(app: &tauri::AppHandle, cli_key: &str) -> Result<
                 let safe_path = safety_dir.join(safe_name);
                 let _ = write_file_atomic(&safe_path, &bytes);
             }
-            eprintln!(
-                "PROMPT_SYNC_NO_BACKUP: manifest missing for cli_key={cli_key}, keep current file"
-            );
+            tracing::warn!(cli_key = %cli_key, "提示词同步: manifest 缺失，保留当前文件");
         }
 
         let now = now_unix_seconds();

@@ -2,3 +2,4 @@
 
 pub(crate) mod blocking;
 pub(crate) mod circuit_breaker;
+pub(crate) mod mutex_ext;

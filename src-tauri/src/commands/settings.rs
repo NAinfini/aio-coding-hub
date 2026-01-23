@@ -95,7 +95,7 @@ pub(crate) async fn settings_set(
                 };
 
                 if let Err(err) = result {
-                    eprintln!("autostart sync error: {err}");
+                    tracing::warn!("自启动同步失败: {}", err);
                     next_auto_start = previous.auto_start;
                 }
             }

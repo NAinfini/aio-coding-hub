@@ -20,6 +20,7 @@ pub(crate) use shared::{blocking, circuit_breaker};
 
 use app_state::{ensure_db_ready, DbInitState, GatewayState};
 use commands::*;
+use shared::mutex_ext::MutexExt;
 use tauri::Emitter;
 use tauri::Manager;
 
@@ -42,17 +43,19 @@ pub fn run() {
     let app = builder
         .on_window_event(resident::on_window_event)
         .setup(|app| {
+            crate::app::logging::init(app.handle());
+
             #[cfg(desktop)]
             {
                 if let Err(err) = app
                     .handle()
                     .plugin(tauri_plugin_updater::Builder::new().build())
                 {
-                    eprintln!("updater init error: {err}");
+                    tracing::error!("updater 初始化失败: {}", err);
                 }
 
                 if let Err(err) = resident::setup_tray(app.handle()) {
-                    eprintln!("tray init error: {err}");
+                    tracing::error!("系统托盘初始化失败: {}", err);
                 }
             }
 
@@ -65,13 +68,13 @@ pub fn run() {
                 if enabled {
                     let identifier = &app.config().identifier;
                     let product_name = app.config().product_name.as_deref().unwrap_or("<missing>");
-                    eprintln!("[dev] tauri identifier: {identifier}");
-                    eprintln!("[dev] productName: {product_name}");
+                    tracing::info!(identifier = %identifier, "[dev] tauri identifier");
+                    tracing::info!(product_name = %product_name, "[dev] productName");
                     if let Ok(dotdir_name) = std::env::var("AIO_CODING_HUB_DOTDIR_NAME") {
-                        eprintln!("[dev] AIO_CODING_HUB_DOTDIR_NAME: {}", dotdir_name);
+                        tracing::info!(dotdir_name = %dotdir_name, "[dev] AIO_CODING_HUB_DOTDIR_NAME");
                     }
                     if let Ok(dir) = app_paths::app_data_dir(app.handle()) {
-                        eprintln!("[dev] app data dir: {}", dir.display());
+                        tracing::info!(dir = %dir.display(), "[dev] app data dir");
                     }
                 }
             }
@@ -80,7 +83,7 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 let db_state = app_handle.state::<DbInitState>();
                 if let Err(err) = ensure_db_ready(app_handle.clone(), db_state.inner()).await {
-                    eprintln!("db init error: {err}");
+                    tracing::error!("数据库初始化失败: {}", err);
                     return;
                 }
 
@@ -94,7 +97,7 @@ pub fn run() {
                 {
                     Ok(cfg) => cfg,
                     Err(err) => {
-                        eprintln!("settings read error: {err}");
+                        tracing::warn!("配置读取失败，使用默认值: {}", err);
                         settings::AppSettings::default()
                     }
                 };
@@ -107,7 +110,7 @@ pub fn run() {
                     let app_handle = app_handle.clone();
                     move || {
                         let state = app_handle.state::<GatewayState>();
-                        let mut manager = state.0.lock().unwrap_or_else(|e| e.into_inner());
+                        let mut manager = state.0.lock_or_recover();
                         manager.start(&app_handle, Some(settings.preferred_port))
                     }
                 })
@@ -115,7 +118,7 @@ pub fn run() {
                 {
                     Ok(status) => status,
                     Err(err) => {
-                        eprintln!("gateway auto-start error: {err}");
+                        tracing::error!("网关自动启动失败: {}", err);
                         return;
                     }
                 };

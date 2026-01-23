@@ -369,7 +369,7 @@ pub fn spawn_write_through(app: tauri::AppHandle, item: RequestLogInsert) {
         let mut cache = InsertBatchCache::default();
         let items = [item];
         if let Err(err) = insert_batch_with_retries(&app, &items, &mut cache) {
-            eprintln!("request_logs write-through insert error: {}", err.message);
+            tracing::error!(error = %err.message, "请求日志直写插入失败");
         }
     });
 }
@@ -393,14 +393,14 @@ fn writer_loop(app: tauri::AppHandle, mut rx: mpsc::Receiver<RequestLogInsert>) 
         }
 
         if let Err(err) = insert_batch_with_retries(&app, &buffer, &mut cache) {
-            eprintln!("request_logs insert_batch error: {}", err.message);
+            tracing::error!(error = %err.message, "请求日志批量插入失败");
         }
         buffer.clear();
 
         if cleanup_due || last_cleanup.elapsed() >= CLEANUP_MIN_INTERVAL {
             let retention_days = settings::log_retention_days_fail_open(&app);
             if let Err(err) = cleanup_expired(&app, retention_days) {
-                eprintln!("request_logs cleanup error: {err}");
+                tracing::warn!("请求日志清理失败: {}", err);
             }
             cleanup_due = false;
             last_cleanup = Instant::now();
@@ -409,7 +409,7 @@ fn writer_loop(app: tauri::AppHandle, mut rx: mpsc::Receiver<RequestLogInsert>) 
 
     if !buffer.is_empty() {
         if let Err(err) = insert_batch_with_retries(&app, &buffer, &mut cache) {
-            eprintln!("request_logs final insert_batch error: {}", err.message);
+            tracing::error!(error = %err.message, "请求日志最终批量插入失败");
         }
     }
 }

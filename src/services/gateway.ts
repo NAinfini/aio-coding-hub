@@ -1,3 +1,7 @@
+import { formatUnknownError } from "../utils/errors";
+import { logToConsole } from "./consoleLog";
+import { invokeTauriOrNull } from "./tauriInvoke";
+
 export type GatewayStatus = {
   running: boolean;
   port: number | null;
@@ -28,80 +32,80 @@ export type GatewayProviderCircuitStatus = {
   cooldown_until: number | null;
 };
 
-import { invokeTauriOrNull } from "./tauriInvoke";
-
-export async function gatewayStatus() {
+async function invokeGatewayOrNull<T>(
+  title: string,
+  cmd: string,
+  args?: Record<string, unknown>,
+  details?: Record<string, unknown>
+): Promise<T | null> {
   try {
-    return await invokeTauriOrNull<GatewayStatus>("gateway_status");
-  } catch {
+    return await invokeTauriOrNull<T>(cmd, args);
+  } catch (err) {
+    logToConsole("error", title, { cmd, args, ...details, error: formatUnknownError(err) });
     return null;
   }
+}
+
+export async function gatewayStatus() {
+  return invokeGatewayOrNull<GatewayStatus>("获取网关状态失败", "gateway_status");
 }
 
 export async function gatewayStart(preferredPort?: number) {
-  try {
-    return await invokeTauriOrNull<GatewayStatus>("gateway_start", {
+  return invokeGatewayOrNull<GatewayStatus>(
+    "启动网关失败",
+    "gateway_start",
+    {
       preferredPort: preferredPort ?? null,
-    });
-  } catch {
-    return null;
-  }
+    },
+    { preferredPort }
+  );
 }
 
 export async function gatewayStop() {
-  try {
-    return await invokeTauriOrNull<GatewayStatus>("gateway_stop");
-  } catch {
-    return null;
-  }
+  return invokeGatewayOrNull<GatewayStatus>("停止网关失败", "gateway_stop");
 }
 
 export async function gatewayCheckPortAvailable(port: number) {
-  try {
-    return await invokeTauriOrNull<boolean>("gateway_check_port_available", {
-      port,
-    });
-  } catch {
-    return null;
-  }
+  return invokeGatewayOrNull<boolean>(
+    "检查端口可用性失败",
+    "gateway_check_port_available",
+    { port },
+    { port }
+  );
 }
 
 export async function gatewaySessionsList(limit?: number) {
-  try {
-    return await invokeTauriOrNull<GatewayActiveSession[]>("gateway_sessions_list", {
-      limit: limit ?? null,
-    });
-  } catch {
-    return null;
-  }
+  return invokeGatewayOrNull<GatewayActiveSession[]>(
+    "获取会话列表失败",
+    "gateway_sessions_list",
+    { limit: limit ?? null },
+    { limit }
+  );
 }
 
 export async function gatewayCircuitStatus(cliKey: string) {
-  try {
-    return await invokeTauriOrNull<GatewayProviderCircuitStatus[]>("gateway_circuit_status", {
-      cliKey,
-    });
-  } catch {
-    return null;
-  }
+  return invokeGatewayOrNull<GatewayProviderCircuitStatus[]>(
+    "获取熔断器状态失败",
+    "gateway_circuit_status",
+    { cliKey },
+    { cliKey }
+  );
 }
 
 export async function gatewayCircuitResetProvider(providerId: number) {
-  try {
-    return await invokeTauriOrNull<boolean>("gateway_circuit_reset_provider", {
-      providerId,
-    });
-  } catch {
-    return null;
-  }
+  return invokeGatewayOrNull<boolean>(
+    "重置 Provider 熔断器失败",
+    "gateway_circuit_reset_provider",
+    { providerId },
+    { providerId }
+  );
 }
 
 export async function gatewayCircuitResetCli(cliKey: string) {
-  try {
-    return await invokeTauriOrNull<number>("gateway_circuit_reset_cli", {
-      cliKey,
-    });
-  } catch {
-    return null;
-  }
+  return invokeGatewayOrNull<number>(
+    "重置 CLI 熔断器失败",
+    "gateway_circuit_reset_cli",
+    { cliKey },
+    { cliKey }
+  );
 }

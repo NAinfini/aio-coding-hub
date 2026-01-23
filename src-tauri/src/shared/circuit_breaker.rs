@@ -1,5 +1,6 @@
 //! Usage: In-memory circuit breaker to protect providers from repeated failures.
 
+use super::mutex_ext::MutexExt;
 use std::collections::HashMap;
 use std::sync::Mutex;
 use tokio::sync::mpsc;
@@ -144,7 +145,7 @@ impl CircuitBreaker {
 
     #[allow(dead_code)]
     pub fn snapshot(&self, provider_id: i64, now_unix: i64) -> CircuitSnapshot {
-        let mut guard = self.health.lock().expect("circuit breaker mutex poisoned");
+        let mut guard = self.health.lock_or_recover();
         let entry = guard
             .entry(provider_id)
             .or_insert_with(|| ProviderHealth::closed(provider_id, now_unix).1);
@@ -156,7 +157,7 @@ impl CircuitBreaker {
         let mut transition: Option<CircuitTransition> = None;
 
         let (after, allow) = {
-            let mut guard = self.health.lock().expect("circuit breaker mutex poisoned");
+            let mut guard = self.health.lock_or_recover();
             let entry = guard
                 .entry(provider_id)
                 .or_insert_with(|| ProviderHealth::closed(provider_id, now_unix).1);
@@ -209,7 +210,7 @@ impl CircuitBreaker {
         let mut upsert: Option<CircuitPersistedState> = None;
 
         let (before, after) = {
-            let mut guard = self.health.lock().expect("circuit breaker mutex poisoned");
+            let mut guard = self.health.lock_or_recover();
             let entry = guard
                 .entry(provider_id)
                 .or_insert_with(|| ProviderHealth::closed(provider_id, now_unix).1);
@@ -248,7 +249,7 @@ impl CircuitBreaker {
         let mut transition: Option<CircuitTransition> = None;
 
         let (before, after) = {
-            let mut guard = self.health.lock().expect("circuit breaker mutex poisoned");
+            let mut guard = self.health.lock_or_recover();
             let entry = guard
                 .entry(provider_id)
                 .or_insert_with(|| ProviderHealth::closed(provider_id, now_unix).1);
@@ -331,7 +332,7 @@ impl CircuitBreaker {
             return self.snapshot(provider_id, now_unix);
         }
 
-        let mut guard = self.health.lock().expect("circuit breaker mutex poisoned");
+        let mut guard = self.health.lock_or_recover();
         let entry = guard
             .entry(provider_id)
             .or_insert_with(|| ProviderHealth::closed(provider_id, now_unix).1);
@@ -358,7 +359,7 @@ impl CircuitBreaker {
         }
 
         let (after, upsert) = {
-            let mut guard = self.health.lock().expect("circuit breaker mutex poisoned");
+            let mut guard = self.health.lock_or_recover();
             let entry = guard
                 .entry(provider_id)
                 .or_insert_with(|| ProviderHealth::closed(provider_id, now_unix).1);

@@ -547,7 +547,7 @@ pub async fn sync_basellm(
     })
     .await
     {
-        eprintln!("basellm cache write error: {err}");
+        tracing::warn!("basellm 缓存写入失败: {}", err);
     }
 
     Ok(report)

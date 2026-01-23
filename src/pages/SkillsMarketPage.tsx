@@ -422,12 +422,7 @@ export function SkillsMarketPage() {
           </Button>
         </div>
 
-        <TabList
-          ariaLabel="CLI 选择"
-          items={CLI_TABS}
-          value={activeCli}
-          onChange={setActiveCli}
-        />
+        <TabList ariaLabel="CLI 选择" items={CLI_TABS} value={activeCli} onChange={setActiveCli} />
       </div>
 
       <div className="text-xs text-slate-500">
@@ -651,7 +646,9 @@ export function SkillsMarketPage() {
                     </div>
                   </div>
                   <div className="mt-1.5 flex items-center gap-3 text-xs text-slate-500">
-                    <span>branch: <span className="font-mono">{repo.branch}</span></span>
+                    <span>
+                      branch: <span className="font-mono">{repo.branch}</span>
+                    </span>
                     <span>更新 {formatUnixSeconds(repo.updated_at)}</span>
                   </div>
                 </div>

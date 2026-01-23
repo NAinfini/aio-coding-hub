@@ -1,3 +1,4 @@
+use crate::shared::mutex_ext::MutexExt;
 use axum::http::HeaderMap;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -149,10 +150,7 @@ impl SessionManager {
             session_id: session_id.to_string(),
         };
 
-        let mut guard = self
-            .bindings
-            .lock()
-            .expect("session_manager mutex poisoned");
+        let mut guard = self.bindings.lock_or_recover();
         match guard.get(&key) {
             Some(binding) if binding.expires_at > now_unix => {
                 (binding.provider_id > 0).then_some(binding.provider_id)
@@ -177,10 +175,7 @@ impl SessionManager {
             session_id: session_id.to_string(),
         };
 
-        let mut guard = self
-            .bindings
-            .lock()
-            .expect("session_manager mutex poisoned");
+        let mut guard = self.bindings.lock_or_recover();
         match guard.get(&key) {
             Some(binding) if binding.expires_at > now_unix => Some(binding.sort_mode_id),
             Some(_) => {
@@ -210,10 +205,7 @@ impl SessionManager {
             session_id: session_id.to_string(),
         };
 
-        let mut guard = self
-            .bindings
-            .lock()
-            .expect("session_manager mutex poisoned");
+        let mut guard = self.bindings.lock_or_recover();
         if guard.len() >= MAX_BINDINGS {
             drop_expired(&mut guard, now_unix);
             if guard.len() >= MAX_BINDINGS {
@@ -254,10 +246,7 @@ impl SessionManager {
             session_id: session_id.to_string(),
         };
 
-        let mut guard = self
-            .bindings
-            .lock()
-            .expect("session_manager mutex poisoned");
+        let mut guard = self.bindings.lock_or_recover();
         match guard.get(&key) {
             Some(binding) if binding.expires_at > now_unix => binding.provider_order.clone(),
             Some(_) => {
@@ -285,10 +274,7 @@ impl SessionManager {
             session_id: session_id.to_string(),
         };
 
-        let mut guard = self
-            .bindings
-            .lock()
-            .expect("session_manager mutex poisoned");
+        let mut guard = self.bindings.lock_or_recover();
         if guard.len() >= MAX_BINDINGS {
             drop_expired(&mut guard, now_unix);
             if guard.len() >= MAX_BINDINGS {
@@ -325,10 +311,7 @@ impl SessionManager {
             return Vec::new();
         }
 
-        let mut guard = self
-            .bindings
-            .lock()
-            .expect("session_manager mutex poisoned");
+        let mut guard = self.bindings.lock_or_recover();
         drop_expired(&mut guard, now_unix);
 
         let mut rows: Vec<ActiveSessionSnapshot> = guard

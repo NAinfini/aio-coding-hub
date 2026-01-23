@@ -1,4 +1,4 @@
-import { logToConsole } from "./consoleLog";
+import { logToConsole, shouldLogToConsole } from "./consoleLog";
 import { hasTauriRuntime } from "./tauriInvoke";
 import { ingestTraceAttempt, ingestTraceRequest, ingestTraceStart } from "./traceStore";
 
@@ -86,12 +86,6 @@ export type GatewayCircuitEvent = {
   ts: number;
 };
 
-function attemptLevel(outcome: string): "info" | "warn" {
-  if (outcome === "success") return "info";
-  if (outcome === "started") return "info";
-  return "warn";
-}
-
 function normalizeLogLevel(level: unknown): "info" | "warn" | "error" {
   if (level === "warn" || level === "error" || level === "info") return level;
   return "info";
@@ -158,9 +152,11 @@ export async function listenGatewayEvents(): Promise<() => void> {
 
       ingestTraceStart(payload);
 
+      if (!shouldLogToConsole("debug")) return;
+
       const method = payload.method ?? "未知";
       const path = payload.path ?? "/";
-      logToConsole("info", `网关请求开始：${method} ${path}`, {
+      logToConsole("debug", `网关请求开始：${method} ${path}`, {
         trace_id: payload.trace_id,
         cli: payload.cli_key,
         method,
@@ -177,24 +173,25 @@ export async function listenGatewayEvents(): Promise<() => void> {
 
     // "started" events are high-frequency and intended for realtime UI routing updates.
     // Keep console noise low by only logging completion/failure events.
-    if (payload.outcome !== "started") {
-      logToConsole(attemptLevel(payload.outcome), attemptTitle(payload), {
-        trace_id: payload.trace_id,
-        cli: payload.cli_key,
-        attempt_index: payload.attempt_index,
-        provider_id: payload.provider_id,
-        provider_name: payload.provider_name,
-        base_url: payload.base_url,
-        status: payload.status,
-        outcome: payload.outcome,
-        attempt_started_ms: payload.attempt_started_ms,
-        attempt_duration_ms: payload.attempt_duration_ms,
-        circuit_state_before: circuitStateText(payload.circuit_state_before),
-        circuit_state_after: circuitStateText(payload.circuit_state_after),
-        circuit_failure_count: payload.circuit_failure_count ?? null,
-        circuit_failure_threshold: payload.circuit_failure_threshold ?? null,
-      });
-    }
+    if (payload.outcome === "started") return;
+    if (!shouldLogToConsole("debug")) return;
+
+    logToConsole("debug", attemptTitle(payload), {
+      trace_id: payload.trace_id,
+      cli: payload.cli_key,
+      attempt_index: payload.attempt_index,
+      provider_id: payload.provider_id,
+      provider_name: payload.provider_name,
+      base_url: payload.base_url,
+      status: payload.status,
+      outcome: payload.outcome,
+      attempt_started_ms: payload.attempt_started_ms,
+      attempt_duration_ms: payload.attempt_duration_ms,
+      circuit_state_before: circuitStateText(payload.circuit_state_before),
+      circuit_state_after: circuitStateText(payload.circuit_state_after),
+      circuit_failure_count: payload.circuit_failure_count ?? null,
+      circuit_failure_threshold: payload.circuit_failure_threshold ?? null,
+    });
   });
 
   const unlistenRequest = await listen<GatewayRequestEvent>("gateway:request", (event) => {
@@ -202,6 +199,8 @@ export async function listenGatewayEvents(): Promise<() => void> {
     if (!payload) return;
 
     ingestTraceRequest(payload);
+
+    if (!shouldLogToConsole("debug")) return;
 
     const attempts = payload.attempts ?? [];
 
@@ -213,7 +212,7 @@ export async function listenGatewayEvents(): Promise<() => void> {
 
     const outputTokensPerSecond = computeOutputTokensPerSecond(payload);
 
-    logToConsole(payload.error_code ? "error" : "info", title, {
+    logToConsole("debug", title, {
       trace_id: payload.trace_id,
       cli: payload.cli_key,
       status: payload.status,

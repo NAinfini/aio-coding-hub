@@ -1,6 +1,58 @@
 import { useSyncExternalStore } from "react";
 
-export type ConsoleLogLevel = "info" | "warn" | "error";
+export const CONSOLE_LOG_LEVELS = ["debug", "info", "warn", "error"] as const;
+
+export type ConsoleLogLevel = (typeof CONSOLE_LOG_LEVELS)[number];
+
+const CONSOLE_LOG_LEVEL_ORDER: Record<ConsoleLogLevel, number> = {
+  debug: 0,
+  info: 1,
+  warn: 2,
+  error: 3,
+};
+
+const CONSOLE_LOG_MIN_LEVEL_STORAGE_KEY = "aio.consoleLog.minLevel";
+
+function normalizeConsoleLogLevel(value: unknown): ConsoleLogLevel | null {
+  if (value === "debug" || value === "info" || value === "warn" || value === "error") return value;
+  return null;
+}
+
+function readConsoleLogMinLevel(): ConsoleLogLevel {
+  if (typeof window === "undefined") return "info";
+  try {
+    const raw = window.localStorage.getItem(CONSOLE_LOG_MIN_LEVEL_STORAGE_KEY);
+    return normalizeConsoleLogLevel(raw) ?? "info";
+  } catch {
+    return "info";
+  }
+}
+
+let minLevel: ConsoleLogLevel = readConsoleLogMinLevel();
+
+export function getConsoleLogMinLevel(): ConsoleLogLevel {
+  return minLevel;
+}
+
+export function setConsoleLogMinLevel(level: ConsoleLogLevel) {
+  minLevel = level;
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(CONSOLE_LOG_MIN_LEVEL_STORAGE_KEY, level);
+  } catch {}
+}
+
+export function shouldLogToConsole(level: ConsoleLogLevel): boolean {
+  return CONSOLE_LOG_LEVEL_ORDER[level] >= CONSOLE_LOG_LEVEL_ORDER[minLevel];
+}
+
+export function getConsoleDebugEnabled(): boolean {
+  return minLevel === "debug";
+}
+
+export function setConsoleDebugEnabled(enabled: boolean) {
+  setConsoleLogMinLevel(enabled ? "debug" : "info");
+}
 
 export type ConsoleLogMeta = {
   trace_id?: string;
@@ -190,6 +242,7 @@ function extractMeta(details: unknown): ConsoleLogMeta | undefined {
 }
 
 export function logToConsole(level: ConsoleLogLevel, title: string, details?: unknown) {
+  if (!shouldLogToConsole(level)) return;
   const ts = Date.now();
   const detailsRedacted = redactDetails(details);
   const entry: ConsoleLogEntry = {

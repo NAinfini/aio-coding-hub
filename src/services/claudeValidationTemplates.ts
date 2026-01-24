@@ -845,7 +845,8 @@ export function evaluateClaudeValidation(
   const requireCrossProviderSignatureRoundtrip = Boolean(
     (template.evaluation as any).requireCrossProviderSignatureRoundtrip
   );
-  const crossProviderEnabled = get<boolean>(signalsRaw, "roundtrip_cross_provider_enabled") === true;
+  const crossProviderEnabled =
+    get<boolean>(signalsRaw, "roundtrip_cross_provider_enabled") === true;
   const crossProviderName = get<string>(signalsRaw, "roundtrip_cross_provider_name") ?? null;
   const crossProviderBaseUrl = get<string>(signalsRaw, "roundtrip_cross_provider_base_url") ?? null;
 
@@ -1059,11 +1060,7 @@ export function evaluateClaudeValidation(
       !checksOut.crossProviderSignatureRoundtrip.ok
     )
       return false;
-    if (
-      requireThinkingPreserved &&
-      checksOut.thinkingPreserved &&
-      !checksOut.thinkingPreserved.ok
-    )
+    if (requireThinkingPreserved && checksOut.thinkingPreserved && !checksOut.thinkingPreserved.ok)
       return false;
     if (requireResponseId && checksOut.responseId && !checksOut.responseId.ok) return false;
     if (requireServiceTier && checksOut.serviceTier && !checksOut.serviceTier.ok) return false;

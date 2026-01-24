@@ -321,7 +321,7 @@ Claude Code 是 Anthropic 官方的 CLI 工具，提供以下核心能力：
       requireMultiTurn: true,
       multiTurnSecret: "AIO_MULTI_TURN_OK",
     },
-  }
+  },
 ] as const;
 
 export type ClaudeValidationTemplate = (typeof CLAUDE_VALIDATION_TEMPLATES)[number];

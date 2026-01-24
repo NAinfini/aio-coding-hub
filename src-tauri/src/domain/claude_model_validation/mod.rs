@@ -999,60 +999,60 @@ pub async fn validate_provider_model(
                         }
 
                         // Determine Step2 target: cross-provider or original provider
-                        let (step2_target_url, step2_headers) =
-                            if let Some(cross_id) = cfg.cross_provider_id {
-                                match provider::load_provider(db.clone(), cross_id).await {
-                                    Ok(cross_provider) => {
-                                        obj.insert(
-                                            "roundtrip_cross_provider_name".to_string(),
-                                            serde_json::Value::String(cross_provider.name.clone()),
+                        let (step2_target_url, step2_headers) = if let Some(cross_id) =
+                            cfg.cross_provider_id
+                        {
+                            match provider::load_provider(db.clone(), cross_id).await {
+                                Ok(cross_provider) => {
+                                    obj.insert(
+                                        "roundtrip_cross_provider_name".to_string(),
+                                        serde_json::Value::String(cross_provider.name.clone()),
+                                    );
+                                    // Use first base_url from cross provider
+                                    let cross_base_url =
+                                        cross_provider.base_urls.first().cloned().unwrap_or_else(
+                                            || "https://api.anthropic.com".to_string(),
                                         );
-                                        // Use first base_url from cross provider
-                                        let cross_base_url = cross_provider
-                                            .base_urls
-                                            .first()
-                                            .cloned()
-                                            .unwrap_or_else(|| "https://api.anthropic.com".to_string());
-                                        obj.insert(
-                                            "roundtrip_cross_provider_base_url".to_string(),
-                                            serde_json::Value::String(cross_base_url.clone()),
-                                        );
-                                        match request::build_target_url(
-                                            &cross_base_url,
-                                            &parsed.forwarded_path,
-                                            parsed.forwarded_query.as_deref(),
-                                        ) {
-                                            Ok(url) => {
-                                                let hdrs = request::header_map_from_json(
-                                                    &parsed.headers,
-                                                    &cross_provider.api_key_plaintext,
-                                                );
-                                                (url, hdrs)
-                                            }
-                                            Err(e) => {
-                                                obj.insert(
-                                                    "roundtrip_step2_error".to_string(),
-                                                    serde_json::Value::String(format!(
-                                                        "CROSS_PROVIDER_URL_ERROR: {e}"
-                                                    )),
-                                                );
-                                                (target_url.clone(), headers.clone())
-                                            }
+                                    obj.insert(
+                                        "roundtrip_cross_provider_base_url".to_string(),
+                                        serde_json::Value::String(cross_base_url.clone()),
+                                    );
+                                    match request::build_target_url(
+                                        &cross_base_url,
+                                        &parsed.forwarded_path,
+                                        parsed.forwarded_query.as_deref(),
+                                    ) {
+                                        Ok(url) => {
+                                            let hdrs = request::header_map_from_json(
+                                                &parsed.headers,
+                                                &cross_provider.api_key_plaintext,
+                                            );
+                                            (url, hdrs)
+                                        }
+                                        Err(e) => {
+                                            obj.insert(
+                                                "roundtrip_step2_error".to_string(),
+                                                serde_json::Value::String(format!(
+                                                    "CROSS_PROVIDER_URL_ERROR: {e}"
+                                                )),
+                                            );
+                                            (target_url.clone(), headers.clone())
                                         }
                                     }
-                                    Err(e) => {
-                                        obj.insert(
-                                            "roundtrip_step2_error".to_string(),
-                                            serde_json::Value::String(format!(
-                                                "CROSS_PROVIDER_LOAD_ERROR: {e}"
-                                            )),
-                                        );
-                                        (target_url.clone(), headers.clone())
-                                    }
                                 }
-                            } else {
-                                (target_url.clone(), headers.clone())
-                            };
+                                Err(e) => {
+                                    obj.insert(
+                                        "roundtrip_step2_error".to_string(),
+                                        serde_json::Value::String(format!(
+                                            "CROSS_PROVIDER_LOAD_ERROR: {e}"
+                                        )),
+                                    );
+                                    (target_url.clone(), headers.clone())
+                                }
+                            }
+                        } else {
+                            (target_url.clone(), headers.clone())
+                        };
 
                         let step2 = perform_request(
                             &client,

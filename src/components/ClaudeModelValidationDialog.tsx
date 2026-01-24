@@ -518,8 +518,7 @@ export function ClaudeModelValidationDialog({
     if (!apiKeyPlaintextForSnapshot) {
       try {
         const fetched = await claudeProviderGetApiKeyPlaintext(curProvider.id);
-        apiKeyPlaintextForSnapshot =
-          typeof fetched === "string" && fetched.trim() ? fetched : null;
+        apiKeyPlaintextForSnapshot = typeof fetched === "string" && fetched.trim() ? fetched : null;
         if (apiKeyPlaintextForSnapshot) {
           setApiKeyPlaintext(apiKeyPlaintextForSnapshot);
         }
@@ -721,10 +720,8 @@ export function ClaudeModelValidationDialog({
         setSelectedHistoryKey(null);
         setResult(resp);
 
-        const executedRequestSnapshotCandidate = buildClaudeModelValidationRequestSnapshotTextFromResult(
-          resp,
-          apiKeyPlaintextForSnapshot
-        );
+        const executedRequestSnapshotCandidate =
+          buildClaudeModelValidationRequestSnapshotTextFromResult(resp, apiKeyPlaintextForSnapshot);
         const executedRequestSnapshotText = executedRequestSnapshotCandidate.trim()
           ? executedRequestSnapshotCandidate
           : preSendRequestSnapshotText;
@@ -1278,10 +1275,10 @@ export function ClaudeModelValidationDialog({
                             : "bg-slate-100 text-slate-600";
 
                     return (
-	                      <ClaudeModelValidationHistoryStepCard
-	                        key={`${step.templateKey}_${step.index}`}
-	                        title={`验证 ${step.index}/${suiteSteps.length}：${step.label}`}
-	                        rightBadge={
+                      <ClaudeModelValidationHistoryStepCard
+                        key={`${step.templateKey}_${step.index}`}
+                        title={`验证 ${step.index}/${suiteSteps.length}：${step.label}`}
+                        rightBadge={
                           <span
                             className={cn(
                               "rounded px-1.5 py-0.5 text-[10px] font-semibold",
@@ -1290,15 +1287,15 @@ export function ClaudeModelValidationDialog({
                           >
                             {statusLabel}
                           </span>
-	                        }
-	                        templateKey={step.templateKey}
-	                        result={step.result}
-	                        apiKeyPlaintext={apiKeyPlaintext}
-	                        requestJsonText={step.request_json ?? ""}
-	                        resultJsonText={step.result_json ?? ""}
-	                        sseRawText={step.result?.raw_excerpt ?? ""}
-	                        errorText={step.error}
-	                        copyText={copyTextOrToast}
+                        }
+                        templateKey={step.templateKey}
+                        result={step.result}
+                        apiKeyPlaintext={apiKeyPlaintext}
+                        requestJsonText={step.request_json ?? ""}
+                        resultJsonText={step.result_json ?? ""}
+                        sseRawText={step.result?.raw_excerpt ?? ""}
+                        errorText={step.error}
+                        copyText={copyTextOrToast}
                       />
                     );
                   })}
@@ -1333,13 +1330,13 @@ export function ClaudeModelValidationDialog({
 
                       const title = `${idx}/${expectedTotal}`;
                       out.push(
-	                        <ClaudeModelValidationHistoryStepCard
-	                          key={
-	                            step
-	                              ? `${selectedHistoryGroup.key}_${step.run.id}`
-	                              : `${selectedHistoryGroup.key}_missing_${idx}`
-	                          }
-	                          title={`验证 ${title}：${template.label}`}
+                        <ClaudeModelValidationHistoryStepCard
+                          key={
+                            step
+                              ? `${selectedHistoryGroup.key}_${step.run.id}`
+                              : `${selectedHistoryGroup.key}_missing_${idx}`
+                          }
+                          title={`验证 ${title}：${template.label}`}
                           rightBadge={
                             step ? (
                               <OutcomePill pass={step.evaluation.overallPass} />
@@ -1348,15 +1345,15 @@ export function ClaudeModelValidationDialog({
                                 未记录
                               </span>
                             )
-	                          }
-	                          templateKey={templateKeyForUi}
-	                          result={step?.run.parsed_result ?? null}
-	                          apiKeyPlaintext={apiKeyPlaintext}
-	                          requestJsonText={step?.run.request_json ?? ""}
-	                          resultJsonText={prettyJsonOrFallback(step?.run.result_json ?? "")}
-	                          sseRawText={step?.run.parsed_result?.raw_excerpt ?? ""}
-	                          errorText={
-	                            step
+                          }
+                          templateKey={templateKeyForUi}
+                          result={step?.run.parsed_result ?? null}
+                          apiKeyPlaintext={apiKeyPlaintext}
+                          requestJsonText={step?.run.request_json ?? ""}
+                          resultJsonText={prettyJsonOrFallback(step?.run.result_json ?? "")}
+                          sseRawText={step?.run.parsed_result?.raw_excerpt ?? ""}
+                          errorText={
+                            step
                               ? null
                               : "该步骤未出现在历史中：可能是历史写入失败、被清空，或被保留数量上限淘汰。请在“当前运行”查看完整诊断。"
                           }
@@ -1369,17 +1366,17 @@ export function ClaudeModelValidationDialog({
                 </div>
               ) : selectedHistoryGroup ? (
                 selectedHistoryLatest ? (
-	                  <ClaudeModelValidationHistoryStepCard
-	                    title={`验证：${selectedHistoryLatest.evaluation.template.label}`}
-	                    rightBadge={<OutcomePill pass={selectedHistoryLatest.evaluation.overallPass} />}
-	                    templateKey={selectedHistoryLatest.evaluation.templateKey}
-	                    result={selectedHistoryLatest.run.parsed_result}
-	                    apiKeyPlaintext={apiKeyPlaintext}
-	                    requestJsonText={selectedHistoryLatest.run.request_json ?? ""}
-	                    resultJsonText={prettyJsonOrFallback(
-	                      selectedHistoryLatest.run.result_json ?? ""
-	                    )}
-	                    sseRawText={selectedHistoryLatest.run.parsed_result?.raw_excerpt ?? ""}
+                  <ClaudeModelValidationHistoryStepCard
+                    title={`验证：${selectedHistoryLatest.evaluation.template.label}`}
+                    rightBadge={<OutcomePill pass={selectedHistoryLatest.evaluation.overallPass} />}
+                    templateKey={selectedHistoryLatest.evaluation.templateKey}
+                    result={selectedHistoryLatest.run.parsed_result}
+                    apiKeyPlaintext={apiKeyPlaintext}
+                    requestJsonText={selectedHistoryLatest.run.request_json ?? ""}
+                    resultJsonText={prettyJsonOrFallback(
+                      selectedHistoryLatest.run.result_json ?? ""
+                    )}
+                    sseRawText={selectedHistoryLatest.run.parsed_result?.raw_excerpt ?? ""}
                     copyText={copyTextOrToast}
                   />
                 ) : (

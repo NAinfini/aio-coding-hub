@@ -44,7 +44,9 @@ function buildRequestHeadersFromUnknown(
 
   const headersObj = isPlainObject(headersValue) ? (headersValue as Record<string, unknown>) : null;
   const headerNames = headersObj ? Object.keys(headersObj) : [];
-  const wantsAuthorization = headerNames.some((k) => normalizeHeaderNameToLowercase(k) === "authorization");
+  const wantsAuthorization = headerNames.some(
+    (k) => normalizeHeaderNameToLowercase(k) === "authorization"
+  );
 
   if (headersObj) {
     for (const [rawName, rawValue] of Object.entries(headersObj)) {

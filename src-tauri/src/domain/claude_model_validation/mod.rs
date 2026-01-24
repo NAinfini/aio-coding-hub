@@ -63,11 +63,16 @@ struct ParsedRequest {
 struct SignatureRoundtripConfig {
     enable_tamper: bool,
     step2_user_prompt: Option<String>,
+    /// If set, Step2 will be sent to this provider instead of the original provider.
+    /// This enables cross-provider signature validation.
+    cross_provider_id: Option<i64>,
 }
 
 #[derive(Debug, Clone)]
 struct CacheRoundtripConfig {
     step2_user_prompt: Option<String>,
+    /// If true, force padding to ensure cache creation (min 5000 tokens).
+    force_padding: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -743,20 +748,33 @@ pub async fn validate_provider_model(
     // Applying padding to other templates (e.g. max_tokens=5 probes) can drastically increase
     // request size and cause previously-stable providers to time out or reject.
     let wants_cache_padding = matches!(parsed.roundtrip, Some(RoundtripConfig::Cache(_)));
+    let force_padding = matches!(
+        parsed.roundtrip,
+        Some(RoundtripConfig::Cache(ref cfg)) if cfg.force_padding
+    );
 
     let mut cache_pad_applied: Option<bool> = None;
     let mut cache_pad_word_count: Option<usize> = None;
+    let mut cache_pad_force_mode: Option<bool> = None;
     if wants_cache_padding {
-        let min_tokens = infer_cache_min_tokens_for_model(
+        let base_min_tokens = infer_cache_min_tokens_for_model(
             step1_body
                 .get("model")
                 .and_then(|v| v.as_str())
                 .map(|s| s.trim())
                 .filter(|s| !s.is_empty()),
         );
+        // When force_padding is enabled, use a much larger padding to guarantee cache creation.
+        // 5000 tokens is well above the max threshold (4096 for Haiku 4.5).
+        let min_tokens = if force_padding {
+            base_min_tokens.max(5000)
+        } else {
+            base_min_tokens
+        };
         let (applied, word_count) = apply_prompt_cache_padding(&mut step1_body, min_tokens);
         cache_pad_applied = Some(applied);
         cache_pad_word_count = Some(word_count);
+        cache_pad_force_mode = Some(force_padding);
     }
 
     // Reflect the actually-sent Step1 body back into the request field (so the UI/diagnostics
@@ -803,6 +821,12 @@ pub async fn validate_provider_model(
             obj.insert(
                 "cache_pad_word_count".to_string(),
                 serde_json::Value::Number((word_count as i64).into()),
+            );
+        }
+        if let Some(force_mode) = cache_pad_force_mode {
+            obj.insert(
+                "cache_pad_force_mode".to_string(),
+                serde_json::Value::Bool(force_mode),
             );
         }
         obj.insert(
@@ -916,6 +940,19 @@ pub async fn validate_provider_model(
                         serde_json::Value::String("signature".to_string()),
                     );
 
+                    // Record cross-provider configuration
+                    let has_cross_provider = cfg.cross_provider_id.is_some();
+                    obj.insert(
+                        "roundtrip_cross_provider_enabled".to_string(),
+                        serde_json::Value::Bool(has_cross_provider),
+                    );
+                    if let Some(cross_id) = cfg.cross_provider_id {
+                        obj.insert(
+                            "roundtrip_cross_provider_id".to_string(),
+                            serde_json::Value::Number(cross_id.into()),
+                        );
+                    }
+
                     let signature = step1.signature_full.trim();
                     let thinking = step1.thinking_full.trim();
                     if signature.is_empty() || thinking.is_empty() {
@@ -961,10 +998,66 @@ pub async fn validate_provider_model(
                             );
                         }
 
+                        // Determine Step2 target: cross-provider or original provider
+                        let (step2_target_url, step2_headers) =
+                            if let Some(cross_id) = cfg.cross_provider_id {
+                                match provider::load_provider(db.clone(), cross_id).await {
+                                    Ok(cross_provider) => {
+                                        obj.insert(
+                                            "roundtrip_cross_provider_name".to_string(),
+                                            serde_json::Value::String(cross_provider.name.clone()),
+                                        );
+                                        // Use first base_url from cross provider
+                                        let cross_base_url = cross_provider
+                                            .base_urls
+                                            .first()
+                                            .cloned()
+                                            .unwrap_or_else(|| "https://api.anthropic.com".to_string());
+                                        obj.insert(
+                                            "roundtrip_cross_provider_base_url".to_string(),
+                                            serde_json::Value::String(cross_base_url.clone()),
+                                        );
+                                        match request::build_target_url(
+                                            &cross_base_url,
+                                            &parsed.forwarded_path,
+                                            parsed.forwarded_query.as_deref(),
+                                        ) {
+                                            Ok(url) => {
+                                                let hdrs = request::header_map_from_json(
+                                                    &parsed.headers,
+                                                    &cross_provider.api_key_plaintext,
+                                                );
+                                                (url, hdrs)
+                                            }
+                                            Err(e) => {
+                                                obj.insert(
+                                                    "roundtrip_step2_error".to_string(),
+                                                    serde_json::Value::String(format!(
+                                                        "CROSS_PROVIDER_URL_ERROR: {e}"
+                                                    )),
+                                                );
+                                                (target_url.clone(), headers.clone())
+                                            }
+                                        }
+                                    }
+                                    Err(e) => {
+                                        obj.insert(
+                                            "roundtrip_step2_error".to_string(),
+                                            serde_json::Value::String(format!(
+                                                "CROSS_PROVIDER_LOAD_ERROR: {e}"
+                                            )),
+                                        );
+                                        (target_url.clone(), headers.clone())
+                                    }
+                                }
+                            } else {
+                                (target_url.clone(), headers.clone())
+                            };
+
                         let step2 = perform_request(
                             &client,
-                            &target_url,
-                            headers.clone(),
+                            &step2_target_url,
+                            step2_headers,
                             step2_body.clone(),
                             true,
                         )
@@ -985,6 +1078,19 @@ pub async fn validate_provider_model(
                             obj.insert(
                                 "roundtrip_step2_output_preview".to_string(),
                                 serde_json::Value::String(step2.output_text_preview.clone()),
+                            );
+                        }
+                        // Step2 thinking info for cross-step thinking preservation check
+                        if step2.thinking_chars > 0 {
+                            obj.insert(
+                                "roundtrip_step2_thinking_chars".to_string(),
+                                serde_json::Value::Number((step2.thinking_chars as i64).into()),
+                            );
+                        }
+                        if !step2.thinking_preview.trim().is_empty() {
+                            obj.insert(
+                                "roundtrip_step2_thinking_preview".to_string(),
+                                serde_json::Value::String(step2.thinking_preview.clone()),
                             );
                         }
                         obj.insert(
@@ -1035,6 +1141,7 @@ pub async fn validate_provider_model(
                                     );
                                 }
 
+                                // Step3 (tamper verification) always goes to original provider
                                 let step3 = perform_request(
                                     &client,
                                     &target_url,

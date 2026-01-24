@@ -127,16 +127,28 @@ fn parse_roundtrip_config(
                 .get("enable_tamper")
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false);
+            let cross_provider_id = obj
+                .get("cross_provider_id")
+                .and_then(|v| v.as_i64())
+                .filter(|&id| id > 0);
             Some(super::RoundtripConfig::Signature(
                 super::SignatureRoundtripConfig {
                     enable_tamper,
                     step2_user_prompt,
+                    cross_provider_id,
                 },
             ))
         }
-        "cache" => Some(super::RoundtripConfig::Cache(super::CacheRoundtripConfig {
-            step2_user_prompt,
-        })),
+        "cache" => {
+            let force_padding = obj
+                .get("force_padding")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            Some(super::RoundtripConfig::Cache(super::CacheRoundtripConfig {
+                step2_user_prompt,
+                force_padding,
+            }))
+        }
         _ => None,
     }
 }

@@ -112,6 +112,10 @@ function circuitReasonText(reason: string | null | undefined) {
       return "失败次数达到阈值";
     case "OPEN_EXPIRED":
       return "熔断到期";
+    case "SKIP_OPEN":
+      return "熔断中已跳过";
+    case "SKIP_COOLDOWN":
+      return "冷却中已跳过";
     default:
       return r;
   }
@@ -143,6 +147,8 @@ export async function listenGatewayEvents(): Promise<() => void> {
   if (!hasTauriRuntime()) return () => {};
 
   const { listen } = await import("@tauri-apps/api/event");
+  const circuitNonTransitionDedup = new Map<string, number>();
+  const CIRCUIT_NON_TRANSITION_DEDUP_WINDOW_MS = 3000;
 
   const unlistenRequestStart = await listen<GatewayRequestStartEvent>(
     "gateway:request_start",
@@ -253,13 +259,53 @@ export async function listenGatewayEvents(): Promise<() => void> {
     const payload = event.payload;
     if (!payload) return;
 
-    const from = circuitStateText(payload.prev_state);
-    const to = circuitStateText(payload.next_state);
+    const prevNormalized = normalizeCircuitState(payload.prev_state);
+    const nextNormalized = normalizeCircuitState(payload.next_state);
+    const from = circuitStateText(prevNormalized);
+    const to = circuitStateText(nextNormalized);
     const provider = payload.provider_name || "未知";
-    const title = `熔断状态变更：${provider} ${from} → ${to}`;
-    const level = to === "熔断" ? "warn" : "info";
+    const reason = circuitReasonText(payload.reason);
 
-    logToConsole(level, title, {
+    const isTransition =
+      prevNormalized != null && nextNormalized != null && prevNormalized !== nextNormalized;
+
+    if (isTransition) {
+      const title = `熔断状态变更：${provider} ${from} → ${to}`;
+      const level = to === "熔断" ? "warn" : "info";
+      logToConsole(level, title, {
+        trace_id: payload.trace_id,
+        cli: payload.cli_key,
+        provider_id: payload.provider_id,
+        provider_name: payload.provider_name,
+        base_url: payload.base_url,
+        prev_state: from,
+        next_state: to,
+        failure_count: payload.failure_count,
+        failure_threshold: payload.failure_threshold,
+        open_until: payload.open_until,
+        cooldown_until: payload.cooldown_until ?? null,
+        reason,
+        ts: payload.ts,
+      });
+      return;
+    }
+
+    const dedupKey = [
+      payload.cli_key,
+      payload.provider_id,
+      payload.reason ?? "",
+      prevNormalized ?? payload.prev_state ?? "",
+      nextNormalized ?? payload.next_state ?? "",
+    ].join(":");
+
+    const now = Date.now();
+    const last = circuitNonTransitionDedup.get(dedupKey);
+    if (last != null && now - last < CIRCUIT_NON_TRANSITION_DEDUP_WINDOW_MS) return;
+    circuitNonTransitionDedup.set(dedupKey, now);
+    if (circuitNonTransitionDedup.size > 500) circuitNonTransitionDedup.clear();
+
+    const title = `Provider 跳过：${provider}（${reason}）`;
+    logToConsole("debug", title, {
       trace_id: payload.trace_id,
       cli: payload.cli_key,
       provider_id: payload.provider_id,
@@ -271,7 +317,7 @@ export async function listenGatewayEvents(): Promise<() => void> {
       failure_threshold: payload.failure_threshold,
       open_until: payload.open_until,
       cooldown_until: payload.cooldown_until ?? null,
-      reason: circuitReasonText(payload.reason),
+      reason,
       ts: payload.ts,
     });
   });

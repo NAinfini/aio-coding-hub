@@ -13,7 +13,7 @@ import {
   type ClaudeModelValidationRunRow,
 } from "../services/claudeModelValidationHistory";
 import { modelPricesList, type ModelPriceSummary } from "../services/modelPrices";
-import { baseUrlPingMs, type ProviderSummary } from "../services/providers";
+import { baseUrlPingMs, providersList, type ProviderSummary } from "../services/providers";
 import {
   DEFAULT_CLAUDE_VALIDATION_TEMPLATE_KEY,
   buildClaudeValidationRequestJson,
@@ -24,6 +24,10 @@ import {
   listClaudeValidationTemplates,
   type ClaudeValidationTemplateKey,
 } from "../services/claudeValidationTemplates";
+import {
+  buildClaudeModelValidationRequestSnapshotTextFromResult,
+  buildClaudeModelValidationRequestSnapshotTextFromWrapper,
+} from "../services/claudeModelValidationRequestSnapshot";
 import {
   buildClaudeCliMetadataUserId,
   newUuidV4,
@@ -225,11 +229,8 @@ export function ClaudeModelValidationDialog({
 
   const [model, setModel] = useState("claude-sonnet-4-5-20250929");
 
-  const [apiKeyPlaintext, setApiKeyPlaintext] = useState<string | null>(null);
-  const [apiKeyLoading, setApiKeyLoading] = useState(false);
-
   const [requestJson, setRequestJson] = useState("");
-  const [requestDirty, setRequestDirty] = useState(false);
+  const [apiKeyPlaintext, setApiKeyPlaintext] = useState<string | null>(null);
 
   const [result, setResult] = useState<ClaudeModelValidationResult | null>(null);
 
@@ -251,6 +252,22 @@ export function ClaudeModelValidationDialog({
   const [modelPricesLoading, setModelPricesLoading] = useState(false);
   const modelOptions = useMemo(() => sortClaudeModelsFromPrices(modelPrices), [modelPrices]);
 
+  // Cross-provider signature validation
+  const [allClaudeProviders, setAllClaudeProviders] = useState<ProviderSummary[]>([]);
+  const [crossProviderId, setCrossProviderId] = useState<number | null>(null);
+
+  // Check if any template requires cross-provider validation
+  const hasCrossProviderTemplate = useMemo(
+    () => templates.some((t) => (t as any).requiresCrossProvider === true),
+    [templates]
+  );
+
+  // Available cross-provider options (exclude current provider)
+  const crossProviderOptions = useMemo(() => {
+    if (!provider) return [];
+    return allClaudeProviders.filter((p) => p.id !== provider.id);
+  }, [allClaudeProviders, provider]);
+
   useEffect(() => {
     if (!open) {
       setBaseUrl("");
@@ -258,10 +275,8 @@ export function ClaudeModelValidationDialog({
       setTemplateKey(DEFAULT_CLAUDE_VALIDATION_TEMPLATE_KEY);
       setResultTemplateKey(DEFAULT_CLAUDE_VALIDATION_TEMPLATE_KEY);
       setModel("claude-sonnet-4-5-20250929");
-      setApiKeyPlaintext(null);
-      setApiKeyLoading(false);
       setRequestJson("");
-      setRequestDirty(false);
+      setApiKeyPlaintext(null);
       setResult(null);
       setValidating(false);
       setSuiteSteps([]);
@@ -276,24 +291,39 @@ export function ClaudeModelValidationDialog({
       setModelPrices([]);
       setModelPricesLoading(false);
       setModelPricesLoading(false);
+      setAllClaudeProviders([]);
+      setCrossProviderId(null);
       return;
     }
 
     setTemplateKey(DEFAULT_CLAUDE_VALIDATION_TEMPLATE_KEY);
     setResultTemplateKey(DEFAULT_CLAUDE_VALIDATION_TEMPLATE_KEY);
     setModel("claude-sonnet-4-5-20250929");
-    setRequestJson(
-      buildClaudeValidationRequestJson(
-        DEFAULT_CLAUDE_VALIDATION_TEMPLATE_KEY,
-        "claude-sonnet-4-5-20250929",
-        apiKeyPlaintext
-      )
-    );
-    setRequestDirty(false);
+    setRequestJson("");
+    setApiKeyPlaintext(null);
     setResult(null);
     setSuiteSteps([]);
     setSuiteProgress(null);
   }, [open]);
+
+  useEffect(() => {
+    if (!open || !provider) return;
+    let cancelled = false;
+
+    claudeProviderGetApiKeyPlaintext(provider.id)
+      .then((key) => {
+        if (cancelled) return;
+        setApiKeyPlaintext(typeof key === "string" && key.trim() ? key : null);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setApiKeyPlaintext(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, provider?.id]);
 
   function handleOpenChange(nextOpen: boolean) {
     // 防止确认弹层打开时误关主 Dialog（ESC/点遮罩/点右上角关闭等）。
@@ -409,36 +439,6 @@ export function ClaudeModelValidationDialog({
 
   useEffect(() => {
     if (!open) return;
-    const providerId = provider?.id ?? null;
-    if (!providerId) return;
-
-    let cancelled = false;
-    setApiKeyLoading(true);
-    claudeProviderGetApiKeyPlaintext(providerId)
-      .then((key) => {
-        if (cancelled) return;
-        if (key == null) {
-          setApiKeyPlaintext(null);
-          return;
-        }
-        setApiKeyPlaintext(key);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setApiKeyPlaintext(null);
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setApiKeyLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [open, provider]);
-
-  useEffect(() => {
-    if (!open) return;
     let cancelled = false;
 
     setModelPricesLoading(true);
@@ -467,41 +467,25 @@ export function ClaudeModelValidationDialog({
     };
   }, [open]);
 
+  // Load all Claude providers for cross-provider selection
   useEffect(() => {
     if (!open) return;
-    const apiKey = apiKeyPlaintext?.trim();
-    if (!apiKey) return;
+    let cancelled = false;
 
-    const reqText = requestJson.trim();
-    if (!reqText) return;
+    providersList("claude")
+      .then((rows) => {
+        if (cancelled) return;
+        setAllClaudeProviders(rows ?? []);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setAllClaudeProviders([]);
+      });
 
-    try {
-      const parsed = JSON.parse(reqText);
-      if (!parsed || typeof parsed !== "object") return;
-      if (!("headers" in parsed)) return;
-
-      const next = { ...(parsed as any) };
-      const nextHeaders =
-        next.headers && typeof next.headers === "object" ? { ...(next.headers as any) } : {};
-
-      nextHeaders["x-api-key"] = apiKey;
-      nextHeaders.authorization = `Bearer ${apiKey}`;
-      next.headers = nextHeaders;
-
-      setRequestJson(JSON.stringify(next, null, 2));
-    } catch {
-      // Ignore: user may be mid-edit or using non-wrapper JSON.
-    }
-  }, [open, apiKeyPlaintext]);
-
-  useEffect(() => {
-    if (!open) return;
-    const normalizedModel = model.trim();
-    if (!normalizedModel) return;
-    if (requestDirty) return;
-
-    setRequestJson(buildClaudeValidationRequestJson(templateKey, normalizedModel, apiKeyPlaintext));
-  }, [open, model, templateKey, apiKeyPlaintext, requestDirty]);
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   async function copyTextOrToast(text: string, okMessage: string) {
     try {
@@ -530,13 +514,14 @@ export function ClaudeModelValidationDialog({
       return;
     }
 
-    let key = apiKeyPlaintext?.trim() ?? "";
-    if (!key && !apiKeyLoading) {
+    let apiKeyPlaintextForSnapshot = apiKeyPlaintext;
+    if (!apiKeyPlaintextForSnapshot) {
       try {
         const fetched = await claudeProviderGetApiKeyPlaintext(curProvider.id);
-        if (typeof fetched === "string" && fetched.trim()) {
-          key = fetched.trim();
-          setApiKeyPlaintext(key);
+        apiKeyPlaintextForSnapshot =
+          typeof fetched === "string" && fetched.trim() ? fetched : null;
+        if (apiKeyPlaintextForSnapshot) {
+          setApiKeyPlaintext(apiKeyPlaintextForSnapshot);
         }
       } catch {
         // ignore
@@ -613,13 +598,13 @@ export function ClaudeModelValidationDialog({
         );
 
         const sessionId = newUuidV4();
-        let reqTextToSend = buildClaudeValidationRequestJson(
+        let reqTextToSendWrapper = buildClaudeValidationRequestJson(
           stepTemplate.key,
           normalizedModel,
-          key
+          null
         );
         try {
-          const parsedForSend = JSON.parse(reqTextToSend);
+          const parsedForSend = JSON.parse(reqTextToSendWrapper);
           const bodyForSend =
             parsedForSend && typeof parsedForSend === "object" && "body" in parsedForSend
               ? (parsedForSend as any).body
@@ -654,25 +639,46 @@ export function ClaudeModelValidationDialog({
               nextParsed.suite_run_id = suiteRunId;
               nextParsed.suite_step_index = idx + 1;
               nextParsed.suite_step_total = suiteTemplateKeys.length;
-              if (key) {
-                nextHeaders["x-api-key"] = key;
-                nextHeaders.authorization = `Bearer ${key}`;
-              }
               nextParsed.headers = nextHeaders;
               nextParsed.body = nextBody;
-              reqTextToSend = JSON.stringify(nextParsed, null, 2);
+
+              // Add cross_provider_id to roundtrip config if template requires it
+              const templateRequiresCrossProvider =
+                (stepTemplate as any).requiresCrossProvider === true;
+              if (
+                templateRequiresCrossProvider &&
+                crossProviderId &&
+                nextParsed.roundtrip &&
+                typeof nextParsed.roundtrip === "object"
+              ) {
+                nextParsed.roundtrip = {
+                  ...nextParsed.roundtrip,
+                  cross_provider_id: crossProviderId,
+                };
+              }
+
+              reqTextToSendWrapper = JSON.stringify(nextParsed, null, 2);
             } else {
-              reqTextToSend = JSON.stringify(nextBody, null, 2);
+              reqTextToSendWrapper = JSON.stringify(nextBody, null, 2);
             }
           }
         } catch {
           // ignore
         }
 
-        setRequestJson(reqTextToSend);
+        const preSendRequestSnapshotText =
+          buildClaudeModelValidationRequestSnapshotTextFromWrapper({
+            baseUrl: baseUrl.trim(),
+            wrapperJsonText: reqTextToSendWrapper,
+            apiKeyPlaintext: apiKeyPlaintextForSnapshot,
+          }) || reqTextToSendWrapper;
+
+        setRequestJson(preSendRequestSnapshotText);
 
         setSuiteSteps((prev) =>
-          prev.map((s) => (s.index === idx + 1 ? { ...s, request_json: reqTextToSend } : s))
+          prev.map((s) =>
+            s.index === idx + 1 ? { ...s, request_json: preSendRequestSnapshotText } : s
+          )
         );
 
         let resp: ClaudeModelValidationResult | null = null;
@@ -680,7 +686,7 @@ export function ClaudeModelValidationDialog({
           resp = await claudeProviderValidateModel({
             provider_id: curProvider.id,
             base_url: baseUrl.trim(),
-            request_json: reqTextToSend,
+            request_json: reqTextToSendWrapper,
           });
         } catch (err) {
           logToConsole("error", "Claude Provider 模型验证失败（批量）", {
@@ -715,6 +721,16 @@ export function ClaudeModelValidationDialog({
         setSelectedHistoryKey(null);
         setResult(resp);
 
+        const executedRequestSnapshotCandidate = buildClaudeModelValidationRequestSnapshotTextFromResult(
+          resp,
+          apiKeyPlaintextForSnapshot
+        );
+        const executedRequestSnapshotText = executedRequestSnapshotCandidate.trim()
+          ? executedRequestSnapshotCandidate
+          : preSendRequestSnapshotText;
+
+        setRequestJson(executedRequestSnapshotText);
+
         const suiteResultJson = (() => {
           try {
             return JSON.stringify(resp, null, 2);
@@ -726,7 +742,14 @@ export function ClaudeModelValidationDialog({
         setSuiteSteps((prev) =>
           prev.map((s) =>
             s.index === idx + 1
-              ? { ...s, status: "done", result: resp, result_json: suiteResultJson, error: null }
+              ? {
+                  ...s,
+                  status: "done",
+                  result: resp,
+                  request_json: executedRequestSnapshotText,
+                  result_json: suiteResultJson,
+                  error: null,
+                }
               : s
           )
         );
@@ -1022,6 +1045,33 @@ export function ClaudeModelValidationDialog({
                 )}
               </Button>
             </div>
+
+            {/* Cross-provider selector for signature validation */}
+            {hasCrossProviderTemplate && crossProviderOptions.length > 0 && (
+              <div className="sm:col-span-12">
+                <FormField
+                  label="跨供应商验证（官方供应商）"
+                  hint="用于跨供应商 signature 验证：Step2 将发送到此供应商进行签名验证"
+                >
+                  <Select
+                    value={crossProviderId?.toString() ?? ""}
+                    onChange={(e) => {
+                      const val = e.currentTarget.value;
+                      setCrossProviderId(val ? parseInt(val, 10) : null);
+                    }}
+                    disabled={validating}
+                    className="h-9 bg-white text-xs"
+                  >
+                    <option value="">选择官方供应商...</option>
+                    {crossProviderOptions.map((p) => (
+                      <option key={p.id} value={p.id.toString()}>
+                        {p.name} ({p.base_urls[0] ?? "无 URL"})
+                      </option>
+                    ))}
+                  </Select>
+                </FormField>
+              </div>
+            )}
           </div>
 
           <div className="grid gap-6 lg:grid-cols-7 h-[600px]">
@@ -1228,10 +1278,10 @@ export function ClaudeModelValidationDialog({
                             : "bg-slate-100 text-slate-600";
 
                     return (
-                      <ClaudeModelValidationHistoryStepCard
-                        key={`${step.templateKey}_${step.index}`}
-                        title={`验证 ${step.index}/${suiteSteps.length}：${step.label}`}
-                        rightBadge={
+	                      <ClaudeModelValidationHistoryStepCard
+	                        key={`${step.templateKey}_${step.index}`}
+	                        title={`验证 ${step.index}/${suiteSteps.length}：${step.label}`}
+	                        rightBadge={
                           <span
                             className={cn(
                               "rounded px-1.5 py-0.5 text-[10px] font-semibold",
@@ -1240,14 +1290,15 @@ export function ClaudeModelValidationDialog({
                           >
                             {statusLabel}
                           </span>
-                        }
-                        templateKey={step.templateKey}
-                        result={step.result}
-                        requestJsonText={step.request_json ?? ""}
-                        resultJsonText={step.result_json ?? ""}
-                        sseRawText={step.result?.raw_excerpt ?? ""}
-                        errorText={step.error}
-                        copyText={copyTextOrToast}
+	                        }
+	                        templateKey={step.templateKey}
+	                        result={step.result}
+	                        apiKeyPlaintext={apiKeyPlaintext}
+	                        requestJsonText={step.request_json ?? ""}
+	                        resultJsonText={step.result_json ?? ""}
+	                        sseRawText={step.result?.raw_excerpt ?? ""}
+	                        errorText={step.error}
+	                        copyText={copyTextOrToast}
                       />
                     );
                   })}
@@ -1282,13 +1333,13 @@ export function ClaudeModelValidationDialog({
 
                       const title = `${idx}/${expectedTotal}`;
                       out.push(
-                        <ClaudeModelValidationHistoryStepCard
-                          key={
-                            step
-                              ? `${selectedHistoryGroup.key}_${step.run.id}`
-                              : `${selectedHistoryGroup.key}_missing_${idx}`
-                          }
-                          title={`验证 ${title}：${template.label}`}
+	                        <ClaudeModelValidationHistoryStepCard
+	                          key={
+	                            step
+	                              ? `${selectedHistoryGroup.key}_${step.run.id}`
+	                              : `${selectedHistoryGroup.key}_missing_${idx}`
+	                          }
+	                          title={`验证 ${title}：${template.label}`}
                           rightBadge={
                             step ? (
                               <OutcomePill pass={step.evaluation.overallPass} />
@@ -1297,14 +1348,15 @@ export function ClaudeModelValidationDialog({
                                 未记录
                               </span>
                             )
-                          }
-                          templateKey={templateKeyForUi}
-                          result={step?.run.parsed_result ?? null}
-                          requestJsonText={step?.run.request_json ?? ""}
-                          resultJsonText={prettyJsonOrFallback(step?.run.result_json ?? "")}
-                          sseRawText={step?.run.parsed_result?.raw_excerpt ?? ""}
-                          errorText={
-                            step
+	                          }
+	                          templateKey={templateKeyForUi}
+	                          result={step?.run.parsed_result ?? null}
+	                          apiKeyPlaintext={apiKeyPlaintext}
+	                          requestJsonText={step?.run.request_json ?? ""}
+	                          resultJsonText={prettyJsonOrFallback(step?.run.result_json ?? "")}
+	                          sseRawText={step?.run.parsed_result?.raw_excerpt ?? ""}
+	                          errorText={
+	                            step
                               ? null
                               : "该步骤未出现在历史中：可能是历史写入失败、被清空，或被保留数量上限淘汰。请在“当前运行”查看完整诊断。"
                           }
@@ -1317,16 +1369,17 @@ export function ClaudeModelValidationDialog({
                 </div>
               ) : selectedHistoryGroup ? (
                 selectedHistoryLatest ? (
-                  <ClaudeModelValidationHistoryStepCard
-                    title={`验证：${selectedHistoryLatest.evaluation.template.label}`}
-                    rightBadge={<OutcomePill pass={selectedHistoryLatest.evaluation.overallPass} />}
-                    templateKey={selectedHistoryLatest.evaluation.templateKey}
-                    result={selectedHistoryLatest.run.parsed_result}
-                    requestJsonText={selectedHistoryLatest.run.request_json ?? ""}
-                    resultJsonText={prettyJsonOrFallback(
-                      selectedHistoryLatest.run.result_json ?? ""
-                    )}
-                    sseRawText={selectedHistoryLatest.run.parsed_result?.raw_excerpt ?? ""}
+	                  <ClaudeModelValidationHistoryStepCard
+	                    title={`验证：${selectedHistoryLatest.evaluation.template.label}`}
+	                    rightBadge={<OutcomePill pass={selectedHistoryLatest.evaluation.overallPass} />}
+	                    templateKey={selectedHistoryLatest.evaluation.templateKey}
+	                    result={selectedHistoryLatest.run.parsed_result}
+	                    apiKeyPlaintext={apiKeyPlaintext}
+	                    requestJsonText={selectedHistoryLatest.run.request_json ?? ""}
+	                    resultJsonText={prettyJsonOrFallback(
+	                      selectedHistoryLatest.run.result_json ?? ""
+	                    )}
+	                    sseRawText={selectedHistoryLatest.run.parsed_result?.raw_excerpt ?? ""}
                     copyText={copyTextOrToast}
                   />
                 ) : (
@@ -1374,7 +1427,6 @@ export function ClaudeModelValidationDialog({
                       value={requestJson}
                       onChange={(e) => {
                         setRequestJson(e.currentTarget.value);
-                        setRequestDirty(true);
                       }}
                       placeholder='{"template_key":"official_max_tokens_5","headers":{...},"body":{...},"expect":{...}}'
                     />

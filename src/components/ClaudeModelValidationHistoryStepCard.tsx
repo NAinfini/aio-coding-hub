@@ -15,6 +15,7 @@
 
 import type { MouseEvent, ReactNode } from "react";
 import type { ClaudeModelValidationResult } from "../services/claudeModelValidation";
+import { buildClaudeModelValidationRequestSnapshotTextFromResult } from "../services/claudeModelValidationRequestSnapshot";
 import type { ClaudeValidationTemplateKey } from "../services/claudeValidationTemplates";
 import { cn } from "../utils/cn";
 import { Button } from "../ui/Button";
@@ -27,6 +28,7 @@ export type ClaudeModelValidationHistoryStepCardProps = {
   rightBadge?: ReactNode;
   templateKey: ClaudeValidationTemplateKey;
   result: ClaudeModelValidationResult | null;
+  apiKeyPlaintext?: string | null;
   requestJsonText: string;
   resultJsonText: string;
   sseRawText: string;
@@ -49,6 +51,7 @@ export function ClaudeModelValidationHistoryStepCard({
   rightBadge,
   templateKey,
   result,
+  apiKeyPlaintext,
   requestJsonText,
   resultJsonText,
   sseRawText,
@@ -56,7 +59,13 @@ export function ClaudeModelValidationHistoryStepCard({
   copyText,
   className,
 }: ClaudeModelValidationHistoryStepCardProps) {
-  const requestText = normalizeCopyText(requestJsonText);
+  const executedRequestText = buildClaudeModelValidationRequestSnapshotTextFromResult(
+    result,
+    apiKeyPlaintext
+  );
+  const requestText = executedRequestText.trim()
+    ? executedRequestText
+    : normalizeCopyText(requestJsonText);
   const resultText = normalizeCopyText(resultJsonText);
   const sseText = normalizeCopyText(sseRawText);
 

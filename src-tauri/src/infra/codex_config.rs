@@ -367,7 +367,6 @@ fn upsert_table_keys(lines: &mut Vec<String>, table: &str, items: Vec<(&str, Opt
             lines.push(String::new());
         }
         lines.push(header.clone());
-        lines.push(String::new());
     }
 
     for (key, value) in items {
@@ -401,18 +400,37 @@ fn upsert_table_keys(lines: &mut Vec<String>, table: &str, items: Vec<(&str, Opt
                 lines.remove(idx);
             }
             (None, Some(v)) => {
-                let insert_at = end.min(lines.len());
+                let mut insert_at = end.min(lines.len());
+                while insert_at > start + 1 && lines[insert_at - 1].trim().is_empty() {
+                    insert_at -= 1;
+                }
                 lines.insert(insert_at, format!("{key} = {v}"));
             }
             (None, None) => {}
         }
     }
 
-    // Keep a blank line after the table if it's not the last block.
-    if let Some((_, end2)) = find_table_block(lines, &header) {
-        if end2 < lines.len() && !lines[end2 - 1].trim().is_empty() {
-            lines.insert(end2, String::new());
+    // Normalize: remove blank lines inside the table, and keep a single blank line
+    // separating it from the next table (if any).
+    if let Some((start, end)) = find_table_block(lines, &header) {
+        let has_next_table = end < lines.len();
+
+        let mut body_end = end;
+        while body_end > start + 1 && lines[body_end - 1].trim().is_empty() {
+            body_end -= 1;
         }
+
+        let mut replacement: Vec<String> = lines[start + 1..body_end]
+            .iter()
+            .filter(|line| !line.trim().is_empty())
+            .cloned()
+            .collect();
+
+        if has_next_table {
+            replacement.push(String::new());
+        }
+
+        lines.splice(start + 1..end, replacement);
     }
 }
 
@@ -500,6 +518,22 @@ enum TableStyle {
     Dotted,
 }
 
+const FEATURES_KEY_ORDER: [&str; 12] = [
+    // Keep in sync with the UI order (CliManagerCodexTab / Features section).
+    "shell_snapshot",
+    "web_search_request",
+    "unified_exec",
+    "shell_tool",
+    "exec_policy",
+    "apply_patch_freeform",
+    "remote_compaction",
+    "remote_models",
+    "powershell_utf8",
+    "child_agents_md",
+    "experimental_windows_sandbox",
+    "elevated_windows_sandbox",
+];
+
 fn table_style(lines: &[String], table: &str) -> TableStyle {
     let header = format!("[{table}]");
     if lines.iter().any(|l| l.trim() == header) {
@@ -546,10 +580,221 @@ fn bool_to_toml_str(value: bool) -> String {
     if value { "true" } else { "false" }.to_string()
 }
 
+fn is_any_table_header_line(line: &str) -> bool {
+    let cleaned = strip_toml_comment(line).trim();
+    cleaned.starts_with('[') && cleaned.ends_with(']') && !cleaned.is_empty()
+}
+
+fn update_multiline_string_state(
+    line: &str,
+    in_multiline_double: &mut bool,
+    in_multiline_single: &mut bool,
+) {
+    let mut idx = 0usize;
+
+    while idx < line.len() {
+        if *in_multiline_double {
+            if let Some(pos) = line[idx..].find("\"\"\"") {
+                *in_multiline_double = false;
+                idx += pos + 3;
+                continue;
+            }
+            break;
+        }
+
+        if *in_multiline_single {
+            if let Some(pos) = line[idx..].find("'''") {
+                *in_multiline_single = false;
+                idx += pos + 3;
+                continue;
+            }
+            break;
+        }
+
+        let next_double = line[idx..].find("\"\"\"");
+        let next_single = line[idx..].find("'''");
+        match (next_double, next_single) {
+            (None, None) => break,
+            (Some(d), None) => {
+                *in_multiline_double = true;
+                idx += d + 3;
+            }
+            (None, Some(s)) => {
+                *in_multiline_single = true;
+                idx += s + 3;
+            }
+            (Some(d), Some(s)) => {
+                if d <= s {
+                    *in_multiline_double = true;
+                    idx += d + 3;
+                } else {
+                    *in_multiline_single = true;
+                    idx += s + 3;
+                }
+            }
+        }
+    }
+}
+
+fn normalize_table_body_remove_blank_lines(body: &mut Vec<String>) {
+    let mut in_multiline_double = false;
+    let mut in_multiline_single = false;
+
+    let mut out: Vec<String> = Vec::new();
+    for line in body.iter() {
+        if line.trim().is_empty() && !in_multiline_double && !in_multiline_single {
+            continue;
+        }
+        out.push(line.clone());
+        update_multiline_string_state(line, &mut in_multiline_double, &mut in_multiline_single);
+    }
+
+    *body = out;
+}
+
+fn normalize_features_table_body_order(body: &mut Vec<String>, key_order: &[&str]) {
+    #[derive(Debug)]
+    struct Chunk {
+        key: Option<String>,
+        lines: Vec<String>,
+    }
+
+    let mut pending_comments: Vec<String> = Vec::new();
+    let mut chunks: Vec<Chunk> = Vec::new();
+
+    for line in body.iter() {
+        let cleaned = strip_toml_comment(line).trim();
+        if cleaned.is_empty() {
+            continue;
+        }
+        if cleaned.starts_with('#') {
+            pending_comments.push(line.clone());
+            continue;
+        }
+
+        let key = parse_assignment(cleaned).map(|(k, _)| normalize_key(&k));
+
+        let mut lines: Vec<String> = Vec::new();
+        lines.append(&mut pending_comments);
+        lines.push(line.clone());
+        chunks.push(Chunk { key, lines });
+    }
+
+    if !pending_comments.is_empty() {
+        chunks.push(Chunk {
+            key: None,
+            lines: pending_comments,
+        });
+    }
+
+    let mut consumed: Vec<bool> = vec![false; chunks.len()];
+    let mut out: Vec<String> = Vec::new();
+
+    for wanted in key_order {
+        for (idx, chunk) in chunks.iter().enumerate() {
+            if consumed[idx] {
+                continue;
+            }
+            if chunk.key.as_deref() == Some(*wanted) {
+                out.extend(chunk.lines.iter().cloned());
+                consumed[idx] = true;
+            }
+        }
+    }
+
+    for (idx, chunk) in chunks.into_iter().enumerate() {
+        if !consumed[idx] {
+            out.extend(chunk.lines);
+        }
+    }
+
+    *body = out;
+}
+
+fn normalize_toml_layout(lines: &mut Vec<String>) {
+    struct Segment {
+        header: Option<String>,
+        body: Vec<String>,
+    }
+
+    let mut segments: Vec<Segment> = vec![Segment {
+        header: None,
+        body: Vec::new(),
+    }];
+
+    let mut in_multiline_double = false;
+    let mut in_multiline_single = false;
+
+    for line in lines.iter() {
+        let is_header =
+            !in_multiline_double && !in_multiline_single && is_any_table_header_line(line);
+
+        if is_header {
+            segments.push(Segment {
+                header: Some(line.clone()),
+                body: Vec::new(),
+            });
+        } else {
+            segments
+                .last_mut()
+                .expect("at least one segment")
+                .body
+                .push(line.clone());
+        }
+
+        update_multiline_string_state(line, &mut in_multiline_double, &mut in_multiline_single);
+    }
+
+    for seg in segments.iter_mut() {
+        normalize_table_body_remove_blank_lines(&mut seg.body);
+        if let Some(header_line) = seg.header.as_deref() {
+            if strip_toml_comment(header_line).trim() == "[features]" {
+                normalize_features_table_body_order(&mut seg.body, &FEATURES_KEY_ORDER);
+            }
+        }
+    }
+
+    let mut out: Vec<String> = Vec::new();
+    for seg in segments {
+        let mut seg_lines: Vec<String> = Vec::new();
+        if let Some(header) = seg.header {
+            seg_lines.push(header);
+        }
+        seg_lines.extend(seg.body);
+
+        if seg_lines.is_empty() {
+            continue;
+        }
+
+        if !out.is_empty() && !out.last().unwrap_or(&String::new()).trim().is_empty() {
+            out.push(String::new());
+        }
+        while out.len() >= 2
+            && out.last().unwrap_or(&String::new()).trim().is_empty()
+            && out[out.len() - 2].trim().is_empty()
+        {
+            out.pop();
+        }
+
+        out.extend(seg_lines);
+    }
+
+    let first_non_empty = out
+        .iter()
+        .position(|l| !l.trim().is_empty())
+        .unwrap_or(out.len());
+    out.drain(0..first_non_empty);
+
+    while out.last().is_some_and(|l| l.trim().is_empty()) {
+        out.pop();
+    }
+
+    *lines = out;
+}
+
 /// Helper to build optional string value from Option<String>, trimming and filtering empty.
-fn opt_string_value(raw: Option<&String>) -> Option<String> {
-    raw.as_deref()
-        .map(|s| s.trim())
+fn opt_string_value(raw: Option<&str>) -> Option<String> {
+    raw.map(|s| s.trim())
         .filter(|s| !s.is_empty())
         .map(toml_string_literal)
 }
@@ -838,18 +1083,18 @@ fn patch_config_toml(current: Option<Vec<u8>>, patch: CodexConfigPatch) -> Resul
 
     // history.*
     if patch.history_persistence.is_some() || patch.history_max_bytes.is_some() {
-        upsert_keys_auto_style(
-            &mut lines,
-            "history",
-            &["persistence", "max_bytes"],
-            vec![
-                (
-                    "persistence",
-                    opt_string_value(patch.history_persistence.as_ref()),
-                ),
-                ("max_bytes", opt_u64_value(patch.history_max_bytes)),
-            ],
-        );
+        let mut items: Vec<(&str, Option<String>)> = Vec::new();
+        if patch.history_persistence.is_some() {
+            items.push((
+                "persistence",
+                opt_string_value(patch.history_persistence.as_deref()),
+            ));
+        }
+        if patch.history_max_bytes.is_some() {
+            items.push(("max_bytes", opt_u64_value(patch.history_max_bytes)));
+        }
+
+        upsert_keys_auto_style(&mut lines, "history", &["persistence", "max_bytes"], items);
     }
 
     // sandbox_workspace_write.*
@@ -874,26 +1119,31 @@ fn patch_config_toml(current: Option<Vec<u8>>, patch: CodexConfigPatch) -> Resul
             "show_tooltips",
             "scroll_invert",
         ];
-        upsert_keys_auto_style(
-            &mut lines,
-            "tui",
-            &tui_keys,
-            vec![
-                ("animations", patch.tui_animations.map(bool_to_toml_str)),
-                (
-                    "alternate_screen",
-                    opt_string_value(patch.tui_alternate_screen.as_ref()),
-                ),
-                (
-                    "show_tooltips",
-                    patch.tui_show_tooltips.map(bool_to_toml_str),
-                ),
-                (
-                    "scroll_invert",
-                    patch.tui_scroll_invert.map(bool_to_toml_str),
-                ),
-            ],
-        );
+
+        let mut items: Vec<(&str, Option<String>)> = Vec::new();
+        if patch.tui_animations.is_some() {
+            items.push(("animations", patch.tui_animations.map(bool_to_toml_str)));
+        }
+        if patch.tui_alternate_screen.is_some() {
+            items.push((
+                "alternate_screen",
+                opt_string_value(patch.tui_alternate_screen.as_deref()),
+            ));
+        }
+        if patch.tui_show_tooltips.is_some() {
+            items.push((
+                "show_tooltips",
+                patch.tui_show_tooltips.map(bool_to_toml_str),
+            ));
+        }
+        if patch.tui_scroll_invert.is_some() {
+            items.push((
+                "scroll_invert",
+                patch.tui_scroll_invert.map(bool_to_toml_str),
+            ));
+        }
+
+        upsert_keys_auto_style(&mut lines, "tui", &tui_keys, items);
     }
 
     // features.*
@@ -911,80 +1161,57 @@ fn patch_config_toml(current: Option<Vec<u8>>, patch: CodexConfigPatch) -> Resul
         || patch.features_child_agents_md.is_some();
 
     if has_any_feature_patch {
-        let features_keys = [
-            "unified_exec",
-            "shell_snapshot",
-            "apply_patch_freeform",
-            "web_search_request",
-            "shell_tool",
-            "exec_policy",
-            "experimental_windows_sandbox",
-            "elevated_windows_sandbox",
-            "remote_compaction",
-            "remote_models",
-            "powershell_utf8",
-            "child_agents_md",
-        ];
-        upsert_keys_auto_style(
-            &mut lines,
-            "features",
-            &features_keys,
-            vec![
-                (
-                    "unified_exec",
-                    patch.features_unified_exec.map(bool_to_toml_str),
-                ),
-                (
-                    "shell_snapshot",
-                    patch.features_shell_snapshot.map(bool_to_toml_str),
-                ),
-                (
-                    "apply_patch_freeform",
-                    patch.features_apply_patch_freeform.map(bool_to_toml_str),
-                ),
-                (
-                    "web_search_request",
-                    patch.features_web_search_request.map(bool_to_toml_str),
-                ),
-                (
-                    "shell_tool",
-                    patch.features_shell_tool.map(bool_to_toml_str),
-                ),
-                (
-                    "exec_policy",
-                    patch.features_exec_policy.map(bool_to_toml_str),
-                ),
-                (
-                    "experimental_windows_sandbox",
-                    patch
-                        .features_experimental_windows_sandbox
-                        .map(bool_to_toml_str),
-                ),
-                (
-                    "elevated_windows_sandbox",
-                    patch
-                        .features_elevated_windows_sandbox
-                        .map(bool_to_toml_str),
-                ),
-                (
-                    "remote_compaction",
-                    patch.features_remote_compaction.map(bool_to_toml_str),
-                ),
-                (
-                    "remote_models",
-                    patch.features_remote_models.map(bool_to_toml_str),
-                ),
-                (
-                    "powershell_utf8",
-                    patch.features_powershell_utf8.map(bool_to_toml_str),
-                ),
-                (
-                    "child_agents_md",
-                    patch.features_child_agents_md.map(bool_to_toml_str),
-                ),
-            ],
-        );
+        let mut items: Vec<(&str, Option<String>)> = Vec::new();
+
+        // UI semantics: `true` => write `key = true`, `false` => delete the key (do not write `false`).
+        fn feature_value_to_config_value(value: bool) -> Option<String> {
+            value.then(|| "true".to_string())
+        }
+
+        if let Some(v) = patch.features_unified_exec {
+            items.push(("unified_exec", feature_value_to_config_value(v)));
+        }
+        if let Some(v) = patch.features_shell_snapshot {
+            items.push(("shell_snapshot", feature_value_to_config_value(v)));
+        }
+        if let Some(v) = patch.features_apply_patch_freeform {
+            items.push(("apply_patch_freeform", feature_value_to_config_value(v)));
+        }
+        if let Some(v) = patch.features_web_search_request {
+            items.push(("web_search_request", feature_value_to_config_value(v)));
+        }
+        if let Some(v) = patch.features_shell_tool {
+            items.push(("shell_tool", feature_value_to_config_value(v)));
+        }
+        if let Some(v) = patch.features_exec_policy {
+            items.push(("exec_policy", feature_value_to_config_value(v)));
+        }
+        if let Some(v) = patch.features_experimental_windows_sandbox {
+            items.push((
+                "experimental_windows_sandbox",
+                feature_value_to_config_value(v),
+            ));
+        }
+        if let Some(v) = patch.features_elevated_windows_sandbox {
+            items.push(("elevated_windows_sandbox", feature_value_to_config_value(v)));
+        }
+        if let Some(v) = patch.features_remote_compaction {
+            items.push(("remote_compaction", feature_value_to_config_value(v)));
+        }
+        if let Some(v) = patch.features_remote_models {
+            items.push(("remote_models", feature_value_to_config_value(v)));
+        }
+        if let Some(v) = patch.features_powershell_utf8 {
+            items.push(("powershell_utf8", feature_value_to_config_value(v)));
+        }
+        if let Some(v) = patch.features_child_agents_md {
+            items.push(("child_agents_md", feature_value_to_config_value(v)));
+        }
+
+        upsert_keys_auto_style(&mut lines, "features", &FEATURES_KEY_ORDER, items);
     }
+
+    normalize_toml_layout(&mut lines);
 
     if !lines.is_empty() && !lines.last().unwrap_or(&String::new()).trim().is_empty() {
         lines.push(String::new());
@@ -1112,5 +1339,436 @@ foo = "bar"
         assert!(s.contains("tui.animations = false"), "{s}");
         assert!(s.contains("tui.show_tooltips = false"), "{s}");
         assert!(!s.contains("[tui]"), "{s}");
+    }
+
+    #[test]
+    fn patch_preserves_existing_features_when_setting_another() {
+        let input = r#"[features]
+web_search_request = true
+"#;
+
+        let out = patch_config_toml(
+            Some(input.as_bytes().to_vec()),
+            CodexConfigPatch {
+                model: None,
+                approval_policy: None,
+                sandbox_mode: None,
+                model_reasoning_effort: None,
+                file_opener: None,
+                hide_agent_reasoning: None,
+                show_raw_agent_reasoning: None,
+                history_persistence: None,
+                history_max_bytes: None,
+                sandbox_workspace_write_network_access: None,
+                tui_animations: None,
+                tui_alternate_screen: None,
+                tui_show_tooltips: None,
+                tui_scroll_invert: None,
+                features_unified_exec: None,
+                features_shell_snapshot: Some(true),
+                features_apply_patch_freeform: None,
+                features_web_search_request: None,
+                features_shell_tool: None,
+                features_exec_policy: None,
+                features_experimental_windows_sandbox: None,
+                features_elevated_windows_sandbox: None,
+                features_remote_compaction: None,
+                features_remote_models: None,
+                features_powershell_utf8: None,
+                features_child_agents_md: None,
+            },
+        )
+        .expect("patch_config_toml");
+
+        let s = String::from_utf8(out).expect("utf8");
+        assert!(s.contains("web_search_request = true"), "{s}");
+        assert!(s.contains("shell_snapshot = true"), "{s}");
+    }
+
+    #[test]
+    fn patch_deletes_default_false_feature_when_disabled() {
+        let input = r#"[features]
+shell_snapshot = true
+"#;
+
+        let out = patch_config_toml(
+            Some(input.as_bytes().to_vec()),
+            CodexConfigPatch {
+                model: None,
+                approval_policy: None,
+                sandbox_mode: None,
+                model_reasoning_effort: None,
+                file_opener: None,
+                hide_agent_reasoning: None,
+                show_raw_agent_reasoning: None,
+                history_persistence: None,
+                history_max_bytes: None,
+                sandbox_workspace_write_network_access: None,
+                tui_animations: None,
+                tui_alternate_screen: None,
+                tui_show_tooltips: None,
+                tui_scroll_invert: None,
+                features_unified_exec: None,
+                features_shell_snapshot: Some(false),
+                features_apply_patch_freeform: None,
+                features_web_search_request: None,
+                features_shell_tool: None,
+                features_exec_policy: None,
+                features_experimental_windows_sandbox: None,
+                features_elevated_windows_sandbox: None,
+                features_remote_compaction: None,
+                features_remote_models: None,
+                features_powershell_utf8: None,
+                features_child_agents_md: None,
+            },
+        )
+        .expect("patch_config_toml");
+
+        let s = String::from_utf8(out).expect("utf8");
+        assert!(!s.contains("shell_snapshot ="), "{s}");
+    }
+
+    #[test]
+    fn patch_writes_true_when_feature_enabled() {
+        let input = r#"[features]
+shell_tool = false
+"#;
+
+        let out = patch_config_toml(
+            Some(input.as_bytes().to_vec()),
+            CodexConfigPatch {
+                model: None,
+                approval_policy: None,
+                sandbox_mode: None,
+                model_reasoning_effort: None,
+                file_opener: None,
+                hide_agent_reasoning: None,
+                show_raw_agent_reasoning: None,
+                history_persistence: None,
+                history_max_bytes: None,
+                sandbox_workspace_write_network_access: None,
+                tui_animations: None,
+                tui_alternate_screen: None,
+                tui_show_tooltips: None,
+                tui_scroll_invert: None,
+                features_unified_exec: None,
+                features_shell_snapshot: None,
+                features_apply_patch_freeform: None,
+                features_web_search_request: None,
+                features_shell_tool: Some(true),
+                features_exec_policy: None,
+                features_experimental_windows_sandbox: None,
+                features_elevated_windows_sandbox: None,
+                features_remote_compaction: None,
+                features_remote_models: None,
+                features_powershell_utf8: None,
+                features_child_agents_md: None,
+            },
+        )
+        .expect("patch_config_toml");
+
+        let s = String::from_utf8(out).expect("utf8");
+        assert!(!s.contains("shell_tool = false"), "{s}");
+        assert!(s.contains("shell_tool = true"), "{s}");
+    }
+
+    #[test]
+    fn patch_deletes_feature_when_disabled() {
+        let input = r#"[features]
+shell_tool = true
+"#;
+
+        let out = patch_config_toml(
+            Some(input.as_bytes().to_vec()),
+            CodexConfigPatch {
+                model: None,
+                approval_policy: None,
+                sandbox_mode: None,
+                model_reasoning_effort: None,
+                file_opener: None,
+                hide_agent_reasoning: None,
+                show_raw_agent_reasoning: None,
+                history_persistence: None,
+                history_max_bytes: None,
+                sandbox_workspace_write_network_access: None,
+                tui_animations: None,
+                tui_alternate_screen: None,
+                tui_show_tooltips: None,
+                tui_scroll_invert: None,
+                features_unified_exec: None,
+                features_shell_snapshot: None,
+                features_apply_patch_freeform: None,
+                features_web_search_request: None,
+                features_shell_tool: Some(false),
+                features_exec_policy: None,
+                features_experimental_windows_sandbox: None,
+                features_elevated_windows_sandbox: None,
+                features_remote_compaction: None,
+                features_remote_models: None,
+                features_powershell_utf8: None,
+                features_child_agents_md: None,
+            },
+        )
+        .expect("patch_config_toml");
+
+        let s = String::from_utf8(out).expect("utf8");
+        assert!(!s.contains("shell_tool ="), "{s}");
+    }
+
+    #[test]
+    fn patch_preserves_other_tui_keys_when_updating_one() {
+        let input = r#"[tui]
+animations = true
+show_tooltips = true
+scroll_invert = false
+"#;
+
+        let out = patch_config_toml(
+            Some(input.as_bytes().to_vec()),
+            CodexConfigPatch {
+                model: None,
+                approval_policy: None,
+                sandbox_mode: None,
+                model_reasoning_effort: None,
+                file_opener: None,
+                hide_agent_reasoning: None,
+                show_raw_agent_reasoning: None,
+                history_persistence: None,
+                history_max_bytes: None,
+                sandbox_workspace_write_network_access: None,
+                tui_animations: None,
+                tui_alternate_screen: None,
+                tui_show_tooltips: None,
+                tui_scroll_invert: Some(true),
+                features_unified_exec: None,
+                features_shell_snapshot: None,
+                features_apply_patch_freeform: None,
+                features_web_search_request: None,
+                features_shell_tool: None,
+                features_exec_policy: None,
+                features_experimental_windows_sandbox: None,
+                features_elevated_windows_sandbox: None,
+                features_remote_compaction: None,
+                features_remote_models: None,
+                features_powershell_utf8: None,
+                features_child_agents_md: None,
+            },
+        )
+        .expect("patch_config_toml");
+
+        let s = String::from_utf8(out).expect("utf8");
+        assert!(s.contains("animations = true"), "{s}");
+        assert!(s.contains("show_tooltips = true"), "{s}");
+        assert!(s.contains("scroll_invert = true"), "{s}");
+    }
+
+    #[test]
+    fn patch_preserves_other_history_keys_when_updating_one() {
+        let input = r#"[history]
+persistence = "save-all"
+max_bytes = 123
+"#;
+
+        let out = patch_config_toml(
+            Some(input.as_bytes().to_vec()),
+            CodexConfigPatch {
+                model: None,
+                approval_policy: None,
+                sandbox_mode: None,
+                model_reasoning_effort: None,
+                file_opener: None,
+                hide_agent_reasoning: None,
+                show_raw_agent_reasoning: None,
+                history_persistence: None,
+                history_max_bytes: Some(456),
+                sandbox_workspace_write_network_access: None,
+                tui_animations: None,
+                tui_alternate_screen: None,
+                tui_show_tooltips: None,
+                tui_scroll_invert: None,
+                features_unified_exec: None,
+                features_shell_snapshot: None,
+                features_apply_patch_freeform: None,
+                features_web_search_request: None,
+                features_shell_tool: None,
+                features_exec_policy: None,
+                features_experimental_windows_sandbox: None,
+                features_elevated_windows_sandbox: None,
+                features_remote_compaction: None,
+                features_remote_models: None,
+                features_powershell_utf8: None,
+                features_child_agents_md: None,
+            },
+        )
+        .expect("patch_config_toml");
+
+        let s = String::from_utf8(out).expect("utf8");
+        assert!(s.contains("persistence = \"save-all\""), "{s}");
+        assert!(s.contains("max_bytes = 456"), "{s}");
+    }
+
+    #[test]
+    fn patch_compacts_blank_lines_in_features_table() {
+        let input = r#"[features]
+
+shell_snapshot = true
+
+web_search_request = true
+
+
+
+[other]
+foo = "bar"
+"#;
+
+        let out1 = patch_config_toml(
+            Some(input.as_bytes().to_vec()),
+            CodexConfigPatch {
+                model: None,
+                approval_policy: None,
+                sandbox_mode: None,
+                model_reasoning_effort: None,
+                file_opener: None,
+                hide_agent_reasoning: None,
+                show_raw_agent_reasoning: None,
+                history_persistence: None,
+                history_max_bytes: None,
+                sandbox_workspace_write_network_access: None,
+                tui_animations: None,
+                tui_alternate_screen: None,
+                tui_show_tooltips: None,
+                tui_scroll_invert: None,
+                features_unified_exec: None,
+                features_shell_snapshot: None,
+                features_apply_patch_freeform: None,
+                features_web_search_request: None,
+                features_shell_tool: Some(true),
+                features_exec_policy: None,
+                features_experimental_windows_sandbox: None,
+                features_elevated_windows_sandbox: None,
+                features_remote_compaction: None,
+                features_remote_models: None,
+                features_powershell_utf8: None,
+                features_child_agents_md: None,
+            },
+        )
+        .expect("patch_config_toml");
+
+        let out2 = patch_config_toml(
+            Some(out1),
+            CodexConfigPatch {
+                model: None,
+                approval_policy: None,
+                sandbox_mode: None,
+                model_reasoning_effort: None,
+                file_opener: None,
+                hide_agent_reasoning: None,
+                show_raw_agent_reasoning: None,
+                history_persistence: None,
+                history_max_bytes: None,
+                sandbox_workspace_write_network_access: None,
+                tui_animations: None,
+                tui_alternate_screen: None,
+                tui_show_tooltips: None,
+                tui_scroll_invert: None,
+                features_unified_exec: Some(true),
+                features_shell_snapshot: None,
+                features_apply_patch_freeform: None,
+                features_web_search_request: None,
+                features_shell_tool: None,
+                features_exec_policy: None,
+                features_experimental_windows_sandbox: None,
+                features_elevated_windows_sandbox: None,
+                features_remote_compaction: None,
+                features_remote_models: None,
+                features_powershell_utf8: None,
+                features_child_agents_md: None,
+            },
+        )
+        .expect("patch_config_toml");
+
+        let s = String::from_utf8(out2).expect("utf8");
+        assert!(
+            s.contains(
+                "[features]\n\
+shell_snapshot = true\n\
+web_search_request = true\n\
+unified_exec = true\n\
+shell_tool = true\n\n\
+[other]\n"
+            ),
+            "{s}"
+        );
+        assert!(!s.contains("[features]\n\n"), "{s}");
+        assert!(!s.contains("true\n\nweb_search_request"), "{s}");
+        assert!(!s.contains("true\n\nshell_tool"), "{s}");
+        assert!(!s.contains("true\n\nunified_exec"), "{s}");
+    }
+
+    #[test]
+    fn patch_compacts_blank_lines_across_entire_file() {
+        let input = r#"approval_policy = "never"
+
+
+preferred_auth_method = "apikey"
+
+
+[features]
+
+
+shell_snapshot = true
+
+
+[mcp_servers.exa]
+type = "stdio"
+"#;
+
+        let out = patch_config_toml(
+            Some(input.as_bytes().to_vec()),
+            CodexConfigPatch {
+                model: None,
+                approval_policy: None,
+                sandbox_mode: None,
+                model_reasoning_effort: None,
+                file_opener: None,
+                hide_agent_reasoning: None,
+                show_raw_agent_reasoning: None,
+                history_persistence: None,
+                history_max_bytes: None,
+                sandbox_workspace_write_network_access: None,
+                tui_animations: None,
+                tui_alternate_screen: None,
+                tui_show_tooltips: None,
+                tui_scroll_invert: None,
+                features_unified_exec: None,
+                features_shell_snapshot: None,
+                features_apply_patch_freeform: None,
+                features_web_search_request: Some(true),
+                features_shell_tool: None,
+                features_exec_policy: None,
+                features_experimental_windows_sandbox: None,
+                features_elevated_windows_sandbox: None,
+                features_remote_compaction: None,
+                features_remote_models: None,
+                features_powershell_utf8: None,
+                features_child_agents_md: None,
+            },
+        )
+        .expect("patch_config_toml");
+
+        let s = String::from_utf8(out).expect("utf8");
+        assert!(
+            s.contains(
+                "approval_policy = \"never\"\n\
+preferred_auth_method = \"apikey\"\n\n\
+[features]\n\
+shell_snapshot = true\n\
+web_search_request = true\n\n\
+[mcp_servers.exa]\n\
+type = \"stdio\"\n"
+            ),
+            "{s}"
+        );
+        assert!(!s.contains("\n\n\n"), "{s}");
     }
 }

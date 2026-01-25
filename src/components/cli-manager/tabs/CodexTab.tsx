@@ -102,11 +102,6 @@ export function CliManagerCodexTab({
       tui_animations: true,
       tui_show_tooltips: true,
       tui_scroll_invert: false,
-
-      features_shell_tool: true,
-      features_exec_policy: true,
-      features_remote_compaction: true,
-      features_powershell_utf8: true,
     };
   }, []);
 
@@ -562,7 +557,7 @@ export function CliManagerCodexTab({
               <div className="divide-y divide-slate-100">
                 <SettingItem
                   label="shell_snapshot"
-                  subtitle="Beta：快照 shell 环境以加速重复命令。默认关闭。"
+                  subtitle="测试版：快照 shell 环境以加速重复命令。开启写入 shell_snapshot=true；关闭会删除该项（不写 false）。"
                 >
                   <Switch
                     checked={boolOrDefault(codexConfig.features_shell_snapshot, false)}
@@ -575,7 +570,7 @@ export function CliManagerCodexTab({
 
                 <SettingItem
                   label="web_search_request"
-                  subtitle="Stable：允许模型发起 Web Search 请求。默认关闭。"
+                  subtitle="稳定：允许模型发起 Web Search 请求。开启写入 web_search_request=true；关闭会删除该项（不写 false）。"
                 >
                   <Switch
                     checked={boolOrDefault(codexConfig.features_web_search_request, false)}
@@ -588,7 +583,7 @@ export function CliManagerCodexTab({
 
                 <SettingItem
                   label="unified_exec"
-                  subtitle="Beta：使用统一的 PTY-backed exec 工具。默认关闭。"
+                  subtitle="测试版：使用统一的、基于 PTY 的 exec 工具。开启写入 unified_exec=true；关闭会删除该项（不写 false）。"
                 >
                   <Switch
                     checked={boolOrDefault(codexConfig.features_unified_exec, false)}
@@ -601,13 +596,10 @@ export function CliManagerCodexTab({
 
                 <SettingItem
                   label="shell_tool"
-                  subtitle="Stable：启用默认 shell 工具（默认开启）。关闭后可能影响命令执行能力。"
+                  subtitle="稳定：启用默认 shell 工具。开启写入 shell_tool=true；关闭会删除该项（不写 false）。"
                 >
                   <Switch
-                    checked={boolOrDefault(
-                      codexConfig.features_shell_tool,
-                      defaults.features_shell_tool
-                    )}
+                    checked={boolOrDefault(codexConfig.features_shell_tool, false)}
                     onCheckedChange={(checked) =>
                       void persistCodexConfig({ features_shell_tool: checked })
                     }
@@ -617,13 +609,10 @@ export function CliManagerCodexTab({
 
                 <SettingItem
                   label="exec_policy"
-                  subtitle="Experimental：对 shell/unified_exec 强制执行规则检查（默认开启）。"
+                  subtitle="实验性：对 shell/unified_exec 强制执行规则检查。开启写入 exec_policy=true；关闭会删除该项（不写 false）。"
                 >
                   <Switch
-                    checked={boolOrDefault(
-                      codexConfig.features_exec_policy,
-                      defaults.features_exec_policy
-                    )}
+                    checked={boolOrDefault(codexConfig.features_exec_policy, false)}
                     onCheckedChange={(checked) =>
                       void persistCodexConfig({ features_exec_policy: checked })
                     }
@@ -633,7 +622,7 @@ export function CliManagerCodexTab({
 
                 <SettingItem
                   label="apply_patch_freeform"
-                  subtitle="Experimental：启用自由格式 apply_patch 工具。默认关闭。"
+                  subtitle="实验性：启用自由格式 apply_patch 工具。开启写入 apply_patch_freeform=true；关闭会删除该项（不写 false）。"
                 >
                   <Switch
                     checked={boolOrDefault(codexConfig.features_apply_patch_freeform, false)}
@@ -646,13 +635,10 @@ export function CliManagerCodexTab({
 
                 <SettingItem
                   label="remote_compaction"
-                  subtitle="Experimental：启用 remote compaction（ChatGPT auth）。默认开启。"
+                  subtitle="实验性：启用 remote compaction（需要 ChatGPT 身份验证）。开启写入 remote_compaction=true；关闭会删除该项（不写 false）。"
                 >
                   <Switch
-                    checked={boolOrDefault(
-                      codexConfig.features_remote_compaction,
-                      defaults.features_remote_compaction
-                    )}
+                    checked={boolOrDefault(codexConfig.features_remote_compaction, false)}
                     onCheckedChange={(checked) =>
                       void persistCodexConfig({ features_remote_compaction: checked })
                     }
@@ -662,7 +648,7 @@ export function CliManagerCodexTab({
 
                 <SettingItem
                   label="remote_models"
-                  subtitle="Experimental：启动时刷新远程模型列表。默认关闭。"
+                  subtitle="实验性：启动时刷新远程模型列表。开启写入 remote_models=true；关闭会删除该项（不写 false）。"
                 >
                   <Switch
                     checked={boolOrDefault(codexConfig.features_remote_models, false)}
@@ -675,13 +661,10 @@ export function CliManagerCodexTab({
 
                 <SettingItem
                   label="powershell_utf8"
-                  subtitle="默认开启：强制 PowerShell UTF-8 输出（Windows）。"
+                  subtitle="Windows：强制 PowerShell 使用 UTF-8 输出。开启写入 powershell_utf8=true；关闭会删除该项（不写 false）。"
                 >
                   <Switch
-                    checked={boolOrDefault(
-                      codexConfig.features_powershell_utf8,
-                      defaults.features_powershell_utf8
-                    )}
+                    checked={boolOrDefault(codexConfig.features_powershell_utf8, false)}
                     onCheckedChange={(checked) =>
                       void persistCodexConfig({ features_powershell_utf8: checked })
                     }
@@ -691,7 +674,7 @@ export function CliManagerCodexTab({
 
                 <SettingItem
                   label="child_agents_md"
-                  subtitle="Experimental：即使没有 AGENTS.md 也附加其作用域/优先级说明。默认关闭。"
+                  subtitle="实验性：即使没有 AGENTS.md 也附加其作用域/优先级说明。开启写入 child_agents_md=true；关闭会删除该项（不写 false）。"
                 >
                   <Switch
                     checked={boolOrDefault(codexConfig.features_child_agents_md, false)}
@@ -704,7 +687,7 @@ export function CliManagerCodexTab({
 
                 <SettingItem
                   label="experimental_windows_sandbox"
-                  subtitle="Experimental：Windows restricted-token sandbox。默认关闭。"
+                  subtitle="实验性：Windows 受限令牌 sandbox。开启写入 experimental_windows_sandbox=true；关闭会删除该项（不写 false）。"
                 >
                   <Switch
                     checked={boolOrDefault(
@@ -720,7 +703,7 @@ export function CliManagerCodexTab({
 
                 <SettingItem
                   label="elevated_windows_sandbox"
-                  subtitle="Experimental：Windows elevated sandbox pipeline。默认关闭。"
+                  subtitle="实验性：Windows 提权 sandbox 流程。开启写入 elevated_windows_sandbox=true；关闭会删除该项（不写 false）。"
                 >
                   <Switch
                     checked={boolOrDefault(codexConfig.features_elevated_windows_sandbox, false)}

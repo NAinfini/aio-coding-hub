@@ -1,6 +1,7 @@
 //! Usage: Resolve MCP config paths and sync storage paths.
 
 use crate::app_paths;
+use crate::codex_paths;
 use std::path::{Path, PathBuf};
 use tauri::Manager;
 
@@ -24,8 +25,8 @@ pub(super) fn mcp_target_path(app: &tauri::AppHandle, cli_key: &str) -> Result<P
     match cli_key {
         // cc-switch: Claude MCP uses ~/.claude.json
         "claude" => Ok(home.join(".claude.json")),
-        // cc-switch: Codex MCP uses ~/.codex/config.toml
-        "codex" => Ok(home.join(".codex").join("config.toml")),
+        // cc-switch: Codex MCP uses $CODEX_HOME/config.toml (default: ~/.codex/config.toml)
+        "codex" => codex_paths::codex_config_toml_path(app),
         // cc-switch: Gemini MCP uses ~/.gemini/settings.json
         "gemini" => Ok(home.join(".gemini").join("settings.json")),
         _ => Err(format!("SEC_INVALID_INPUT: unknown cli_key={cli_key}")),

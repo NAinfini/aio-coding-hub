@@ -29,12 +29,91 @@ export type ClaudeEnvState = {
   disable_error_reporting: boolean;
 };
 
+export type CodexConfigState = {
+  config_dir: string;
+  config_path: string;
+  can_open_config_dir: boolean;
+  exists: boolean;
+
+  model: string | null;
+  approval_policy: string | null;
+  sandbox_mode: string | null;
+  model_reasoning_effort: string | null;
+  file_opener: string | null;
+  hide_agent_reasoning: boolean | null;
+  show_raw_agent_reasoning: boolean | null;
+
+  history_persistence: string | null;
+  history_max_bytes: number | null;
+
+  sandbox_workspace_write_network_access: boolean | null;
+
+  tui_animations: boolean | null;
+  tui_alternate_screen: string | null;
+  tui_show_tooltips: boolean | null;
+  tui_scroll_invert: boolean | null;
+
+  features_unified_exec: boolean | null;
+  features_shell_snapshot: boolean | null;
+  features_apply_patch_freeform: boolean | null;
+  features_web_search_request: boolean | null;
+  features_shell_tool: boolean | null;
+  features_exec_policy: boolean | null;
+  features_experimental_windows_sandbox: boolean | null;
+  features_elevated_windows_sandbox: boolean | null;
+  features_remote_compaction: boolean | null;
+  features_remote_models: boolean | null;
+  features_powershell_utf8: boolean | null;
+  features_child_agents_md: boolean | null;
+};
+
+export type CodexConfigPatch = Partial<{
+  model: string;
+  approval_policy: string;
+  sandbox_mode: string;
+  model_reasoning_effort: string;
+  file_opener: string;
+  hide_agent_reasoning: boolean;
+  show_raw_agent_reasoning: boolean;
+
+  history_persistence: string;
+  history_max_bytes: number;
+
+  sandbox_workspace_write_network_access: boolean;
+
+  tui_animations: boolean;
+  tui_alternate_screen: string;
+  tui_show_tooltips: boolean;
+  tui_scroll_invert: boolean;
+
+  features_unified_exec: boolean;
+  features_shell_snapshot: boolean;
+  features_apply_patch_freeform: boolean;
+  features_web_search_request: boolean;
+  features_shell_tool: boolean;
+  features_exec_policy: boolean;
+  features_experimental_windows_sandbox: boolean;
+  features_elevated_windows_sandbox: boolean;
+  features_remote_compaction: boolean;
+  features_remote_models: boolean;
+  features_powershell_utf8: boolean;
+  features_child_agents_md: boolean;
+}>;
+
 export async function cliManagerClaudeInfoGet() {
   return invokeTauriOrNull<ClaudeCliInfo>("cli_manager_claude_info_get");
 }
 
 export async function cliManagerCodexInfoGet() {
   return invokeTauriOrNull<SimpleCliInfo>("cli_manager_codex_info_get");
+}
+
+export async function cliManagerCodexConfigGet() {
+  return invokeTauriOrNull<CodexConfigState>("cli_manager_codex_config_get");
+}
+
+export async function cliManagerCodexConfigSet(patch: CodexConfigPatch) {
+  return invokeTauriOrNull<CodexConfigState>("cli_manager_codex_config_set", { patch });
 }
 
 export async function cliManagerGeminiInfoGet() {

@@ -338,12 +338,24 @@ fn configure_wsl_codex(distro: &str, proxy_origin: &str) -> Result<(), String> {
         r#"
 set -euo pipefail
 
-HOME="$(getent passwd "$(whoami)" | cut -d: -f6)"
-export HOME
+	HOME="$(getent passwd "$(whoami)" | cut -d: -f6)"
+	export HOME
 
-mkdir -p "$HOME/.codex"
-config_path="$HOME/.codex/config.toml"
-auth_path="$HOME/.codex/auth.json"
+		codex_home_raw="${{CODEX_HOME:-$HOME/.codex}}"
+		codex_home="$codex_home_raw"
+		if [ "$codex_home_raw" = "~" ]; then
+		  codex_home="$HOME"
+		elif [ "${{codex_home_raw#~/}}" != "$codex_home_raw" ]; then
+		  codex_home="$HOME/${{codex_home_raw#~/}}"
+		elif [ "${{codex_home_raw#~\\}}" != "$codex_home_raw" ]; then
+		  codex_home="$HOME/${{codex_home_raw#~\\}}"
+		elif [ "${{codex_home_raw#/}}" = "$codex_home_raw" ]; then
+		  codex_home="$HOME/$codex_home_raw"
+		fi
+
+	mkdir -p "$codex_home"
+	config_path="$codex_home/config.toml"
+	auth_path="$codex_home/auth.json"
 
 if [ -L "$config_path" ]; then
   echo "Refusing to modify: $config_path is a symlink. Please manage it manually or remove the symlink first." >&2
@@ -759,7 +771,13 @@ pub fn get_config_status(distros: &[String]) -> Vec<WslDistroConfigStatus> {
             .map(|s| s.success())
             .unwrap_or(false);
         let codex = hide_window_cmd("wsl")
-            .args(["-d", distro, "bash", "-lc", "test -f ~/.codex/config.toml"])
+            .args([
+                "-d",
+                distro,
+                "bash",
+                "-lc",
+                r#"CODEX_HOME_RAW="${CODEX_HOME:-$HOME/.codex}"; p="$CODEX_HOME_RAW"; if [ "$CODEX_HOME_RAW" = "~" ]; then p="$HOME"; elif [ "${CODEX_HOME_RAW#~/}" != "$CODEX_HOME_RAW" ]; then p="$HOME/${CODEX_HOME_RAW#~/}"; elif [ "${CODEX_HOME_RAW#~\\}" != "$CODEX_HOME_RAW" ]; then p="$HOME/${CODEX_HOME_RAW#~\\}"; elif [ "${CODEX_HOME_RAW#/}" = "$CODEX_HOME_RAW" ]; then p="$HOME/$CODEX_HOME_RAW"; fi; test -f "$p/config.toml""#,
+            ])
             .status()
             .map(|s| s.success())
             .unwrap_or(false);

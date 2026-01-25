@@ -1,6 +1,7 @@
 //! Usage: Sync/backup/restore prompt instruction files for supported CLIs (infra adapter).
 
 use crate::app_paths;
+use crate::codex_paths;
 use crate::shared::time::now_unix_seconds;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -48,7 +49,7 @@ fn prompt_target_path(app: &tauri::AppHandle, cli_key: &str) -> Result<PathBuf, 
 
     match cli_key {
         "claude" => Ok(home.join(".claude").join("CLAUDE.md")),
-        "codex" => Ok(home.join(".codex").join("AGENTS.md")),
+        "codex" => codex_paths::codex_agents_md_path(app),
         "gemini" => Ok(home.join(".gemini").join("GEMINI.md")),
         _ => Err(format!("SEC_INVALID_INPUT: unknown cli_key={cli_key}")),
     }

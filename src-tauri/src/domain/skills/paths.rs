@@ -1,4 +1,5 @@
 use crate::app_paths;
+use crate::codex_paths;
 use crate::domain::skills::types::SkillsPaths;
 use std::path::PathBuf;
 use tauri::Manager;
@@ -29,7 +30,7 @@ pub(super) fn cli_skills_root(app: &tauri::AppHandle, cli_key: &str) -> Result<P
     let home = home_dir(app)?;
     match cli_key {
         "claude" => Ok(home.join(".claude").join("skills")),
-        "codex" => Ok(home.join(".codex").join("skills")),
+        "codex" => codex_paths::codex_skills_dir(app),
         "gemini" => Ok(home.join(".gemini").join("skills")),
         _ => Err(format!("SEC_INVALID_INPUT: unknown cli_key={cli_key}")),
     }

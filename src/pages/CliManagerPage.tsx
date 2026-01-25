@@ -6,9 +6,13 @@ import { toast } from "sonner";
 import {
   cliManagerClaudeEnvSet,
   cliManagerClaudeInfoGet,
+  cliManagerCodexConfigGet,
+  cliManagerCodexConfigSet,
   cliManagerCodexInfoGet,
   cliManagerGeminiInfoGet,
   type ClaudeCliInfo,
+  type CodexConfigPatch,
+  type CodexConfigState,
   type SimpleCliInfo,
 } from "../services/cliManager";
 import { logToConsole } from "../services/consoleLog";
@@ -21,10 +25,10 @@ import {
 } from "../services/settingsGatewayRectifier";
 import { CliManagerGeneralTab } from "../components/cli-manager/tabs/GeneralTab";
 import { CliManagerClaudeTab } from "../components/cli-manager/tabs/ClaudeTab";
-import { SimpleCliTab } from "../components/cli-manager/tabs/SimpleCliTab";
+import { CliManagerCodexTab } from "../components/cli-manager/tabs/CodexTab";
+import { CliManagerGeminiTab } from "../components/cli-manager/tabs/GeminiTab";
 import { PageHeader } from "../ui/PageHeader";
 import { TabList } from "../ui/TabList";
-import { Terminal, Cpu } from "lucide-react";
 
 type TabKey = "general" | "claude" | "codex" | "gemini";
 
@@ -87,6 +91,9 @@ export function CliManagerPage() {
   );
   const [codexLoading, setCodexLoading] = useState(false);
   const [codexInfo, setCodexInfo] = useState<SimpleCliInfo | null>(null);
+  const [codexConfigLoading, setCodexConfigLoading] = useState(false);
+  const [codexConfigSaving, setCodexConfigSaving] = useState(false);
+  const [codexConfig, setCodexConfig] = useState<CodexConfigState | null>(null);
 
   const [geminiAvailable, setGeminiAvailable] = useState<"checking" | "available" | "unavailable">(
     "checking"
@@ -150,9 +157,9 @@ export function CliManagerPage() {
 
   useEffect(() => {
     if (tab !== "codex") return;
-    if (codexAvailable !== "checking") return;
-    void refreshCodexInfo();
-  }, [tab, codexAvailable]);
+    if (codexAvailable === "checking") void refreshCodexInfo();
+    if (!codexConfig && !codexConfigLoading) void refreshCodexConfig();
+  }, [tab, codexAvailable, codexConfig, codexConfigLoading]);
 
   useEffect(() => {
     if (tab !== "gemini") return;
@@ -367,6 +374,28 @@ export function CliManagerPage() {
     }
   }
 
+  async function refreshCodexConfig() {
+    if (codexConfigLoading) return;
+    setCodexConfigLoading(true);
+    try {
+      const cfg = await cliManagerCodexConfigGet();
+      if (!cfg) {
+        setCodexConfig(null);
+        return;
+      }
+      setCodexConfig(cfg);
+    } catch (err) {
+      logToConsole("error", "读取 Codex 配置失败", { error: String(err) });
+      toast("读取 Codex 配置失败：请查看控制台日志");
+    } finally {
+      setCodexConfigLoading(false);
+    }
+  }
+
+  async function refreshCodex() {
+    await Promise.all([refreshCodexInfo(), refreshCodexConfig()]);
+  }
+
   async function refreshGeminiInfo() {
     if (geminiLoading) return;
     setGeminiLoading(true);
@@ -386,6 +415,30 @@ export function CliManagerPage() {
       toast("读取 Gemini 信息失败：请查看控制台日志");
     } finally {
       setGeminiLoading(false);
+    }
+  }
+
+  async function persistCodexConfig(patch: CodexConfigPatch) {
+    if (codexConfigSaving) return;
+    if (codexAvailable !== "available") return;
+
+    const prev = codexConfig;
+    setCodexConfigSaving(true);
+    try {
+      const updated = await cliManagerCodexConfigSet(patch);
+      if (!updated) {
+        toast("仅在 Tauri Desktop 环境可用");
+        if (prev) setCodexConfig(prev);
+        return;
+      }
+      setCodexConfig(updated);
+      toast("已更新 Codex 配置");
+    } catch (err) {
+      logToConsole("error", "更新 Codex 配置失败", { error: String(err) });
+      toast("更新 Codex 配置失败：请稍后重试");
+      if (prev) setCodexConfig(prev);
+    } finally {
+      setCodexConfigSaving(false);
     }
   }
 
@@ -446,6 +499,20 @@ export function CliManagerPage() {
       await openPath(claudeInfo.config_dir);
     } catch (err) {
       logToConsole("error", "打开 Claude 配置目录失败", { error: String(err) });
+      toast("打开目录失败：请查看控制台日志");
+    }
+  }
+
+  async function openCodexConfigDir() {
+    if (!codexConfig) return;
+    if (!codexConfig.can_open_config_dir) {
+      toast("受权限限制，无法自动打开该目录（仅允许 $HOME/.codex 下的路径）");
+      return;
+    }
+    try {
+      await openPath(codexConfig.config_dir);
+    } catch (err) {
+      logToConsole("error", "打开 Codex 配置目录失败", { error: String(err) });
       toast("打开目录失败：请查看控制台日志");
     }
   }
@@ -527,24 +594,25 @@ export function CliManagerPage() {
         ) : null}
 
         {tab === "codex" ? (
-          <SimpleCliTab
-            title="Codex"
-            Icon={Terminal}
-            available={codexAvailable}
-            loading={codexLoading}
-            info={codexInfo}
-            onRefresh={refreshCodexInfo}
+          <CliManagerCodexTab
+            codexAvailable={codexAvailable}
+            codexLoading={codexLoading}
+            codexConfigLoading={codexConfigLoading}
+            codexConfigSaving={codexConfigSaving}
+            codexInfo={codexInfo}
+            codexConfig={codexConfig}
+            refreshCodex={refreshCodex}
+            openCodexConfigDir={openCodexConfigDir}
+            persistCodexConfig={persistCodexConfig}
           />
         ) : null}
 
         {tab === "gemini" ? (
-          <SimpleCliTab
-            title="Gemini"
-            Icon={Cpu}
-            available={geminiAvailable}
-            loading={geminiLoading}
-            info={geminiInfo}
-            onRefresh={refreshGeminiInfo}
+          <CliManagerGeminiTab
+            geminiAvailable={geminiAvailable}
+            geminiLoading={geminiLoading}
+            geminiInfo={geminiInfo}
+            refreshGeminiInfo={refreshGeminiInfo}
           />
         ) : null}
       </div>

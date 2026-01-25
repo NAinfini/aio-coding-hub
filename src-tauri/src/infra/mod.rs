@@ -4,6 +4,8 @@ pub(crate) mod app_paths;
 pub(crate) mod base_url_probe;
 pub(crate) mod cli_manager;
 pub(crate) mod cli_proxy;
+pub(crate) mod codex_config;
+pub(crate) mod codex_paths;
 pub(crate) mod data_management;
 pub(crate) mod db;
 pub(crate) mod mcp_sync;

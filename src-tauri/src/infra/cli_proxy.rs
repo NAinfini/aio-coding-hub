@@ -1,6 +1,7 @@
 //! Usage: Manage local CLI proxy configuration files (infra adapter).
 
 use crate::app_paths;
+use crate::codex_paths;
 use crate::shared::time::now_unix_seconds;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -83,11 +84,11 @@ fn claude_settings_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 }
 
 fn codex_config_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    Ok(home_dir(app)?.join(".codex").join("config.toml"))
+    codex_paths::codex_config_toml_path(app)
 }
 
 fn codex_auth_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    Ok(home_dir(app)?.join(".codex").join("auth.json"))
+    codex_paths::codex_auth_json_path(app)
 }
 
 fn gemini_env_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {

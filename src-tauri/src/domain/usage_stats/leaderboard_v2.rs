@@ -123,7 +123,7 @@ GROUP BY cli_key
                         cache_creation_1h_input_tokens: 0,
                     };
 
-                    Ok(agg.to_leaderboard_row(key.clone(), key))
+                    Ok(agg.into_leaderboard_row(key.clone(), key))
                 })
                 .map_err(|e| format!("DB_ERROR: failed to run cli leaderboard query: {e}"))?;
 
@@ -235,7 +235,7 @@ GROUP BY COALESCE(NULLIF(requested_model, ''), 'Unknown')
                         cache_creation_1h_input_tokens: 0,
                     };
 
-                    Ok(agg.to_leaderboard_row(key.clone(), key))
+                    Ok(agg.into_leaderboard_row(key.clone(), key))
                 })
                 .map_err(|e| format!("DB_ERROR: failed to run model leaderboard query: {e}"))?;
 
@@ -368,7 +368,7 @@ AND (?3 IS NULL OR cli_key = ?3)
                 .map(|(k, v)| {
                     let key = format!("{}:{}", k.cli_key, k.provider_id);
                     let name = format!("{}/{}", k.cli_key, k.provider_name);
-                    v.to_leaderboard_row(key, name)
+                    v.into_leaderboard_row(key, name)
                 })
                 .collect()
         }

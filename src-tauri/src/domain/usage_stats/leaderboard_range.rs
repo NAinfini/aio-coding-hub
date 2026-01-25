@@ -70,7 +70,11 @@ impl ProviderAgg {
             .saturating_add(add.cache_creation_1h_input_tokens);
     }
 
-    pub(super) fn to_leaderboard_row(self, key: String, name: String) -> super::UsageLeaderboardRow {
+    pub(super) fn into_leaderboard_row(
+        self,
+        key: String,
+        name: String,
+    ) -> super::UsageLeaderboardRow {
         let avg_duration_ms = if self.requests_success > 0 {
             Some(self.success_duration_ms_sum / self.requests_success)
         } else {

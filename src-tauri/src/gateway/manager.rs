@@ -128,6 +128,13 @@ impl GatewayManager {
         }
     }
 
+    pub fn clear_cli_session_bindings(&self, cli_key: &str) -> usize {
+        match &self.running {
+            Some(r) => r.session.clear_cli_bindings(cli_key),
+            None => 0,
+        }
+    }
+
     pub fn start(
         &mut self,
         app: &tauri::AppHandle,

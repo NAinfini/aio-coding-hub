@@ -26,6 +26,7 @@ import {
   settingsGatewayRectifierSet,
   type GatewayRectifierSettingsPatch,
 } from "../services/settingsGatewayRectifier";
+import { formatActionFailureToast } from "../utils/errors";
 import { CliManagerGeneralTab } from "../components/cli-manager/tabs/GeneralTab";
 import { CliManagerClaudeTab } from "../components/cli-manager/tabs/ClaudeTab";
 import { CliManagerCodexTab } from "../components/cli-manager/tabs/CodexTab";
@@ -457,8 +458,13 @@ export function CliManagerPage() {
       setCodexConfig(updated);
       toast("已更新 Codex 配置");
     } catch (err) {
-      logToConsole("error", "更新 Codex 配置失败", { error: String(err) });
-      toast("更新 Codex 配置失败：请稍后重试");
+      const formatted = formatActionFailureToast("更新 Codex 配置", err);
+      logToConsole("error", "更新 Codex 配置失败", {
+        error: formatted.raw,
+        error_code: formatted.error_code ?? undefined,
+        patch,
+      });
+      toast(formatted.toast);
       if (prev) setCodexConfig(prev);
     } finally {
       setCodexConfigSaving(false);

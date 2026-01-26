@@ -1,7 +1,7 @@
 // Usage: Runtime log console. Shows in-memory app logs (time / level / title) with optional on-demand details.
 // Request log details are persisted separately and should not be displayed here.
 
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
   clearConsoleLogs,
   formatConsoleLogDetails,
@@ -17,6 +17,8 @@ import { Card } from "../ui/Card";
 import { PageHeader } from "../ui/PageHeader";
 import { Switch } from "../ui/Switch";
 import { cn } from "../utils/cn";
+
+const DEFAULT_RENDER_LIMIT = 200;
 
 function levelText(level: ConsoleLogEntry["level"]) {
   switch (level) {
@@ -49,6 +51,7 @@ const ROW_GRID_CLASS = "grid grid-cols-[150px_72px_1fr_20px] gap-2";
 const ConsoleLogRow = memo(function ConsoleLogRow({ entry }: { entry: ConsoleLogEntry }) {
   const hasDetails = entry.details !== undefined;
   const [detailsText, setDetailsText] = useState<string | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
 
   const row = (
     <div
@@ -89,7 +92,10 @@ const ConsoleLogRow = memo(function ConsoleLogRow({ entry }: { entry: ConsoleLog
     <details
       className="group border-b border-white/5 transition-colors duration-200"
       onToggle={(e) => {
-        if (!e.currentTarget.open) return;
+        const nextOpen = e.currentTarget.open;
+        setIsOpen(nextOpen);
+
+        if (!nextOpen) return;
         if (detailsText != null) return;
         const next = formatConsoleLogDetails(entry.details);
         setDetailsText(next ?? "");
@@ -104,13 +110,15 @@ const ConsoleLogRow = memo(function ConsoleLogRow({ entry }: { entry: ConsoleLog
       >
         {row}
       </summary>
-      <div className={cn(ROW_GRID_CLASS, "px-4 pb-4 pt-0")}>
-        <div className="col-start-3 col-span-2">
-          <pre className="custom-scrollbar max-h-60 overflow-auto rounded-md bg-slate-950 p-3 text-[11px] leading-relaxed text-slate-400 font-mono border border-white/5 mx-1">
-            {detailsText == null ? "加载中…" : detailsText ? detailsText : "// 无可显示的详情"}
-          </pre>
+      {isOpen ? (
+        <div className={cn(ROW_GRID_CLASS, "px-4 pb-4 pt-0")}>
+          <div className="col-start-3 col-span-2">
+            <pre className="custom-scrollbar max-h-60 overflow-auto rounded-md bg-slate-950 p-3 text-[11px] leading-relaxed text-slate-400 font-mono border border-white/5 mx-1">
+              {detailsText == null ? "加载中…" : detailsText ? detailsText : "// 无可显示的详情"}
+            </pre>
+          </div>
         </div>
-      </div>
+      ) : null}
     </details>
   );
 });
@@ -119,10 +127,18 @@ export function ConsolePage() {
   const logs = useConsoleLogs();
   const [autoScroll, setAutoScroll] = useState(true);
   const [debugEnabled, setDebugEnabled] = useState(() => getConsoleDebugEnabled());
+  const [renderAll, setRenderAll] = useState(false);
   const logsContainerRef = useRef<HTMLDivElement | null>(null);
 
   const visibleLogs = debugEnabled ? logs : logs.filter((entry) => entry.level !== "debug");
   const hiddenCount = logs.length - visibleLogs.length;
+
+  const displayLogs = useMemo(() => {
+    if (renderAll) return visibleLogs;
+    return visibleLogs.slice(-DEFAULT_RENDER_LIMIT);
+  }, [renderAll, visibleLogs]);
+
+  const lastDisplayLogId = displayLogs.length > 0 ? displayLogs[displayLogs.length - 1]?.id : null;
 
   function scrollToBottom() {
     const el = logsContainerRef.current;
@@ -133,7 +149,7 @@ export function ConsolePage() {
   useEffect(() => {
     if (!autoScroll) return;
     requestAnimationFrame(() => scrollToBottom());
-  }, [autoScroll, visibleLogs.length]);
+  }, [autoScroll, lastDisplayLogId]);
 
   return (
     <div className="space-y-6">
@@ -141,6 +157,24 @@ export function ConsolePage() {
         title="控制台"
         actions={
           <div className="flex flex-wrap items-center gap-3">
+            {visibleLogs.length > DEFAULT_RENDER_LIMIT ? (
+              <Button
+                onClick={() => {
+                  const next = !renderAll;
+                  setRenderAll(next);
+                  toast(
+                    next
+                      ? `已显示全部日志（${visibleLogs.length}）`
+                      : `已仅显示最近 ${DEFAULT_RENDER_LIMIT} 条日志`
+                  );
+                }}
+                variant="secondary"
+              >
+                {renderAll
+                  ? `仅显示最近 ${DEFAULT_RENDER_LIMIT} 条`
+                  : `显示全部（${visibleLogs.length}）`}
+              </Button>
+            ) : null}
             <div className="flex items-center gap-2">
               <span className="text-sm text-slate-600">自动滚动</span>
               <Switch checked={autoScroll} onCheckedChange={setAutoScroll} size="sm" />
@@ -177,9 +211,15 @@ export function ConsolePage() {
               <div className="text-sm font-semibold text-slate-900">
                 日志{" "}
                 <span className="ml-1.5 inline-flex items-center rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-medium text-accent">
-                  {visibleLogs.length}
+                  {displayLogs.length}
                 </span>
               </div>
+              {!renderAll && visibleLogs.length > DEFAULT_RENDER_LIMIT ? (
+                <div className="text-xs text-slate-500 flex items-center gap-1.5">
+                  <span className="inline-block h-1 w-1 rounded-full bg-slate-400"></span>共{" "}
+                  {visibleLogs.length} 条，仅显示最近 {DEFAULT_RENDER_LIMIT} 条
+                </div>
+              ) : null}
               {!debugEnabled && hiddenCount > 0 ? (
                 <div className="text-xs text-slate-500 flex items-center gap-1.5">
                   <span className="inline-block h-1 w-1 rounded-full bg-slate-400"></span>
@@ -214,7 +254,7 @@ export function ConsolePage() {
             "shadow-inner"
           )}
         >
-          {visibleLogs.length === 0 ? (
+          {displayLogs.length === 0 ? (
             <div className="flex flex-col items-center justify-center px-4 py-16 text-center">
               <div className="mb-3 rounded-full bg-slate-800/50 p-4 border border-slate-700/50">
                 <svg
@@ -240,7 +280,7 @@ export function ConsolePage() {
             </div>
           ) : (
             <div>
-              {visibleLogs.map((entry) => (
+              {displayLogs.map((entry) => (
                 <ConsoleLogRow key={entry.id} entry={entry} />
               ))}
             </div>

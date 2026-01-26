@@ -33,7 +33,9 @@ import {
 } from "../services/sortModes";
 import { useCliProxy } from "../hooks/useCliProxy";
 import { useWindowForeground } from "../hooks/useWindowForeground";
+import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
+import { Dialog } from "../ui/Dialog";
 import { PageHeader } from "../ui/PageHeader";
 import { TabList } from "../ui/TabList";
 import { hasTauriRuntime } from "../services/tauriInvoke";
@@ -41,6 +43,11 @@ import { useTraceStore } from "../services/traceStore";
 
 type HomeTabKey = "overview" | "cost" | "more";
 type UsageHeatmapRefreshReason = "initial" | "manual" | "foreground" | "tab";
+type PendingSortModeSwitch = {
+  cliKey: CliKey;
+  modeId: number | null;
+  activeSessionCount: number;
+};
 
 const HOME_TABS: Array<{ key: HomeTabKey; label: string }> = [
   { key: "overview", label: "概览" },
@@ -88,6 +95,9 @@ export function HomePage() {
     codex: false,
     gemini: false,
   });
+  const [pendingSortModeSwitch, setPendingSortModeSwitch] = useState<PendingSortModeSwitch | null>(
+    null
+  );
 
   const [requestLogs, setRequestLogs] = useState<RequestLogSummary[]>([]);
   const [requestLogsLoading, setRequestLogsLoading] = useState(false);
@@ -417,6 +427,21 @@ export function HomePage() {
       .finally(() => {
         setActiveModeToggling((cur) => ({ ...cur, [cliKey]: false }));
       });
+  }
+
+  function requestCliActiveModeSwitch(cliKey: CliKey, modeId: number | null) {
+    if (activeModeToggling[cliKey] || sortModesLoading) return;
+
+    const prev = activeModeByCli[cliKey] ?? null;
+    if (prev === modeId) return;
+
+    const activeSessionCount = activeSessions.filter((row) => row.cli_key === cliKey).length;
+    if (activeSessionCount > 0) {
+      setPendingSortModeSwitch({ cliKey, modeId, activeSessionCount });
+      return;
+    }
+
+    setCliActiveMode(cliKey, modeId);
   }
 
   const refreshUsageHeatmap = useCallback(
@@ -794,7 +819,7 @@ export function HomePage() {
           sortModesAvailable={sortModesAvailable}
           activeModeByCli={activeModeByCli}
           activeModeToggling={activeModeToggling}
-          onSetCliActiveMode={setCliActiveMode}
+          onSetCliActiveMode={requestCliActiveModeSwitch}
           cliProxyEnabled={cliProxy.enabled}
           cliProxyToggling={cliProxy.toggling}
           onSetCliProxyEnabled={cliProxy.setCliProxyEnabled}
@@ -817,6 +842,41 @@ export function HomePage() {
           <div className="text-sm text-slate-600">更多功能开发中…</div>
         </Card>
       )}
+
+      <Dialog
+        open={pendingSortModeSwitch != null}
+        onOpenChange={(open) => {
+          if (!open) setPendingSortModeSwitch(null);
+        }}
+        title={
+          pendingSortModeSwitch
+            ? `确认切换 ${CLIS.find((cli) => cli.key === pendingSortModeSwitch.cliKey)?.name ?? pendingSortModeSwitch.cliKey} 模板？`
+            : "确认切换模板？"
+        }
+        description={
+          pendingSortModeSwitch
+            ? `目前还有 ${pendingSortModeSwitch.activeSessionCount} 个活跃 Session，切换模板可能导致会话中断，是否确认？`
+            : undefined
+        }
+      >
+        <div className="flex items-center justify-end gap-2">
+          <Button variant="secondary" size="md" onClick={() => setPendingSortModeSwitch(null)}>
+            取消
+          </Button>
+          <Button
+            variant="primary"
+            size="md"
+            onClick={() => {
+              const pending = pendingSortModeSwitch;
+              if (!pending) return;
+              setPendingSortModeSwitch(null);
+              setCliActiveMode(pending.cliKey, pending.modeId);
+            }}
+          >
+            确认切换
+          </Button>
+        </div>
+      </Dialog>
 
       <RequestLogDetailDialog
         selectedLogId={selectedLogId}

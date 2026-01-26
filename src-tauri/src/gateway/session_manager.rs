@@ -61,6 +61,18 @@ impl SessionManager {
         }
     }
 
+    pub fn clear_cli_bindings(&self, cli_key: &str) -> usize {
+        let cli_key = cli_key.trim();
+        if cli_key.is_empty() {
+            return 0;
+        }
+
+        let mut guard = self.bindings.lock_or_recover();
+        let before = guard.len();
+        guard.retain(|k, _| k.cli_key != cli_key);
+        before.saturating_sub(guard.len())
+    }
+
     pub fn extract_session_id_from_json(
         headers: &HeaderMap,
         root: Option<&Value>,
@@ -416,3 +428,6 @@ fn session_suffix(session_id: &str) -> String {
 fn drop_expired(map: &mut HashMap<SessionKey, SessionBinding>, now_unix: i64) {
     map.retain(|_, v| v.expires_at > now_unix);
 }
+
+#[cfg(test)]
+mod tests;

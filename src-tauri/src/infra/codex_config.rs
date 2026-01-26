@@ -291,25 +291,48 @@ fn toml_string_literal(value: &str) -> String {
     format!("\"{}\"", toml_escape_basic_string(value))
 }
 
+fn first_table_header_line(lines: &[String]) -> usize {
+    let mut in_multiline_double = false;
+    let mut in_multiline_single = false;
+
+    for (idx, line) in lines.iter().enumerate() {
+        if !in_multiline_double && !in_multiline_single && is_any_table_header_line(line) {
+            return idx;
+        }
+
+        update_multiline_string_state(line, &mut in_multiline_double, &mut in_multiline_single);
+    }
+
+    lines.len()
+}
+
 fn upsert_root_key(lines: &mut Vec<String>, key: &str, value: Option<String>) {
-    let first_table = lines
-        .iter()
-        .position(|l| l.trim().starts_with('['))
-        .unwrap_or(lines.len());
+    let first_table = first_table_header_line(lines);
 
     let mut target_idx: Option<usize> = None;
+    let mut in_multiline_double = false;
+    let mut in_multiline_single = false;
     for (idx, line) in lines.iter().take(first_table).enumerate() {
+        if in_multiline_double || in_multiline_single {
+            update_multiline_string_state(line, &mut in_multiline_double, &mut in_multiline_single);
+            continue;
+        }
+
         let cleaned = strip_toml_comment(line).trim();
         if cleaned.is_empty() || cleaned.starts_with('#') {
+            update_multiline_string_state(line, &mut in_multiline_double, &mut in_multiline_single);
             continue;
         }
         let Some((k, _)) = parse_assignment(cleaned) else {
+            update_multiline_string_state(line, &mut in_multiline_double, &mut in_multiline_single);
             continue;
         };
         if normalize_key(&k) == key {
             target_idx = Some(idx);
             break;
         }
+
+        update_multiline_string_state(line, &mut in_multiline_double, &mut in_multiline_single);
     }
 
     match (target_idx, value) {
@@ -336,6 +359,36 @@ fn upsert_root_key(lines: &mut Vec<String>, key: &str, value: Option<String>) {
         }
         (None, None) => {}
     }
+}
+
+fn root_key_exists(lines: &[String], key: &str) -> bool {
+    let first_table = first_table_header_line(lines);
+
+    let mut in_multiline_double = false;
+    let mut in_multiline_single = false;
+    for line in lines.iter().take(first_table) {
+        if in_multiline_double || in_multiline_single {
+            update_multiline_string_state(line, &mut in_multiline_double, &mut in_multiline_single);
+            continue;
+        }
+
+        let cleaned = strip_toml_comment(line).trim();
+        if cleaned.is_empty() || cleaned.starts_with('#') {
+            update_multiline_string_state(line, &mut in_multiline_double, &mut in_multiline_single);
+            continue;
+        }
+        let Some((k, _)) = parse_assignment(cleaned) else {
+            update_multiline_string_state(line, &mut in_multiline_double, &mut in_multiline_single);
+            continue;
+        };
+        if normalize_key(&k) == key {
+            return true;
+        }
+
+        update_multiline_string_state(line, &mut in_multiline_double, &mut in_multiline_single);
+    }
+
+    false
 }
 
 fn find_table_block(lines: &[String], table_header: &str) -> Option<(usize, usize)> {
@@ -432,13 +485,21 @@ fn upsert_table_keys(lines: &mut Vec<String>, table: &str, items: Vec<(&str, Opt
 
         lines.splice(start + 1..end, replacement);
     }
+
+    // If the table becomes empty after applying the patch, drop the table header too.
+    // This keeps config.toml clean when the only managed key is removed.
+    if let Some((start, end)) = find_table_block(lines, &header) {
+        let has_body_content = lines[start + 1..end]
+            .iter()
+            .any(|line| !line.trim().is_empty());
+        if !has_body_content {
+            lines.drain(start..end);
+        }
+    }
 }
 
 fn upsert_dotted_keys(lines: &mut Vec<String>, table: &str, items: Vec<(&str, Option<String>)>) {
-    let first_table = lines
-        .iter()
-        .position(|l| l.trim().starts_with('['))
-        .unwrap_or(lines.len());
+    let first_table = first_table_header_line(lines);
 
     for (key, value) in items {
         let full_key = format!("{table}.{key}");
@@ -557,6 +618,40 @@ fn table_style(lines: &[String], table: &str) -> TableStyle {
     TableStyle::Table
 }
 
+fn has_table_or_dotted_keys(lines: &[String], table: &str) -> bool {
+    let header = format!("[{table}]");
+
+    let prefix = format!("{table}.");
+    let mut in_multiline_double = false;
+    let mut in_multiline_single = false;
+    for line in lines {
+        if in_multiline_double || in_multiline_single {
+            update_multiline_string_state(line, &mut in_multiline_double, &mut in_multiline_single);
+            continue;
+        }
+
+        if line.trim() == header {
+            return true;
+        }
+
+        let cleaned = strip_toml_comment(line).trim();
+        if cleaned.is_empty() || cleaned.starts_with('#') {
+            update_multiline_string_state(line, &mut in_multiline_double, &mut in_multiline_single);
+            continue;
+        }
+
+        if let Some((k, _)) = parse_assignment(cleaned) {
+            if normalize_key(&k).starts_with(&prefix) {
+                return true;
+            }
+        }
+
+        update_multiline_string_state(line, &mut in_multiline_double, &mut in_multiline_single);
+    }
+
+    false
+}
+
 /// Unified upsert that auto-detects and applies the appropriate table style.
 fn upsert_keys_auto_style(
     lines: &mut Vec<String>,
@@ -573,11 +668,6 @@ fn upsert_keys_auto_style(
             upsert_dotted_keys(lines, table, items);
         }
     }
-}
-
-/// Helper to convert bool to TOML string literal.
-fn bool_to_toml_str(value: bool) -> String {
-    if value { "true" } else { "false" }.to_string()
 }
 
 fn is_any_table_header_line(line: &str) -> bool {
@@ -859,19 +949,45 @@ fn make_state_from_bytes(
         .map_err(|_| "SEC_INVALID_INPUT: codex config.toml must be valid UTF-8".to_string())?;
 
     let mut current_table: Option<String> = None;
+    let mut in_multiline_double = false;
+    let mut in_multiline_single = false;
     for raw_line in s.lines() {
+        if in_multiline_double || in_multiline_single {
+            update_multiline_string_state(
+                raw_line,
+                &mut in_multiline_double,
+                &mut in_multiline_single,
+            );
+            continue;
+        }
+
         let line = strip_toml_comment(raw_line);
         let trimmed = line.trim();
         if trimmed.is_empty() || trimmed.starts_with('#') {
+            update_multiline_string_state(
+                raw_line,
+                &mut in_multiline_double,
+                &mut in_multiline_single,
+            );
             continue;
         }
 
         if let Some(table) = parse_table_header(trimmed) {
             current_table = Some(table);
+            update_multiline_string_state(
+                raw_line,
+                &mut in_multiline_double,
+                &mut in_multiline_single,
+            );
             continue;
         }
 
         let Some((raw_key, raw_value)) = parse_assignment(trimmed) else {
+            update_multiline_string_state(
+                raw_line,
+                &mut in_multiline_double,
+                &mut in_multiline_single,
+            );
             continue;
         };
 
@@ -882,6 +998,11 @@ fn make_state_from_bytes(
             ("", "model") => state.model = parse_string(&raw_value),
             ("", "approval_policy") => state.approval_policy = parse_string(&raw_value),
             ("", "sandbox_mode") => state.sandbox_mode = parse_string(&raw_value),
+            ("sandbox", "mode") => {
+                if state.sandbox_mode.is_none() {
+                    state.sandbox_mode = parse_string(&raw_value);
+                }
+            }
             ("", "model_reasoning_effort") => {
                 state.model_reasoning_effort = parse_string(&raw_value)
             }
@@ -934,6 +1055,8 @@ fn make_state_from_bytes(
 
             _ => {}
         }
+
+        update_multiline_string_state(raw_line, &mut in_multiline_double, &mut in_multiline_single);
     }
 
     Ok(state)
@@ -1044,11 +1167,15 @@ fn patch_config_toml(current: Option<Vec<u8>>, patch: CodexConfigPatch) -> Resul
     }
     if let Some(raw) = patch.sandbox_mode.as_deref() {
         let trimmed = raw.trim();
-        upsert_root_key(
-            &mut lines,
-            "sandbox_mode",
-            (!trimmed.is_empty()).then(|| toml_string_literal(trimmed)),
-        );
+        let value = (!trimmed.is_empty()).then(|| toml_string_literal(trimmed));
+
+        if root_key_exists(&lines, "sandbox_mode") {
+            upsert_root_key(&mut lines, "sandbox_mode", value);
+        } else if has_table_or_dotted_keys(&lines, "sandbox") {
+            upsert_keys_auto_style(&mut lines, "sandbox", &["mode"], vec![("mode", value)]);
+        } else {
+            upsert_root_key(&mut lines, "sandbox_mode", value);
+        }
     }
     if let Some(raw) = patch.model_reasoning_effort.as_deref() {
         let trimmed = raw.trim();
@@ -1070,14 +1197,14 @@ fn patch_config_toml(current: Option<Vec<u8>>, patch: CodexConfigPatch) -> Resul
         upsert_root_key(
             &mut lines,
             "hide_agent_reasoning",
-            Some(if v { "true" } else { "false" }.to_string()),
+            v.then(|| "true".to_string()),
         );
     }
     if let Some(v) = patch.show_raw_agent_reasoning {
         upsert_root_key(
             &mut lines,
             "show_raw_agent_reasoning",
-            Some(if v { "true" } else { "false" }.to_string()),
+            v.then(|| "true".to_string()),
         );
     }
 
@@ -1103,7 +1230,7 @@ fn patch_config_toml(current: Option<Vec<u8>>, patch: CodexConfigPatch) -> Resul
             &mut lines,
             "sandbox_workspace_write",
             &["network_access"],
-            vec![("network_access", Some(bool_to_toml_str(v)))],
+            vec![("network_access", v.then(|| "true".to_string()))],
         );
     }
 
@@ -1121,8 +1248,8 @@ fn patch_config_toml(current: Option<Vec<u8>>, patch: CodexConfigPatch) -> Resul
         ];
 
         let mut items: Vec<(&str, Option<String>)> = Vec::new();
-        if patch.tui_animations.is_some() {
-            items.push(("animations", patch.tui_animations.map(bool_to_toml_str)));
+        if let Some(v) = patch.tui_animations {
+            items.push(("animations", v.then(|| "true".to_string())));
         }
         if patch.tui_alternate_screen.is_some() {
             items.push((
@@ -1130,17 +1257,11 @@ fn patch_config_toml(current: Option<Vec<u8>>, patch: CodexConfigPatch) -> Resul
                 opt_string_value(patch.tui_alternate_screen.as_deref()),
             ));
         }
-        if patch.tui_show_tooltips.is_some() {
-            items.push((
-                "show_tooltips",
-                patch.tui_show_tooltips.map(bool_to_toml_str),
-            ));
+        if let Some(v) = patch.tui_show_tooltips {
+            items.push(("show_tooltips", v.then(|| "true".to_string())));
         }
-        if patch.tui_scroll_invert.is_some() {
-            items.push((
-                "scroll_invert",
-                patch.tui_scroll_invert.map(bool_to_toml_str),
-            ));
+        if let Some(v) = patch.tui_scroll_invert {
+            items.push(("scroll_invert", v.then(|| "true".to_string())));
         }
 
         upsert_keys_auto_style(&mut lines, "tui", &tui_keys, items);
@@ -1164,48 +1285,44 @@ fn patch_config_toml(current: Option<Vec<u8>>, patch: CodexConfigPatch) -> Resul
         let mut items: Vec<(&str, Option<String>)> = Vec::new();
 
         // UI semantics: `true` => write `key = true`, `false` => delete the key (do not write `false`).
-        fn feature_value_to_config_value(value: bool) -> Option<String> {
-            value.then(|| "true".to_string())
-        }
-
         if let Some(v) = patch.features_unified_exec {
-            items.push(("unified_exec", feature_value_to_config_value(v)));
+            items.push(("unified_exec", v.then(|| "true".to_string())));
         }
         if let Some(v) = patch.features_shell_snapshot {
-            items.push(("shell_snapshot", feature_value_to_config_value(v)));
+            items.push(("shell_snapshot", v.then(|| "true".to_string())));
         }
         if let Some(v) = patch.features_apply_patch_freeform {
-            items.push(("apply_patch_freeform", feature_value_to_config_value(v)));
+            items.push(("apply_patch_freeform", v.then(|| "true".to_string())));
         }
         if let Some(v) = patch.features_web_search_request {
-            items.push(("web_search_request", feature_value_to_config_value(v)));
+            items.push(("web_search_request", v.then(|| "true".to_string())));
         }
         if let Some(v) = patch.features_shell_tool {
-            items.push(("shell_tool", feature_value_to_config_value(v)));
+            items.push(("shell_tool", v.then(|| "true".to_string())));
         }
         if let Some(v) = patch.features_exec_policy {
-            items.push(("exec_policy", feature_value_to_config_value(v)));
+            items.push(("exec_policy", v.then(|| "true".to_string())));
         }
         if let Some(v) = patch.features_experimental_windows_sandbox {
             items.push((
                 "experimental_windows_sandbox",
-                feature_value_to_config_value(v),
+                v.then(|| "true".to_string()),
             ));
         }
         if let Some(v) = patch.features_elevated_windows_sandbox {
-            items.push(("elevated_windows_sandbox", feature_value_to_config_value(v)));
+            items.push(("elevated_windows_sandbox", v.then(|| "true".to_string())));
         }
         if let Some(v) = patch.features_remote_compaction {
-            items.push(("remote_compaction", feature_value_to_config_value(v)));
+            items.push(("remote_compaction", v.then(|| "true".to_string())));
         }
         if let Some(v) = patch.features_remote_models {
-            items.push(("remote_models", feature_value_to_config_value(v)));
+            items.push(("remote_models", v.then(|| "true".to_string())));
         }
         if let Some(v) = patch.features_powershell_utf8 {
-            items.push(("powershell_utf8", feature_value_to_config_value(v)));
+            items.push(("powershell_utf8", v.then(|| "true".to_string())));
         }
         if let Some(v) = patch.features_child_agents_md {
-            items.push(("child_agents_md", feature_value_to_config_value(v)));
+            items.push(("child_agents_md", v.then(|| "true".to_string())));
         }
 
         upsert_keys_auto_style(&mut lines, "features", &FEATURES_KEY_ORDER, items);

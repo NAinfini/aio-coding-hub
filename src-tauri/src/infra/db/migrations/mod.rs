@@ -20,6 +20,7 @@ mod v24_to_v25;
 mod v25_to_v26;
 mod v26_to_v27;
 mod v27_to_v28;
+mod v28_to_v29;
 mod v2_to_v3;
 mod v3_to_v4;
 mod v4_to_v5;
@@ -31,7 +32,7 @@ mod v9_to_v10;
 
 use rusqlite::Connection;
 
-const LATEST_SCHEMA_VERSION: i64 = 28;
+const LATEST_SCHEMA_VERSION: i64 = 29;
 
 pub(super) fn apply_migrations(conn: &mut Connection) -> Result<(), String> {
     let mut user_version = read_user_version(conn)?;
@@ -78,6 +79,7 @@ pub(super) fn apply_migrations(conn: &mut Connection) -> Result<(), String> {
             25 => v25_to_v26::migrate_v25_to_v26(conn)?,
             26 => v26_to_v27::migrate_v26_to_v27(conn)?,
             27 => v27_to_v28::migrate_v27_to_v28(conn)?,
+            28 => v28_to_v29::migrate_v28_to_v29(conn)?,
             v => {
                 return Err(format!(
                     "unsupported sqlite schema version: user_version={v} (expected 0..={LATEST_SCHEMA_VERSION})"

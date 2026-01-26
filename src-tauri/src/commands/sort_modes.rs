@@ -1,6 +1,7 @@
 //! Usage: Provider sort modes related Tauri commands.
 
-use crate::app_state::{ensure_db_ready, DbInitState};
+use crate::app_state::{ensure_db_ready, DbInitState, GatewayState};
+use crate::shared::mutex_ext::MutexExt;
 use crate::{blocking, sort_modes};
 
 #[tauri::command]
@@ -69,14 +70,23 @@ pub(crate) async fn sort_mode_active_list(
 pub(crate) async fn sort_mode_active_set(
     app: tauri::AppHandle,
     db_state: tauri::State<'_, DbInitState>,
+    gateway_state: tauri::State<'_, GatewayState>,
     cli_key: String,
     mode_id: Option<i64>,
 ) -> Result<sort_modes::SortModeActiveRow, String> {
     let db = ensure_db_ready(app, db_state.inner()).await?;
-    blocking::run("sort_mode_active_set", move || {
-        sort_modes::set_active(&db, &cli_key, mode_id)
+    let cli_key_for_db = cli_key.clone();
+    let row = blocking::run("sort_mode_active_set", move || {
+        sort_modes::set_active(&db, &cli_key_for_db, mode_id)
     })
-    .await
+    .await?;
+
+    {
+        let manager = gateway_state.0.lock_or_recover();
+        manager.clear_cli_session_bindings(&cli_key);
+    }
+
+    Ok(row)
 }
 
 #[tauri::command]

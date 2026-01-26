@@ -138,7 +138,11 @@ pub(super) async fn run(input: FailoverLoopInput) -> Response {
         }
 
         let provider_id = provider.id;
-        let provider_name_base = provider.name.clone();
+        let provider_name_base = if provider.name.trim().is_empty() {
+            format!("Provider #{} (auto-fixed)", provider.id)
+        } else {
+            provider.name.clone()
+        };
         let provider_base_url_display = provider
             .base_urls
             .first()

@@ -84,6 +84,7 @@ export function CliManagerCodexTab({
 }: CliManagerCodexTabProps) {
   const [modelText, setModelText] = useState("");
   const [historyMaxBytesText, setHistoryMaxBytesText] = useState("");
+  const [sandboxModeText, setSandboxModeText] = useState("");
 
   useEffect(() => {
     if (!codexConfig) return;
@@ -91,23 +92,27 @@ export function CliManagerCodexTab({
     setHistoryMaxBytesText(
       codexConfig.history_max_bytes == null ? "" : String(codexConfig.history_max_bytes)
     );
+    setSandboxModeText(codexConfig.sandbox_mode ?? "");
   }, [codexConfig]);
 
   const saving = codexConfigSaving;
   const loading = codexLoading || codexConfigLoading;
 
+  useEffect(() => {
+    if (!codexConfig) return;
+    if (saving) return;
+    setSandboxModeText(codexConfig.sandbox_mode ?? "");
+  }, [saving, codexConfig?.sandbox_mode, codexConfig]);
+
   const defaults = useMemo(() => {
     return {
       sandbox_mode: "workspace-write",
-      tui_animations: true,
-      tui_show_tooltips: true,
-      tui_scroll_invert: false,
     };
   }, []);
 
   const effectiveSandboxMode = useMemo(() => {
-    return enumOrDefault(codexConfig?.sandbox_mode ?? null, defaults.sandbox_mode);
-  }, [codexConfig?.sandbox_mode, defaults.sandbox_mode]);
+    return enumOrDefault(sandboxModeText.trim() || null, defaults.sandbox_mode);
+  }, [sandboxModeText, defaults.sandbox_mode]);
 
   return (
     <div className="space-y-6">
@@ -294,15 +299,19 @@ export function CliManagerCodexTab({
                   subtitle="控制文件/网络访问策略。danger-full-access 风险极高，仅在完全信任的环境使用。"
                 >
                   <Select
-                    value={codexConfig.sandbox_mode ?? ""}
+                    value={sandboxModeText}
                     onChange={(e) => {
                       const next = e.currentTarget.value;
                       if (next === "danger-full-access") {
                         const ok = window.confirm(
                           "你选择了 danger-full-access（危险：完全访问）。确认要继续吗？"
                         );
-                        if (!ok) return;
+                        if (!ok) {
+                          setSandboxModeText(codexConfig.sandbox_mode ?? "");
+                          return;
+                        }
                       }
+                      setSandboxModeText(next);
                       void persistCodexConfig({ sandbox_mode: next });
                     }}
                     disabled={saving}
@@ -367,7 +376,7 @@ export function CliManagerCodexTab({
 
                 <SettingItem
                   label="隐藏推理事件 (hide_agent_reasoning)"
-                  subtitle="抑制 reasoning 事件的展示（TUI 与 codex exec 输出）。"
+                  subtitle="开启写入 hide_agent_reasoning=true；关闭删除该项（不写 false）。"
                 >
                   <Switch
                     checked={boolOrDefault(codexConfig.hide_agent_reasoning, false)}
@@ -380,7 +389,7 @@ export function CliManagerCodexTab({
 
                 <SettingItem
                   label="显示原始推理 (show_raw_agent_reasoning)"
-                  subtitle="当模型输出原始推理内容时，将其暴露出来（仅对支持的模型有效）。"
+                  subtitle="开启写入 show_raw_agent_reasoning=true；关闭删除该项（不写 false）。"
                 >
                   <Switch
                     checked={boolOrDefault(codexConfig.show_raw_agent_reasoning, false)}
@@ -452,7 +461,7 @@ export function CliManagerCodexTab({
               <div className="divide-y divide-slate-100">
                 <SettingItem
                   label="允许联网 (sandbox_workspace_write.network_access)"
-                  subtitle="仅在 sandbox_mode=workspace-write 时生效。开启后允许沙箱内访问外部网络。"
+                  subtitle="仅在 sandbox_mode=workspace-write 时生效。开启写入 network_access=true；关闭删除该项（不写 false）。"
                 >
                   <Switch
                     checked={boolOrDefault(
@@ -485,10 +494,10 @@ export function CliManagerCodexTab({
               <div className="divide-y divide-slate-100">
                 <SettingItem
                   label="动画效果 (tui.animations)"
-                  subtitle="控制欢迎页/闪烁/加载等 ASCII 动画（默认开启）。"
+                  subtitle="开启写入 tui.animations=true；关闭删除该项（不写 false）。"
                 >
                   <Switch
-                    checked={boolOrDefault(codexConfig.tui_animations, defaults.tui_animations)}
+                    checked={boolOrDefault(codexConfig.tui_animations, false)}
                     onCheckedChange={(checked) =>
                       void persistCodexConfig({ tui_animations: checked })
                     }
@@ -517,13 +526,10 @@ export function CliManagerCodexTab({
 
                 <SettingItem
                   label="显示新手提示 (tui.show_tooltips)"
-                  subtitle="控制欢迎页的新手引导提示（默认开启）。"
+                  subtitle="开启写入 tui.show_tooltips=true；关闭删除该项（不写 false）。"
                 >
                   <Switch
-                    checked={boolOrDefault(
-                      codexConfig.tui_show_tooltips,
-                      defaults.tui_show_tooltips
-                    )}
+                    checked={boolOrDefault(codexConfig.tui_show_tooltips, false)}
                     onCheckedChange={(checked) =>
                       void persistCodexConfig({ tui_show_tooltips: checked })
                     }
@@ -533,13 +539,10 @@ export function CliManagerCodexTab({
 
                 <SettingItem
                   label="滚轮方向反转 (tui.scroll_invert)"
-                  subtitle="反转鼠标滚轮方向（默认关闭）。"
+                  subtitle="开启写入 tui.scroll_invert=true；关闭删除该项（不写 false）。"
                 >
                   <Switch
-                    checked={boolOrDefault(
-                      codexConfig.tui_scroll_invert,
-                      defaults.tui_scroll_invert
-                    )}
+                    checked={boolOrDefault(codexConfig.tui_scroll_invert, false)}
                     onCheckedChange={(checked) =>
                       void persistCodexConfig({ tui_scroll_invert: checked })
                     }

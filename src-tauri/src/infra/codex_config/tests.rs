@@ -92,9 +92,99 @@ foo = "bar"
     .expect("patch_config_toml");
 
     let s = String::from_utf8(out).expect("utf8");
-    assert!(s.contains("tui.animations = false"), "{s}");
-    assert!(s.contains("tui.show_tooltips = false"), "{s}");
+    assert!(!s.contains("tui.animations ="), "{s}");
+    assert!(!s.contains("tui.show_tooltips ="), "{s}");
     assert!(!s.contains("[tui]"), "{s}");
+}
+
+#[test]
+fn patch_deletes_sandbox_workspace_write_network_access_and_table_when_false() {
+    let input = r#"[sandbox_workspace_write]
+network_access = false
+"#;
+
+    let out = patch_config_toml(
+        Some(input.as_bytes().to_vec()),
+        CodexConfigPatch {
+            model: None,
+            approval_policy: None,
+            sandbox_mode: None,
+            model_reasoning_effort: None,
+            file_opener: None,
+            hide_agent_reasoning: None,
+            show_raw_agent_reasoning: None,
+            history_persistence: None,
+            history_max_bytes: None,
+            sandbox_workspace_write_network_access: Some(false),
+            tui_animations: None,
+            tui_alternate_screen: None,
+            tui_show_tooltips: None,
+            tui_scroll_invert: None,
+            features_unified_exec: None,
+            features_shell_snapshot: None,
+            features_apply_patch_freeform: None,
+            features_web_search_request: None,
+            features_shell_tool: None,
+            features_exec_policy: None,
+            features_experimental_windows_sandbox: None,
+            features_elevated_windows_sandbox: None,
+            features_remote_compaction: None,
+            features_remote_models: None,
+            features_powershell_utf8: None,
+            features_child_agents_md: None,
+        },
+    )
+    .expect("patch_config_toml");
+
+    let s = String::from_utf8(out).expect("utf8");
+    assert!(!s.contains("[sandbox_workspace_write]"), "{s}");
+    assert!(!s.contains("network_access"), "{s}");
+}
+
+#[test]
+fn patch_deletes_sandbox_workspace_write_network_access_but_preserves_other_keys() {
+    let input = r#"[sandbox_workspace_write]
+network_access = true
+other = "keep"
+"#;
+
+    let out = patch_config_toml(
+        Some(input.as_bytes().to_vec()),
+        CodexConfigPatch {
+            model: None,
+            approval_policy: None,
+            sandbox_mode: None,
+            model_reasoning_effort: None,
+            file_opener: None,
+            hide_agent_reasoning: None,
+            show_raw_agent_reasoning: None,
+            history_persistence: None,
+            history_max_bytes: None,
+            sandbox_workspace_write_network_access: Some(false),
+            tui_animations: None,
+            tui_alternate_screen: None,
+            tui_show_tooltips: None,
+            tui_scroll_invert: None,
+            features_unified_exec: None,
+            features_shell_snapshot: None,
+            features_apply_patch_freeform: None,
+            features_web_search_request: None,
+            features_shell_tool: None,
+            features_exec_policy: None,
+            features_experimental_windows_sandbox: None,
+            features_elevated_windows_sandbox: None,
+            features_remote_compaction: None,
+            features_remote_models: None,
+            features_powershell_utf8: None,
+            features_child_agents_md: None,
+        },
+    )
+    .expect("patch_config_toml");
+
+    let s = String::from_utf8(out).expect("utf8");
+    assert!(s.contains("[sandbox_workspace_write]"), "{s}");
+    assert!(s.contains("other = \"keep\""), "{s}");
+    assert!(!s.contains("network_access ="), "{s}");
 }
 
 #[test]
@@ -526,4 +616,152 @@ type = \"stdio\"\n"
         "{s}"
     );
     assert!(!s.contains("\n\n\n"), "{s}");
+}
+
+#[test]
+fn parse_reads_sandbox_mode_from_sandbox_table() {
+    let input = r#"[sandbox]
+mode = "read-only"
+"#;
+
+    let state = make_state_from_bytes(
+        "dir".to_string(),
+        "path".to_string(),
+        true,
+        Some(input.as_bytes().to_vec()),
+    )
+    .expect("make_state_from_bytes");
+
+    assert_eq!(state.sandbox_mode.as_deref(), Some("read-only"));
+}
+
+#[test]
+fn parse_prefers_root_sandbox_mode_over_sandbox_table() {
+    let input = r#"sandbox_mode = "workspace-write"
+
+[sandbox]
+mode = "read-only"
+"#;
+
+    let state = make_state_from_bytes(
+        "dir".to_string(),
+        "path".to_string(),
+        true,
+        Some(input.as_bytes().to_vec()),
+    )
+    .expect("make_state_from_bytes");
+
+    assert_eq!(state.sandbox_mode.as_deref(), Some("workspace-write"));
+}
+
+#[test]
+fn parse_ignores_table_headers_inside_multiline_strings() {
+    let input = r#"prompt = """
+[not_a_table]
+foo = "bar"
+"""
+
+sandbox_mode = "read-only"
+"#;
+
+    let state = make_state_from_bytes(
+        "dir".to_string(),
+        "path".to_string(),
+        true,
+        Some(input.as_bytes().to_vec()),
+    )
+    .expect("make_state_from_bytes");
+
+    assert_eq!(state.sandbox_mode.as_deref(), Some("read-only"));
+}
+
+#[test]
+fn patch_updates_sandbox_table_mode_when_present() {
+    let input = r#"[sandbox]
+mode = "read-only"
+
+[other]
+foo = "bar"
+"#;
+
+    let out = patch_config_toml(
+        Some(input.as_bytes().to_vec()),
+        CodexConfigPatch {
+            model: None,
+            approval_policy: None,
+            sandbox_mode: Some("workspace-write".to_string()),
+            model_reasoning_effort: None,
+            file_opener: None,
+            hide_agent_reasoning: None,
+            show_raw_agent_reasoning: None,
+            history_persistence: None,
+            history_max_bytes: None,
+            sandbox_workspace_write_network_access: None,
+            tui_animations: None,
+            tui_alternate_screen: None,
+            tui_show_tooltips: None,
+            tui_scroll_invert: None,
+            features_unified_exec: None,
+            features_shell_snapshot: None,
+            features_apply_patch_freeform: None,
+            features_web_search_request: None,
+            features_shell_tool: None,
+            features_exec_policy: None,
+            features_experimental_windows_sandbox: None,
+            features_elevated_windows_sandbox: None,
+            features_remote_compaction: None,
+            features_remote_models: None,
+            features_powershell_utf8: None,
+            features_child_agents_md: None,
+        },
+    )
+    .expect("patch_config_toml");
+
+    let s = String::from_utf8(out).expect("utf8");
+    assert!(s.contains("[sandbox]\nmode = \"workspace-write\""), "{s}");
+    assert!(!s.contains("sandbox_mode ="), "{s}");
+}
+
+#[test]
+fn patch_updates_sandbox_dotted_mode_when_present() {
+    let input = r#"sandbox.mode = "read-only"
+"#;
+
+    let out = patch_config_toml(
+        Some(input.as_bytes().to_vec()),
+        CodexConfigPatch {
+            model: None,
+            approval_policy: None,
+            sandbox_mode: Some("danger-full-access".to_string()),
+            model_reasoning_effort: None,
+            file_opener: None,
+            hide_agent_reasoning: None,
+            show_raw_agent_reasoning: None,
+            history_persistence: None,
+            history_max_bytes: None,
+            sandbox_workspace_write_network_access: None,
+            tui_animations: None,
+            tui_alternate_screen: None,
+            tui_show_tooltips: None,
+            tui_scroll_invert: None,
+            features_unified_exec: None,
+            features_shell_snapshot: None,
+            features_apply_patch_freeform: None,
+            features_web_search_request: None,
+            features_shell_tool: None,
+            features_exec_policy: None,
+            features_experimental_windows_sandbox: None,
+            features_elevated_windows_sandbox: None,
+            features_remote_compaction: None,
+            features_remote_models: None,
+            features_powershell_utf8: None,
+            features_child_agents_md: None,
+        },
+    )
+    .expect("patch_config_toml");
+
+    let s = String::from_utf8(out).expect("utf8");
+    assert!(s.contains("sandbox.mode = \"danger-full-access\""), "{s}");
+    assert!(!s.contains("[sandbox]"), "{s}");
+    assert!(!s.contains("sandbox_mode ="), "{s}");
 }

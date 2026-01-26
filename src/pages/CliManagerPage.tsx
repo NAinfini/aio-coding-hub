@@ -4,13 +4,16 @@ import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent } from "r
 import { openPath } from "@tauri-apps/plugin-opener";
 import { toast } from "sonner";
 import {
-  cliManagerClaudeEnvSet,
   cliManagerClaudeInfoGet,
+  cliManagerClaudeSettingsGet,
+  cliManagerClaudeSettingsSet,
   cliManagerCodexConfigGet,
   cliManagerCodexConfigSet,
   cliManagerCodexInfoGet,
   cliManagerGeminiInfoGet,
   type ClaudeCliInfo,
+  type ClaudeSettingsPatch,
+  type ClaudeSettingsState,
   type CodexConfigPatch,
   type CodexConfigState,
   type SimpleCliInfo,
@@ -50,8 +53,6 @@ const DEFAULT_RECTIFIER: GatewayRectifierSettingsPatch = {
   response_fixer_max_fix_size: 1024 * 1024,
 };
 
-const MAX_CLAUDE_MCP_TIMEOUT_MS = 24 * 60 * 60 * 1000;
-
 export function CliManagerPage() {
   const [tab, setTab] = useState<TabKey>("general");
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
@@ -82,9 +83,10 @@ export function CliManagerPage() {
     "checking"
   );
   const [claudeLoading, setClaudeLoading] = useState(false);
-  const [claudeSaving, setClaudeSaving] = useState(false);
   const [claudeInfo, setClaudeInfo] = useState<ClaudeCliInfo | null>(null);
-  const [claudeMcpTimeoutMsText, setClaudeMcpTimeoutMsText] = useState<string>("");
+  const [claudeSettingsLoading, setClaudeSettingsLoading] = useState(false);
+  const [claudeSettingsSaving, setClaudeSettingsSaving] = useState(false);
+  const [claudeSettings, setClaudeSettings] = useState<ClaudeSettingsState | null>(null);
 
   const [codexAvailable, setCodexAvailable] = useState<"checking" | "available" | "unavailable">(
     "checking"
@@ -151,9 +153,9 @@ export function CliManagerPage() {
 
   useEffect(() => {
     if (tab !== "claude") return;
-    if (claudeAvailable !== "checking") return;
-    void refreshClaudeInfo();
-  }, [tab, claudeAvailable]);
+    if (claudeAvailable === "checking") void refreshClaudeInfo();
+    if (!claudeSettings && !claudeSettingsLoading) void refreshClaudeSettings();
+  }, [tab, claudeAvailable, claudeSettings, claudeSettingsLoading]);
 
   useEffect(() => {
     if (tab !== "codex") return;
@@ -327,7 +329,6 @@ export function CliManagerPage() {
 
   function applyClaudeInfo(info: ClaudeCliInfo) {
     setClaudeInfo(info);
-    setClaudeMcpTimeoutMsText(info.mcp_timeout_ms == null ? "" : String(info.mcp_timeout_ms));
   }
 
   async function refreshClaudeInfo() {
@@ -350,6 +351,28 @@ export function CliManagerPage() {
     } finally {
       setClaudeLoading(false);
     }
+  }
+
+  async function refreshClaudeSettings() {
+    if (claudeSettingsLoading) return;
+    setClaudeSettingsLoading(true);
+    try {
+      const settings = await cliManagerClaudeSettingsGet();
+      if (!settings) {
+        setClaudeSettings(null);
+        return;
+      }
+      setClaudeSettings(settings);
+    } catch (err) {
+      logToConsole("error", "读取 Claude Code settings.json 失败", { error: String(err) });
+      toast("读取 Claude Code 配置失败：请查看控制台日志");
+    } finally {
+      setClaudeSettingsLoading(false);
+    }
+  }
+
+  async function refreshClaude() {
+    await Promise.all([refreshClaudeInfo(), refreshClaudeSettings()]);
   }
 
   async function refreshCodexInfo() {
@@ -442,61 +465,35 @@ export function CliManagerPage() {
     }
   }
 
-  async function persistClaudeEnv(input: {
-    mcp_timeout_ms: number | null;
-    disable_error_reporting: boolean;
-  }) {
-    if (claudeSaving) return;
+  async function persistClaudeSettings(patch: ClaudeSettingsPatch) {
+    if (claudeSettingsSaving) return;
     if (claudeAvailable !== "available") return;
 
-    const prev = claudeInfo;
-    setClaudeSaving(true);
+    const prev = claudeSettings;
+    setClaudeSettingsSaving(true);
     try {
-      const updated = await cliManagerClaudeEnvSet({
-        mcp_timeout_ms: input.mcp_timeout_ms,
-        disable_error_reporting: input.disable_error_reporting,
-      });
+      const updated = await cliManagerClaudeSettingsSet(patch);
       if (!updated) {
         toast("仅在 Tauri Desktop 环境可用");
-        if (prev) applyClaudeInfo(prev);
+        if (prev) setClaudeSettings(prev);
         return;
       }
-      if (prev) {
-        applyClaudeInfo({
-          ...prev,
-          config_dir: updated.config_dir,
-          settings_path: updated.settings_path,
-          mcp_timeout_ms: updated.mcp_timeout_ms,
-          disable_error_reporting: updated.disable_error_reporting,
-        });
-      } else {
-        applyClaudeInfo({
-          found: false,
-          executable_path: null,
-          version: null,
-          error: null,
-          shell: null,
-          resolved_via: "unavailable",
-          config_dir: updated.config_dir,
-          settings_path: updated.settings_path,
-          mcp_timeout_ms: updated.mcp_timeout_ms,
-          disable_error_reporting: updated.disable_error_reporting,
-        });
-      }
+      setClaudeSettings(updated);
       toast("已更新 Claude Code 配置");
     } catch (err) {
-      logToConsole("error", "更新 Claude Code 配置失败", { error: String(err) });
+      logToConsole("error", "更新 Claude Code settings.json 失败", { error: String(err) });
       toast("更新 Claude Code 配置失败：请稍后重试");
-      if (prev) applyClaudeInfo(prev);
+      if (prev) setClaudeSettings(prev);
     } finally {
-      setClaudeSaving(false);
+      setClaudeSettingsSaving(false);
     }
   }
 
   async function openClaudeConfigDir() {
-    if (!claudeInfo) return;
+    const dir = claudeInfo?.config_dir ?? claudeSettings?.config_dir;
+    if (!dir) return;
     try {
-      await openPath(claudeInfo.config_dir);
+      await openPath(dir);
     } catch (err) {
       logToConsole("error", "打开 Claude 配置目录失败", { error: String(err) });
       toast("打开目录失败：请查看控制台日志");
@@ -519,16 +516,6 @@ export function CliManagerPage() {
 
   function blurOnEnter(e: ReactKeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter") e.currentTarget.blur();
-  }
-
-  function normalizeClaudeMcpTimeoutMsOrNull(raw: string): number | null {
-    const trimmed = raw.trim();
-    if (!trimmed) return null;
-    const n = Math.floor(Number(trimmed));
-    if (!Number.isFinite(n) || n < 0) return NaN;
-    if (n === 0) return null;
-    if (n > MAX_CLAUDE_MCP_TIMEOUT_MS) return Infinity;
-    return n;
   }
 
   return (
@@ -580,16 +567,13 @@ export function CliManagerPage() {
           <CliManagerClaudeTab
             claudeAvailable={claudeAvailable}
             claudeLoading={claudeLoading}
-            claudeSaving={claudeSaving}
             claudeInfo={claudeInfo}
-            claudeMcpTimeoutMsText={claudeMcpTimeoutMsText}
-            setClaudeMcpTimeoutMsText={setClaudeMcpTimeoutMsText}
-            refreshClaudeInfo={refreshClaudeInfo}
+            claudeSettingsLoading={claudeSettingsLoading}
+            claudeSettingsSaving={claudeSettingsSaving}
+            claudeSettings={claudeSettings}
+            refreshClaude={refreshClaude}
             openClaudeConfigDir={openClaudeConfigDir}
-            persistClaudeEnv={persistClaudeEnv}
-            normalizeClaudeMcpTimeoutMsOrNull={normalizeClaudeMcpTimeoutMsOrNull}
-            blurOnEnter={blurOnEnter}
-            maxMcpTimeoutMs={MAX_CLAUDE_MCP_TIMEOUT_MS}
+            persistClaudeSettings={persistClaudeSettings}
           />
         ) : null}
 

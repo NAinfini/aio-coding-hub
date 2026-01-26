@@ -1,6 +1,6 @@
 //! Usage: CLI environment / integration related Tauri commands.
 
-use crate::{blocking, cli_manager, codex_config};
+use crate::{blocking, claude_settings, cli_manager, codex_config};
 
 #[tauri::command]
 pub(crate) async fn cli_manager_claude_info_get(
@@ -61,6 +61,27 @@ pub(crate) async fn cli_manager_claude_env_set(
 ) -> Result<cli_manager::ClaudeEnvState, String> {
     blocking::run("cli_manager_claude_env_set", move || {
         cli_manager::claude_env_set(&app, mcp_timeout_ms, disable_error_reporting)
+    })
+    .await
+}
+
+#[tauri::command]
+pub(crate) async fn cli_manager_claude_settings_get(
+    app: tauri::AppHandle,
+) -> Result<claude_settings::ClaudeSettingsState, String> {
+    blocking::run("cli_manager_claude_settings_get", move || {
+        claude_settings::claude_settings_get(&app)
+    })
+    .await
+}
+
+#[tauri::command]
+pub(crate) async fn cli_manager_claude_settings_set(
+    app: tauri::AppHandle,
+    patch: claude_settings::ClaudeSettingsPatch,
+) -> Result<claude_settings::ClaudeSettingsState, String> {
+    blocking::run("cli_manager_claude_settings_set", move || {
+        claude_settings::claude_settings_set(&app, patch)
     })
     .await
 }

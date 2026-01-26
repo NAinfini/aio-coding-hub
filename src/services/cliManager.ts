@@ -29,6 +29,62 @@ export type ClaudeEnvState = {
   disable_error_reporting: boolean;
 };
 
+export type ClaudeSettingsState = {
+  config_dir: string;
+  settings_path: string;
+  exists: boolean;
+
+  model: string | null;
+  output_style: string | null;
+  language: string | null;
+  always_thinking_enabled: boolean | null;
+
+  show_turn_duration: boolean | null;
+  spinner_tips_enabled: boolean | null;
+  terminal_progress_bar_enabled: boolean | null;
+  respect_gitignore: boolean | null;
+
+  disable_all_hooks: boolean | null;
+
+  permissions_allow: string[];
+  permissions_ask: string[];
+  permissions_deny: string[];
+
+  env_mcp_timeout_ms: number | null;
+  env_mcp_tool_timeout_ms: number | null;
+  env_disable_error_reporting: boolean;
+  env_disable_telemetry: boolean;
+  env_disable_background_tasks: boolean;
+  env_disable_terminal_title: boolean;
+  env_claude_bash_no_login: boolean;
+};
+
+export type ClaudeSettingsPatch = Partial<{
+  model: string;
+  output_style: string;
+  language: string;
+  always_thinking_enabled: boolean;
+
+  show_turn_duration: boolean;
+  spinner_tips_enabled: boolean;
+  terminal_progress_bar_enabled: boolean;
+  respect_gitignore: boolean;
+
+  disable_all_hooks: boolean;
+
+  permissions_allow: string[];
+  permissions_ask: string[];
+  permissions_deny: string[];
+
+  env_mcp_timeout_ms: number;
+  env_mcp_tool_timeout_ms: number;
+  env_disable_error_reporting: boolean;
+  env_disable_telemetry: boolean;
+  env_disable_background_tasks: boolean;
+  env_disable_terminal_title: boolean;
+  env_claude_bash_no_login: boolean;
+}>;
+
 export type CodexConfigState = {
   config_dir: string;
   config_path: string;
@@ -128,4 +184,12 @@ export async function cliManagerClaudeEnvSet(input: {
     mcpTimeoutMs: input.mcp_timeout_ms,
     disableErrorReporting: input.disable_error_reporting,
   });
+}
+
+export async function cliManagerClaudeSettingsGet() {
+  return invokeTauriOrNull<ClaudeSettingsState>("cli_manager_claude_settings_get");
+}
+
+export async function cliManagerClaudeSettingsSet(patch: ClaudeSettingsPatch) {
+  return invokeTauriOrNull<ClaudeSettingsState>("cli_manager_claude_settings_set", { patch });
 }

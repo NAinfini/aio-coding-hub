@@ -16,7 +16,12 @@ import { Card } from "../ui/Card";
 import { PageHeader } from "../ui/PageHeader";
 import { cn } from "../utils/cn";
 import { formatUnknownError } from "../utils/errors";
-import { formatDurationMs, formatInteger, formatTokensPerSecond } from "../utils/formatters";
+import {
+  formatDurationMs,
+  formatInteger,
+  formatTokensPerSecond,
+  formatUsd,
+} from "../utils/formatters";
 
 type ScopeItem = { key: UsageScope; label: string };
 type PeriodItem = { key: UsagePeriod; label: string };
@@ -514,6 +519,7 @@ export function UsagePage() {
                     <th className="border-b border-slate-200 px-2 py-2">平均耗时</th>
                     <th className="border-b border-slate-200 px-2 py-2">平均 TTFB</th>
                     <th className="border-b border-slate-200 px-2 py-2">平均速率</th>
+                    <th className="border-b border-slate-200 px-2 py-2">花费金额</th>
                   </tr>
                 </thead>
                 <tbody className="animate-pulse">
@@ -547,6 +553,9 @@ export function UsagePage() {
                       <td className="border-b border-slate-100 px-2 py-3">
                         <div className="h-3 w-20 rounded bg-slate-200" />
                       </td>
+                      <td className="border-b border-slate-100 px-2 py-3">
+                        <div className="h-3 w-16 rounded bg-slate-200" />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -574,13 +583,14 @@ export function UsagePage() {
                     <th className="border-b border-slate-200 px-2 py-2">平均耗时</th>
                     <th className="border-b border-slate-200 px-2 py-2">平均 TTFB</th>
                     <th className="border-b border-slate-200 px-2 py-2">平均速率</th>
+                    <th className="border-b border-slate-200 px-2 py-2">花费金额</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.length === 0 ? (
                     <tr className="align-top">
                       <td
-                        colSpan={9}
+                        colSpan={10}
                         className="border-b border-slate-100 px-2 py-3 text-sm text-slate-600"
                       >
                         {errorText
@@ -629,6 +639,9 @@ export function UsagePage() {
                         </td>
                         <td className="border-b border-slate-100 px-2 py-2 font-mono text-xs text-slate-700">
                           {formatTokensPerSecond(row.avg_output_tokens_per_second)}
+                        </td>
+                        <td className="border-b border-slate-100 px-2 py-2 font-mono text-xs text-slate-700">
+                          {formatUsd(row.cost_usd)}
                         </td>
                       </tr>
                     ))
@@ -684,6 +697,9 @@ export function UsagePage() {
                       </td>
                       <td className="border-b border-slate-100 px-2 py-2 font-mono text-xs text-slate-700">
                         {formatTokensPerSecond(summary.avg_output_tokens_per_second)}
+                      </td>
+                      <td className="border-b border-slate-100 px-2 py-2 font-mono text-xs text-slate-700">
+                        —
                       </td>
                     </tr>
                   </tfoot>

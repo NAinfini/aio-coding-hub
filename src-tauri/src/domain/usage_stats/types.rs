@@ -79,4 +79,5 @@ pub struct UsageLeaderboardRow {
     pub avg_duration_ms: Option<i64>,
     pub avg_ttfb_ms: Option<i64>,
     pub avg_output_tokens_per_second: Option<f64>,
+    pub cost_usd: Option<f64>,
 }

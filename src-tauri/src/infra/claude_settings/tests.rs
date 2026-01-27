@@ -115,7 +115,10 @@ fn patch_env_attribution_header_disabled_can_write_zero_and_remove_key() {
         .and_then(|v| v.as_object())
         .expect("env object");
 
-    assert!(env.get("CLAUDE_CODE_ATTRIBUTION_HEADER").is_none(), "{patched}");
+    assert!(
+        env.get("CLAUDE_CODE_ATTRIBUTION_HEADER").is_none(),
+        "{patched}"
+    );
     assert_eq!(env.get("KEEP").and_then(|v| v.as_str()), Some("x"));
 }
 
@@ -147,13 +150,19 @@ fn patch_env_numeric_overrides_can_write_and_remove_keys() {
         .and_then(|v| v.as_object())
         .expect("env object");
 
-    assert!(env.get("CLAUDE_CODE_BLOCKING_LIMIT_OVERRIDE").is_none(), "{patched}");
+    assert!(
+        env.get("CLAUDE_CODE_BLOCKING_LIMIT_OVERRIDE").is_none(),
+        "{patched}"
+    );
     assert_eq!(
         env.get("CLAUDE_AUTOCOMPACT_PCT_OVERRIDE")
             .and_then(|v| v.as_str()),
         Some("88")
     );
-    assert!(env.get("CLAUDE_CODE_MAX_OUTPUT_TOKENS").is_none(), "{patched}");
+    assert!(
+        env.get("CLAUDE_CODE_MAX_OUTPUT_TOKENS").is_none(),
+        "{patched}"
+    );
     assert_eq!(patched.get("keep").and_then(|v| v.as_i64()), Some(1));
 }
 

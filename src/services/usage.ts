@@ -76,6 +76,7 @@ export type UsageLeaderboardRow = {
   avg_duration_ms: number | null;
   avg_ttfb_ms: number | null;
   avg_output_tokens_per_second: number | null;
+  cost_usd: number | null;
 };
 
 export async function usageSummary(range: UsageRange, input?: { cliKey?: CliKey | null }) {

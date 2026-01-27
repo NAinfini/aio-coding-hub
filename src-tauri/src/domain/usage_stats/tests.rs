@@ -7,26 +7,27 @@ fn setup_conn() -> Connection {
     let conn = Connection::open_in_memory().expect("open in-memory sqlite");
     conn.execute_batch(
         r#"
-CREATE TABLE request_logs (
-  cli_key TEXT NOT NULL,
-  attempts_json TEXT NOT NULL,
-  requested_model TEXT,
-  status INTEGER,
-  error_code TEXT,
-  duration_ms INTEGER NOT NULL,
-  ttfb_ms INTEGER,
-  input_tokens INTEGER,
-  output_tokens INTEGER,
-  total_tokens INTEGER,
-  cache_read_input_tokens INTEGER,
-  cache_creation_input_tokens INTEGER,
-  cache_creation_5m_input_tokens INTEGER,
-  cache_creation_1h_input_tokens INTEGER,
-  usage_json TEXT,
-  excluded_from_stats INTEGER NOT NULL DEFAULT 0,
-  created_at INTEGER NOT NULL
-);
-"#,
+	CREATE TABLE request_logs (
+	  cli_key TEXT NOT NULL,
+	  attempts_json TEXT NOT NULL,
+	  requested_model TEXT,
+	  status INTEGER,
+	  error_code TEXT,
+	  duration_ms INTEGER NOT NULL,
+	  ttfb_ms INTEGER,
+	  input_tokens INTEGER,
+	  output_tokens INTEGER,
+	  total_tokens INTEGER,
+	  cache_read_input_tokens INTEGER,
+	  cache_creation_input_tokens INTEGER,
+	  cache_creation_5m_input_tokens INTEGER,
+	  cache_creation_1h_input_tokens INTEGER,
+	  cost_usd_femto INTEGER,
+	  usage_json TEXT,
+	  excluded_from_stats INTEGER NOT NULL DEFAULT 0,
+	  created_at INTEGER NOT NULL
+	);
+	"#,
     )
     .expect("create schema");
     conn
@@ -49,16 +50,17 @@ INSERT INTO request_logs (
   ttfb_ms,
   input_tokens,
   output_tokens,
-  total_tokens,
-  cache_read_input_tokens,
-  cache_creation_input_tokens,
-  cache_creation_5m_input_tokens,
-  cache_creation_1h_input_tokens,
-  usage_json,
-  excluded_from_stats,
-  created_at
-) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17);
-"#,
+	  total_tokens,
+	  cache_read_input_tokens,
+	  cache_creation_input_tokens,
+	  cache_creation_5m_input_tokens,
+	  cache_creation_1h_input_tokens,
+	  cost_usd_femto,
+	  usage_json,
+	  excluded_from_stats,
+	  created_at
+) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18);
+	"#,
         params![
             "codex",
             r#"[{"provider_id":123,"provider_name":"OpenAI","outcome":"success"}]"#,
@@ -74,6 +76,7 @@ INSERT INTO request_logs (
             0,
             0,
             0,
+            1_000_000_000_000_000i64,
             Option::<String>::None,
             0,
             1000
@@ -93,16 +96,17 @@ INSERT INTO request_logs (
   ttfb_ms,
   input_tokens,
   output_tokens,
-  total_tokens,
-  cache_read_input_tokens,
-  cache_creation_input_tokens,
-  cache_creation_5m_input_tokens,
-  cache_creation_1h_input_tokens,
-  usage_json,
-  excluded_from_stats,
-  created_at
-) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17);
-"#,
+	  total_tokens,
+	  cache_read_input_tokens,
+	  cache_creation_input_tokens,
+	  cache_creation_5m_input_tokens,
+	  cache_creation_1h_input_tokens,
+	  cost_usd_femto,
+	  usage_json,
+	  excluded_from_stats,
+	  created_at
+) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18);
+	"#,
         params![
             "gemini",
             r#"[{"provider_id":456,"provider_name":"GeminiUpstream","outcome":"success"}]"#,
@@ -118,6 +122,7 @@ INSERT INTO request_logs (
             0,
             0,
             0,
+            2_000_000_000_000_000i64,
             Option::<String>::None,
             0,
             1000
@@ -138,16 +143,17 @@ INSERT INTO request_logs (
   ttfb_ms,
   input_tokens,
   output_tokens,
-  total_tokens,
-  cache_read_input_tokens,
-  cache_creation_input_tokens,
-  cache_creation_5m_input_tokens,
-  cache_creation_1h_input_tokens,
-  usage_json,
-  excluded_from_stats,
-  created_at
-) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17);
-"#,
+	  total_tokens,
+	  cache_read_input_tokens,
+	  cache_creation_input_tokens,
+	  cache_creation_5m_input_tokens,
+	  cache_creation_1h_input_tokens,
+	  cost_usd_femto,
+	  usage_json,
+	  excluded_from_stats,
+	  created_at
+) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18);
+	"#,
         params![
             "claude",
             r#"[{"provider_id":789,"provider_name":"ClaudeUpstream","outcome":"success"}]"#,
@@ -163,6 +169,7 @@ INSERT INTO request_logs (
             25,
             0,
             0,
+            Option::<i64>::None,
             Option::<String>::None,
             0,
             1000
@@ -193,6 +200,7 @@ INSERT INTO request_logs (
     assert_eq!(codex.cache_read_input_tokens, 30);
     assert_eq!(codex.cache_creation_input_tokens, 0);
     assert_eq!(codex.total_tokens, 110);
+    assert_eq!(codex.cost_usd, Some(1.0));
 
     let gemini = by_key.get("gemini:456").expect("gemini row");
     assert_eq!(gemini.input_tokens, 150);
@@ -201,6 +209,7 @@ INSERT INTO request_logs (
     assert_eq!(gemini.cache_read_input_tokens, 50);
     assert_eq!(gemini.cache_creation_input_tokens, 0);
     assert_eq!(gemini.total_tokens, 220);
+    assert_eq!(gemini.cost_usd, Some(2.0));
 
     let claude = by_key.get("claude:789").expect("claude row");
     assert_eq!(claude.input_tokens, 300);
@@ -209,4 +218,42 @@ INSERT INTO request_logs (
     assert_eq!(claude.cache_read_input_tokens, 40);
     assert_eq!(claude.cache_creation_input_tokens, 25);
     assert_eq!(claude.total_tokens, 395);
+    assert_eq!(claude.cost_usd, None);
+
+    let rows = leaderboard_v2_with_conn(&conn, UsageScopeV2::Cli, None, None, None, 50)
+        .expect("leaderboard_v2_with_conn cli");
+    let by_key: std::collections::HashMap<String, UsageLeaderboardRow> =
+        rows.into_iter().map(|row| (row.key.clone(), row)).collect();
+    assert_eq!(
+        by_key.get("codex").expect("codex cli row").cost_usd,
+        Some(1.0)
+    );
+    assert_eq!(
+        by_key.get("gemini").expect("gemini cli row").cost_usd,
+        Some(2.0)
+    );
+    assert_eq!(by_key.get("claude").expect("claude cli row").cost_usd, None);
+
+    let rows = leaderboard_v2_with_conn(&conn, UsageScopeV2::Model, None, None, None, 50)
+        .expect("leaderboard_v2_with_conn model");
+    let by_key: std::collections::HashMap<String, UsageLeaderboardRow> =
+        rows.into_iter().map(|row| (row.key.clone(), row)).collect();
+    assert_eq!(
+        by_key.get("gpt-test").expect("gpt-test model row").cost_usd,
+        Some(1.0)
+    );
+    assert_eq!(
+        by_key
+            .get("gemini-test")
+            .expect("gemini-test model row")
+            .cost_usd,
+        Some(2.0)
+    );
+    assert_eq!(
+        by_key
+            .get("claude-test")
+            .expect("claude-test model row")
+            .cost_usd,
+        None
+    );
 }

@@ -7,6 +7,8 @@ use super::{
     compute_start_ts, normalize_cli_filter, parse_range, token_total, UsageDayRow, UsageProviderRow,
 };
 
+const USD_FEMTO_DENOM: f64 = 1_000_000_000_000_000.0;
+
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub(super) struct ProviderKey {
     pub(super) cli_key: String,
@@ -31,6 +33,8 @@ pub(super) struct ProviderAgg {
     pub(super) cache_creation_input_tokens: i64,
     pub(super) cache_creation_5m_input_tokens: i64,
     pub(super) cache_creation_1h_input_tokens: i64,
+    pub(super) cost_covered_success: i64,
+    pub(super) total_cost_usd_femto: i64,
 }
 
 impl ProviderAgg {
@@ -68,6 +72,12 @@ impl ProviderAgg {
         self.cache_creation_1h_input_tokens = self
             .cache_creation_1h_input_tokens
             .saturating_add(add.cache_creation_1h_input_tokens);
+        self.cost_covered_success = self
+            .cost_covered_success
+            .saturating_add(add.cost_covered_success);
+        self.total_cost_usd_femto = self
+            .total_cost_usd_femto
+            .saturating_add(add.total_cost_usd_femto);
     }
 
     pub(super) fn into_leaderboard_row(
@@ -94,6 +104,13 @@ impl ProviderAgg {
             None
         };
 
+        let total_cost_usd_femto = self.total_cost_usd_femto.max(0);
+        let cost_usd = if self.cost_covered_success > 0 && total_cost_usd_femto > 0 {
+            Some(total_cost_usd_femto as f64 / USD_FEMTO_DENOM)
+        } else {
+            None
+        };
+
         super::UsageLeaderboardRow {
             key,
             name,
@@ -109,6 +126,7 @@ impl ProviderAgg {
             avg_duration_ms,
             avg_ttfb_ms,
             avg_output_tokens_per_second,
+            cost_usd,
         }
     }
 }
@@ -260,6 +278,8 @@ AND (?2 IS NULL OR cli_key = ?2)
                     cache_creation_input_tokens: cache_creation_input_tokens.unwrap_or(0),
                     cache_creation_5m_input_tokens: cache_creation_5m_input_tokens.unwrap_or(0),
                     cache_creation_1h_input_tokens: cache_creation_1h_input_tokens.unwrap_or(0),
+                    cost_covered_success: 0,
+                    total_cost_usd_femto: 0,
                 },
             ))
         })

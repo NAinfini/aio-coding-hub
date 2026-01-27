@@ -37,14 +37,26 @@ SELECT
     ) THEN 1 ELSE 0 END
   ) AS requests_failed,
   SUM({effective_total_expr}) AS total_tokens,
-  SUM({effective_input_expr}) AS input_tokens,
-  SUM(COALESCE(output_tokens, 0)) AS output_tokens,
-  SUM(COALESCE(cache_creation_input_tokens, 0)) AS cache_creation_input_tokens,
-  SUM(COALESCE(cache_read_input_tokens, 0)) AS cache_read_input_tokens,
-  SUM(CASE WHEN status >= 200 AND status < 300 AND error_code IS NULL THEN duration_ms ELSE 0 END) AS success_duration_ms_sum,
-  SUM(
-    CASE WHEN (
-      status >= 200 AND status < 300 AND error_code IS NULL AND
+	  SUM({effective_input_expr}) AS input_tokens,
+	  SUM(COALESCE(output_tokens, 0)) AS output_tokens,
+	  SUM(COALESCE(cache_creation_input_tokens, 0)) AS cache_creation_input_tokens,
+	  SUM(COALESCE(cache_read_input_tokens, 0)) AS cache_read_input_tokens,
+	  SUM(
+	    CASE WHEN (
+	      status >= 200 AND status < 300 AND error_code IS NULL AND
+	      cost_usd_femto IS NOT NULL AND cost_usd_femto > 0
+	    ) THEN 1 ELSE 0 END
+	  ) AS cost_covered_success,
+	  SUM(
+	    CASE WHEN (
+	      status >= 200 AND status < 300 AND error_code IS NULL AND
+	      cost_usd_femto IS NOT NULL AND cost_usd_femto > 0
+	    ) THEN cost_usd_femto ELSE 0 END
+	  ) AS total_cost_usd_femto,
+	  SUM(CASE WHEN status >= 200 AND status < 300 AND error_code IS NULL THEN duration_ms ELSE 0 END) AS success_duration_ms_sum,
+	  SUM(
+	    CASE WHEN (
+	      status >= 200 AND status < 300 AND error_code IS NULL AND
       ttfb_ms IS NOT NULL AND
       ttfb_ms < duration_ms
     ) THEN ttfb_ms ELSE 0 END
@@ -121,6 +133,12 @@ GROUP BY cli_key
                             .unwrap_or(0),
                         cache_creation_5m_input_tokens: 0,
                         cache_creation_1h_input_tokens: 0,
+                        cost_covered_success: row
+                            .get::<_, Option<i64>>("cost_covered_success")?
+                            .unwrap_or(0),
+                        total_cost_usd_femto: row
+                            .get::<_, Option<i64>>("total_cost_usd_femto")?
+                            .unwrap_or(0),
                     };
 
                     Ok(agg.into_leaderboard_row(key.clone(), key))
@@ -149,14 +167,26 @@ SELECT
     ) THEN 1 ELSE 0 END
   ) AS requests_failed,
   SUM({effective_total_expr}) AS total_tokens,
-  SUM({effective_input_expr}) AS input_tokens,
-  SUM(COALESCE(output_tokens, 0)) AS output_tokens,
-  SUM(COALESCE(cache_creation_input_tokens, 0)) AS cache_creation_input_tokens,
-  SUM(COALESCE(cache_read_input_tokens, 0)) AS cache_read_input_tokens,
-  SUM(CASE WHEN status >= 200 AND status < 300 AND error_code IS NULL THEN duration_ms ELSE 0 END) AS success_duration_ms_sum,
-  SUM(
-    CASE WHEN (
-      status >= 200 AND status < 300 AND error_code IS NULL AND
+	  SUM({effective_input_expr}) AS input_tokens,
+	  SUM(COALESCE(output_tokens, 0)) AS output_tokens,
+	  SUM(COALESCE(cache_creation_input_tokens, 0)) AS cache_creation_input_tokens,
+	  SUM(COALESCE(cache_read_input_tokens, 0)) AS cache_read_input_tokens,
+	  SUM(
+	    CASE WHEN (
+	      status >= 200 AND status < 300 AND error_code IS NULL AND
+	      cost_usd_femto IS NOT NULL AND cost_usd_femto > 0
+	    ) THEN 1 ELSE 0 END
+	  ) AS cost_covered_success,
+	  SUM(
+	    CASE WHEN (
+	      status >= 200 AND status < 300 AND error_code IS NULL AND
+	      cost_usd_femto IS NOT NULL AND cost_usd_femto > 0
+	    ) THEN cost_usd_femto ELSE 0 END
+	  ) AS total_cost_usd_femto,
+	  SUM(CASE WHEN status >= 200 AND status < 300 AND error_code IS NULL THEN duration_ms ELSE 0 END) AS success_duration_ms_sum,
+	  SUM(
+	    CASE WHEN (
+	      status >= 200 AND status < 300 AND error_code IS NULL AND
       ttfb_ms IS NOT NULL AND
       ttfb_ms < duration_ms
     ) THEN ttfb_ms ELSE 0 END
@@ -233,6 +263,12 @@ GROUP BY COALESCE(NULLIF(requested_model, ''), 'Unknown')
                             .unwrap_or(0),
                         cache_creation_5m_input_tokens: 0,
                         cache_creation_1h_input_tokens: 0,
+                        cost_covered_success: row
+                            .get::<_, Option<i64>>("cost_covered_success")?
+                            .unwrap_or(0),
+                        total_cost_usd_femto: row
+                            .get::<_, Option<i64>>("total_cost_usd_femto")?
+                            .unwrap_or(0),
                     };
 
                     Ok(agg.into_leaderboard_row(key.clone(), key))
@@ -258,14 +294,15 @@ SELECT
   ttfb_ms,
   input_tokens,
   output_tokens,
-  cache_read_input_tokens,
-  cache_creation_input_tokens,
-  cache_creation_5m_input_tokens,
-  cache_creation_1h_input_tokens
-FROM request_logs
-WHERE excluded_from_stats = 0
-AND (?1 IS NULL OR created_at >= ?1)
-AND (?2 IS NULL OR created_at < ?2)
+	  cache_read_input_tokens,
+	  cache_creation_input_tokens,
+	  cache_creation_5m_input_tokens,
+	  cache_creation_1h_input_tokens,
+	  cost_usd_femto
+	FROM request_logs
+	WHERE excluded_from_stats = 0
+	AND (?1 IS NULL OR created_at >= ?1)
+	AND (?2 IS NULL OR created_at < ?2)
 AND (?3 IS NULL OR cli_key = ?3)
 "#,
                 )
@@ -291,6 +328,7 @@ AND (?3 IS NULL OR cli_key = ?3)
                         row.get("cache_creation_5m_input_tokens")?;
                     let cache_creation_1h_input_tokens: Option<i64> =
                         row.get("cache_creation_1h_input_tokens")?;
+                    let cost_usd_femto: Option<i64> = row.get("cost_usd_femto")?;
 
                     let key = extract_final_provider(&row_cli_key, &attempts_json);
                     let success = is_success(status, error_code.as_deref());
@@ -307,6 +345,15 @@ AND (?3 IS NULL OR cli_key = ?3)
                         } else {
                             (0, 0)
                         };
+
+                    let (cost_covered_success, total_cost_usd_femto) = if success {
+                        match cost_usd_femto {
+                            Some(v) if v > 0 => (1, v),
+                            _ => (0, 0),
+                        }
+                    } else {
+                        (0, 0)
+                    };
 
                     let raw_input_tokens = input_tokens.unwrap_or(0);
                     let raw_output_tokens = output_tokens.unwrap_or(0);
@@ -345,6 +392,8 @@ AND (?3 IS NULL OR cli_key = ?3)
                                 .unwrap_or(0),
                             cache_creation_1h_input_tokens: cache_creation_1h_input_tokens
                                 .unwrap_or(0),
+                            cost_covered_success,
+                            total_cost_usd_femto,
                         },
                     ))
                 })

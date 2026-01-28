@@ -12,6 +12,32 @@ use std::time::{Duration, Instant};
 
 pub(super) const MAX_NON_SSE_BODY_BYTES: usize = 20 * 1024 * 1024;
 
+pub(super) struct CommonCtxArgs<'a> {
+    pub(super) state: &'a GatewayAppState,
+    pub(super) cli_key: &'a String,
+    pub(super) forwarded_path: &'a String,
+    pub(super) method_hint: &'a String,
+    pub(super) query: &'a Option<String>,
+    pub(super) trace_id: &'a String,
+    pub(super) started: Instant,
+    pub(super) created_at_ms: i64,
+    pub(super) created_at: i64,
+    pub(super) session_id: &'a Option<String>,
+    pub(super) requested_model: &'a Option<String>,
+    pub(super) effective_sort_mode_id: Option<i64>,
+    pub(super) special_settings: &'a Arc<Mutex<Vec<serde_json::Value>>>,
+    pub(super) provider_cooldown_secs: i64,
+    pub(super) upstream_first_byte_timeout_secs: u32,
+    pub(super) upstream_first_byte_timeout: Option<Duration>,
+    pub(super) upstream_stream_idle_timeout: Option<Duration>,
+    pub(super) upstream_request_timeout_non_streaming: Option<Duration>,
+    pub(super) max_attempts_per_provider: u32,
+    pub(super) enable_response_fixer: bool,
+    pub(super) response_fixer_stream_config: response_fixer::ResponseFixerConfig,
+    pub(super) response_fixer_non_stream_config: response_fixer::ResponseFixerConfig,
+    pub(super) introspection_body: &'a [u8],
+}
+
 #[derive(Clone, Copy)]
 pub(super) struct CommonCtx<'a> {
     pub(super) state: &'a GatewayAppState,
@@ -37,6 +63,42 @@ pub(super) struct CommonCtx<'a> {
     pub(super) response_fixer_stream_config: response_fixer::ResponseFixerConfig,
     pub(super) response_fixer_non_stream_config: response_fixer::ResponseFixerConfig,
     pub(super) introspection_body: &'a [u8],
+}
+
+impl<'a> CommonCtx<'a> {
+    pub(super) fn new(args: CommonCtxArgs<'a>) -> Self {
+        Self {
+            state: args.state,
+            cli_key: args.cli_key,
+            forwarded_path: args.forwarded_path,
+            method_hint: args.method_hint,
+            query: args.query,
+            trace_id: args.trace_id,
+            started: args.started,
+            created_at_ms: args.created_at_ms,
+            created_at: args.created_at,
+            session_id: args.session_id,
+            requested_model: args.requested_model,
+            effective_sort_mode_id: args.effective_sort_mode_id,
+            special_settings: args.special_settings,
+            provider_cooldown_secs: args.provider_cooldown_secs,
+            upstream_first_byte_timeout_secs: args.upstream_first_byte_timeout_secs,
+            upstream_first_byte_timeout: args.upstream_first_byte_timeout,
+            upstream_stream_idle_timeout: args.upstream_stream_idle_timeout,
+            upstream_request_timeout_non_streaming: args.upstream_request_timeout_non_streaming,
+            max_attempts_per_provider: args.max_attempts_per_provider,
+            enable_response_fixer: args.enable_response_fixer,
+            response_fixer_stream_config: args.response_fixer_stream_config,
+            response_fixer_non_stream_config: args.response_fixer_non_stream_config,
+            introspection_body: args.introspection_body,
+        }
+    }
+}
+
+impl<'a> From<CommonCtxArgs<'a>> for CommonCtx<'a> {
+    fn from(args: CommonCtxArgs<'a>) -> Self {
+        Self::new(args)
+    }
 }
 
 #[derive(Clone, Copy)]

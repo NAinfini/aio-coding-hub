@@ -12,6 +12,7 @@ mod logging;
 mod model_rewrite;
 pub(in crate::gateway) mod provider_router;
 mod request_context;
+mod request_end;
 mod types;
 mod upstream_client_error_rules;
 

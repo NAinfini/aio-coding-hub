@@ -8,10 +8,8 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
-use super::super::events::emit_request_event;
-use super::super::proxy::{spawn_enqueue_request_log_with_backpressure, RequestLogEnqueueArgs};
-use super::super::response_fixer;
 use super::super::util::now_unix_seconds;
+use super::request_end::emit_request_event_and_spawn_request_log;
 use super::{RelayBodyStream, StreamFinalizeCtx};
 
 struct NextFuture<'a, S: Stream + Unpin>(&'a mut S);
@@ -70,7 +68,6 @@ where
         }
         self.finalized = true;
 
-        let duration_ms = self.ctx.started.elapsed().as_millis();
         let usage = self.tracker.finalize();
         let usage_metrics = usage.as_ref().map(|u| u.metrics.clone());
         let requested_model = self
@@ -78,50 +75,14 @@ where
             .requested_model
             .clone()
             .or_else(|| self.tracker.best_effort_model());
-        let effective_error_category =
-            super::finalize::finalize_circuit_and_session(&self.ctx, error_code);
 
-        emit_request_event(
-            &self.ctx.app,
-            self.ctx.trace_id.clone(),
-            self.ctx.cli_key.clone(),
-            self.ctx.method.clone(),
-            self.ctx.path.clone(),
-            self.ctx.query.clone(),
-            Some(self.ctx.status),
-            effective_error_category,
+        emit_request_event_and_spawn_request_log(
+            &self.ctx,
             error_code,
-            duration_ms,
             self.first_byte_ms,
-            self.ctx.attempts.clone(),
+            requested_model,
             usage_metrics,
-        );
-
-        spawn_enqueue_request_log_with_backpressure(
-            self.ctx.app.clone(),
-            self.ctx.db.clone(),
-            self.ctx.log_tx.clone(),
-            RequestLogEnqueueArgs {
-                trace_id: self.ctx.trace_id.clone(),
-                cli_key: self.ctx.cli_key.clone(),
-                session_id: self.ctx.session_id.clone(),
-                method: self.ctx.method.clone(),
-                path: self.ctx.path.clone(),
-                query: self.ctx.query.clone(),
-                excluded_from_stats: self.ctx.excluded_from_stats,
-                special_settings_json: response_fixer::special_settings_json(
-                    &self.ctx.special_settings,
-                ),
-                status: Some(self.ctx.status),
-                error_code,
-                duration_ms,
-                ttfb_ms: self.first_byte_ms,
-                attempts_json: self.ctx.attempts_json.clone(),
-                requested_model,
-                created_at_ms: self.ctx.created_at_ms,
-                created_at: self.ctx.created_at,
-                usage,
-            },
+            usage,
         );
     }
 }
@@ -316,7 +277,6 @@ where
         }
         self.finalized = true;
 
-        let duration_ms = self.ctx.started.elapsed().as_millis();
         let usage = if self.truncated || self.buffer.is_empty() {
             None
         } else {
@@ -330,50 +290,14 @@ where
                 usage::parse_model_from_json_bytes(&self.buffer)
             }
         });
-        let effective_error_category =
-            super::finalize::finalize_circuit_and_session(&self.ctx, error_code);
 
-        emit_request_event(
-            &self.ctx.app,
-            self.ctx.trace_id.clone(),
-            self.ctx.cli_key.clone(),
-            self.ctx.method.clone(),
-            self.ctx.path.clone(),
-            self.ctx.query.clone(),
-            Some(self.ctx.status),
-            effective_error_category,
+        emit_request_event_and_spawn_request_log(
+            &self.ctx,
             error_code,
-            duration_ms,
             self.first_byte_ms,
-            self.ctx.attempts.clone(),
+            requested_model,
             usage_metrics,
-        );
-
-        spawn_enqueue_request_log_with_backpressure(
-            self.ctx.app.clone(),
-            self.ctx.db.clone(),
-            self.ctx.log_tx.clone(),
-            RequestLogEnqueueArgs {
-                trace_id: self.ctx.trace_id.clone(),
-                cli_key: self.ctx.cli_key.clone(),
-                session_id: self.ctx.session_id.clone(),
-                method: self.ctx.method.clone(),
-                path: self.ctx.path.clone(),
-                query: self.ctx.query.clone(),
-                excluded_from_stats: self.ctx.excluded_from_stats,
-                special_settings_json: response_fixer::special_settings_json(
-                    &self.ctx.special_settings,
-                ),
-                status: Some(self.ctx.status),
-                error_code,
-                duration_ms,
-                ttfb_ms: self.first_byte_ms,
-                attempts_json: self.ctx.attempts_json.clone(),
-                requested_model,
-                created_at_ms: self.ctx.created_at_ms,
-                created_at: self.ctx.created_at,
-                usage,
-            },
+            usage,
         );
     }
 }

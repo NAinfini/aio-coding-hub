@@ -3,14 +3,14 @@
 //! Note: this module is being split into smaller submodules under `handler/`.
 
 use super::caches::RECENT_TRACE_DEDUP_TTL_SECS;
-use super::logging::enqueue_request_log_with_backpressure;
 use super::request_context::{RequestContext, RequestContextParts};
+use super::request_end::{emit_request_event_and_enqueue_request_log, RequestEndArgs};
+use super::ErrorCategory;
 use super::{
     cli_proxy_guard::cli_proxy_enabled_cached,
     errors::{error_response, error_response_with_retry_after},
     failover::{select_next_provider_id_from_order, should_reuse_provider},
 };
-use super::{ErrorCategory, RequestLogEnqueueArgs};
 
 use crate::{providers, request_logs, session_manager, settings, usage};
 use axum::{
@@ -81,22 +81,6 @@ pub(in crate::gateway) async fn proxy_impl(
                 vec![],
             );
 
-            emit_request_event(
-                &state.app,
-                trace_id.clone(),
-                cli_key.clone(),
-                method_hint.clone(),
-                forwarded_path.clone(),
-                query.clone(),
-                Some(StatusCode::FORBIDDEN.as_u16()),
-                Some(ErrorCategory::NonRetryableClientError.as_str()),
-                Some("GW_CLI_PROXY_DISABLED"),
-                started.elapsed().as_millis(),
-                None,
-                vec![],
-                None,
-            );
-
             let special_settings_json = serde_json::json!([{
                 "type": "cli_proxy_guard",
                 "scope": "request",
@@ -108,30 +92,30 @@ pub(in crate::gateway) async fn proxy_impl(
             }])
             .to_string();
 
-            enqueue_request_log_with_backpressure(
-                &state.app,
-                &state.db,
-                &state.log_tx,
-                RequestLogEnqueueArgs {
-                    trace_id,
-                    cli_key,
-                    session_id: None,
-                    method: method_hint,
-                    path: forwarded_path,
-                    query,
-                    excluded_from_stats: true,
-                    special_settings_json: Some(special_settings_json),
-                    status: Some(StatusCode::FORBIDDEN.as_u16()),
-                    error_code: Some("GW_CLI_PROXY_DISABLED"),
-                    duration_ms: started.elapsed().as_millis(),
-                    ttfb_ms: None,
-                    attempts_json: "[]".to_string(),
-                    requested_model: None,
-                    created_at_ms,
-                    created_at,
-                    usage: None,
-                },
-            )
+            let duration_ms = started.elapsed().as_millis();
+            emit_request_event_and_enqueue_request_log(RequestEndArgs {
+                state: &state,
+                trace_id: trace_id.as_str(),
+                cli_key: cli_key.as_str(),
+                method: method_hint.as_str(),
+                path: forwarded_path.as_str(),
+                query: query.as_deref(),
+                excluded_from_stats: true,
+                status: Some(StatusCode::FORBIDDEN.as_u16()),
+                error_category: Some(ErrorCategory::NonRetryableClientError.as_str()),
+                error_code: Some("GW_CLI_PROXY_DISABLED"),
+                duration_ms,
+                event_ttfb_ms: None,
+                log_ttfb_ms: None,
+                attempts: &[],
+                special_settings_json: Some(special_settings_json),
+                session_id: None,
+                requested_model: None,
+                created_at_ms,
+                created_at,
+                usage_metrics: None,
+                usage: None,
+            })
             .await;
 
             return resp;
@@ -153,46 +137,31 @@ pub(in crate::gateway) async fn proxy_impl(
                 format!("failed to read request body: {err}"),
                 vec![],
             );
-            emit_request_event(
-                &state.app,
-                trace_id.clone(),
-                cli_key.clone(),
-                method_hint.clone(),
-                forwarded_path.clone(),
-                query.clone(),
-                Some(StatusCode::PAYLOAD_TOO_LARGE.as_u16()),
-                None,
-                Some("GW_BODY_TOO_LARGE"),
-                started.elapsed().as_millis(),
-                None,
-                vec![],
-                None,
-            );
 
-            enqueue_request_log_with_backpressure(
-                &state.app,
-                &state.db,
-                &state.log_tx,
-                RequestLogEnqueueArgs {
-                    trace_id,
-                    cli_key,
-                    session_id: None,
-                    method: method_hint,
-                    path: forwarded_path,
-                    query,
-                    excluded_from_stats: false,
-                    special_settings_json: None,
-                    status: Some(StatusCode::PAYLOAD_TOO_LARGE.as_u16()),
-                    error_code: Some("GW_BODY_TOO_LARGE"),
-                    duration_ms: started.elapsed().as_millis(),
-                    ttfb_ms: None,
-                    attempts_json: "[]".to_string(),
-                    requested_model: None,
-                    created_at_ms,
-                    created_at,
-                    usage: None,
-                },
-            )
+            let duration_ms = started.elapsed().as_millis();
+            emit_request_event_and_enqueue_request_log(RequestEndArgs {
+                state: &state,
+                trace_id: trace_id.as_str(),
+                cli_key: cli_key.as_str(),
+                method: method_hint.as_str(),
+                path: forwarded_path.as_str(),
+                query: query.as_deref(),
+                excluded_from_stats: false,
+                status: Some(StatusCode::PAYLOAD_TOO_LARGE.as_u16()),
+                error_category: None,
+                error_code: Some("GW_BODY_TOO_LARGE"),
+                duration_ms,
+                event_ttfb_ms: None,
+                log_ttfb_ms: None,
+                attempts: &[],
+                special_settings_json: None,
+                session_id: None,
+                requested_model: None,
+                created_at_ms,
+                created_at,
+                usage_metrics: None,
+                usage: None,
+            })
             .await;
             return resp;
         }
@@ -524,46 +493,30 @@ pub(in crate::gateway) async fn proxy_impl(
             message,
             vec![],
         );
-        emit_request_event(
-            &state.app,
-            trace_id.clone(),
-            cli_key.clone(),
-            method_hint.clone(),
-            forwarded_path.clone(),
-            query.clone(),
-            Some(StatusCode::SERVICE_UNAVAILABLE.as_u16()),
-            None,
-            Some("GW_NO_ENABLED_PROVIDER"),
-            started.elapsed().as_millis(),
-            None,
-            vec![],
-            None,
-        );
-
-        enqueue_request_log_with_backpressure(
-            &state.app,
-            &state.db,
-            &state.log_tx,
-            RequestLogEnqueueArgs {
-                trace_id,
-                cli_key,
-                session_id: session_id.clone(),
-                method: method_hint,
-                path: forwarded_path,
-                query,
-                excluded_from_stats: false,
-                special_settings_json: None,
-                status: Some(StatusCode::SERVICE_UNAVAILABLE.as_u16()),
-                error_code: Some("GW_NO_ENABLED_PROVIDER"),
-                duration_ms: started.elapsed().as_millis(),
-                ttfb_ms: None,
-                attempts_json: "[]".to_string(),
-                requested_model,
-                created_at_ms,
-                created_at,
-                usage: None,
-            },
-        )
+        let duration_ms = started.elapsed().as_millis();
+        emit_request_event_and_enqueue_request_log(RequestEndArgs {
+            state: &state,
+            trace_id: trace_id.as_str(),
+            cli_key: cli_key.as_str(),
+            method: method_hint.as_str(),
+            path: forwarded_path.as_str(),
+            query: query.as_deref(),
+            excluded_from_stats: false,
+            status: Some(StatusCode::SERVICE_UNAVAILABLE.as_u16()),
+            error_category: None,
+            error_code: Some("GW_NO_ENABLED_PROVIDER"),
+            duration_ms,
+            event_ttfb_ms: None,
+            log_ttfb_ms: None,
+            attempts: &[],
+            special_settings_json: None,
+            session_id,
+            requested_model,
+            created_at_ms,
+            created_at,
+            usage_metrics: None,
+            usage: None,
+        })
         .await;
         return resp;
     }

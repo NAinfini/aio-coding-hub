@@ -4,6 +4,7 @@ mod types;
 pub(super) use types::StreamFinalizeCtx;
 
 mod finalize;
+mod request_end;
 
 mod relay;
 pub(super) use relay::{FirstChunkStream, RelayBodyStream};

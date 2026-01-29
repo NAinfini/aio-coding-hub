@@ -18,6 +18,25 @@ pub(super) struct RecordSystemFailureArgs<'a> {
 pub(super) async fn record_system_failure_and_decide(
     args: RecordSystemFailureArgs<'_>,
 ) -> LoopControl {
+    record_system_failure_and_decide_impl(args, CooldownPolicy::Apply).await
+}
+
+pub(super) async fn record_system_failure_and_decide_no_cooldown(
+    args: RecordSystemFailureArgs<'_>,
+) -> LoopControl {
+    record_system_failure_and_decide_impl(args, CooldownPolicy::Skip).await
+}
+
+#[derive(Debug, Clone, Copy)]
+enum CooldownPolicy {
+    Apply,
+    Skip,
+}
+
+async fn record_system_failure_and_decide_impl(
+    args: RecordSystemFailureArgs<'_>,
+    cooldown_policy: CooldownPolicy,
+) -> LoopControl {
     let RecordSystemFailureArgs {
         ctx,
         provider_ctx,
@@ -83,21 +102,23 @@ pub(super) async fn record_system_failure_and_decide(
     *last_error_category = Some(category.as_str());
     *last_error_code = Some(error_code);
 
-    let provider_cooldown_secs = ctx.provider_cooldown_secs;
-    if provider_cooldown_secs > 0
-        && matches!(
-            decision,
-            FailoverDecision::SwitchProvider | FailoverDecision::Abort
-        )
-    {
-        let now_unix = now_unix_seconds() as i64;
-        let snap = provider_router::trigger_cooldown(
-            ctx.state.circuit.as_ref(),
-            provider_id,
-            now_unix,
-            provider_cooldown_secs,
-        );
-        *circuit_snapshot = snap;
+    if matches!(cooldown_policy, CooldownPolicy::Apply) {
+        let provider_cooldown_secs = ctx.provider_cooldown_secs;
+        if provider_cooldown_secs > 0
+            && matches!(
+                decision,
+                FailoverDecision::SwitchProvider | FailoverDecision::Abort
+            )
+        {
+            let now_unix = now_unix_seconds() as i64;
+            let snap = provider_router::trigger_cooldown(
+                ctx.state.circuit.as_ref(),
+                provider_id,
+                now_unix,
+                provider_cooldown_secs,
+            );
+            *circuit_snapshot = snap;
+        }
     }
 
     match decision {

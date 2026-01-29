@@ -269,7 +269,6 @@ pub fn run() {
                     std::process::exit(0);
                 });
             }
-            return;
         }
 
         #[cfg(target_os = "macos")]

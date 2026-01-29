@@ -15,7 +15,10 @@ mod thinking_signature_rectifier_400;
 mod upstream_error;
 
 use super::super::request_context::RequestContext;
-use attempt_record::{record_system_failure_and_decide, RecordSystemFailureArgs};
+use attempt_record::{
+    record_system_failure_and_decide, record_system_failure_and_decide_no_cooldown,
+    RecordSystemFailureArgs,
+};
 use event_helpers::{
     emit_attempt_event_and_log, emit_attempt_event_and_log_with_circuit_before,
     AttemptCircuitFields,
@@ -236,42 +239,31 @@ pub(super) async fn run(mut input: RequestContext) -> Response {
                         error_code,
                         decision.as_str(),
                     );
-
-                    attempts.push(FailoverAttempt {
-                        provider_id,
-                        provider_name: provider_name_base.clone(),
-                        base_url: provider_base_url_base.clone(),
-                        outcome: outcome.clone(),
-                        status: None,
-                        provider_index: Some(provider_index),
-                        retry_index: Some(retry_index),
-                        session_reuse,
-                        error_category: Some(category.as_str()),
-                        error_code: Some(error_code),
-                        decision: Some(decision.as_str()),
-                        reason: Some("invalid base_url".to_string()),
-                        attempt_started_ms: Some(attempt_started_ms),
-                        attempt_duration_ms: Some(attempt_started.elapsed().as_millis()),
-                        circuit_state_before: Some(circuit_before.state.as_str()),
-                        circuit_state_after: None,
-                        circuit_failure_count: Some(circuit_before.failure_count),
-                        circuit_failure_threshold: Some(circuit_before.failure_threshold),
-                    });
-
-                    emit_attempt_event_and_log_with_circuit_before(
+                    let loop_state = LoopState::new(
+                        &mut attempts,
+                        &mut failed_provider_ids,
+                        &mut last_error_category,
+                        &mut last_error_code,
+                        &mut circuit_snapshot,
+                        &mut input.abort_guard,
+                    );
+                    match record_system_failure_and_decide_no_cooldown(RecordSystemFailureArgs {
                         ctx,
                         provider_ctx,
                         attempt_ctx,
+                        loop_state,
+                        status: None,
+                        error_code,
+                        decision,
                         outcome,
-                        None,
-                    )
-                    .await;
-
-                    last_error_category = Some(category.as_str());
-                    last_error_code = Some(error_code);
-
-                    failed_provider_ids.insert(provider_id);
-                    break;
+                        reason: format!("invalid base_url: {err}"),
+                    })
+                    .await
+                    {
+                        LoopControl::ContinueRetry => continue,
+                        LoopControl::BreakRetry => break,
+                        LoopControl::Return(resp) => return resp,
+                    }
                 }
             };
 

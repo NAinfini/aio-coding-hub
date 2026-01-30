@@ -17,6 +17,7 @@ pub struct CodexConfigState {
     pub approval_policy: Option<String>,
     pub sandbox_mode: Option<String>,
     pub model_reasoning_effort: Option<String>,
+    pub web_search: Option<String>,
 
     pub sandbox_workspace_write_network_access: Option<bool>,
 
@@ -38,6 +39,7 @@ pub struct CodexConfigPatch {
     pub approval_policy: Option<String>,
     pub sandbox_mode: Option<String>,
     pub model_reasoning_effort: Option<String>,
+    pub web_search: Option<String>,
 
     pub sandbox_workspace_write_network_access: Option<bool>,
 
@@ -822,6 +824,7 @@ fn make_state_from_bytes(
         approval_policy: None,
         sandbox_mode: None,
         model_reasoning_effort: None,
+        web_search: None,
 
         sandbox_workspace_write_network_access: None,
 
@@ -902,6 +905,7 @@ fn make_state_from_bytes(
             ("", "model_reasoning_effort") => {
                 state.model_reasoning_effort = parse_string(&raw_value)
             }
+            ("", "web_search") => state.web_search = parse_string(&raw_value),
 
             ("sandbox_workspace_write", "network_access") => {
                 state.sandbox_workspace_write_network_access = parse_bool(&raw_value)
@@ -996,6 +1000,11 @@ fn patch_config_toml(current: Option<Vec<u8>>, patch: CodexConfigPatch) -> Resul
         patch.model_reasoning_effort.as_deref().unwrap_or(""),
         &["minimal", "low", "medium", "high", "xhigh"],
     )?;
+    validate_enum_or_empty(
+        "web_search",
+        patch.web_search.as_deref().unwrap_or(""),
+        &["cached", "live", "disabled"],
+    )?;
 
     let input = match current {
         Some(bytes) => String::from_utf8(bytes)
@@ -1042,6 +1051,14 @@ fn patch_config_toml(current: Option<Vec<u8>>, patch: CodexConfigPatch) -> Resul
         upsert_root_key(
             &mut lines,
             "model_reasoning_effort",
+            (!trimmed.is_empty()).then(|| toml_string_literal(trimmed)),
+        );
+    }
+    if let Some(raw) = patch.web_search.as_deref() {
+        let trimmed = raw.trim();
+        upsert_root_key(
+            &mut lines,
+            "web_search",
             (!trimmed.is_empty()).then(|| toml_string_literal(trimmed)),
         );
     }

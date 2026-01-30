@@ -6,6 +6,7 @@ fn empty_patch() -> CodexConfigPatch {
         approval_policy: None,
         sandbox_mode: None,
         model_reasoning_effort: None,
+        web_search: None,
         sandbox_workspace_write_network_access: None,
         features_unified_exec: None,
         features_shell_snapshot: None,

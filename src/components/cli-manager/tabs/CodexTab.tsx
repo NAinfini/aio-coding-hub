@@ -10,6 +10,7 @@ import { Card } from "../../../ui/Card";
 import { Input } from "../../../ui/Input";
 import { Select } from "../../../ui/Select";
 import { Switch } from "../../../ui/Switch";
+import { RadioGroup } from "../../../ui/RadioGroup";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -83,11 +84,13 @@ export function CliManagerCodexTab({
 }: CliManagerCodexTabProps) {
   const [modelText, setModelText] = useState("");
   const [sandboxModeText, setSandboxModeText] = useState("");
+  const [webSearchText, setWebSearchText] = useState("");
 
   useEffect(() => {
     if (!codexConfig) return;
     setModelText(codexConfig.model ?? "");
     setSandboxModeText(codexConfig.sandbox_mode ?? "");
+    setWebSearchText(codexConfig.web_search ?? "cached");
   }, [codexConfig]);
 
   const saving = codexConfigSaving;
@@ -338,6 +341,26 @@ export function CliManagerCodexTab({
                     <option value="high">高（high）</option>
                     <option value="xhigh">极高（xhigh）</option>
                   </Select>
+                </SettingItem>
+
+                <SettingItem
+                  label="网络搜索模式 (web_search)"
+                  subtitle="控制 Web Search 工具的行为。cached：使用缓存结果；live：获取最新数据；disabled：禁用。"
+                >
+                  <RadioGroup
+                    name="web_search"
+                    value={webSearchText}
+                    onChange={(value) => {
+                      setWebSearchText(value);
+                      void persistCodexConfig({ web_search: value });
+                    }}
+                    options={[
+                      { value: "cached", label: "缓存 (cached)" },
+                      { value: "live", label: "实时 (live)" },
+                      { value: "disabled", label: "禁用 (disabled)" },
+                    ]}
+                    disabled={saving}
+                  />
                 </SettingItem>
               </div>
             </div>

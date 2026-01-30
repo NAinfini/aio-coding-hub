@@ -109,6 +109,7 @@ export type CodexConfigState = {
   approval_policy: string | null;
   sandbox_mode: string | null;
   model_reasoning_effort: string | null;
+  web_search: string | null;
 
   sandbox_workspace_write_network_access: boolean | null;
 
@@ -129,6 +130,7 @@ export type CodexConfigPatch = Partial<{
   approval_policy: string;
   sandbox_mode: string;
   model_reasoning_effort: string;
+  web_search: string;
 
   sandbox_workspace_write_network_access: boolean;
 

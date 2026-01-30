@@ -14,6 +14,7 @@ import { SettingsPage } from "./pages/SettingsPage";
 import { SkillsPage } from "./pages/SkillsPage";
 import { SkillsMarketPage } from "./pages/SkillsMarketPage";
 import { UsagePage } from "./pages/UsagePage";
+import { WorkspacesPage } from "./pages/WorkspacesPage";
 import { listenGatewayEvents } from "./services/gatewayEvents";
 import { listenNoticeEvents } from "./services/noticeEvents";
 import {
@@ -86,6 +87,7 @@ export default function App() {
           <Route element={<AppLayout />}>
             <Route index element={<HomePage />} />
             <Route path="/providers" element={<ProvidersPage />} />
+            <Route path="/workspaces" element={<WorkspacesPage />} />
             <Route path="/prompts" element={<PromptsPage />} />
             <Route path="/mcp" element={<McpPage />} />
             <Route path="/skills" element={<SkillsPage />} />

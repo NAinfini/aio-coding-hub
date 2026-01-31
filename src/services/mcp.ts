@@ -1,5 +1,4 @@
 import { invokeTauriOrNull } from "./tauriInvoke";
-import type { CliKey } from "./providers";
 
 export type McpTransport = "stdio" | "http";
 
@@ -14,9 +13,7 @@ export type McpServerSummary = {
   cwd: string | null;
   url: string | null;
   headers: Record<string, string>;
-  enabled_claude: boolean;
-  enabled_codex: boolean;
-  enabled_gemini: boolean;
+  enabled: boolean;
   created_at: number;
   updated_at: number;
 };
@@ -31,9 +28,7 @@ export type McpImportServer = {
   cwd: string | null;
   url: string | null;
   headers: Record<string, string>;
-  enabled_claude: boolean;
-  enabled_codex: boolean;
-  enabled_gemini: boolean;
+  enabled: boolean;
 };
 
 export type McpParseResult = {
@@ -45,8 +40,8 @@ export type McpImportReport = {
   updated: number;
 };
 
-export async function mcpServersList() {
-  return invokeTauriOrNull<McpServerSummary[]>("mcp_servers_list");
+export async function mcpServersList(workspaceId: number) {
+  return invokeTauriOrNull<McpServerSummary[]>("mcp_servers_list", { workspaceId });
 }
 
 export async function mcpServerUpsert(input: {
@@ -60,9 +55,6 @@ export async function mcpServerUpsert(input: {
   cwd?: string | null;
   url?: string | null;
   headers?: Record<string, string>;
-  enabled_claude: boolean;
-  enabled_codex: boolean;
-  enabled_gemini: boolean;
 }) {
   return invokeTauriOrNull<McpServerSummary>("mcp_server_upsert", {
     serverId: input.server_id ?? null,
@@ -75,20 +67,17 @@ export async function mcpServerUpsert(input: {
     cwd: input.cwd ?? null,
     url: input.url ?? null,
     headers: input.headers ?? {},
-    enabledClaude: input.enabled_claude,
-    enabledCodex: input.enabled_codex,
-    enabledGemini: input.enabled_gemini,
   });
 }
 
 export async function mcpServerSetEnabled(input: {
+  workspace_id: number;
   server_id: number;
-  cli_key: CliKey;
   enabled: boolean;
 }) {
   return invokeTauriOrNull<McpServerSummary>("mcp_server_set_enabled", {
+    workspaceId: input.workspace_id,
     serverId: input.server_id,
-    cliKey: input.cli_key,
     enabled: input.enabled,
   });
 }
@@ -101,6 +90,12 @@ export async function mcpParseJson(jsonText: string) {
   return invokeTauriOrNull<McpParseResult>("mcp_parse_json", { jsonText });
 }
 
-export async function mcpImportServers(servers: McpImportServer[]) {
-  return invokeTauriOrNull<McpImportReport>("mcp_import_servers", { servers });
+export async function mcpImportServers(input: {
+  workspace_id: number;
+  servers: McpImportServer[];
+}) {
+  return invokeTauriOrNull<McpImportReport>("mcp_import_servers", {
+    workspaceId: input.workspace_id,
+    servers: input.servers,
+  });
 }

@@ -7,9 +7,13 @@ use crate::{blocking, mcp};
 pub(crate) async fn mcp_servers_list(
     app: tauri::AppHandle,
     db_state: tauri::State<'_, DbInitState>,
+    workspace_id: i64,
 ) -> Result<Vec<mcp::McpServerSummary>, String> {
     let db = ensure_db_ready(app, db_state.inner()).await?;
-    blocking::run("mcp_servers_list", move || mcp::list_all(&db)).await
+    blocking::run("mcp_servers_list", move || {
+        mcp::list_for_workspace(&db, workspace_id)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -27,9 +31,6 @@ pub(crate) async fn mcp_server_upsert(
     cwd: Option<String>,
     url: Option<String>,
     headers: std::collections::BTreeMap<String, String>,
-    enabled_claude: bool,
-    enabled_codex: bool,
-    enabled_gemini: bool,
 ) -> Result<mcp::McpServerSummary, String> {
     let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
     blocking::run("mcp_server_upsert", move || {
@@ -46,9 +47,6 @@ pub(crate) async fn mcp_server_upsert(
             cwd.as_deref(),
             url.as_deref(),
             headers,
-            enabled_claude,
-            enabled_codex,
-            enabled_gemini,
         )
     })
     .await
@@ -58,13 +56,13 @@ pub(crate) async fn mcp_server_upsert(
 pub(crate) async fn mcp_server_set_enabled(
     app: tauri::AppHandle,
     db_state: tauri::State<'_, DbInitState>,
+    workspace_id: i64,
     server_id: i64,
-    cli_key: String,
     enabled: bool,
 ) -> Result<mcp::McpServerSummary, String> {
     let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
     blocking::run("mcp_server_set_enabled", move || {
-        mcp::set_enabled(&app, &db, server_id, &cli_key, enabled)
+        mcp::set_enabled(&app, &db, workspace_id, server_id, enabled)
     })
     .await
 }
@@ -92,11 +90,12 @@ pub(crate) fn mcp_parse_json(json_text: String) -> Result<mcp::McpParseResult, S
 pub(crate) async fn mcp_import_servers(
     app: tauri::AppHandle,
     db_state: tauri::State<'_, DbInitState>,
+    workspace_id: i64,
     servers: Vec<mcp::McpImportServer>,
 ) -> Result<mcp::McpImportReport, String> {
     let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
     blocking::run("mcp_import_servers", move || {
-        mcp::import_servers(&app, &db, servers)
+        mcp::import_servers(&app, &db, workspace_id, servers)
     })
     .await
 }

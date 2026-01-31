@@ -15,9 +15,7 @@ pub struct McpServerSummary {
     pub cwd: Option<String>,
     pub url: Option<String>,
     pub headers: BTreeMap<String, String>,
-    pub enabled_claude: bool,
-    pub enabled_codex: bool,
-    pub enabled_gemini: bool,
+    pub enabled: bool,
     pub created_at: i64,
     pub updated_at: i64,
 }
@@ -33,9 +31,7 @@ pub struct McpImportServer {
     pub cwd: Option<String>,
     pub url: Option<String>,
     pub headers: BTreeMap<String, String>,
-    pub enabled_claude: bool,
-    pub enabled_codex: bool,
-    pub enabled_gemini: bool,
+    pub enabled: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]

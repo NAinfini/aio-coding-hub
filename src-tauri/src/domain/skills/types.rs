@@ -19,9 +19,7 @@ pub struct InstalledSkillSummary {
     pub source_git_url: String,
     pub source_branch: String,
     pub source_subdir: String,
-    pub enabled_claude: bool,
-    pub enabled_codex: bool,
-    pub enabled_gemini: bool,
+    pub enabled: bool,
     pub created_at: i64,
     pub updated_at: i64,
 }

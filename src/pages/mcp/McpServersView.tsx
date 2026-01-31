@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { cliLongLabel, enabledFlagForCli } from "../../constants/clis";
 import { logToConsole } from "../../services/consoleLog";
 import {
   mcpServerDelete,
@@ -8,13 +7,16 @@ import {
   mcpServersList,
   type McpServerSummary,
 } from "../../services/mcp";
-import type { CliKey } from "../../services/providers";
 import { Button } from "../../ui/Button";
 import { McpDeleteDialog } from "./components/McpDeleteDialog";
 import { McpServerCard } from "./components/McpServerCard";
 import { McpServerDialog } from "./components/McpServerDialog";
 
-export function McpServersView() {
+export type McpServersViewProps = {
+  workspaceId: number;
+};
+
+export function McpServersView({ workspaceId }: McpServersViewProps) {
   const [items, setItems] = useState<McpServerSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [toggling, setToggling] = useState(false);
@@ -28,7 +30,7 @@ export function McpServersView() {
   async function refresh() {
     setLoading(true);
     try {
-      const next = await mcpServersList();
+      const next = await mcpServersList(workspaceId);
       if (!next) {
         setItems([]);
         return;
@@ -44,18 +46,17 @@ export function McpServersView() {
 
   useEffect(() => {
     void refresh();
-  }, []);
+  }, [workspaceId]);
 
-  async function toggleEnabled(server: McpServerSummary, cliKey: CliKey) {
+  async function toggleEnabled(server: McpServerSummary) {
     if (toggling) return;
-    const current = enabledFlagForCli(server, cliKey);
-    const nextEnabled = !current;
+    const nextEnabled = !server.enabled;
 
     setToggling(true);
     try {
       const next = await mcpServerSetEnabled({
+        workspace_id: workspaceId,
         server_id: server.id,
-        cli_key: cliKey,
         enabled: nextEnabled,
       });
       if (!next) {
@@ -65,19 +66,18 @@ export function McpServersView() {
 
       setItems((prev) => prev.map((s) => (s.id === next.id ? next : s)));
 
-      const cliLabel = cliLongLabel(cliKey);
       logToConsole("info", "切换 MCP Server 生效范围", {
         id: next.id,
         server_key: next.server_key,
-        cli: cliKey,
+        workspace_id: workspaceId,
         enabled: nextEnabled,
       });
-      toast(`${cliLabel}：${nextEnabled ? "已启用" : "已停用"}`);
+      toast(nextEnabled ? "已启用" : "已停用");
     } catch (err) {
       logToConsole("error", "切换 MCP Server 生效范围失败", {
         error: String(err),
         id: server.id,
-        cli: cliKey,
+        workspace_id: workspaceId,
       });
       toast(`操作失败：${String(err)}`);
     } finally {

@@ -1,6 +1,7 @@
 use super::types::InstalledSkillSummary;
 use crate::db;
 use crate::shared::time::now_unix_seconds;
+use crate::workspaces;
 use rusqlite::{params, Connection, OptionalExtension};
 use std::collections::HashSet;
 
@@ -13,41 +14,42 @@ fn row_to_installed(row: &rusqlite::Row<'_>) -> Result<InstalledSkillSummary, ru
         source_git_url: row.get("source_git_url")?,
         source_branch: row.get("source_branch")?,
         source_subdir: row.get("source_subdir")?,
-        enabled_claude: row.get::<_, i64>("enabled_claude")? != 0,
-        enabled_codex: row.get::<_, i64>("enabled_codex")? != 0,
-        enabled_gemini: row.get::<_, i64>("enabled_gemini")? != 0,
+        enabled: row.get::<_, i64>("enabled")? != 0,
         created_at: row.get("created_at")?,
         updated_at: row.get("updated_at")?,
     })
 }
 
-pub fn installed_list(db: &db::Db) -> Result<Vec<InstalledSkillSummary>, String> {
+pub fn installed_list_for_workspace(
+    db: &db::Db,
+    workspace_id: i64,
+) -> Result<Vec<InstalledSkillSummary>, String> {
     let conn = db.open_connection()?;
+    let _ = workspaces::get_cli_key_by_id(&conn, workspace_id)?;
     let mut stmt = conn
         .prepare(
             r#"
 SELECT
-  id,
-  skill_key,
-  name,
-  normalized_name,
-  description,
-  source_git_url,
-  source_branch,
-  source_subdir,
-  enabled_claude,
-  enabled_codex,
-  enabled_gemini,
-  created_at,
-  updated_at
-FROM skills
-ORDER BY updated_at DESC, id DESC
+  s.id,
+  s.skill_key,
+  s.name,
+  s.description,
+  s.source_git_url,
+  s.source_branch,
+  s.source_subdir,
+  CASE WHEN e.skill_id IS NULL THEN 0 ELSE 1 END AS enabled,
+  s.created_at,
+  s.updated_at
+FROM skills s
+LEFT JOIN workspace_skill_enabled e
+  ON e.workspace_id = ?1 AND e.skill_id = s.id
+ORDER BY s.updated_at DESC, s.id DESC
 "#,
         )
         .map_err(|e| format!("DB_ERROR: failed to prepare installed list query: {e}"))?;
 
     let rows = stmt
-        .query_map([], row_to_installed)
+        .query_map([workspace_id], row_to_installed)
         .map_err(|e| format!("DB_ERROR: failed to list skills: {e}"))?;
 
     let mut out = Vec::new();
@@ -92,20 +94,48 @@ SELECT
   id,
   skill_key,
   name,
-  normalized_name,
   description,
   source_git_url,
   source_branch,
   source_subdir,
-  enabled_claude,
-  enabled_codex,
-  enabled_gemini,
+  0 AS enabled,
   created_at,
   updated_at
 FROM skills
 WHERE id = ?1
 "#,
         params![skill_id],
+        row_to_installed,
+    )
+    .optional()
+    .map_err(|e| format!("DB_ERROR: failed to query skill: {e}"))?
+    .ok_or_else(|| "DB_NOT_FOUND: skill not found".to_string())
+}
+
+pub(super) fn get_skill_by_id_for_workspace(
+    conn: &Connection,
+    workspace_id: i64,
+    skill_id: i64,
+) -> Result<InstalledSkillSummary, String> {
+    conn.query_row(
+        r#"
+SELECT
+  s.id,
+  s.skill_key,
+  s.name,
+  s.description,
+  s.source_git_url,
+  s.source_branch,
+  s.source_subdir,
+  CASE WHEN e.skill_id IS NULL THEN 0 ELSE 1 END AS enabled,
+  s.created_at,
+  s.updated_at
+FROM skills s
+LEFT JOIN workspace_skill_enabled e
+  ON e.workspace_id = ?1 AND e.skill_id = s.id
+WHERE s.id = ?2
+"#,
+        params![workspace_id, skill_id],
         row_to_installed,
     )
     .optional()

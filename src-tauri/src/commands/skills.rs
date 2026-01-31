@@ -46,9 +46,13 @@ pub(crate) async fn skill_repo_delete(
 pub(crate) async fn skills_installed_list(
     app: tauri::AppHandle,
     db_state: tauri::State<'_, DbInitState>,
+    workspace_id: i64,
 ) -> Result<Vec<skills::InstalledSkillSummary>, String> {
     let db = ensure_db_ready(app, db_state.inner()).await?;
-    blocking::run("skills_installed_list", move || skills::installed_list(&db)).await
+    blocking::run("skills_installed_list", move || {
+        skills::installed_list_for_workspace(&db, workspace_id)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -68,24 +72,22 @@ pub(crate) async fn skills_discover_available(
 pub(crate) async fn skill_install(
     app: tauri::AppHandle,
     db_state: tauri::State<'_, DbInitState>,
+    workspace_id: i64,
     git_url: String,
     branch: String,
     source_subdir: String,
-    enabled_claude: bool,
-    enabled_codex: bool,
-    enabled_gemini: bool,
+    enabled: bool,
 ) -> Result<skills::InstalledSkillSummary, String> {
     let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
     tauri::async_runtime::spawn_blocking(move || {
         skills::install(
             &app,
             &db,
+            workspace_id,
             &git_url,
             &branch,
             &source_subdir,
-            enabled_claude,
-            enabled_codex,
-            enabled_gemini,
+            enabled,
         )
     })
     .await
@@ -96,13 +98,13 @@ pub(crate) async fn skill_install(
 pub(crate) async fn skill_set_enabled(
     app: tauri::AppHandle,
     db_state: tauri::State<'_, DbInitState>,
+    workspace_id: i64,
     skill_id: i64,
-    cli_key: String,
     enabled: bool,
 ) -> Result<skills::InstalledSkillSummary, String> {
     let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
     tauri::async_runtime::spawn_blocking(move || {
-        skills::set_enabled(&app, &db, skill_id, &cli_key, enabled)
+        skills::set_enabled(&app, &db, workspace_id, skill_id, enabled)
     })
     .await
     .map_err(|e| format!("SKILL_TASK_JOIN: {e}"))?
@@ -124,9 +126,11 @@ pub(crate) async fn skill_uninstall(
 #[tauri::command]
 pub(crate) async fn skills_local_list(
     app: tauri::AppHandle,
-    cli_key: String,
+    db_state: tauri::State<'_, DbInitState>,
+    workspace_id: i64,
 ) -> Result<Vec<skills::LocalSkillSummary>, String> {
-    tauri::async_runtime::spawn_blocking(move || skills::local_list(&app, &cli_key))
+    let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
+    tauri::async_runtime::spawn_blocking(move || skills::local_list(&app, &db, workspace_id))
         .await
         .map_err(|e| format!("SKILL_TASK_JOIN: {e}"))?
 }
@@ -135,12 +139,12 @@ pub(crate) async fn skills_local_list(
 pub(crate) async fn skill_import_local(
     app: tauri::AppHandle,
     db_state: tauri::State<'_, DbInitState>,
-    cli_key: String,
+    workspace_id: i64,
     dir_name: String,
 ) -> Result<skills::InstalledSkillSummary, String> {
     let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
     tauri::async_runtime::spawn_blocking(move || {
-        skills::import_local(&app, &db, &cli_key, &dir_name)
+        skills::import_local(&app, &db, workspace_id, &dir_name)
     })
     .await
     .map_err(|e| format!("SKILL_TASK_JOIN: {e}"))?

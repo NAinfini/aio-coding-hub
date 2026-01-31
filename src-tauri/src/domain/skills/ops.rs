@@ -1,16 +1,16 @@
 use super::fs_ops::{copy_dir_recursive, is_managed_dir, remove_managed_dir};
-use super::installed::{generate_unique_skill_key, get_skill_by_id};
+use super::installed::{generate_unique_skill_key, get_skill_by_id, get_skill_by_id_for_workspace};
 use super::paths::{cli_skills_root, ensure_skills_roots, ssot_skills_root, validate_cli_key};
 use super::repo_cache::ensure_repo_cache;
 use super::skill_md::parse_skill_md;
 use super::types::InstalledSkillSummary;
 use super::util::validate_relative_subdir;
 use crate::db;
-use crate::shared::sqlite::enabled_to_int;
 use crate::shared::text::normalize_name;
 use crate::shared::time::now_unix_seconds;
-use rusqlite::params;
-use rusqlite::OptionalExtension;
+use crate::workspaces;
+use rusqlite::{params, Connection, OptionalExtension};
+use std::collections::HashSet;
 use std::path::Path;
 
 fn sync_to_cli(
@@ -53,17 +53,19 @@ fn remove_from_cli(app: &tauri::AppHandle, cli_key: &str, skill_key: &str) -> Re
 pub fn install(
     app: &tauri::AppHandle,
     db: &db::Db,
+    workspace_id: i64,
     git_url: &str,
     branch: &str,
     source_subdir: &str,
-    enabled_claude: bool,
-    enabled_codex: bool,
-    enabled_gemini: bool,
+    enabled: bool,
 ) -> Result<InstalledSkillSummary, String> {
     ensure_skills_roots(app)?;
     validate_relative_subdir(source_subdir)?;
 
     let mut conn = db.open_connection()?;
+    let cli_key = workspaces::get_cli_key_by_id(&conn, workspace_id)?;
+    validate_cli_key(&cli_key)?;
+    let should_sync = workspaces::is_active_workspace(&conn, workspace_id)?;
     let now = now_unix_seconds();
 
     // Ensure source not already installed.
@@ -119,12 +121,9 @@ INSERT INTO skills(
   source_git_url,
   source_branch,
   source_subdir,
-  enabled_claude,
-  enabled_codex,
-  enabled_gemini,
   created_at,
   updated_at
-) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
 "#,
         params![
             skill_key,
@@ -134,9 +133,6 @@ INSERT INTO skills(
             git_url.trim(),
             branch.trim(),
             source_subdir.trim(),
-            enabled_to_int(enabled_claude),
-            enabled_to_int(enabled_codex),
-            enabled_to_int(enabled_gemini),
             now,
             now
         ],
@@ -145,6 +141,19 @@ INSERT INTO skills(
 
     let skill_id = tx.last_insert_rowid();
 
+    if enabled {
+        tx.execute(
+            r#"
+INSERT INTO workspace_skill_enabled(workspace_id, skill_id, created_at, updated_at)
+VALUES (?1, ?2, ?3, ?3)
+ON CONFLICT(workspace_id, skill_id) DO UPDATE SET
+  updated_at = excluded.updated_at
+"#,
+            params![workspace_id, skill_id, now],
+        )
+        .map_err(|e| format!("DB_ERROR: failed to enable skill for workspace: {e}"))?;
+    }
+
     // FS: copy to SSOT first.
     if let Err(err) = copy_dir_recursive(&src_dir, &ssot_dir) {
         let _ = std::fs::remove_dir_all(&ssot_dir);
@@ -152,21 +161,10 @@ INSERT INTO skills(
         return Err(err);
     }
 
-    // FS: sync to enabled CLIs.
-    let sync_steps = [
-        ("claude", enabled_claude),
-        ("codex", enabled_codex),
-        ("gemini", enabled_gemini),
-    ];
-
-    for (cli_key, enabled) in sync_steps {
-        if !enabled {
-            continue;
-        }
-        if let Err(err) = sync_to_cli(app, cli_key, &skill_key, &ssot_dir) {
-            let _ = remove_from_cli(app, "claude", &skill_key);
-            let _ = remove_from_cli(app, "codex", &skill_key);
-            let _ = remove_from_cli(app, "gemini", &skill_key);
+    // FS: sync to CLI only when enabled in the active workspace.
+    if should_sync && enabled {
+        if let Err(err) = sync_to_cli(app, &cli_key, &skill_key, &ssot_dir) {
+            let _ = remove_from_cli(app, &cli_key, &skill_key);
             let _ = std::fs::remove_dir_all(&ssot_dir);
             let _ = tx.execute("DELETE FROM skills WHERE id = ?1", params![skill_id]);
             return Err(err);
@@ -174,53 +172,91 @@ INSERT INTO skills(
     }
 
     if let Err(err) = tx.commit() {
-        let _ = remove_from_cli(app, "claude", &skill_key);
-        let _ = remove_from_cli(app, "codex", &skill_key);
-        let _ = remove_from_cli(app, "gemini", &skill_key);
+        let _ = remove_from_cli(app, &cli_key, &skill_key);
         let _ = std::fs::remove_dir_all(&ssot_dir);
         return Err(format!("DB_ERROR: failed to commit: {err}"));
     }
 
-    get_skill_by_id(&conn, skill_id)
+    get_skill_by_id_for_workspace(&conn, workspace_id, skill_id)
 }
 
 pub fn set_enabled(
     app: &tauri::AppHandle,
     db: &db::Db,
+    workspace_id: i64,
     skill_id: i64,
-    cli_key: &str,
     enabled: bool,
 ) -> Result<InstalledSkillSummary, String> {
-    validate_cli_key(cli_key)?;
-
-    let conn = db.open_connection()?;
+    let mut conn = db.open_connection()?;
+    let cli_key = workspaces::get_cli_key_by_id(&conn, workspace_id)?;
+    validate_cli_key(&cli_key)?;
+    let should_sync = workspaces::is_active_workspace(&conn, workspace_id)?;
     let now = now_unix_seconds();
 
     let current = get_skill_by_id(&conn, skill_id)?;
+    let was_enabled: bool = conn
+        .query_row(
+            "SELECT 1 FROM workspace_skill_enabled WHERE workspace_id = ?1 AND skill_id = ?2",
+            params![workspace_id, skill_id],
+            |_row| Ok(()),
+        )
+        .optional()
+        .map_err(|e| format!("DB_ERROR: failed to query workspace_skill_enabled: {e}"))?
+        .is_some();
+
+    if was_enabled == enabled {
+        return get_skill_by_id_for_workspace(&conn, workspace_id, skill_id);
+    }
+
     let ssot_root = ssot_skills_root(app)?;
     let ssot_dir = ssot_root.join(&current.skill_key);
     if !ssot_dir.exists() {
         return Err("SKILL_SSOT_MISSING: ssot skill dir not found".to_string());
     }
 
-    if enabled {
-        sync_to_cli(app, cli_key, &current.skill_key, &ssot_dir)?;
-    } else {
-        remove_from_cli(app, cli_key, &current.skill_key)?;
+    if should_sync {
+        if enabled {
+            sync_to_cli(app, &cli_key, &current.skill_key, &ssot_dir)?;
+        } else {
+            remove_from_cli(app, &cli_key, &current.skill_key)?;
+        }
     }
 
-    let column = match cli_key {
-        "claude" => "enabled_claude",
-        "codex" => "enabled_codex",
-        "gemini" => "enabled_gemini",
-        _ => return Err(format!("SEC_INVALID_INPUT: unknown cli_key={cli_key}")),
-    };
+    let tx = conn
+        .transaction()
+        .map_err(|e| format!("DB_ERROR: failed to start transaction: {e}"))?;
 
-    let sql = format!("UPDATE skills SET {column} = ?1, updated_at = ?2 WHERE id = ?3");
-    conn.execute(&sql, params![enabled_to_int(enabled), now, skill_id])
-        .map_err(|e| format!("DB_ERROR: failed to update skill enabled: {e}"))?;
+    if enabled {
+        tx.execute(
+            r#"
+INSERT INTO workspace_skill_enabled(workspace_id, skill_id, created_at, updated_at)
+VALUES (?1, ?2, ?3, ?3)
+ON CONFLICT(workspace_id, skill_id) DO UPDATE SET
+  updated_at = excluded.updated_at
+"#,
+            params![workspace_id, skill_id, now],
+        )
+        .map_err(|e| format!("DB_ERROR: failed to enable skill: {e}"))?;
+    } else {
+        tx.execute(
+            "DELETE FROM workspace_skill_enabled WHERE workspace_id = ?1 AND skill_id = ?2",
+            params![workspace_id, skill_id],
+        )
+        .map_err(|e| format!("DB_ERROR: failed to disable skill: {e}"))?;
+    }
 
-    get_skill_by_id(&conn, skill_id)
+    if let Err(err) = tx.commit() {
+        if should_sync {
+            if enabled {
+                let _ = remove_from_cli(app, &cli_key, &current.skill_key);
+            } else if was_enabled {
+                let _ = sync_to_cli(app, &cli_key, &current.skill_key, &ssot_dir);
+            }
+        }
+        return Err(format!("DB_ERROR: failed to commit: {err}"));
+    }
+
+    get_skill_by_id_for_workspace(&conn, workspace_id, skill_id)
 }
 
 pub fn uninstall(app: &tauri::AppHandle, db: &db::Db, skill_id: i64) -> Result<(), String> {
@@ -259,5 +295,84 @@ pub fn uninstall(app: &tauri::AppHandle, db: &db::Db, skill_id: i64) -> Result<(
     if changed == 0 {
         return Err("DB_NOT_FOUND: skill not found".to_string());
     }
+    Ok(())
+}
+
+pub fn sync_cli_for_workspace(
+    app: &tauri::AppHandle,
+    conn: &Connection,
+    workspace_id: i64,
+) -> Result<(), String> {
+    ensure_skills_roots(app)?;
+
+    let cli_key = workspaces::get_cli_key_by_id(conn, workspace_id)?;
+    validate_cli_key(&cli_key)?;
+
+    let mut stmt = conn
+        .prepare(
+            r#"
+SELECT s.skill_key
+FROM skills s
+JOIN workspace_skill_enabled e
+  ON e.skill_id = s.id
+WHERE e.workspace_id = ?1
+ORDER BY s.skill_key ASC
+"#,
+        )
+        .map_err(|e| format!("DB_ERROR: failed to prepare enabled skills query: {e}"))?;
+
+    let rows = stmt
+        .query_map([workspace_id], |row| row.get::<_, String>(0))
+        .map_err(|e| format!("DB_ERROR: failed to query enabled skills: {e}"))?;
+
+    let mut enabled_set = HashSet::new();
+    let mut enabled_list: Vec<String> = Vec::new();
+    for row in rows {
+        let key = row.map_err(|e| format!("DB_ERROR: failed to read enabled skill row: {e}"))?;
+        if enabled_set.insert(key.clone()) {
+            enabled_list.push(key);
+        }
+    }
+    enabled_list.sort();
+
+    let cli_root = cli_skills_root(app, &cli_key)?;
+    std::fs::create_dir_all(&cli_root)
+        .map_err(|e| format!("failed to create {}: {e}", cli_root.display()))?;
+
+    if let Ok(entries) = std::fs::read_dir(&cli_root) {
+        for entry in entries {
+            let entry = entry
+                .map_err(|e| format!("failed to read dir entry {}: {e}", cli_root.display()))?;
+            let path = entry.path();
+            if !path.is_dir() {
+                continue;
+            }
+            if !is_managed_dir(&path) {
+                continue;
+            }
+            let dir_name = path
+                .file_name()
+                .and_then(|v| v.to_str())
+                .unwrap_or("")
+                .to_string();
+            if dir_name.is_empty() {
+                continue;
+            }
+            if enabled_set.contains(&dir_name) {
+                continue;
+            }
+            remove_managed_dir(&path)?;
+        }
+    }
+
+    let ssot_root = ssot_skills_root(app)?;
+    for skill_key in enabled_list {
+        let ssot_dir = ssot_root.join(&skill_key);
+        if !ssot_dir.exists() {
+            return Err(format!("SKILL_SSOT_MISSING: {}", ssot_dir.display()));
+        }
+        sync_to_cli(app, &cli_key, &skill_key, &ssot_dir)?;
+    }
+
     Ok(())
 }

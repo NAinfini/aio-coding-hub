@@ -2,6 +2,8 @@
 
 use crate::db;
 use crate::shared::time::now_unix_seconds;
+use crate::workspaces;
+use rusqlite::params;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use super::backups::CliBackupSnapshots;
@@ -80,11 +82,7 @@ fn normalize_transport_from_json(spec: &serde_json::Value) -> Option<String> {
 fn parse_code_switch_r(root: &serde_json::Value) -> Result<Vec<McpImportServer>, String> {
     let mut by_name: HashMap<String, McpImportServer> = HashMap::new();
 
-    for (cli_key, enabled_field) in [
-        ("claude", "enabled_claude"),
-        ("codex", "enabled_codex"),
-        ("gemini", "enabled_gemini"),
-    ] {
+    for cli_key in ["claude", "codex", "gemini"] {
         let Some(section) = root.get(cli_key) else {
             continue;
         };
@@ -145,9 +143,7 @@ fn parse_code_switch_r(root: &serde_json::Value) -> Result<Vec<McpImportServer>,
                     cwd: cwd.clone(),
                     url: url.clone(),
                     headers: headers.clone(),
-                    enabled_claude: false,
-                    enabled_codex: false,
-                    enabled_gemini: false,
+                    enabled: false,
                 });
 
             // If the same server name appears in multiple platform sections, require compatible specs.
@@ -161,12 +157,7 @@ fn parse_code_switch_r(root: &serde_json::Value) -> Result<Vec<McpImportServer>,
                 ));
             }
 
-            match enabled_field {
-                "enabled_claude" => item.enabled_claude = enabled,
-                "enabled_codex" => item.enabled_codex = enabled,
-                "enabled_gemini" => item.enabled_gemini = enabled,
-                _ => {}
-            }
+            item.enabled = item.enabled || enabled;
         }
     }
 
@@ -227,6 +218,32 @@ pub fn parse_json(json_text: &str) -> Result<McpParseResult, String> {
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
 
+            let enabled = obj
+                .get("enabled")
+                .and_then(|v| v.as_bool())
+                .unwrap_or_else(|| {
+                    let legacy_present = obj.contains_key("enabled_claude")
+                        || obj.contains_key("enabled_codex")
+                        || obj.contains_key("enabled_gemini");
+                    let legacy_any = obj
+                        .get("enabled_claude")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false)
+                        || obj
+                            .get("enabled_codex")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(false)
+                        || obj
+                            .get("enabled_gemini")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(false);
+                    if legacy_present {
+                        legacy_any
+                    } else {
+                        true
+                    }
+                });
+
             out.push(McpImportServer {
                 server_key: base,
                 name,
@@ -240,18 +257,7 @@ pub fn parse_json(json_text: &str) -> Result<McpParseResult, String> {
                     .map(|s| s.to_string()),
                 url,
                 headers: extract_string_map(obj.get("headers")),
-                enabled_claude: obj
-                    .get("enabled_claude")
-                    .and_then(|v| v.as_bool())
-                    .unwrap_or(false),
-                enabled_codex: obj
-                    .get("enabled_codex")
-                    .and_then(|v| v.as_bool())
-                    .unwrap_or(false),
-                enabled_gemini: obj
-                    .get("enabled_gemini")
-                    .and_then(|v| v.as_bool())
-                    .unwrap_or(false),
+                enabled,
             });
         }
         out
@@ -265,6 +271,7 @@ pub fn parse_json(json_text: &str) -> Result<McpParseResult, String> {
 pub fn import_servers(
     app: &tauri::AppHandle,
     db: &db::Db,
+    workspace_id: i64,
     servers: Vec<McpImportServer>,
 ) -> Result<McpImportReport, String> {
     if servers.is_empty() {
@@ -278,6 +285,7 @@ pub fn import_servers(
         .transaction()
         .map_err(|e| format!("DB_ERROR: failed to start transaction: {e}"))?;
 
+    let _cli_key = workspaces::get_cli_key_by_id(&tx, workspace_id)?;
     let snapshots = CliBackupSnapshots::capture_all(app)?;
 
     let mut inserted = 0u32;
@@ -299,11 +307,30 @@ pub fn import_servers(
     }
 
     for server in &deduped {
-        let (is_insert, _id) = upsert_by_name(&tx, server, now)?;
+        let (is_insert, id) = upsert_by_name(&tx, server, now)?;
         if is_insert {
             inserted += 1;
         } else {
             updated += 1;
+        }
+
+        if server.enabled {
+            tx.execute(
+                r#"
+INSERT INTO workspace_mcp_enabled(workspace_id, server_id, created_at, updated_at)
+VALUES (?1, ?2, ?3, ?3)
+ON CONFLICT(workspace_id, server_id) DO UPDATE SET
+  updated_at = excluded.updated_at
+"#,
+                params![workspace_id, id, now],
+            )
+            .map_err(|e| format!("DB_ERROR: failed to enable imported mcp server: {e}"))?;
+        } else {
+            tx.execute(
+                "DELETE FROM workspace_mcp_enabled WHERE workspace_id = ?1 AND server_id = ?2",
+                params![workspace_id, id],
+            )
+            .map_err(|e| format!("DB_ERROR: failed to disable imported mcp server: {e}"))?;
         }
     }
 

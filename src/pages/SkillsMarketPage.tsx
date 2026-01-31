@@ -4,7 +4,7 @@ import { ExternalLink } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { CLIS, cliFromKeyOrDefault, enabledFlagForCli, isCliKey } from "../constants/clis";
+import { CLIS, cliFromKeyOrDefault, isCliKey } from "../constants/clis";
 import { logToConsole } from "../services/consoleLog";
 import type { CliKey } from "../services/providers";
 import {
@@ -18,6 +18,7 @@ import {
   type InstalledSkillSummary,
   type SkillRepoSummary,
 } from "../services/skills";
+import { workspacesList } from "../services/workspaces";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { Dialog } from "../ui/Dialog";
@@ -78,10 +79,6 @@ function repoKey(skill: Pick<SkillSource, "source_git_url" | "source_branch">) {
   return `${skill.source_git_url}#${skill.source_branch}`;
 }
 
-function enabledForCli(skill: InstalledSkillSummary, cli: CliKey) {
-  return enabledFlagForCli(skill, cli);
-}
-
 type MarketStatus = "not_installed" | "needs_enable" | "enabled";
 
 function statusLabel(status: MarketStatus) {
@@ -99,6 +96,7 @@ export function SkillsMarketPage() {
   const navigate = useNavigate();
   const [activeCli, setActiveCli] = useState<CliKey>(() => readCliFromStorage());
   const currentCli = useMemo(() => cliFromKeyOrDefault(activeCli), [activeCli]);
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState<number | null>(null);
 
   const [repos, setRepos] = useState<SkillRepoSummary[]>([]);
   const [installed, setInstalled] = useState<InstalledSkillSummary[]>([]);
@@ -126,15 +124,22 @@ export function SkillsMarketPage() {
     writeCliToStorage(activeCli);
   }, [activeCli]);
 
-  async function refreshBase() {
+  async function refreshBase(cliKey: CliKey) {
     setLoading(true);
     try {
-      const [repoRows, installedRows] = await Promise.all([
-        skillReposList(),
-        skillsInstalledList(),
-      ]);
+      const repoRows = await skillReposList();
+      const workspaces = await workspacesList(cliKey);
 
       setRepos(repoRows ?? []);
+
+      const workspaceId = workspaces?.active_id ?? null;
+      setActiveWorkspaceId(workspaceId);
+      if (!workspaceId) {
+        setInstalled([]);
+        return;
+      }
+
+      const installedRows = await skillsInstalledList(workspaceId);
       setInstalled(installedRows ?? []);
     } catch (err) {
       logToConsole("error", "加载 Skill 市场数据失败", { error: String(err) });
@@ -173,8 +178,8 @@ export function SkillsMarketPage() {
   }
 
   useEffect(() => {
-    void refreshBase();
-  }, []);
+    void refreshBase(activeCli);
+  }, [activeCli]);
 
   useEffect(() => {
     void refreshAvailable(false, false);
@@ -209,7 +214,7 @@ export function SkillsMarketPage() {
 
       const installedRow = installedBySource.get(sourceKey(row));
       const status: MarketStatus = installedRow
-        ? enabledForCli(installedRow, activeCli)
+        ? installedRow.enabled
           ? "enabled"
           : "needs_enable"
         : "not_installed";
@@ -232,7 +237,7 @@ export function SkillsMarketPage() {
     const getStatusRank = (row: AvailableSkillSummary) => {
       const installedRow = installedBySource.get(sourceKey(row));
       const status: MarketStatus = installedRow
-        ? enabledForCli(installedRow, activeCli)
+        ? installedRow.enabled
           ? "enabled"
           : "needs_enable"
         : "not_installed";
@@ -361,20 +366,19 @@ export function SkillsMarketPage() {
   async function installToCurrentCli(skill: AvailableSkillSummary) {
     const key = sourceKey(skill);
     if (installingSource != null) return;
+    if (!activeWorkspaceId) {
+      toast("未找到当前工作区（workspace）。请先在 Workspaces 页面创建并设为当前。");
+      return;
+    }
 
     setInstallingSource(key);
     try {
-      const flags = {
-        enabled_claude: activeCli === "claude",
-        enabled_codex: activeCli === "codex",
-        enabled_gemini: activeCli === "gemini",
-      };
-
       const next = await skillInstall({
+        workspace_id: activeWorkspaceId,
         git_url: skill.source_git_url,
         branch: skill.source_branch,
         source_subdir: skill.source_subdir,
-        ...flags,
+        enabled: true,
       });
 
       if (!next) {
@@ -387,7 +391,11 @@ export function SkillsMarketPage() {
         prev.map((row) => (sourceKey(row) === key ? { ...row, installed: true } : row))
       );
       toast("安装成功");
-      logToConsole("info", "安装 Skill", { cli: activeCli, skill: next });
+      logToConsole("info", "安装 Skill", {
+        cli: activeCli,
+        workspace_id: activeWorkspaceId,
+        skill: next,
+      });
     } catch (err) {
       const formatted = formatActionFailureToast("安装", err);
       logToConsole("error", "安装 Skill 失败", {
@@ -434,7 +442,7 @@ export function SkillsMarketPage() {
           <div>
             <div className="text-sm font-semibold">可安装</div>
             <div className="mt-1 text-xs text-slate-500">
-              启用仓库后才会出现在这里；安装默认只启用当前 CLI（{currentCli.name}）。
+              启用仓库后才会出现在这里；安装默认只启用当前工作区（{currentCli.name}）。
             </div>
           </div>
           <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
@@ -505,7 +513,7 @@ export function SkillsMarketPage() {
               const installing = installingSource === key;
               const installedRow = installedBySource.get(key);
               const status: MarketStatus = installedRow
-                ? enabledForCli(installedRow, activeCli)
+                ? installedRow.enabled
                   ? "enabled"
                   : "needs_enable"
                 : "not_installed";

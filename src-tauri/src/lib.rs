@@ -8,7 +8,7 @@ mod shared;
 pub(crate) use app::{app_state, notice, resident};
 pub(crate) use domain::{
     claude_model_validation, claude_model_validation_history, cost, cost_stats, mcp, prompts,
-    providers, skills, sort_modes, usage, usage_stats,
+    providers, skills, sort_modes, usage, usage_stats, workspace_switch, workspaces,
 };
 pub(crate) use gateway::session_manager;
 pub(crate) use infra::{
@@ -246,6 +246,13 @@ pub fn run() {
             cli_proxy_status_all,
             cli_proxy_set_enabled,
             cli_proxy_sync_enabled
+            ,
+            workspaces_list,
+            workspace_create,
+            workspace_rename,
+            workspace_delete,
+            workspace_preview,
+            workspace_apply
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

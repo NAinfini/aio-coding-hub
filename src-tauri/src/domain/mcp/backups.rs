@@ -2,7 +2,7 @@
 
 use crate::mcp_sync;
 
-use super::cli_specs::MCP_CLI_SPECS;
+use super::cli_specs::MCP_CLI_KEYS;
 
 #[derive(Debug)]
 pub(super) struct SingleCliBackup {
@@ -29,9 +29,9 @@ pub(super) struct CliBackupSnapshots(Vec<(&'static str, SingleCliBackup)>);
 
 impl CliBackupSnapshots {
     pub(super) fn capture_all(app: &tauri::AppHandle) -> Result<Self, String> {
-        let mut out = Vec::with_capacity(MCP_CLI_SPECS.len());
-        for spec in MCP_CLI_SPECS {
-            out.push((spec.cli_key, SingleCliBackup::capture(app, spec.cli_key)?));
+        let mut out = Vec::with_capacity(MCP_CLI_KEYS.len());
+        for cli_key in MCP_CLI_KEYS {
+            out.push((cli_key, SingleCliBackup::capture(app, cli_key)?));
         }
         Ok(Self(out))
     }

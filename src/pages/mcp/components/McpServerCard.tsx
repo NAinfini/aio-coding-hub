@@ -1,7 +1,5 @@
 import { Command, Edit2, Globe, Link, Terminal, Trash2 } from "lucide-react";
-import { CLIS, enabledFlagForCli } from "../../../constants/clis";
 import type { McpServerSummary } from "../../../services/mcp";
-import type { CliKey } from "../../../services/providers";
 import { Button } from "../../../ui/Button";
 import { Card } from "../../../ui/Card";
 import { Switch } from "../../../ui/Switch";
@@ -9,7 +7,7 @@ import { Switch } from "../../../ui/Switch";
 export type McpServerCardProps = {
   server: McpServerSummary;
   toggling: boolean;
-  onToggleEnabled: (server: McpServerSummary, cliKey: CliKey) => void;
+  onToggleEnabled: (server: McpServerSummary) => void;
   onEdit: (server: McpServerSummary) => void;
   onDelete: (server: McpServerSummary) => void;
 };
@@ -68,24 +66,17 @@ export function McpServerCard({
 
         <div className="flex items-center justify-between gap-4 sm:justify-end">
           <div className="flex items-center gap-2">
-            {CLIS.map((cli) => {
-              const checked = enabledFlagForCli(server, cli.key);
-              return (
-                <div
-                  key={cli.key}
-                  className="flex flex-col items-center gap-1"
-                  title={`Toggle for ${cli.name}`}
-                >
-                  <Switch
-                    checked={checked}
-                    disabled={toggling}
-                    onCheckedChange={() => onToggleEnabled(server, cli.key)}
-                    className="scale-90"
-                  />
-                  <span className="text-[10px] font-medium text-slate-400">{cli.name}</span>
-                </div>
-              );
-            })}
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={server.enabled}
+                disabled={toggling}
+                onCheckedChange={() => onToggleEnabled(server)}
+                className="scale-90"
+              />
+              <span className="text-xs font-medium text-slate-500">
+                {server.enabled ? "已启用" : "未启用"}
+              </span>
+            </div>
           </div>
 
           <div className="h-8 w-px bg-slate-200" />

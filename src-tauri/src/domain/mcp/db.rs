@@ -2,15 +2,14 @@
 
 use crate::db;
 use crate::shared::time::now_unix_seconds;
+use crate::workspaces;
 use rusqlite::{params, Connection, ErrorCode, OptionalExtension};
 use std::collections::BTreeMap;
 
 use super::backups::{CliBackupSnapshots, SingleCliBackup};
-use super::cli_specs::spec_for_cli_key;
 use super::sync::{sync_all_cli, sync_one_cli};
 use super::types::{McpImportServer, McpServerSummary};
 use super::validate::{suggest_key, validate_cli_key, validate_server_key, validate_transport};
-use crate::shared::sqlite::enabled_to_int;
 use crate::shared::text::normalize_name;
 
 fn server_key_exists(conn: &Connection, server_key: &str) -> Result<bool, String> {
@@ -85,9 +84,7 @@ fn row_to_summary(row: &rusqlite::Row<'_>) -> Result<McpServerSummary, rusqlite:
         cwd: row.get("cwd")?,
         url: row.get("url")?,
         headers,
-        enabled_claude: row.get::<_, i64>("enabled_claude")? != 0,
-        enabled_codex: row.get::<_, i64>("enabled_codex")? != 0,
-        enabled_gemini: row.get::<_, i64>("enabled_gemini")? != 0,
+        enabled: row.get::<_, i64>("enabled")? != 0,
         created_at: row.get("created_at")?,
         updated_at: row.get("updated_at")?,
     })
@@ -107,9 +104,7 @@ SELECT
   cwd,
   url,
   headers_json,
-  enabled_claude,
-  enabled_codex,
-  enabled_gemini,
+  0 AS enabled,
   created_at,
   updated_at
 FROM mcp_servers
@@ -123,36 +118,71 @@ WHERE id = ?1
     .ok_or_else(|| "DB_NOT_FOUND: mcp server not found".to_string())
 }
 
-pub fn list_all(db: &db::Db) -> Result<Vec<McpServerSummary>, String> {
+fn get_by_id_for_workspace(
+    conn: &Connection,
+    workspace_id: i64,
+    server_id: i64,
+) -> Result<McpServerSummary, String> {
+    conn.query_row(
+        r#"
+SELECT
+  s.id,
+  s.server_key,
+  s.name,
+  s.transport,
+  s.command,
+  s.args_json,
+  s.env_json,
+  s.cwd,
+  s.url,
+  s.headers_json,
+  CASE WHEN e.server_id IS NULL THEN 0 ELSE 1 END AS enabled,
+  s.created_at,
+  s.updated_at
+FROM mcp_servers s
+LEFT JOIN workspace_mcp_enabled e
+  ON e.workspace_id = ?1 AND e.server_id = s.id
+WHERE s.id = ?2
+"#,
+        params![workspace_id, server_id],
+        row_to_summary,
+    )
+    .optional()
+    .map_err(|e| format!("DB_ERROR: failed to query mcp server: {e}"))?
+    .ok_or_else(|| "DB_NOT_FOUND: mcp server not found".to_string())
+}
+
+pub fn list_for_workspace(db: &db::Db, workspace_id: i64) -> Result<Vec<McpServerSummary>, String> {
     let conn = db.open_connection()?;
+    let _ = workspaces::get_cli_key_by_id(&conn, workspace_id)?;
 
     let mut stmt = conn
         .prepare(
             r#"
 SELECT
-  id,
-  server_key,
-  name,
-  transport,
-  command,
-  args_json,
-  env_json,
-  cwd,
-  url,
-  headers_json,
-  enabled_claude,
-  enabled_codex,
-  enabled_gemini,
-  created_at,
-  updated_at
-FROM mcp_servers
-ORDER BY updated_at DESC, id DESC
+  s.id,
+  s.server_key,
+  s.name,
+  s.transport,
+  s.command,
+  s.args_json,
+  s.env_json,
+  s.cwd,
+  s.url,
+  s.headers_json,
+  CASE WHEN e.server_id IS NULL THEN 0 ELSE 1 END AS enabled,
+  s.created_at,
+  s.updated_at
+FROM mcp_servers s
+LEFT JOIN workspace_mcp_enabled e
+  ON e.workspace_id = ?1 AND e.server_id = s.id
+ORDER BY s.updated_at DESC, s.id DESC
 "#,
         )
         .map_err(|e| format!("DB_ERROR: failed to prepare query: {e}"))?;
 
     let rows = stmt
-        .query_map([], row_to_summary)
+        .query_map([workspace_id], row_to_summary)
         .map_err(|e| format!("DB_ERROR: failed to list mcp servers: {e}"))?;
 
     let mut items = Vec::new();
@@ -176,9 +206,6 @@ pub fn upsert(
     cwd: Option<&str>,
     url: Option<&str>,
     headers: BTreeMap<String, String>,
-    enabled_claude: bool,
-    enabled_codex: bool,
-    enabled_gemini: bool,
 ) -> Result<McpServerSummary, String> {
     let name = name.trim();
     if name.is_empty() {
@@ -270,12 +297,9 @@ INSERT INTO mcp_servers(
   cwd,
   url,
   headers_json,
-  enabled_claude,
-  enabled_codex,
-  enabled_gemini,
   created_at,
   updated_at
-) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
+) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
 "#,
                 params![
                     resolved_key,
@@ -288,9 +312,6 @@ INSERT INTO mcp_servers(
                     cwd,
                     url,
                     headers_json,
-                    enabled_to_int(enabled_claude),
-                    enabled_to_int(enabled_codex),
-                    enabled_to_int(enabled_gemini),
                     now,
                     now
                 ],
@@ -319,11 +340,8 @@ SET
   cwd = ?7,
   url = ?8,
   headers_json = ?9,
-  enabled_claude = ?10,
-  enabled_codex = ?11,
-  enabled_gemini = ?12,
-  updated_at = ?13
-WHERE id = ?14
+  updated_at = ?10
+WHERE id = ?11
 "#,
                 params![
                     name,
@@ -335,9 +353,6 @@ WHERE id = ?14
                     cwd,
                     url,
                     headers_json,
-                    enabled_to_int(enabled_claude),
-                    enabled_to_int(enabled_codex),
-                    enabled_to_int(enabled_gemini),
                     now,
                     id
                 ],
@@ -363,41 +378,62 @@ WHERE id = ?14
 pub fn set_enabled(
     app: &tauri::AppHandle,
     db: &db::Db,
+    workspace_id: i64,
     server_id: i64,
-    cli_key: &str,
     enabled: bool,
 ) -> Result<McpServerSummary, String> {
-    validate_cli_key(cli_key)?;
-
     let mut conn = db.open_connection()?;
     let now = now_unix_seconds();
     let tx = conn
         .transaction()
         .map_err(|e| format!("DB_ERROR: failed to start transaction: {e}"))?;
 
-    let backup = SingleCliBackup::capture(app, cli_key)?;
+    let cli_key = workspaces::get_cli_key_by_id(&tx, workspace_id)?;
+    validate_cli_key(&cli_key)?;
+    let should_sync = workspaces::is_active_workspace(&tx, workspace_id)?;
 
-    let column = spec_for_cli_key(cli_key)?.enabled_column;
+    let backup = if should_sync {
+        Some(SingleCliBackup::capture(app, &cli_key)?)
+    } else {
+        None
+    };
 
-    let sql = format!("UPDATE mcp_servers SET {column} = ?1, updated_at = ?2 WHERE id = ?3");
-    let changed = tx
-        .execute(&sql, params![enabled_to_int(enabled), now, server_id])
-        .map_err(|e| format!("DB_ERROR: failed to update mcp server: {e}"))?;
-    if changed == 0 {
-        return Err("DB_NOT_FOUND: mcp server not found".to_string());
+    if enabled {
+        tx.execute(
+            r#"
+INSERT INTO workspace_mcp_enabled(workspace_id, server_id, created_at, updated_at)
+VALUES (?1, ?2, ?3, ?3)
+ON CONFLICT(workspace_id, server_id) DO UPDATE SET
+  updated_at = excluded.updated_at
+"#,
+            params![workspace_id, server_id, now],
+        )
+        .map_err(|e| format!("DB_ERROR: failed to enable mcp server: {e}"))?;
+    } else {
+        tx.execute(
+            "DELETE FROM workspace_mcp_enabled WHERE workspace_id = ?1 AND server_id = ?2",
+            params![workspace_id, server_id],
+        )
+        .map_err(|e| format!("DB_ERROR: failed to disable mcp server: {e}"))?;
     }
 
-    if let Err(err) = sync_one_cli(app, &tx, cli_key) {
-        backup.restore(app, cli_key);
-        return Err(err);
+    if should_sync {
+        if let Err(err) = sync_one_cli(app, &tx, &cli_key) {
+            if let Some(backup) = backup {
+                backup.restore(app, &cli_key);
+            }
+            return Err(err);
+        }
     }
 
     if let Err(err) = tx.commit() {
-        backup.restore(app, cli_key);
+        if let Some(backup) = backup {
+            backup.restore(app, &cli_key);
+        }
         return Err(format!("DB_ERROR: failed to commit: {err}"));
     }
 
-    get_by_id(&conn, server_id)
+    get_by_id_for_workspace(&conn, workspace_id, server_id)
 }
 
 pub fn delete(app: &tauri::AppHandle, db: &db::Db, server_id: i64) -> Result<(), String> {
@@ -505,12 +541,9 @@ INSERT INTO mcp_servers(
   cwd,
   url,
   headers_json,
-  enabled_claude,
-  enabled_codex,
-  enabled_gemini,
   created_at,
   updated_at
-) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
+) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
 "#,
                 params![
                     resolved_key,
@@ -523,9 +556,6 @@ INSERT INTO mcp_servers(
                     cwd,
                     url,
                     headers_json,
-                    enabled_to_int(input.enabled_claude),
-                    enabled_to_int(input.enabled_codex),
-                    enabled_to_int(input.enabled_gemini),
                     now,
                     now
                 ],
@@ -548,11 +578,8 @@ SET
   cwd = ?7,
   url = ?8,
   headers_json = ?9,
-  enabled_claude = ?10,
-  enabled_codex = ?11,
-  enabled_gemini = ?12,
-  updated_at = ?13
-WHERE id = ?14
+  updated_at = ?10
+WHERE id = ?11
 "#,
                 params![
                     name,
@@ -564,9 +591,6 @@ WHERE id = ?14
                     cwd,
                     url,
                     headers_json,
-                    enabled_to_int(input.enabled_claude),
-                    enabled_to_int(input.enabled_codex),
-                    enabled_to_int(input.enabled_gemini),
                     now,
                     id
                 ],

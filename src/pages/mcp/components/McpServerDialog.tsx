@@ -4,7 +4,6 @@ import { logToConsole } from "../../../services/consoleLog";
 import { mcpServerUpsert, type McpServerSummary, type McpTransport } from "../../../services/mcp";
 import { Button } from "../../../ui/Button";
 import { Dialog } from "../../../ui/Dialog";
-import { Switch } from "../../../ui/Switch";
 import { cn } from "../../../utils/cn";
 
 export type McpServerDialogProps = {
@@ -37,14 +36,6 @@ function parseKeyValueLines(text: string, hint: string) {
   return out;
 }
 
-function enabledLabel(server: McpServerSummary) {
-  const enabled: string[] = [];
-  if (server.enabled_claude) enabled.push("Claude");
-  if (server.enabled_codex) enabled.push("Codex");
-  if (server.enabled_gemini) enabled.push("Gemini");
-  return enabled.length ? enabled.join(" / ") : "未启用";
-}
-
 export function McpServerDialog({ open, editTarget, onOpenChange, onSaved }: McpServerDialogProps) {
   const [saving, setSaving] = useState(false);
 
@@ -56,10 +47,6 @@ export function McpServerDialog({ open, editTarget, onOpenChange, onSaved }: Mcp
   const [cwd, setCwd] = useState("");
   const [url, setUrl] = useState("");
   const [headersText, setHeadersText] = useState("");
-
-  const [enabledClaude, setEnabledClaude] = useState(false);
-  const [enabledCodex, setEnabledCodex] = useState(false);
-  const [enabledGemini, setEnabledGemini] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -80,9 +67,6 @@ export function McpServerDialog({ open, editTarget, onOpenChange, onSaved }: Mcp
           .map(([k, v]) => `${k}=${v}`)
           .join("\n")
       );
-      setEnabledClaude(editTarget.enabled_claude);
-      setEnabledCodex(editTarget.enabled_codex);
-      setEnabledGemini(editTarget.enabled_gemini);
       return;
     }
 
@@ -94,9 +78,6 @@ export function McpServerDialog({ open, editTarget, onOpenChange, onSaved }: Mcp
     setCwd("");
     setUrl("");
     setHeadersText("");
-    setEnabledClaude(false);
-    setEnabledCodex(false);
-    setEnabledGemini(false);
   }, [open, editTarget]);
 
   const transportHint = transport === "http" ? "HTTP（远程服务）" : "STDIO（本地命令）";
@@ -120,9 +101,6 @@ export function McpServerDialog({ open, editTarget, onOpenChange, onSaved }: Mcp
         cwd: transport === "stdio" ? (cwd.trim() ? cwd : null) : null,
         url: transport === "http" ? url : null,
         headers: transport === "http" ? parseKeyValueLines(headersText, "Headers") : {},
-        enabled_claude: enabledClaude,
-        enabled_codex: enabledCodex,
-        enabled_gemini: enabledGemini,
       });
 
       if (!next) {
@@ -134,7 +112,6 @@ export function McpServerDialog({ open, editTarget, onOpenChange, onSaved }: Mcp
         id: next.id,
         server_key: next.server_key,
         transport: next.transport,
-        enabled: enabledLabel(next),
       });
 
       toast(editTarget ? "已更新" : "已新增");
@@ -153,7 +130,7 @@ export function McpServerDialog({ open, editTarget, onOpenChange, onSaved }: Mcp
       open={open}
       title={editTarget ? "编辑 MCP 服务" : "添加 MCP 服务"}
       description={
-        editTarget ? "修改后会自动同步到启用的 CLI 配置文件。" : `类型：${transportHint}`
+        editTarget ? "修改后会自动同步到所有 CLI 的当前工作区配置文件。" : `类型：${transportHint}`
       }
       onOpenChange={onOpenChange}
       className="max-w-3xl"
@@ -238,24 +215,6 @@ export function McpServerDialog({ open, editTarget, onOpenChange, onSaved }: Mcp
                   </div>
                 </label>
               ))}
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <div className="text-sm font-medium text-slate-700">生效范围</div>
-          <div className="mt-2 flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2">
-              <Switch checked={enabledClaude} onCheckedChange={setEnabledClaude} />
-              <span className="text-sm text-slate-700">Claude</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch checked={enabledCodex} onCheckedChange={setEnabledCodex} />
-              <span className="text-sm text-slate-700">Codex</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch checked={enabledGemini} onCheckedChange={setEnabledGemini} />
-              <span className="text-sm text-slate-700">Gemini</span>
             </div>
           </div>
         </div>

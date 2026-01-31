@@ -14,3 +14,5 @@ pub(crate) mod skills;
 pub(crate) mod sort_modes;
 pub(crate) mod usage;
 pub(crate) mod usage_stats;
+pub(crate) mod workspace_switch;
+pub(crate) mod workspaces;

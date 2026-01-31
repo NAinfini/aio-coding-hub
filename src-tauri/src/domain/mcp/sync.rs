@@ -1,40 +1,45 @@
 //! Usage: Sync enabled MCP servers to supported CLI config files.
 
 use crate::mcp_sync;
+use crate::workspaces;
 use rusqlite::Connection;
 use std::collections::BTreeMap;
 
-use super::cli_specs::{spec_for_cli_key, MCP_CLI_SPECS};
+use super::cli_specs::{validate_cli_key, MCP_CLI_KEYS};
 
 pub(super) fn list_enabled_for_cli(
     conn: &Connection,
     cli_key: &str,
 ) -> Result<Vec<mcp_sync::McpServerForSync>, String> {
-    let col = spec_for_cli_key(cli_key)?.enabled_column;
+    validate_cli_key(cli_key)?;
 
-    let sql = format!(
-        r#"
-SELECT
-  server_key,
-  transport,
-  command,
-  args_json,
-  env_json,
-  cwd,
-  url,
-  headers_json
-FROM mcp_servers
-WHERE {col} = 1
-ORDER BY server_key ASC
-"#
-    );
+    let Some(workspace_id) = workspaces::active_id_by_cli(conn, cli_key)? else {
+        return Ok(Vec::new());
+    };
 
     let mut stmt = conn
-        .prepare(&sql)
+        .prepare(
+            r#"
+SELECT
+  s.server_key,
+  s.transport,
+  s.command,
+  s.args_json,
+  s.env_json,
+  s.cwd,
+  s.url,
+  s.headers_json
+FROM mcp_servers s
+JOIN workspace_mcp_enabled e
+  ON e.server_id = s.id
+WHERE e.workspace_id = ?1
+ORDER BY s.server_key ASC
+"#,
+        )
         .map_err(|e| format!("DB_ERROR: failed to prepare enabled mcp query: {e}"))?;
 
     let rows = stmt
-        .query_map([], |row| {
+        .query_map([workspace_id], |row| {
             let args_json: String = row.get("args_json")?;
             let env_json: String = row.get("env_json")?;
             let headers_json: String = row.get("headers_json")?;
@@ -65,9 +70,80 @@ ORDER BY server_key ASC
     Ok(out)
 }
 
+pub(crate) fn list_enabled_for_workspace(
+    conn: &Connection,
+    workspace_id: i64,
+) -> Result<Vec<mcp_sync::McpServerForSync>, String> {
+    let _cli_key = workspaces::get_cli_key_by_id(conn, workspace_id)?;
+
+    let mut stmt = conn
+        .prepare(
+            r#"
+SELECT
+  s.server_key,
+  s.transport,
+  s.command,
+  s.args_json,
+  s.env_json,
+  s.cwd,
+  s.url,
+  s.headers_json
+FROM mcp_servers s
+JOIN workspace_mcp_enabled e
+  ON e.server_id = s.id
+WHERE e.workspace_id = ?1
+ORDER BY s.server_key ASC
+"#,
+        )
+        .map_err(|e| format!("DB_ERROR: failed to prepare enabled mcp query: {e}"))?;
+
+    let rows = stmt
+        .query_map([workspace_id], |row| {
+            let args_json: String = row.get("args_json")?;
+            let env_json: String = row.get("env_json")?;
+            let headers_json: String = row.get("headers_json")?;
+
+            let args = serde_json::from_str::<Vec<String>>(&args_json).unwrap_or_default();
+            let env =
+                serde_json::from_str::<BTreeMap<String, String>>(&env_json).unwrap_or_default();
+            let headers =
+                serde_json::from_str::<BTreeMap<String, String>>(&headers_json).unwrap_or_default();
+
+            Ok(mcp_sync::McpServerForSync {
+                server_key: row.get("server_key")?,
+                transport: row.get("transport")?,
+                command: row.get("command")?,
+                args,
+                env,
+                cwd: row.get("cwd")?,
+                url: row.get("url")?,
+                headers,
+            })
+        })
+        .map_err(|e| format!("DB_ERROR: failed to query enabled mcp servers: {e}"))?;
+
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row.map_err(|e| format!("DB_ERROR: failed to read enabled mcp row: {e}"))?);
+    }
+    Ok(out)
+}
+
+pub(crate) fn sync_cli_for_workspace(
+    app: &tauri::AppHandle,
+    conn: &Connection,
+    workspace_id: i64,
+) -> Result<(), String> {
+    let cli_key = workspaces::get_cli_key_by_id(conn, workspace_id)?;
+    validate_cli_key(&cli_key)?;
+    let servers = list_enabled_for_workspace(conn, workspace_id)?;
+    mcp_sync::sync_cli(app, &cli_key, &servers)?;
+    Ok(())
+}
+
 pub(super) fn sync_all_cli(app: &tauri::AppHandle, conn: &Connection) -> Result<(), String> {
-    for spec in MCP_CLI_SPECS {
-        sync_one_cli(app, conn, spec.cli_key)?;
+    for cli_key in MCP_CLI_KEYS {
+        sync_one_cli(app, conn, cli_key)?;
     }
 
     Ok(())

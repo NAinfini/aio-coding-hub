@@ -18,9 +18,7 @@ export type InstalledSkillSummary = {
   source_git_url: string;
   source_branch: string;
   source_subdir: string;
-  enabled_claude: boolean;
-  enabled_codex: boolean;
-  enabled_gemini: boolean;
+  enabled: boolean;
   created_at: number;
   updated_at: number;
 };
@@ -69,8 +67,8 @@ export async function skillRepoDelete(repoId: number) {
   return invokeTauriOrNull<boolean>("skill_repo_delete", { repoId });
 }
 
-export async function skillsInstalledList() {
-  return invokeTauriOrNull<InstalledSkillSummary[]>("skills_installed_list");
+export async function skillsInstalledList(workspaceId: number) {
+  return invokeTauriOrNull<InstalledSkillSummary[]>("skills_installed_list", { workspaceId });
 }
 
 export async function skillsDiscoverAvailable(refresh: boolean) {
@@ -80,31 +78,29 @@ export async function skillsDiscoverAvailable(refresh: boolean) {
 }
 
 export async function skillInstall(input: {
+  workspace_id: number;
   git_url: string;
   branch: string;
   source_subdir: string;
-  enabled_claude: boolean;
-  enabled_codex: boolean;
-  enabled_gemini: boolean;
+  enabled: boolean;
 }) {
   return invokeTauriOrNull<InstalledSkillSummary>("skill_install", {
+    workspaceId: input.workspace_id,
     gitUrl: input.git_url,
     branch: input.branch,
     sourceSubdir: input.source_subdir,
-    enabledClaude: input.enabled_claude,
-    enabledCodex: input.enabled_codex,
-    enabledGemini: input.enabled_gemini,
+    enabled: input.enabled,
   });
 }
 
 export async function skillSetEnabled(input: {
+  workspace_id: number;
   skill_id: number;
-  cli_key: CliKey;
   enabled: boolean;
 }) {
   return invokeTauriOrNull<InstalledSkillSummary>("skill_set_enabled", {
+    workspaceId: input.workspace_id,
     skillId: input.skill_id,
-    cliKey: input.cli_key,
     enabled: input.enabled,
   });
 }
@@ -113,13 +109,13 @@ export async function skillUninstall(skillId: number) {
   return invokeTauriOrNull<boolean>("skill_uninstall", { skillId });
 }
 
-export async function skillsLocalList(cliKey: CliKey) {
-  return invokeTauriOrNull<LocalSkillSummary[]>("skills_local_list", { cliKey });
+export async function skillsLocalList(workspaceId: number) {
+  return invokeTauriOrNull<LocalSkillSummary[]>("skills_local_list", { workspaceId });
 }
 
-export async function skillImportLocal(input: { cli_key: CliKey; dir_name: string }) {
+export async function skillImportLocal(input: { workspace_id: number; dir_name: string }) {
   return invokeTauriOrNull<InstalledSkillSummary>("skill_import_local", {
-    cliKey: input.cli_key,
+    workspaceId: input.workspace_id,
     dirName: input.dir_name,
   });
 }

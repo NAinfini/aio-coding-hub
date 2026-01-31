@@ -5,14 +5,25 @@ use super::skill_md::parse_skill_md;
 use super::types::{InstalledSkillSummary, LocalSkillSummary};
 use super::util::validate_dir_name;
 use crate::db;
-use crate::shared::sqlite::enabled_to_int;
 use crate::shared::text::normalize_name;
 use crate::shared::time::now_unix_seconds;
+use crate::workspaces;
 use rusqlite::params;
 
-pub fn local_list(app: &tauri::AppHandle, cli_key: &str) -> Result<Vec<LocalSkillSummary>, String> {
-    validate_cli_key(cli_key)?;
-    let root = cli_skills_root(app, cli_key)?;
+pub fn local_list(
+    app: &tauri::AppHandle,
+    db: &db::Db,
+    workspace_id: i64,
+) -> Result<Vec<LocalSkillSummary>, String> {
+    let conn = db.open_connection()?;
+    let cli_key = workspaces::get_cli_key_by_id(&conn, workspace_id)?;
+    validate_cli_key(&cli_key)?;
+
+    if !workspaces::is_active_workspace(&conn, workspace_id)? {
+        return Err("SKILL_LOCAL_REQUIRES_ACTIVE_WORKSPACE: local skills only available for active workspace".to_string());
+    }
+
+    let root = cli_skills_root(app, &cli_key)?;
     if !root.exists() {
         return Ok(Vec::new());
     }
@@ -67,15 +78,21 @@ pub fn local_list(app: &tauri::AppHandle, cli_key: &str) -> Result<Vec<LocalSkil
 pub fn import_local(
     app: &tauri::AppHandle,
     db: &db::Db,
-    cli_key: &str,
+    workspace_id: i64,
     dir_name: &str,
 ) -> Result<InstalledSkillSummary, String> {
-    validate_cli_key(cli_key)?;
     ensure_skills_roots(app)?;
 
     let dir_name = validate_dir_name(dir_name)?;
 
-    let cli_root = cli_skills_root(app, cli_key)?;
+    let mut conn = db.open_connection()?;
+    let cli_key = workspaces::get_cli_key_by_id(&conn, workspace_id)?;
+    validate_cli_key(&cli_key)?;
+    if !workspaces::is_active_workspace(&conn, workspace_id)? {
+        return Err("SKILL_IMPORT_LOCAL_REQUIRES_ACTIVE_WORKSPACE: switch to the target workspace before importing".to_string());
+    }
+
+    let cli_root = cli_skills_root(app, &cli_key)?;
     let local_dir = cli_root.join(&dir_name);
     if !local_dir.exists() {
         return Err(format!("SKILL_LOCAL_NOT_FOUND: {}", local_dir.display()));
@@ -98,7 +115,6 @@ pub fn import_local(
     };
     let normalized_name = normalize_name(&name);
 
-    let mut conn = db.open_connection()?;
     if skill_key_exists(&conn, &dir_name)? {
         return Err("SKILL_IMPORT_CONFLICT: same skill_key already exists".to_string());
     }
@@ -108,13 +124,6 @@ pub fn import_local(
     if ssot_dir.exists() {
         return Err("SKILL_IMPORT_CONFLICT: ssot dir already exists".to_string());
     }
-
-    let enabled_flags = match cli_key {
-        "claude" => (true, false, false),
-        "codex" => (false, true, false),
-        "gemini" => (false, false, true),
-        _ => return Err(format!("SEC_INVALID_INPUT: unknown cli_key={cli_key}")),
-    };
 
     let tx = conn
         .transaction()
@@ -130,12 +139,9 @@ INSERT INTO skills(
   source_git_url,
   source_branch,
   source_subdir,
-  enabled_claude,
-  enabled_codex,
-  enabled_gemini,
   created_at,
   updated_at
-) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
 "#,
         params![
             dir_name,
@@ -145,9 +151,6 @@ INSERT INTO skills(
             format!("local://{cli_key}"),
             "local",
             dir_name,
-            enabled_to_int(enabled_flags.0),
-            enabled_to_int(enabled_flags.1),
-            enabled_to_int(enabled_flags.2),
             now,
             now
         ],
@@ -155,6 +158,17 @@ INSERT INTO skills(
     .map_err(|e| format!("DB_ERROR: failed to insert imported skill: {e}"))?;
 
     let skill_id = tx.last_insert_rowid();
+
+    tx.execute(
+        r#"
+INSERT INTO workspace_skill_enabled(workspace_id, skill_id, created_at, updated_at)
+VALUES (?1, ?2, ?3, ?3)
+ON CONFLICT(workspace_id, skill_id) DO UPDATE SET
+  updated_at = excluded.updated_at
+"#,
+        params![workspace_id, skill_id, now],
+    )
+    .map_err(|e| format!("DB_ERROR: failed to enable imported skill for workspace: {e}"))?;
 
     if let Err(err) = copy_dir_recursive(&local_dir, &ssot_dir) {
         let _ = std::fs::remove_dir_all(&ssot_dir);

@@ -21,6 +21,7 @@ mod v25_to_v26;
 mod v26_to_v27;
 mod v27_to_v28;
 mod v28_to_v29;
+mod v29_to_v30;
 mod v2_to_v3;
 mod v3_to_v4;
 mod v4_to_v5;
@@ -33,19 +34,20 @@ mod v9_to_v10;
 use rusqlite::Connection;
 
 const LATEST_SCHEMA_VERSION: i64 = 29;
+const MAX_COMPAT_SCHEMA_VERSION: i64 = 33;
 
 pub(super) fn apply_migrations(conn: &mut Connection) -> Result<(), String> {
     let mut user_version = read_user_version(conn)?;
 
     if user_version < 0 {
         return Err(format!(
-            "unsupported sqlite schema version: user_version={user_version} (expected 0..={LATEST_SCHEMA_VERSION})"
+            "unsupported sqlite schema version: user_version={user_version} (expected 0..={MAX_COMPAT_SCHEMA_VERSION})"
         ));
     }
 
-    if user_version > LATEST_SCHEMA_VERSION {
+    if user_version > MAX_COMPAT_SCHEMA_VERSION {
         return Err(format!(
-            "unsupported sqlite schema version: user_version={user_version} (expected 0..={LATEST_SCHEMA_VERSION})"
+            "unsupported sqlite schema version: user_version={user_version} (expected 0..={MAX_COMPAT_SCHEMA_VERSION})"
         ));
     }
 
@@ -82,11 +84,23 @@ pub(super) fn apply_migrations(conn: &mut Connection) -> Result<(), String> {
             28 => v28_to_v29::migrate_v28_to_v29(conn)?,
             v => {
                 return Err(format!(
-                    "unsupported sqlite schema version: user_version={v} (expected 0..={LATEST_SCHEMA_VERSION})"
+                    "unsupported sqlite schema version: user_version={v} (expected 0..={MAX_COMPAT_SCHEMA_VERSION})"
                 ))
             }
         }
         user_version = read_user_version(conn)?;
+    }
+
+    v29_to_v30::ensure_workspace_cluster(conn)?;
+
+    let user_version = read_user_version(conn)?;
+    if user_version > LATEST_SCHEMA_VERSION {
+        let tx = conn
+            .transaction()
+            .map_err(|e| format!("failed to start sqlite transaction: {e}"))?;
+        set_user_version(&tx, LATEST_SCHEMA_VERSION)?;
+        tx.commit()
+            .map_err(|e| format!("failed to commit sqlite transaction: {e}"))?;
     }
 
     Ok(())

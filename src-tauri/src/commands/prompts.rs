@@ -7,10 +7,13 @@ use crate::{blocking, prompts};
 pub(crate) async fn prompts_list(
     app: tauri::AppHandle,
     db_state: tauri::State<'_, DbInitState>,
-    cli_key: String,
+    workspace_id: i64,
 ) -> Result<Vec<prompts::PromptSummary>, String> {
     let db = ensure_db_ready(app, db_state.inner()).await?;
-    blocking::run("prompts_list", move || prompts::list_by_cli(&db, &cli_key)).await
+    blocking::run("prompts_list", move || {
+        prompts::list_by_workspace(&db, workspace_id)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -30,14 +33,14 @@ pub(crate) async fn prompt_upsert(
     app: tauri::AppHandle,
     db_state: tauri::State<'_, DbInitState>,
     prompt_id: Option<i64>,
-    cli_key: String,
+    workspace_id: i64,
     name: String,
     content: String,
     enabled: bool,
 ) -> Result<prompts::PromptSummary, String> {
     let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
     blocking::run("prompt_upsert", move || {
-        prompts::upsert(&app, &db, prompt_id, &cli_key, &name, &content, enabled)
+        prompts::upsert(&app, &db, prompt_id, workspace_id, &name, &content, enabled)
     })
     .await
 }

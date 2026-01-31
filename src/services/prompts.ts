@@ -3,6 +3,7 @@ import type { CliKey } from "./providers";
 
 export type PromptSummary = {
   id: number;
+  workspace_id: number;
   cli_key: CliKey;
   name: string;
   content: string;
@@ -21,8 +22,8 @@ export type DefaultPromptSyncReport = {
   items: DefaultPromptSyncItem[];
 };
 
-export async function promptsList(cliKey: CliKey) {
-  return invokeTauriOrNull<PromptSummary[]>("prompts_list", { cliKey });
+export async function promptsList(workspaceId: number) {
+  return invokeTauriOrNull<PromptSummary[]>("prompts_list", { workspaceId });
 }
 
 export async function promptsDefaultSyncFromFiles() {
@@ -31,14 +32,14 @@ export async function promptsDefaultSyncFromFiles() {
 
 export async function promptUpsert(input: {
   prompt_id?: number | null;
-  cli_key: CliKey;
+  workspace_id: number;
   name: string;
   content: string;
   enabled: boolean;
 }) {
   return invokeTauriOrNull<PromptSummary>("prompt_upsert", {
     promptId: input.prompt_id ?? null,
-    cliKey: input.cli_key,
+    workspaceId: input.workspace_id,
     name: input.name,
     content: input.content,
     enabled: input.enabled,

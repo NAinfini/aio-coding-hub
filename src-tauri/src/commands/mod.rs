@@ -20,6 +20,7 @@ pub(crate) mod settings;
 pub(crate) mod skills;
 pub(crate) mod sort_modes;
 pub(crate) mod usage;
+pub(crate) mod workspaces;
 pub(crate) mod wsl;
 
 pub(crate) use app::*;
@@ -39,4 +40,5 @@ pub(crate) use settings::*;
 pub(crate) use skills::*;
 pub(crate) use sort_modes::*;
 pub(crate) use usage::*;
+pub(crate) use workspaces::*;
 pub(crate) use wsl::*;

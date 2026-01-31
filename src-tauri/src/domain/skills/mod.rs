@@ -14,9 +14,9 @@ mod types;
 mod util;
 
 pub use discover::discover_available;
-pub use installed::installed_list;
+pub use installed::installed_list_for_workspace;
 pub use local::{import_local, local_list};
-pub use ops::{install, set_enabled, uninstall};
+pub use ops::{install, set_enabled, sync_cli_for_workspace, uninstall};
 pub use paths::paths_get;
 pub use repos::{repo_delete, repo_upsert, repos_list};
 pub use types::{

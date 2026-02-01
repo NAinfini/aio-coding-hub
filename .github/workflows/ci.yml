@@ -45,6 +45,9 @@ jobs:
       - name: Install deps
         run: pnpm install --frozen-lockfile
 
+      - name: Unit tests (Vitest + coverage gate)
+        run: pnpm test:unit:coverage
+
       - name: Build frontend
         run: pnpm build
 

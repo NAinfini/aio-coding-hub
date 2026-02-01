@@ -33,3 +33,4 @@ docs/
 .ace-tool/
 check-doc/
 AGENTS.md
+coverage/

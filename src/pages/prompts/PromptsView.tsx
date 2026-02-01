@@ -3,14 +3,14 @@
 import { Pencil, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { logToConsole } from "../../services/consoleLog";
 import {
-  promptDelete,
-  promptSetEnabled,
-  promptUpsert,
-  promptsList,
-  type PromptSummary,
-} from "../../services/prompts";
+  usePromptDeleteMutation,
+  usePromptSetEnabledMutation,
+  usePromptUpsertMutation,
+  usePromptsListQuery,
+} from "../../query/prompts";
+import { logToConsole } from "../../services/consoleLog";
+import type { PromptSummary } from "../../services/prompts";
 import type { CliKey } from "../../services/providers";
 import { Button } from "../../ui/Button";
 import { Card } from "../../ui/Card";
@@ -67,9 +67,14 @@ export type PromptsViewProps = {
 };
 
 export function PromptsView({ workspaceId, cliKey, isActiveWorkspace = true }: PromptsViewProps) {
-  const [items, setItems] = useState<PromptSummary[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const promptsQuery = usePromptsListQuery(workspaceId);
+  const upsertMutation = usePromptUpsertMutation(workspaceId);
+  const toggleMutation = usePromptSetEnabledMutation(workspaceId);
+  const deleteMutation = usePromptDeleteMutation(workspaceId);
+
+  const items: PromptSummary[] = promptsQuery.data ?? [];
+  const loading = promptsQuery.isFetching;
+  const saving = upsertMutation.isPending || toggleMutation.isPending || deleteMutation.isPending;
   const [togglingId, setTogglingId] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PromptSummary | null>(null);
 
@@ -80,23 +85,14 @@ export function PromptsView({ workspaceId, cliKey, isActiveWorkspace = true }: P
 
   const fileHint = useMemo(() => promptFileHint(cliKey), [cliKey]);
 
-  async function refresh() {
-    setLoading(true);
-    try {
-      const next = await promptsList(workspaceId);
-      setItems(next ?? []);
-    } catch (err) {
-      logToConsole("error", "加载提示词失败", { error: String(err), workspace_id: workspaceId });
-      toast("加载失败：请查看控制台日志");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
-    void refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspaceId]);
+    if (!promptsQuery.error) return;
+    logToConsole("error", "加载提示词失败", {
+      error: String(promptsQuery.error),
+      workspace_id: workspaceId,
+    });
+    toast("加载失败：请查看控制台日志");
+  }, [promptsQuery.error, workspaceId]);
 
   useEffect(() => {
     if (!dialogOpen) return;
@@ -111,11 +107,9 @@ export function PromptsView({ workspaceId, cliKey, isActiveWorkspace = true }: P
 
   async function save() {
     if (saving) return;
-    setSaving(true);
     try {
-      const next = await promptUpsert({
-        prompt_id: editTarget?.id ?? null,
-        workspace_id: workspaceId,
+      const next = await upsertMutation.mutateAsync({
+        promptId: editTarget?.id ?? null,
         name,
         content,
         enabled: editTarget?.enabled ?? false,
@@ -135,13 +129,10 @@ export function PromptsView({ workspaceId, cliKey, isActiveWorkspace = true }: P
       toast(editTarget ? "提示词已更新" : "提示词已新增");
       setDialogOpen(false);
       setEditTarget(null);
-      await refresh();
     } catch (err) {
       const msg = formatUnknownError(err);
       logToConsole("error", "保存提示词失败", { error: msg, workspace_id: workspaceId });
       toast(formatPromptSaveToast(msg));
-    } finally {
-      setSaving(false);
     }
   }
 
@@ -149,19 +140,11 @@ export function PromptsView({ workspaceId, cliKey, isActiveWorkspace = true }: P
     if (togglingId != null) return;
     setTogglingId(target.id);
     try {
-      const next = await promptSetEnabled(target.id, enabled);
+      const next = await toggleMutation.mutateAsync({ promptId: target.id, enabled });
       if (!next) {
         toast("仅在 Tauri Desktop 环境可用");
         return;
       }
-
-      setItems((prev) =>
-        prev.map((p) => {
-          if (p.id === next.id) return next;
-          if (enabled) return { ...p, enabled: false };
-          return p;
-        })
-      );
 
       logToConsole("info", "切换提示词启用状态", {
         id: next.id,
@@ -192,23 +175,18 @@ export function PromptsView({ workspaceId, cliKey, isActiveWorkspace = true }: P
     if (!deleteTarget) return;
     if (saving) return;
     const target = deleteTarget;
-    setSaving(true);
     try {
-      const ok = await promptDelete(target.id);
+      const ok = await deleteMutation.mutateAsync(target.id);
       if (!ok) {
         toast("仅在 Tauri Desktop 环境可用");
         return;
       }
-
-      setItems((prev) => prev.filter((p) => p.id !== target.id));
       logToConsole("info", "删除提示词", { id: target.id, workspace_id: workspaceId });
       toast("已删除");
       setDeleteTarget(null);
     } catch (err) {
       logToConsole("error", "删除提示词失败", { error: String(err), id: target.id });
       toast(`删除失败：${String(err)}`);
-    } finally {
-      setSaving(false);
     }
   }
 

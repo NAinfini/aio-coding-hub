@@ -1,9 +1,8 @@
 // Usage: Main page for managing providers and sort modes (renders sub-views under `src/pages/providers/*`). Backend commands: `providers_*`, `sort_modes_*`.
 
-import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
-import { logToConsole } from "../services/consoleLog";
-import { providersList, type CliKey, type ProviderSummary } from "../services/providers";
+import { useState } from "react";
+import type { CliKey, ProviderSummary } from "../services/providers";
+import { useProvidersListQuery } from "../query/providers";
 import { PageHeader } from "../ui/PageHeader";
 import { TabList } from "../ui/TabList";
 import { ProvidersView } from "./providers/ProvidersView";
@@ -20,41 +19,9 @@ export function ProvidersPage() {
   const [view, setView] = useState<ViewKey>("providers");
 
   const [activeCli, setActiveCli] = useState<CliKey>("claude");
-  const activeCliRef = useRef(activeCli);
-  useEffect(() => {
-    activeCliRef.current = activeCli;
-  }, [activeCli]);
-
-  const [providers, setProviders] = useState<ProviderSummary[]>([]);
-  const [providersLoading, setProvidersLoading] = useState(false);
-
-  async function refreshProviders(cliKey: CliKey) {
-    setProvidersLoading(true);
-    try {
-      const items = await providersList(cliKey);
-      if (activeCliRef.current !== cliKey) return;
-      if (!items) {
-        setProviders([]);
-        return;
-      }
-      setProviders(items);
-    } catch (err) {
-      if (activeCliRef.current !== cliKey) return;
-      logToConsole("error", "读取供应商失败", {
-        cli: cliKey,
-        error: String(err),
-      });
-      toast("读取供应商失败：请查看控制台日志");
-    } finally {
-      if (activeCliRef.current === cliKey) {
-        setProvidersLoading(false);
-      }
-    }
-  }
-
-  useEffect(() => {
-    void refreshProviders(activeCli);
-  }, [activeCli]);
+  const providersQuery = useProvidersListQuery(activeCli);
+  const providers: ProviderSummary[] = providersQuery.data ?? [];
+  const providersLoading = providersQuery.isFetching;
 
   return (
     <div className="flex flex-col gap-6 lg:h-[calc(100vh-40px)] lg:overflow-hidden">
@@ -64,14 +31,7 @@ export function ProvidersPage() {
       />
 
       {view === "providers" ? (
-        <ProvidersView
-          activeCli={activeCli}
-          setActiveCli={setActiveCli}
-          providers={providers}
-          setProviders={setProviders}
-          providersLoading={providersLoading}
-          refreshProviders={refreshProviders}
-        />
+        <ProvidersView activeCli={activeCli} setActiveCli={setActiveCli} />
       ) : (
         <SortModesView
           activeCli={activeCli}

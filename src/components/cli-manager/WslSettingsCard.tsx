@@ -1,17 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import type { AppSettings, WslTargetCli } from "../../services/settings";
 import { logToConsole } from "../../services/consoleLog";
-import { appAboutGet } from "../../services/appAbout";
-import {
-  wslConfigStatusGet,
-  wslConfigureClients,
-  wslDetect,
-  wslHostAddressGet,
-  type WslDetection,
-  type WslDistroConfigStatus,
-  type WslConfigureReport,
-} from "../../services/wsl";
+import type { WslConfigureReport } from "../../services/wsl";
+import { useAppAboutQuery } from "../../query/appAbout";
+import { useWslConfigureClientsMutation, useWslOverviewQuery } from "../../query/wsl";
 import { Card } from "../../ui/Card";
 import { SettingsRow } from "../../ui/SettingsRow";
 import { Switch } from "../../ui/Switch";
@@ -36,13 +29,22 @@ export function WslSettingsCard({
   settings,
   onPersistSettings,
 }: WslSettingsCardProps) {
-  const [aboutOs, setAboutOs] = useState<string | null>(null);
-  const [hostIp, setHostIp] = useState<string | null>(null);
-  const [detection, setDetection] = useState<WslDetection | null>(null);
-  const [statusRows, setStatusRows] = useState<WslDistroConfigStatus[] | null>(null);
-  const [checkedOnce, setCheckedOnce] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [configuring, setConfiguring] = useState(false);
+  const aboutQuery = useAppAboutQuery({ enabled: available });
+  const aboutOs = aboutQuery.data?.os ?? null;
+
+  const wslOverviewQuery = useWslOverviewQuery({
+    enabled: available && Boolean(settings.wsl_auto_config),
+  });
+  const wslConfigureMutation = useWslConfigureClientsMutation();
+
+  const detection = wslOverviewQuery.data?.detection ?? null;
+  const hostIp = wslOverviewQuery.data?.hostIp ?? null;
+  const statusRows = wslOverviewQuery.data?.statusRows ?? null;
+
+  const checkedOnce = wslOverviewQuery.isFetched;
+  const loading = wslOverviewQuery.isFetching;
+  const configuring = wslConfigureMutation.isPending;
+
   const [lastReport, setLastReport] = useState<WslConfigureReport | null>(null);
 
   const wslSupported = useMemo(() => aboutOs === "windows", [aboutOs]);
@@ -50,66 +52,17 @@ export function WslSettingsCard({
   const wslDetected = Boolean(detection?.detected);
   const distros = detection?.distros ?? [];
 
-  useEffect(() => {
-    if (!available) return;
-    let cancelled = false;
-    appAboutGet()
-      .then((info) => {
-        if (cancelled) return;
-        setAboutOs(info?.os ?? null);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setAboutOs(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [available]);
-
   async function refreshAll() {
     if (!available) return;
-    if (loading) return;
-    setLoading(true);
     setLastReport(null);
 
     try {
-      const det = await wslDetect();
-      setCheckedOnce(true);
-      if (!det) {
-        setDetection(null);
-        setHostIp(null);
-        setStatusRows(null);
-        return;
-      }
-      setDetection(det);
-
-      if (!det.detected || det.distros.length === 0) {
-        setHostIp(null);
-        setStatusRows(null);
-        return;
-      }
-
-      const [ip, statuses] = await Promise.all([
-        wslHostAddressGet(),
-        wslConfigStatusGet(det.distros),
-      ]);
-      setHostIp(ip ?? null);
-      setStatusRows(statuses ?? null);
+      await wslOverviewQuery.refetch();
     } catch (err) {
       logToConsole("error", "刷新 WSL 状态失败", { error: String(err) });
       toast("刷新 WSL 状态失败：请稍后重试");
-    } finally {
-      setLoading(false);
     }
   }
-
-  useEffect(() => {
-    if (!available) return;
-    if (!settings.wsl_auto_config) return;
-    void refreshAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [available, settings.wsl_auto_config]);
 
   async function commitAutoConfig(next: boolean) {
     if (!available) return;
@@ -157,10 +110,9 @@ export function WslSettingsCard({
       return;
     }
 
-    setConfiguring(true);
     setLastReport(null);
     try {
-      const report = await wslConfigureClients({ targets: settings.wsl_target_cli });
+      const report = await wslConfigureMutation.mutateAsync({ targets: settings.wsl_target_cli });
       if (!report) {
         toast("仅在 Tauri Desktop 环境可用");
         return;
@@ -172,8 +124,6 @@ export function WslSettingsCard({
     } catch (err) {
       logToConsole("error", "WSL 一键配置失败", { error: String(err) });
       toast("WSL 一键配置失败：请查看控制台日志");
-    } finally {
-      setConfiguring(false);
     }
   }
 
@@ -323,7 +273,7 @@ export function WslSettingsCard({
               </div>
               <Button
                 onClick={() => void configureNow()}
-                disabled={configuring || saving || !wslDetected || !listenModeOk}
+                disabled={configuring || saving}
                 className="gap-2"
               >
                 <RefreshCw className={cn("h-4 w-4", configuring && "animate-spin")} />

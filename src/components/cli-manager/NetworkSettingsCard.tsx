@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import type { AppSettings, GatewayListenMode } from "../../services/settings";
 import { gatewayStart, gatewayStop } from "../../services/gateway";
-import { wslHostAddressGet } from "../../services/wsl";
 import { logToConsole } from "../../services/consoleLog";
 import { useGatewayMeta } from "../../hooks/useGatewayMeta";
+import { useWslHostAddressQuery } from "../../query/wsl";
 import { Card } from "../../ui/Card";
 import { Input } from "../../ui/Input";
 import { Select } from "../../ui/Select";
@@ -76,7 +76,10 @@ export function NetworkSettingsCard({
   const [customAddress, setCustomAddress] = useState<string>(
     settings.gateway_custom_listen_address
   );
-  const [wslHost, setWslHost] = useState<string | null>(null);
+  const wslHostQuery = useWslHostAddressQuery({
+    enabled: available && listenMode === "wsl_auto",
+  });
+  const wslHost = wslHostQuery.data ?? null;
 
   useEffect(() => {
     setListenMode(settings.gateway_listen_mode);
@@ -85,24 +88,6 @@ export function NetworkSettingsCard({
   useEffect(() => {
     setCustomAddress(settings.gateway_custom_listen_address);
   }, [settings.gateway_custom_listen_address]);
-
-  useEffect(() => {
-    if (!available) return;
-    if (listenMode !== "wsl_auto") return;
-    let cancelled = false;
-    wslHostAddressGet()
-      .then((ip) => {
-        if (cancelled) return;
-        setWslHost(ip ?? null);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setWslHost(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [available, listenMode]);
 
   const currentListenAddress = useMemo(() => {
     if (gateway?.running && gateway.listen_addr) return gateway.listen_addr;

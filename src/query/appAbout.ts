@@ -1,0 +1,17 @@
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { appAboutGet, type AppAboutInfo } from "../services/appAbout";
+import { hasTauriRuntime } from "../services/tauriInvoke";
+import { appAboutKeys } from "./keys";
+
+export function useAppAboutQuery(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: appAboutKeys.get(),
+    queryFn: () => appAboutGet(),
+    enabled: hasTauriRuntime() && (options?.enabled ?? true),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function isAppAboutAvailable(about: AppAboutInfo | null) {
+  return about != null;
+}

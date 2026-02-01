@@ -1,16 +1,17 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useMcpServerUpsertMutation } from "../../../query/mcp";
 import { logToConsole } from "../../../services/consoleLog";
-import { mcpServerUpsert, type McpServerSummary, type McpTransport } from "../../../services/mcp";
+import type { McpServerSummary, McpTransport } from "../../../services/mcp";
 import { Button } from "../../../ui/Button";
 import { Dialog } from "../../../ui/Dialog";
 import { cn } from "../../../utils/cn";
 
 export type McpServerDialogProps = {
+  workspaceId: number;
   open: boolean;
   editTarget: McpServerSummary | null;
   onOpenChange: (open: boolean) => void;
-  onSaved: () => void | Promise<void>;
 };
 
 function parseLines(text: string) {
@@ -36,8 +37,14 @@ function parseKeyValueLines(text: string, hint: string) {
   return out;
 }
 
-export function McpServerDialog({ open, editTarget, onOpenChange, onSaved }: McpServerDialogProps) {
-  const [saving, setSaving] = useState(false);
+export function McpServerDialog({
+  workspaceId,
+  open,
+  editTarget,
+  onOpenChange,
+}: McpServerDialogProps) {
+  const upsertMutation = useMcpServerUpsertMutation(workspaceId);
+  const saving = upsertMutation.isPending;
 
   const [name, setName] = useState("");
   const [transport, setTransport] = useState<McpTransport>("stdio");
@@ -84,15 +91,14 @@ export function McpServerDialog({ open, editTarget, onOpenChange, onSaved }: Mcp
 
   async function save() {
     if (saving) return;
-    setSaving(true);
     try {
-      const next = await mcpServerUpsert({
-        server_id: editTarget?.id ?? null,
+      const next = await upsertMutation.mutateAsync({
+        serverId: editTarget?.id ?? null,
         // server_key 是内部标识，用于写入 CLI 配置文件：
         // - Claude/Gemini: JSON map key
         // - Codex: TOML table name
         // 为降低认知负担，创建时自动生成；编辑时保持不变。
-        server_key: editTarget?.server_key ?? "",
+        serverKey: editTarget?.server_key ?? "",
         name,
         transport,
         command: transport === "stdio" ? command : null,
@@ -116,12 +122,9 @@ export function McpServerDialog({ open, editTarget, onOpenChange, onSaved }: Mcp
 
       toast(editTarget ? "已更新" : "已新增");
       onOpenChange(false);
-      await onSaved();
     } catch (err) {
       logToConsole("error", "保存 MCP Server 失败", { error: String(err) });
       toast(`保存失败：${String(err)}`);
-    } finally {
-      setSaving(false);
     }
   }
 

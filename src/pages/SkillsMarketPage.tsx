@@ -5,20 +5,24 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { CLIS, cliFromKeyOrDefault, isCliKey } from "../constants/clis";
+import {
+  useSkillInstallMutation,
+  useSkillRepoDeleteMutation,
+  useSkillRepoUpsertMutation,
+  useSkillReposListQuery,
+  useSkillsDiscoverAvailableMutation,
+  useSkillsDiscoverAvailableQuery,
+  useSkillsInstalledListQuery,
+} from "../query/skills";
+import { useWorkspacesListQuery } from "../query/workspaces";
 import { logToConsole } from "../services/consoleLog";
 import type { CliKey } from "../services/providers";
-import {
-  skillInstall,
-  skillRepoDelete,
-  skillRepoUpsert,
-  skillReposList,
-  skillsDiscoverAvailable,
-  skillsInstalledList,
-  type AvailableSkillSummary,
-  type InstalledSkillSummary,
-  type SkillRepoSummary,
+import type {
+  AvailableSkillSummary,
+  InstalledSkillSummary,
+  SkillRepoSummary,
 } from "../services/skills";
-import { workspacesList } from "../services/workspaces";
+import { hasTauriRuntime } from "../services/tauriInvoke";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { Dialog } from "../ui/Dialog";
@@ -94,16 +98,32 @@ const CLI_TABS: Array<{ key: CliKey; label: string }> = CLIS.map((cli) => ({
 
 export function SkillsMarketPage() {
   const navigate = useNavigate();
+  const tauriRuntime = hasTauriRuntime();
   const [activeCli, setActiveCli] = useState<CliKey>(() => readCliFromStorage());
   const currentCli = useMemo(() => cliFromKeyOrDefault(activeCli), [activeCli]);
-  const [activeWorkspaceId, setActiveWorkspaceId] = useState<number | null>(null);
 
-  const [repos, setRepos] = useState<SkillRepoSummary[]>([]);
-  const [installed, setInstalled] = useState<InstalledSkillSummary[]>([]);
-  const [available, setAvailable] = useState<AvailableSkillSummary[]>([]);
+  const reposQuery = useSkillReposListQuery({ enabled: tauriRuntime });
+  const repos = reposQuery.data ?? [];
+  const enabledRepoCount = useMemo(() => repos.filter((r) => r.enabled).length, [repos]);
 
-  const [loading, setLoading] = useState(false);
-  const [discovering, setDiscovering] = useState(false);
+  const workspacesQuery = useWorkspacesListQuery(activeCli, { enabled: tauriRuntime });
+  const activeWorkspaceId = workspacesQuery.data?.active_id ?? null;
+
+  const installedQuery = useSkillsInstalledListQuery(activeWorkspaceId, { enabled: tauriRuntime });
+  const installed = installedQuery.data ?? [];
+
+  const availableQuery = useSkillsDiscoverAvailableQuery(false, {
+    enabled: tauriRuntime && enabledRepoCount > 0,
+  });
+  const available = availableQuery.data ?? [];
+
+  const discoverMutation = useSkillsDiscoverAvailableMutation();
+  const repoUpsertMutation = useSkillRepoUpsertMutation();
+  const repoDeleteMutation = useSkillRepoDeleteMutation();
+  const installMutation = useSkillInstallMutation(activeWorkspaceId ?? 0);
+
+  const loading = reposQuery.isLoading || workspacesQuery.isLoading || installedQuery.isLoading;
+  const discovering = discoverMutation.isPending || availableQuery.isFetching;
   const [installingSource, setInstallingSource] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [repoFilter, setRepoFilter] = useState<string>("all");
@@ -118,47 +138,17 @@ export function SkillsMarketPage() {
   const [repoDeleteTarget, setRepoDeleteTarget] = useState<SkillRepoSummary | null>(null);
   const [repoDeleting, setRepoDeleting] = useState(false);
 
-  const enabledRepoCount = useMemo(() => repos.filter((r) => r.enabled).length, [repos]);
-
   useEffect(() => {
     writeCliToStorage(activeCli);
   }, [activeCli]);
 
-  async function refreshBase(cliKey: CliKey) {
-    setLoading(true);
-    try {
-      const repoRows = await skillReposList();
-      const workspaces = await workspacesList(cliKey);
-
-      setRepos(repoRows ?? []);
-
-      const workspaceId = workspaces?.active_id ?? null;
-      setActiveWorkspaceId(workspaceId);
-      if (!workspaceId) {
-        setInstalled([]);
-        return;
-      }
-
-      const installedRows = await skillsInstalledList(workspaceId);
-      setInstalled(installedRows ?? []);
-    } catch (err) {
-      logToConsole("error", "加载 Skill 市场数据失败", { error: String(err) });
-      toast("加载失败：请查看控制台日志");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   async function refreshAvailable(refresh: boolean, toastOnSuccess = true) {
-    setDiscovering(true);
     try {
-      const rows = await skillsDiscoverAvailable(refresh);
+      const rows = await discoverMutation.mutateAsync(refresh);
       if (!rows) {
-        setAvailable([]);
         toast("仅在 Tauri Desktop 环境可用");
         return;
       }
-      setAvailable(rows);
       logToConsole("info", refresh ? "刷新 Skill 发现（下载更新）" : "扫描 Skill（缓存）", {
         refresh,
         count: rows.length,
@@ -172,18 +162,8 @@ export function SkillsMarketPage() {
         refresh,
       });
       toast(formatted.toast);
-    } finally {
-      setDiscovering(false);
     }
   }
-
-  useEffect(() => {
-    void refreshBase(activeCli);
-  }, [activeCli]);
-
-  useEffect(() => {
-    void refreshAvailable(false, false);
-  }, [enabledRepoCount]);
 
   const installedBySource = useMemo(() => {
     const map = new Map<string, InstalledSkillSummary>();
@@ -265,10 +245,14 @@ export function SkillsMarketPage() {
     });
 
     return sorted;
-  }, [activeCli, available, installedBySource, onlyActionable, query, repoFilter, sortMode]);
+  }, [available, installedBySource, onlyActionable, query, repoFilter, sortMode]);
 
   async function addRepo() {
     if (repoSaving) return;
+    if (!tauriRuntime) {
+      toast("仅在 Tauri Desktop 环境可用");
+      return;
+    }
     const gitUrl = newRepoUrl.trim();
     const branch = newRepoBranch.trim() || "auto";
     if (!gitUrl) {
@@ -278,9 +262,9 @@ export function SkillsMarketPage() {
 
     setRepoSaving(true);
     try {
-      const next = await skillRepoUpsert({
-        repo_id: null,
-        git_url: gitUrl,
+      const next = await repoUpsertMutation.mutateAsync({
+        repoId: null,
+        gitUrl,
         branch,
         enabled: true,
       });
@@ -289,7 +273,6 @@ export function SkillsMarketPage() {
         return;
       }
 
-      setRepos((prev) => [next, ...prev.filter((r) => r.id !== next.id)]);
       setNewRepoUrl("");
       setNewRepoBranch(branch);
       toast("仓库已添加");
@@ -308,11 +291,15 @@ export function SkillsMarketPage() {
 
   async function toggleRepoEnabled(repo: SkillRepoSummary, enabled: boolean) {
     if (repoToggleId != null) return;
+    if (!tauriRuntime) {
+      toast("仅在 Tauri Desktop 环境可用");
+      return;
+    }
     setRepoToggleId(repo.id);
     try {
-      const next = await skillRepoUpsert({
-        repo_id: repo.id,
-        git_url: repo.git_url,
+      const next = await repoUpsertMutation.mutateAsync({
+        repoId: repo.id,
+        gitUrl: repo.git_url,
         branch: repo.branch,
         enabled,
       });
@@ -320,7 +307,6 @@ export function SkillsMarketPage() {
         toast("仅在 Tauri Desktop 环境可用");
         return;
       }
-      setRepos((prev) => prev.map((r) => (r.id === repo.id ? next : r)));
       toast(enabled ? "仓库已启用" : "仓库已禁用");
     } catch (err) {
       const formatted = formatActionFailureToast("切换仓库", err);
@@ -339,14 +325,17 @@ export function SkillsMarketPage() {
   async function confirmDeleteRepo() {
     if (!repoDeleteTarget) return;
     if (repoDeleting) return;
+    if (!tauriRuntime) {
+      toast("仅在 Tauri Desktop 环境可用");
+      return;
+    }
     setRepoDeleting(true);
     try {
-      const ok = await skillRepoDelete(repoDeleteTarget.id);
+      const ok = await repoDeleteMutation.mutateAsync(repoDeleteTarget.id);
       if (!ok) {
         toast("仅在 Tauri Desktop 环境可用");
         return;
       }
-      setRepos((prev) => prev.filter((r) => r.id !== repoDeleteTarget.id));
       toast("仓库已删除");
       logToConsole("info", "删除 Skill 仓库", repoDeleteTarget);
       setRepoDeleteTarget(null);
@@ -370,14 +359,17 @@ export function SkillsMarketPage() {
       toast("未找到当前工作区（workspace）。请先在 Workspaces 页面创建并设为当前。");
       return;
     }
+    if (!tauriRuntime) {
+      toast("仅在 Tauri Desktop 环境可用");
+      return;
+    }
 
     setInstallingSource(key);
     try {
-      const next = await skillInstall({
-        workspace_id: activeWorkspaceId,
-        git_url: skill.source_git_url,
+      const next = await installMutation.mutateAsync({
+        gitUrl: skill.source_git_url,
         branch: skill.source_branch,
-        source_subdir: skill.source_subdir,
+        sourceSubdir: skill.source_subdir,
         enabled: true,
       });
 
@@ -386,10 +378,6 @@ export function SkillsMarketPage() {
         return;
       }
 
-      setInstalled((prev) => [next, ...prev.filter((row) => row.id !== next.id)]);
-      setAvailable((prev) =>
-        prev.map((row) => (sourceKey(row) === key ? { ...row, installed: true } : row))
-      );
       toast("安装成功");
       logToConsole("info", "安装 Skill", {
         cli: activeCli,

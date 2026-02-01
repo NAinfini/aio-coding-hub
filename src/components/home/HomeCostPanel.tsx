@@ -7,22 +7,10 @@ import { toast } from "sonner";
 import { cliBadgeTone, cliShortLabel } from "../../constants/clis";
 import { PERIOD_ITEMS } from "../../constants/periods";
 import { useCustomDateRange } from "../../hooks/useCustomDateRange";
+import { useCostAnalyticsV1Query } from "../../query/cost";
+import { hasTauriRuntime } from "../../services/tauriInvoke";
 import type { CliKey } from "../../services/providers";
-import {
-  costBreakdownModelV1,
-  costBreakdownProviderV1,
-  costScatterCliProviderModelV1,
-  costSummaryV1,
-  costTopRequestsV1,
-  costTrendV1,
-  type CostModelBreakdownRowV1,
-  type CostPeriod,
-  type CostProviderBreakdownRowV1,
-  type CostScatterCliProviderModelRowV1,
-  type CostSummaryV1,
-  type CostTopRequestRowV1,
-  type CostTrendRowV1,
-} from "../../services/cost";
+import type { CostPeriod, CostScatterCliProviderModelRowV1 } from "../../services/cost";
 import { Button } from "../../ui/Button";
 import { Card } from "../../ui/Card";
 import { Input } from "../../ui/Input";
@@ -143,7 +131,6 @@ export function HomeCostPanel({ onSelectLogId }: HomeCostPanelProps) {
   const [cliKey, setCliKey] = useState<CliFilter>("all");
   const [providerId, setProviderId] = useState<number | null>(null);
   const [model, setModel] = useState<string | null>(null);
-  const [reloadSeq, setReloadSeq] = useState(0);
 
   const {
     customStartDate,
@@ -157,17 +144,6 @@ export function HomeCostPanel({ onSelectLogId }: HomeCostPanelProps) {
     clearCustomRange,
   } = useCustomDateRange(period, { onInvalid: (message) => toast(message) });
 
-  const [tauriAvailable, setTauriAvailable] = useState<boolean | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [errorText, setErrorText] = useState<string | null>(null);
-
-  const [summary, setSummary] = useState<CostSummaryV1 | null>(null);
-  const [trendRows, setTrendRows] = useState<CostTrendRowV1[]>([]);
-  const [providerRows, setProviderRows] = useState<CostProviderBreakdownRowV1[]>([]);
-  const [modelRows, setModelRows] = useState<CostModelBreakdownRowV1[]>([]);
-  const [scatterRows, setScatterRows] = useState<CostScatterCliProviderModelRowV1[]>([]);
-  const [topRequests, setTopRequests] = useState<CostTopRequestRowV1[]>([]);
-
   const [scatterCliFilter, setScatterCliFilter] = useState<CliFilter>("all");
 
   const filters = useMemo(() => {
@@ -180,69 +156,33 @@ export function HomeCostPanel({ onSelectLogId }: HomeCostPanelProps) {
     };
   }, [bounds, cliKey, model, providerId]);
 
+  const tauriRuntime = hasTauriRuntime();
+  const queryEnabled = tauriRuntime && (period !== "custom" || Boolean(customApplied));
+
+  const costQuery = useCostAnalyticsV1Query(period, filters, { enabled: queryEnabled });
+  const loading = costQuery.isLoading;
+  const fetching = costQuery.isFetching;
+  const errorText = costQuery.error ? String(costQuery.error) : null;
+
+  const tauriAvailable: boolean | null = !tauriRuntime
+    ? false
+    : !queryEnabled
+      ? null
+      : loading
+        ? null
+        : costQuery.data != null;
+
+  const summary = costQuery.data?.summary ?? null;
+  const trendRows = costQuery.data?.trend ?? [];
+  const providerRows = costQuery.data?.providers ?? [];
+  const modelRows = costQuery.data?.models ?? [];
+  const scatterRows = costQuery.data?.scatter ?? [];
+  const topRequests = costQuery.data?.topRequests ?? [];
+
   useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      if (period === "custom" && !customApplied) {
-        setErrorText(null);
-        setSummary(null);
-        setTrendRows([]);
-        setProviderRows([]);
-        setModelRows([]);
-        setScatterRows([]);
-        setTopRequests([]);
-        setLoading(false);
-        setTauriAvailable(null);
-        return;
-      }
-
-      setErrorText(null);
-      setLoading(true);
-      try {
-        const [sum, trend, providers, models, scatter, top] = await Promise.all([
-          costSummaryV1(period, filters),
-          costTrendV1(period, filters),
-          costBreakdownProviderV1(period, { ...filters, limit: 120 }),
-          costBreakdownModelV1(period, { ...filters, limit: 120 }),
-          costScatterCliProviderModelV1(period, { ...filters, limit: 500 }),
-          costTopRequestsV1(period, { ...filters, limit: 50 }),
-        ]);
-        if (cancelled) return;
-
-        if (!sum || !trend || !providers || !models || !scatter || !top) {
-          setTauriAvailable(false);
-          setSummary(null);
-          setTrendRows([]);
-          setProviderRows([]);
-          setModelRows([]);
-          setScatterRows([]);
-          setTopRequests([]);
-          return;
-        }
-
-        setTauriAvailable(true);
-        setSummary(sum);
-        setTrendRows(trend);
-        setProviderRows(providers);
-        setModelRows(models);
-        setScatterRows(scatter);
-        setTopRequests(top);
-      } catch (err) {
-        if (cancelled) return;
-        setTauriAvailable(true);
-        setErrorText(String(err));
-        toast("加载花费失败：请重试（详情见页面错误信息）");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [customApplied, filters, period, reloadSeq]);
+    if (!costQuery.error) return;
+    toast("加载花费失败：请重试（详情见页面错误信息）");
+  }, [costQuery.error]);
 
   const providerOptions = useMemo(() => {
     const sorted = providerRows.slice().sort((a, b) => b.cost_usd - a.cost_usd);
@@ -695,8 +635,8 @@ export function HomeCostPanel({ onSelectLogId }: HomeCostPanelProps) {
                 <Button
                   size="sm"
                   variant="secondary"
-                  onClick={() => setReloadSeq((v) => v + 1)}
-                  disabled={loading}
+                  onClick={() => void costQuery.refetch()}
+                  disabled={fetching}
                 >
                   刷新
                 </Button>
@@ -713,7 +653,7 @@ export function HomeCostPanel({ onSelectLogId }: HomeCostPanelProps) {
                       size="sm"
                       variant={cliKey === item.key ? "primary" : "secondary"}
                       onClick={() => setCliKey(item.key)}
-                      disabled={loading}
+                      disabled={fetching}
                       className={FILTER_OPTION_BUTTON_CLASS}
                     >
                       {item.label}
@@ -731,7 +671,7 @@ export function HomeCostPanel({ onSelectLogId }: HomeCostPanelProps) {
                       size="sm"
                       variant={period === item.key ? "primary" : "secondary"}
                       onClick={() => setPeriod(item.key)}
-                      disabled={loading}
+                      disabled={fetching}
                       className={FILTER_OPTION_BUTTON_CLASS}
                     >
                       {item.label}
@@ -751,7 +691,7 @@ export function HomeCostPanel({ onSelectLogId }: HomeCostPanelProps) {
                         value={customStartDate}
                         onChange={(e) => setCustomStartDate(e.currentTarget.value)}
                         className="h-9"
-                        disabled={loading}
+                        disabled={fetching}
                       />
                     </div>
                     <div className="flex flex-col gap-1">
@@ -761,7 +701,7 @@ export function HomeCostPanel({ onSelectLogId }: HomeCostPanelProps) {
                         value={customEndDate}
                         onChange={(e) => setCustomEndDate(e.currentTarget.value)}
                         className="h-9"
-                        disabled={loading}
+                        disabled={fetching}
                       />
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -769,7 +709,7 @@ export function HomeCostPanel({ onSelectLogId }: HomeCostPanelProps) {
                         size="sm"
                         variant="primary"
                         onClick={applyCustomRange}
-                        disabled={loading}
+                        disabled={fetching}
                       >
                         应用
                       </Button>
@@ -777,7 +717,7 @@ export function HomeCostPanel({ onSelectLogId }: HomeCostPanelProps) {
                         size="sm"
                         variant="secondary"
                         onClick={clearCustomRange}
-                        disabled={loading}
+                        disabled={fetching}
                       >
                         清空
                       </Button>
@@ -812,7 +752,7 @@ export function HomeCostPanel({ onSelectLogId }: HomeCostPanelProps) {
                         }
                         setProviderId(Math.floor(n));
                       }}
-                      disabled={loading || tauriAvailable === false}
+                      disabled={fetching || tauriAvailable === false}
                       mono
                       className="h-9"
                     >
@@ -839,7 +779,7 @@ export function HomeCostPanel({ onSelectLogId }: HomeCostPanelProps) {
                         const v = e.currentTarget.value;
                         setModel(v === "all" ? null : v);
                       }}
-                      disabled={loading || tauriAvailable === false}
+                      disabled={fetching || tauriAvailable === false}
                       mono
                       className="h-9"
                     >
@@ -892,8 +832,8 @@ export function HomeCostPanel({ onSelectLogId }: HomeCostPanelProps) {
             <Button
               size="sm"
               variant="secondary"
-              onClick={() => setReloadSeq((v) => v + 1)}
-              disabled={loading}
+              onClick={() => void costQuery.refetch()}
+              disabled={fetching}
               className="border-rose-200 bg-white text-rose-800 hover:bg-rose-50"
             >
               重试
@@ -921,7 +861,7 @@ export function HomeCostPanel({ onSelectLogId }: HomeCostPanelProps) {
                     key={item.key}
                     type="button"
                     onClick={() => setCliKey(item.key)}
-                    disabled={loading}
+                    disabled={fetching}
                     className={cn(
                       "px-2 py-0.5 text-xs rounded-full transition-colors",
                       cliKey === item.key
@@ -982,7 +922,7 @@ export function HomeCostPanel({ onSelectLogId }: HomeCostPanelProps) {
                   key={item.key}
                   type="button"
                   onClick={() => setScatterCliFilter(item.key)}
-                  disabled={loading}
+                  disabled={fetching}
                   className={cn(
                     "px-2 py-0.5 text-xs rounded-full transition-colors",
                     scatterCliFilter === item.key

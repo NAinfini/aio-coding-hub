@@ -12,13 +12,15 @@ import { Switch } from "../../ui/Switch";
 import { cn } from "../../utils/cn";
 import type { CliKey } from "../../services/providers";
 import {
-  modelPriceAliasesGet,
-  modelPriceAliasesSet,
-  modelPricesList,
   type ModelPriceAliasMatchType,
   type ModelPriceAliasRule,
   type ModelPriceAliases,
 } from "../../services/modelPrices";
+import {
+  useModelPriceAliasesQuery,
+  useModelPriceAliasesSetMutation,
+  useModelPricesListQuery,
+} from "../../query/modelPrices";
 
 const CLI_ITEMS: Array<{ key: CliKey; label: string }> = [
   { key: "claude", label: "Claude" },
@@ -62,67 +64,54 @@ export function ModelPriceAliasesDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [aliases, setAliases] = useState<ModelPriceAliases>({ ...EMPTY_ALIASES });
 
-  const [modelsByCli, setModelsByCli] = useState<Record<CliKey, string[]>>({
-    claude: [],
-    codex: [],
-    gemini: [],
-  });
+  const aliasesQuery = useModelPriceAliasesQuery({ enabled: open });
+  const claudeModelsQuery = useModelPricesListQuery("claude", { enabled: open });
+  const codexModelsQuery = useModelPricesListQuery("codex", { enabled: open });
+  const geminiModelsQuery = useModelPricesListQuery("gemini", { enabled: open });
+  const aliasesSetMutation = useModelPriceAliasesSetMutation();
 
-  const modelCountsByCli = useMemo(() => {
-    return {
+  const saving = aliasesSetMutation.isPending;
+  const loading =
+    aliasesQuery.isFetching ||
+    claudeModelsQuery.isFetching ||
+    codexModelsQuery.isFetching ||
+    geminiModelsQuery.isFetching;
+
+  const modelsByCli = useMemo(
+    () => ({
+      claude: (claudeModelsQuery.data ?? []).map((row) => row.model),
+      codex: (codexModelsQuery.data ?? []).map((row) => row.model),
+      gemini: (geminiModelsQuery.data ?? []).map((row) => row.model),
+    }),
+    [claudeModelsQuery.data, codexModelsQuery.data, geminiModelsQuery.data]
+  );
+
+  const modelCountsByCli = useMemo(
+    () => ({
       claude: modelsByCli.claude.length,
       codex: modelsByCli.codex.length,
       gemini: modelsByCli.gemini.length,
-    };
-  }, [modelsByCli]);
+    }),
+    [modelsByCli]
+  );
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [aliasesRes, claude, codex, gemini] = await Promise.all([
-        modelPriceAliasesGet(),
-        modelPricesList("claude"),
-        modelPricesList("codex"),
-        modelPricesList("gemini"),
-      ]);
-
-      if (!aliasesRes) {
-        toast("仅在 Tauri Desktop 环境可用");
-        setAliases({ ...EMPTY_ALIASES });
-        return;
-      }
-
-      setAliases(normalizeAliases(aliasesRes));
-
-      setModelsByCli({
-        claude: (claude ?? []).map((row) => row.model),
-        codex: (codex ?? []).map((row) => row.model),
-        gemini: (gemini ?? []).map((row) => row.model),
-      });
-    } catch (err) {
-      toast("加载定价匹配规则失败：请查看控制台日志");
-      // eslint-disable-next-line no-console
-      console.error("[ModelPriceAliasesDialog] load error", err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const refresh = useCallback(async () => {
+    await Promise.all([
+      aliasesQuery.refetch(),
+      claudeModelsQuery.refetch(),
+      codexModelsQuery.refetch(),
+      geminiModelsQuery.refetch(),
+    ]);
+  }, [aliasesQuery, claudeModelsQuery, codexModelsQuery, geminiModelsQuery]);
 
   useEffect(() => {
     if (!open) return;
-    let cancelled = false;
-    void (async () => {
-      await load();
-      if (cancelled) return;
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [open, load]);
+    const res = aliasesQuery.data ?? null;
+    if (!res) return;
+    setAliases(normalizeAliases(res));
+  }, [aliasesQuery.data, open]);
 
   const enabledRuleCount = useMemo(() => {
     return (aliases.rules ?? []).filter((r) => r?.enabled).length;
@@ -147,9 +136,8 @@ export function ModelPriceAliasesDialog({
 
   async function save() {
     if (saving) return;
-    setSaving(true);
     try {
-      const saved = await modelPriceAliasesSet(aliases);
+      const saved = await aliasesSetMutation.mutateAsync(aliases);
       if (!saved) {
         toast("仅在 Tauri Desktop 环境可用");
         return;
@@ -161,8 +149,6 @@ export function ModelPriceAliasesDialog({
       toast("保存失败：请检查规则内容（例如 wildcard 只能包含一个 *）");
       // eslint-disable-next-line no-console
       console.error("[ModelPriceAliasesDialog] save error", err);
-    } finally {
-      setSaving(false);
     }
   }
 
@@ -198,7 +184,7 @@ export function ModelPriceAliasesDialog({
             >
               新增规则
             </Button>
-            <Button variant="secondary" size="sm" disabled={loading || saving} onClick={load}>
+            <Button variant="secondary" size="sm" disabled={loading || saving} onClick={refresh}>
               刷新
             </Button>
           </div>
@@ -295,7 +281,7 @@ export function ModelPriceAliasesDialog({
                         <span className="text-xs text-slate-600">启用</span>
                         <Switch
                           size="sm"
-                          checked={!!rule.enabled}
+                          checked={!!rule?.enabled}
                           onCheckedChange={(checked) => updateRule(idx, { enabled: checked })}
                         />
                       </div>
@@ -358,7 +344,7 @@ export function ModelPriceAliasesDialog({
                       </label>
                       <Input
                         mono
-                        value={rule.pattern ?? ""}
+                        value={rule?.pattern ?? ""}
                         onChange={(e) => updateRule(idx, { pattern: e.currentTarget.value })}
                         placeholder={
                           matchType === "exact"
@@ -385,7 +371,7 @@ export function ModelPriceAliasesDialog({
                       <Input
                         mono
                         list={modelsDatalistId(cliKey)}
-                        value={rule.target_model ?? ""}
+                        value={rule?.target_model ?? ""}
                         onChange={(e) => updateRule(idx, { target_model: e.currentTarget.value })}
                         placeholder="输入或从建议中选择…"
                         disabled={saving}

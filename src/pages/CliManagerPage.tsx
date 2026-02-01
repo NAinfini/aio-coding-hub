@@ -9,29 +9,26 @@ import {
 } from "react";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { toast } from "sonner";
-import {
-  cliManagerClaudeInfoGet,
-  cliManagerClaudeSettingsGet,
-  cliManagerClaudeSettingsSet,
-  cliManagerCodexConfigGet,
-  cliManagerCodexConfigSet,
-  cliManagerCodexInfoGet,
-  cliManagerGeminiInfoGet,
-  type ClaudeCliInfo,
-  type ClaudeSettingsPatch,
-  type ClaudeSettingsState,
-  type CodexConfigPatch,
-  type CodexConfigState,
-  type SimpleCliInfo,
-} from "../services/cliManager";
+import { type ClaudeSettingsPatch, type CodexConfigPatch } from "../services/cliManager";
 import { logToConsole } from "../services/consoleLog";
-import { settingsGet, settingsSet, type AppSettings } from "../services/settings";
-import { settingsCodexSessionIdCompletionSet } from "../services/settingsCodexSessionIdCompletion";
-import { settingsCircuitBreakerNoticeSet } from "../services/settingsCircuitBreakerNotice";
+import { type GatewayRectifierSettingsPatch } from "../services/settingsGatewayRectifier";
+import type { AppSettings } from "../services/settings";
 import {
-  settingsGatewayRectifierSet,
-  type GatewayRectifierSettingsPatch,
-} from "../services/settingsGatewayRectifier";
+  useSettingsCircuitBreakerNoticeSetMutation,
+  useSettingsCodexSessionIdCompletionSetMutation,
+  useSettingsGatewayRectifierSetMutation,
+  useSettingsQuery,
+  useSettingsSetMutation,
+} from "../query/settings";
+import {
+  useCliManagerClaudeInfoQuery,
+  useCliManagerClaudeSettingsQuery,
+  useCliManagerClaudeSettingsSetMutation,
+  useCliManagerCodexConfigQuery,
+  useCliManagerCodexConfigSetMutation,
+  useCliManagerCodexInfoQuery,
+  useCliManagerGeminiInfoQuery,
+} from "../query/cliManager";
 import { formatActionFailureToast } from "../utils/errors";
 import { CliManagerGeneralTab } from "../components/cli-manager/tabs/GeneralTab";
 import { PageHeader } from "../ui/PageHeader";
@@ -79,18 +76,29 @@ const TAB_FALLBACK = <div className="p-6 text-sm text-slate-500">加载中…</d
 
 export function CliManagerPage() {
   const [tab, setTab] = useState<TabKey>("general");
-  const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
 
-  const [rectifierAvailable, setRectifierAvailable] = useState<
-    "checking" | "available" | "unavailable"
-  >("checking");
-  const [rectifierSaving, setRectifierSaving] = useState(false);
+  const settingsQuery = useSettingsQuery();
+  const appSettings = settingsQuery.data ?? null;
+
+  const rectifierAvailable: "checking" | "available" | "unavailable" = settingsQuery.isLoading
+    ? "checking"
+    : appSettings
+      ? "available"
+      : "unavailable";
+
+  const rectifierMutation = useSettingsGatewayRectifierSetMutation();
+  const circuitBreakerNoticeMutation = useSettingsCircuitBreakerNoticeSetMutation();
+  const codexSessionIdCompletionMutation = useSettingsCodexSessionIdCompletionSetMutation();
+  const commonSettingsMutation = useSettingsSetMutation();
+
+  const rectifierSaving = rectifierMutation.isPending;
+  const circuitBreakerNoticeSaving = circuitBreakerNoticeMutation.isPending;
+  const codexSessionIdCompletionSaving = codexSessionIdCompletionMutation.isPending;
+  const commonSettingsSaving = commonSettingsMutation.isPending;
+
   const [rectifier, setRectifier] = useState<GatewayRectifierSettingsPatch>(DEFAULT_RECTIFIER);
   const [circuitBreakerNoticeEnabled, setCircuitBreakerNoticeEnabled] = useState(false);
-  const [circuitBreakerNoticeSaving, setCircuitBreakerNoticeSaving] = useState(false);
   const [codexSessionIdCompletionEnabled, setCodexSessionIdCompletionEnabled] = useState(true);
-  const [codexSessionIdCompletionSaving, setCodexSessionIdCompletionSaving] = useState(false);
-  const [commonSettingsSaving, setCommonSettingsSaving] = useState(false);
   const [upstreamFirstByteTimeoutSeconds, setUpstreamFirstByteTimeoutSeconds] = useState<number>(0);
   const [upstreamStreamIdleTimeoutSeconds, setUpstreamStreamIdleTimeoutSeconds] =
     useState<number>(0);
@@ -103,105 +111,68 @@ export function CliManagerPage() {
   const [circuitBreakerOpenDurationMinutes, setCircuitBreakerOpenDurationMinutes] =
     useState<number>(30);
 
-  const [claudeAvailable, setClaudeAvailable] = useState<"checking" | "available" | "unavailable">(
-    "checking"
-  );
-  const [claudeLoading, setClaudeLoading] = useState(false);
-  const [claudeInfo, setClaudeInfo] = useState<ClaudeCliInfo | null>(null);
-  const [claudeSettingsLoading, setClaudeSettingsLoading] = useState(false);
-  const [claudeSettingsSaving, setClaudeSettingsSaving] = useState(false);
-  const [claudeSettings, setClaudeSettings] = useState<ClaudeSettingsState | null>(null);
-  const [claudeSettingsAttempted, setClaudeSettingsAttempted] = useState(false);
+  const claudeInfoQuery = useCliManagerClaudeInfoQuery({ enabled: tab === "claude" });
+  const claudeSettingsQuery = useCliManagerClaudeSettingsQuery({ enabled: tab === "claude" });
+  const claudeSettingsSetMutation = useCliManagerClaudeSettingsSetMutation();
 
-  const [codexAvailable, setCodexAvailable] = useState<"checking" | "available" | "unavailable">(
-    "checking"
-  );
-  const [codexLoading, setCodexLoading] = useState(false);
-  const [codexInfo, setCodexInfo] = useState<SimpleCliInfo | null>(null);
-  const [codexConfigLoading, setCodexConfigLoading] = useState(false);
-  const [codexConfigSaving, setCodexConfigSaving] = useState(false);
-  const [codexConfig, setCodexConfig] = useState<CodexConfigState | null>(null);
-  const [codexConfigAttempted, setCodexConfigAttempted] = useState(false);
+  const claudeInfo = claudeInfoQuery.data ?? null;
+  const claudeSettings = claudeSettingsQuery.data ?? null;
+  const claudeAvailable: "checking" | "available" | "unavailable" =
+    claudeInfoQuery.isFetching && !claudeInfo
+      ? "checking"
+      : claudeInfo
+        ? "available"
+        : "unavailable";
+  const claudeLoading = claudeInfoQuery.isFetching;
+  const claudeSettingsLoading = claudeSettingsQuery.isFetching;
+  const claudeSettingsSaving = claudeSettingsSetMutation.isPending;
 
-  const [geminiAvailable, setGeminiAvailable] = useState<"checking" | "available" | "unavailable">(
-    "checking"
-  );
-  const [geminiLoading, setGeminiLoading] = useState(false);
-  const [geminiInfo, setGeminiInfo] = useState<SimpleCliInfo | null>(null);
+  const codexInfoQuery = useCliManagerCodexInfoQuery({ enabled: tab === "codex" });
+  const codexConfigQuery = useCliManagerCodexConfigQuery({ enabled: tab === "codex" });
+  const codexConfigSetMutation = useCliManagerCodexConfigSetMutation();
 
-  useEffect(() => {
-    let cancelled = false;
-    setRectifierAvailable("checking");
-    settingsGet()
-      .then((settings) => {
-        if (cancelled) return;
-        if (!settings) {
-          setRectifierAvailable("unavailable");
-          setAppSettings(null);
-          return;
-        }
-        setRectifierAvailable("available");
-        setAppSettings(settings);
-        setRectifier({
-          intercept_anthropic_warmup_requests: settings.intercept_anthropic_warmup_requests,
-          enable_thinking_signature_rectifier: settings.enable_thinking_signature_rectifier,
-          enable_response_fixer: settings.enable_response_fixer,
-          response_fixer_fix_encoding: settings.response_fixer_fix_encoding,
-          response_fixer_fix_sse_format: settings.response_fixer_fix_sse_format,
-          response_fixer_fix_truncated_json: settings.response_fixer_fix_truncated_json,
-          response_fixer_max_json_depth: settings.response_fixer_max_json_depth,
-          response_fixer_max_fix_size: settings.response_fixer_max_fix_size,
-        });
-        setCircuitBreakerNoticeEnabled(settings.enable_circuit_breaker_notice ?? false);
-        setCodexSessionIdCompletionEnabled(settings.enable_codex_session_id_completion ?? true);
-        setUpstreamFirstByteTimeoutSeconds(settings.upstream_first_byte_timeout_seconds);
-        setUpstreamStreamIdleTimeoutSeconds(settings.upstream_stream_idle_timeout_seconds);
-        setUpstreamRequestTimeoutNonStreamingSeconds(
-          settings.upstream_request_timeout_non_streaming_seconds
-        );
-        setProviderCooldownSeconds(settings.provider_cooldown_seconds);
-        setProviderBaseUrlPingCacheTtlSeconds(settings.provider_base_url_ping_cache_ttl_seconds);
-        setCircuitBreakerFailureThreshold(settings.circuit_breaker_failure_threshold);
-        setCircuitBreakerOpenDurationMinutes(settings.circuit_breaker_open_duration_minutes);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        logToConsole("error", "读取网关整流配置失败", { error: String(err) });
-        setRectifierAvailable("available");
-        setAppSettings(null);
-        toast("读取网关整流配置失败：请查看控制台日志");
-      });
+  const codexInfo = codexInfoQuery.data ?? null;
+  const codexConfig = codexConfigQuery.data ?? null;
+  const codexAvailable: "checking" | "available" | "unavailable" =
+    codexInfoQuery.isFetching && !codexInfo ? "checking" : codexInfo ? "available" : "unavailable";
+  const codexLoading = codexInfoQuery.isFetching;
+  const codexConfigLoading = codexConfigQuery.isFetching;
+  const codexConfigSaving = codexConfigSetMutation.isPending;
 
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const geminiInfoQuery = useCliManagerGeminiInfoQuery({ enabled: tab === "gemini" });
+  const geminiInfo = geminiInfoQuery.data ?? null;
+  const geminiAvailable: "checking" | "available" | "unavailable" =
+    geminiInfoQuery.isFetching && !geminiInfo
+      ? "checking"
+      : geminiInfo
+        ? "available"
+        : "unavailable";
+  const geminiLoading = geminiInfoQuery.isFetching;
 
   useEffect(() => {
-    if (tab !== "claude") return;
-    if (!claudeSettings && !claudeSettingsAttempted && !claudeSettingsLoading) {
-      void refreshClaudeSettings();
-      return;
-    }
-    if (claudeSettingsLoading) return;
-    if (claudeAvailable === "checking") void refreshClaudeInfo();
-  }, [tab, claudeAvailable, claudeSettings, claudeSettingsAttempted, claudeSettingsLoading]);
-
-  useEffect(() => {
-    if (tab !== "codex") return;
-    if (!codexConfig && !codexConfigAttempted && !codexConfigLoading) {
-      void refreshCodexConfig();
-      return;
-    }
-    if (codexConfigLoading) return;
-    if (codexAvailable === "checking") void refreshCodexInfo();
-  }, [tab, codexAvailable, codexConfig, codexConfigAttempted, codexConfigLoading]);
-
-  useEffect(() => {
-    if (tab !== "gemini") return;
-    if (geminiAvailable !== "checking") return;
-    void refreshGeminiInfo();
-  }, [tab, geminiAvailable]);
+    if (!appSettings) return;
+    setRectifier({
+      intercept_anthropic_warmup_requests: appSettings.intercept_anthropic_warmup_requests,
+      enable_thinking_signature_rectifier: appSettings.enable_thinking_signature_rectifier,
+      enable_response_fixer: appSettings.enable_response_fixer,
+      response_fixer_fix_encoding: appSettings.response_fixer_fix_encoding,
+      response_fixer_fix_sse_format: appSettings.response_fixer_fix_sse_format,
+      response_fixer_fix_truncated_json: appSettings.response_fixer_fix_truncated_json,
+      response_fixer_max_json_depth: appSettings.response_fixer_max_json_depth,
+      response_fixer_max_fix_size: appSettings.response_fixer_max_fix_size,
+    });
+    setCircuitBreakerNoticeEnabled(appSettings.enable_circuit_breaker_notice ?? false);
+    setCodexSessionIdCompletionEnabled(appSettings.enable_codex_session_id_completion ?? true);
+    setUpstreamFirstByteTimeoutSeconds(appSettings.upstream_first_byte_timeout_seconds);
+    setUpstreamStreamIdleTimeoutSeconds(appSettings.upstream_stream_idle_timeout_seconds);
+    setUpstreamRequestTimeoutNonStreamingSeconds(
+      appSettings.upstream_request_timeout_non_streaming_seconds
+    );
+    setProviderCooldownSeconds(appSettings.provider_cooldown_seconds);
+    setProviderBaseUrlPingCacheTtlSeconds(appSettings.provider_base_url_ping_cache_ttl_seconds);
+    setCircuitBreakerFailureThreshold(appSettings.circuit_breaker_failure_threshold);
+    setCircuitBreakerOpenDurationMinutes(appSettings.circuit_breaker_open_duration_minutes);
+  }, [appSettings]);
 
   async function persistRectifier(patch: Partial<GatewayRectifierSettingsPatch>) {
     if (rectifierSaving) return;
@@ -210,16 +181,14 @@ export function CliManagerPage() {
     const prev = rectifier;
     const next = { ...prev, ...patch };
     setRectifier(next);
-    setRectifierSaving(true);
     try {
-      const updated = await settingsGatewayRectifierSet(next);
+      const updated = await rectifierMutation.mutateAsync(next);
       if (!updated) {
         toast("仅在 Tauri Desktop 环境可用");
         setRectifier(prev);
         return;
       }
 
-      setAppSettings(updated);
       setRectifier({
         intercept_anthropic_warmup_requests: updated.intercept_anthropic_warmup_requests,
         enable_thinking_signature_rectifier: updated.enable_thinking_signature_rectifier,
@@ -234,8 +203,6 @@ export function CliManagerPage() {
       logToConsole("error", "更新网关整流配置失败", { error: String(err) });
       toast("更新网关整流配置失败：请稍后重试");
       setRectifier(prev);
-    } finally {
-      setRectifierSaving(false);
     }
   }
 
@@ -245,24 +212,20 @@ export function CliManagerPage() {
 
     const prev = circuitBreakerNoticeEnabled;
     setCircuitBreakerNoticeEnabled(enable);
-    setCircuitBreakerNoticeSaving(true);
     try {
-      const updated = await settingsCircuitBreakerNoticeSet(enable);
+      const updated = await circuitBreakerNoticeMutation.mutateAsync(enable);
       if (!updated) {
         toast("仅在 Tauri Desktop 环境可用");
         setCircuitBreakerNoticeEnabled(prev);
         return;
       }
 
-      setAppSettings(updated);
       setCircuitBreakerNoticeEnabled(updated.enable_circuit_breaker_notice ?? enable);
       toast(enable ? "已开启熔断通知" : "已关闭熔断通知");
     } catch (err) {
       logToConsole("error", "更新熔断通知配置失败", { error: String(err) });
       toast("更新熔断通知配置失败：请稍后重试");
       setCircuitBreakerNoticeEnabled(prev);
-    } finally {
-      setCircuitBreakerNoticeSaving(false);
     }
   }
 
@@ -272,24 +235,20 @@ export function CliManagerPage() {
 
     const prev = codexSessionIdCompletionEnabled;
     setCodexSessionIdCompletionEnabled(enable);
-    setCodexSessionIdCompletionSaving(true);
     try {
-      const updated = await settingsCodexSessionIdCompletionSet(enable);
+      const updated = await codexSessionIdCompletionMutation.mutateAsync(enable);
       if (!updated) {
         toast("仅在 Tauri Desktop 环境可用");
         setCodexSessionIdCompletionEnabled(prev);
         return;
       }
 
-      setAppSettings(updated);
       setCodexSessionIdCompletionEnabled(updated.enable_codex_session_id_completion ?? enable);
       toast(enable ? "已开启 Codex Session ID 补全" : "已关闭 Codex Session ID 补全");
     } catch (err) {
       logToConsole("error", "更新 Codex Session ID 补全配置失败", { error: String(err) });
       toast("更新 Codex Session ID 补全配置失败：请稍后重试");
       setCodexSessionIdCompletionEnabled(prev);
-    } finally {
-      setCodexSessionIdCompletionSaving(false);
     }
   }
 
@@ -300,10 +259,8 @@ export function CliManagerPage() {
 
     const prev = appSettings;
     const next: AppSettings = { ...prev, ...patch };
-    setAppSettings(next);
-    setCommonSettingsSaving(true);
     try {
-      const updated = await settingsSet({
+      const updated = await commonSettingsMutation.mutateAsync({
         preferred_port: next.preferred_port,
         gateway_listen_mode: next.gateway_listen_mode,
         gateway_custom_listen_address: next.gateway_custom_listen_address,
@@ -326,11 +283,9 @@ export function CliManagerPage() {
 
       if (!updated) {
         toast("仅在 Tauri Desktop 环境可用");
-        setAppSettings(prev);
         return null;
       }
 
-      setAppSettings(updated);
       setUpstreamFirstByteTimeoutSeconds(updated.upstream_first_byte_timeout_seconds);
       setUpstreamStreamIdleTimeoutSeconds(updated.upstream_stream_idle_timeout_seconds);
       setUpstreamRequestTimeoutNonStreamingSeconds(
@@ -345,7 +300,6 @@ export function CliManagerPage() {
     } catch (err) {
       logToConsole("error", "更新通用网关参数失败", { error: String(err) });
       toast("更新通用网关参数失败：请稍后重试");
-      setAppSettings(prev);
       setUpstreamFirstByteTimeoutSeconds(prev.upstream_first_byte_timeout_seconds);
       setUpstreamStreamIdleTimeoutSeconds(prev.upstream_stream_idle_timeout_seconds);
       setUpstreamRequestTimeoutNonStreamingSeconds(
@@ -356,143 +310,31 @@ export function CliManagerPage() {
       setCircuitBreakerFailureThreshold(prev.circuit_breaker_failure_threshold);
       setCircuitBreakerOpenDurationMinutes(prev.circuit_breaker_open_duration_minutes);
       return null;
-    } finally {
-      setCommonSettingsSaving(false);
-    }
-  }
-
-  function applyClaudeInfo(info: ClaudeCliInfo) {
-    setClaudeInfo(info);
-  }
-
-  async function refreshClaudeInfo() {
-    if (claudeLoading) return;
-    setClaudeLoading(true);
-    setClaudeAvailable("checking");
-    try {
-      const info = await cliManagerClaudeInfoGet();
-      if (!info) {
-        setClaudeAvailable("unavailable");
-        setClaudeInfo(null);
-        return;
-      }
-      setClaudeAvailable("available");
-      applyClaudeInfo(info);
-    } catch (err) {
-      logToConsole("error", "读取 Claude Code 信息失败", { error: String(err) });
-      setClaudeAvailable("available");
-      toast("读取 Claude Code 信息失败：请查看控制台日志");
-    } finally {
-      setClaudeLoading(false);
-    }
-  }
-
-  async function refreshClaudeSettings() {
-    if (claudeSettingsLoading) return;
-    setClaudeSettingsAttempted(true);
-    setClaudeSettingsLoading(true);
-    try {
-      const settings = await cliManagerClaudeSettingsGet();
-      if (!settings) {
-        setClaudeSettings(null);
-        return;
-      }
-      setClaudeSettings(settings);
-    } catch (err) {
-      logToConsole("error", "读取 Claude Code settings.json 失败", { error: String(err) });
-      toast("读取 Claude Code 配置失败：请查看控制台日志");
-    } finally {
-      setClaudeSettingsLoading(false);
     }
   }
 
   async function refreshClaude() {
-    await refreshClaudeSettings();
-    await refreshClaudeInfo();
-  }
-
-  async function refreshCodexInfo() {
-    if (codexLoading) return;
-    setCodexLoading(true);
-    setCodexAvailable("checking");
-    try {
-      const info = await cliManagerCodexInfoGet();
-      if (!info) {
-        setCodexAvailable("unavailable");
-        setCodexInfo(null);
-        return;
-      }
-      setCodexAvailable("available");
-      setCodexInfo(info);
-    } catch (err) {
-      logToConsole("error", "读取 Codex 信息失败", { error: String(err) });
-      setCodexAvailable("available");
-      toast("读取 Codex 信息失败：请查看控制台日志");
-    } finally {
-      setCodexLoading(false);
-    }
-  }
-
-  async function refreshCodexConfig() {
-    if (codexConfigLoading) return;
-    setCodexConfigAttempted(true);
-    setCodexConfigLoading(true);
-    try {
-      const cfg = await cliManagerCodexConfigGet();
-      if (!cfg) {
-        setCodexConfig(null);
-        return;
-      }
-      setCodexConfig(cfg);
-    } catch (err) {
-      logToConsole("error", "读取 Codex 配置失败", { error: String(err) });
-      toast("读取 Codex 配置失败：请查看控制台日志");
-    } finally {
-      setCodexConfigLoading(false);
-    }
+    await Promise.all([claudeSettingsQuery.refetch(), claudeInfoQuery.refetch()]);
   }
 
   async function refreshCodex() {
-    await refreshCodexConfig();
-    await refreshCodexInfo();
+    await Promise.all([codexConfigQuery.refetch(), codexInfoQuery.refetch()]);
   }
 
   async function refreshGeminiInfo() {
-    if (geminiLoading) return;
-    setGeminiLoading(true);
-    setGeminiAvailable("checking");
-    try {
-      const info = await cliManagerGeminiInfoGet();
-      if (!info) {
-        setGeminiAvailable("unavailable");
-        setGeminiInfo(null);
-        return;
-      }
-      setGeminiAvailable("available");
-      setGeminiInfo(info);
-    } catch (err) {
-      logToConsole("error", "读取 Gemini 信息失败", { error: String(err) });
-      setGeminiAvailable("available");
-      toast("读取 Gemini 信息失败：请查看控制台日志");
-    } finally {
-      setGeminiLoading(false);
-    }
+    await geminiInfoQuery.refetch();
   }
 
   async function persistCodexConfig(patch: CodexConfigPatch) {
     if (codexConfigSaving) return;
     if (codexAvailable !== "available") return;
 
-    const prev = codexConfig;
-    setCodexConfigSaving(true);
     try {
-      const updated = await cliManagerCodexConfigSet(patch);
+      const updated = await codexConfigSetMutation.mutateAsync(patch);
       if (!updated) {
         toast("仅在 Tauri Desktop 环境可用");
-        if (prev) setCodexConfig(prev);
         return;
       }
-      setCodexConfig(updated);
       toast("已更新 Codex 配置");
     } catch (err) {
       const formatted = formatActionFailureToast("更新 Codex 配置", err);
@@ -502,9 +344,6 @@ export function CliManagerPage() {
         patch,
       });
       toast(formatted.toast);
-      if (prev) setCodexConfig(prev);
-    } finally {
-      setCodexConfigSaving(false);
     }
   }
 
@@ -512,23 +351,16 @@ export function CliManagerPage() {
     if (claudeSettingsSaving) return;
     if (claudeAvailable !== "available") return;
 
-    const prev = claudeSettings;
-    setClaudeSettingsSaving(true);
     try {
-      const updated = await cliManagerClaudeSettingsSet(patch);
+      const updated = await claudeSettingsSetMutation.mutateAsync(patch);
       if (!updated) {
         toast("仅在 Tauri Desktop 环境可用");
-        if (prev) setClaudeSettings(prev);
         return;
       }
-      setClaudeSettings(updated);
       toast("已更新 Claude Code 配置");
     } catch (err) {
       logToConsole("error", "更新 Claude Code settings.json 失败", { error: String(err) });
       toast("更新 Claude Code 配置失败：请稍后重试");
-      if (prev) setClaudeSettings(prev);
-    } finally {
-      setClaudeSettingsSaving(false);
     }
   }
 

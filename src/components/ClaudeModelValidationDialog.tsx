@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactElemen
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { logToConsole } from "../services/consoleLog";
+import { useModelPricesListQuery } from "../query/modelPrices";
+import { useProvidersListQuery } from "../query/providers";
 import {
   claudeProviderGetApiKeyPlaintext,
   claudeProviderValidateModel,
@@ -12,8 +14,8 @@ import {
   claudeValidationHistoryList,
   type ClaudeModelValidationRunRow,
 } from "../services/claudeModelValidationHistory";
-import { modelPricesList, type ModelPriceSummary } from "../services/modelPrices";
-import { baseUrlPingMs, providersList, type ProviderSummary } from "../services/providers";
+import type { ModelPriceSummary } from "../services/modelPrices";
+import { baseUrlPingMs, type ProviderSummary } from "../services/providers";
 import {
   DEFAULT_CLAUDE_VALIDATION_TEMPLATE_KEY,
   buildClaudeValidationRequestJson,
@@ -248,12 +250,14 @@ export function ClaudeModelValidationDialog({
   const [historyClearing, setHistoryClearing] = useState(false);
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
 
-  const [modelPrices, setModelPrices] = useState<ModelPriceSummary[]>([]);
-  const [modelPricesLoading, setModelPricesLoading] = useState(false);
+  const modelPricesQuery = useModelPricesListQuery("claude", { enabled: open });
+  const modelPrices: ModelPriceSummary[] = open ? (modelPricesQuery.data ?? []) : [];
+  const modelPricesLoading = open ? modelPricesQuery.isFetching : false;
   const modelOptions = useMemo(() => sortClaudeModelsFromPrices(modelPrices), [modelPrices]);
 
   // Cross-provider signature validation
-  const [allClaudeProviders, setAllClaudeProviders] = useState<ProviderSummary[]>([]);
+  const allClaudeProvidersQuery = useProvidersListQuery("claude", { enabled: open });
+  const allClaudeProviders: ProviderSummary[] = open ? (allClaudeProvidersQuery.data ?? []) : [];
   const [crossProviderId, setCrossProviderId] = useState<number | null>(null);
 
   // Check if any template requires cross-provider validation
@@ -288,10 +292,6 @@ export function ClaudeModelValidationDialog({
       historyReqSeqRef.current = 0;
       setHistoryClearing(false);
       setConfirmClearOpen(false);
-      setModelPrices([]);
-      setModelPricesLoading(false);
-      setModelPricesLoading(false);
-      setAllClaudeProviders([]);
       setCrossProviderId(null);
       return;
     }
@@ -436,56 +436,6 @@ export function ClaudeModelValidationDialog({
       cancelled = true;
     };
   }, [open, provider]);
-
-  useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-
-    setModelPricesLoading(true);
-    modelPricesList("claude")
-      .then((rows) => {
-        if (cancelled) return;
-        if (!rows) {
-          setModelPrices([]);
-          return;
-        }
-
-        setModelPrices(rows);
-      })
-      .catch(() => {
-        if (cancelled) return;
-
-        setModelPrices([]);
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setModelPricesLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [open]);
-
-  // Load all Claude providers for cross-provider selection
-  useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-
-    providersList("claude")
-      .then((rows) => {
-        if (cancelled) return;
-        setAllClaudeProviders(rows ?? []);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setAllClaudeProviders([]);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [open]);
 
   async function copyTextOrToast(text: string, okMessage: string) {
     try {

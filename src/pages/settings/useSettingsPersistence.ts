@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { gatewayMetaSetPreferredPort } from "../../hooks/useGatewayMeta";
 import type { AppAboutInfo } from "../../services/appAbout";
 import { cliProxySyncEnabled } from "../../services/cliProxy";
 import { logToConsole } from "../../services/consoleLog";
@@ -10,7 +9,7 @@ import {
   gatewayStop,
   type GatewayStatus,
 } from "../../services/gateway";
-import { settingsGet, settingsSet } from "../../services/settings";
+import { useSettingsQuery, useSettingsSetMutation } from "../../query/settings";
 
 type PersistedSettings = {
   preferred_port: number;
@@ -64,6 +63,9 @@ export function useSettingsPersistence(options: {
 }) {
   const { gateway, about } = options;
 
+  const settingsQuery = useSettingsQuery();
+  const settingsSetMutation = useSettingsSetMutation();
+
   const [settingsReady, setSettingsReady] = useState(false);
 
   const [port, setPort] = useState<number>(DEFAULT_SETTINGS.preferred_port);
@@ -82,85 +84,86 @@ export function useSettingsPersistence(options: {
   }>({ inFlight: false, pending: null });
 
   useEffect(() => {
-    let cancelled = false;
-    settingsGet()
-      .then((settingsValue) => {
-        if (cancelled) return;
-        if (!settingsValue) {
-          setSettingsReady(true);
-          return;
-        }
+    if (settingsReady) return;
+    if (settingsQuery.isLoading) return;
 
-        const nextSettings: PersistedSettings = {
-          preferred_port: settingsValue.preferred_port,
-          auto_start: settingsValue.auto_start,
-          tray_enabled: settingsValue.tray_enabled ?? DEFAULT_SETTINGS.tray_enabled,
-          log_retention_days: settingsValue.log_retention_days,
-          provider_cooldown_seconds:
-            settingsValue.provider_cooldown_seconds ?? DEFAULT_SETTINGS.provider_cooldown_seconds,
-          provider_base_url_ping_cache_ttl_seconds:
-            settingsValue.provider_base_url_ping_cache_ttl_seconds ??
-            DEFAULT_SETTINGS.provider_base_url_ping_cache_ttl_seconds,
-          upstream_first_byte_timeout_seconds:
-            settingsValue.upstream_first_byte_timeout_seconds ??
-            DEFAULT_SETTINGS.upstream_first_byte_timeout_seconds,
-          upstream_stream_idle_timeout_seconds:
-            settingsValue.upstream_stream_idle_timeout_seconds ??
-            DEFAULT_SETTINGS.upstream_stream_idle_timeout_seconds,
-          upstream_request_timeout_non_streaming_seconds:
-            settingsValue.upstream_request_timeout_non_streaming_seconds ??
-            DEFAULT_SETTINGS.upstream_request_timeout_non_streaming_seconds,
-          intercept_anthropic_warmup_requests:
-            settingsValue.intercept_anthropic_warmup_requests ??
-            DEFAULT_SETTINGS.intercept_anthropic_warmup_requests,
-          enable_thinking_signature_rectifier:
-            settingsValue.enable_thinking_signature_rectifier ??
-            DEFAULT_SETTINGS.enable_thinking_signature_rectifier,
-          enable_response_fixer:
-            settingsValue.enable_response_fixer ?? DEFAULT_SETTINGS.enable_response_fixer,
-          response_fixer_fix_encoding:
-            settingsValue.response_fixer_fix_encoding ??
-            DEFAULT_SETTINGS.response_fixer_fix_encoding,
-          response_fixer_fix_sse_format:
-            settingsValue.response_fixer_fix_sse_format ??
-            DEFAULT_SETTINGS.response_fixer_fix_sse_format,
-          response_fixer_fix_truncated_json:
-            settingsValue.response_fixer_fix_truncated_json ??
-            DEFAULT_SETTINGS.response_fixer_fix_truncated_json,
-          failover_max_attempts_per_provider:
-            settingsValue.failover_max_attempts_per_provider ??
-            DEFAULT_SETTINGS.failover_max_attempts_per_provider,
-          failover_max_providers_to_try:
-            settingsValue.failover_max_providers_to_try ??
-            DEFAULT_SETTINGS.failover_max_providers_to_try,
-          circuit_breaker_failure_threshold:
-            settingsValue.circuit_breaker_failure_threshold ??
-            DEFAULT_SETTINGS.circuit_breaker_failure_threshold,
-          circuit_breaker_open_duration_minutes:
-            settingsValue.circuit_breaker_open_duration_minutes ??
-            DEFAULT_SETTINGS.circuit_breaker_open_duration_minutes,
-        };
+    if (settingsQuery.isError) {
+      logToConsole("error", "读取设置失败", { error: String(settingsQuery.error) });
+      toast("读取设置失败：请检查 settings.json；修改任一配置将尝试覆盖写入修复");
+      setSettingsReady(true);
+      return;
+    }
 
-        persistedSettingsRef.current = nextSettings;
-        desiredSettingsRef.current = nextSettings;
+    const settingsValue = settingsQuery.data ?? null;
+    if (!settingsValue) {
+      setSettingsReady(true);
+      return;
+    }
 
-        setPort(nextSettings.preferred_port);
-        setAutoStart(nextSettings.auto_start);
-        setTrayEnabled(nextSettings.tray_enabled);
-        setLogRetentionDays(nextSettings.log_retention_days);
-        setSettingsReady(true);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        logToConsole("error", "读取设置失败", { error: String(err) });
-        toast("读取设置失败：请检查 settings.json；修改任一配置将尝试覆盖写入修复");
-        setSettingsReady(true);
-      });
-
-    return () => {
-      cancelled = true;
+    const nextSettings: PersistedSettings = {
+      preferred_port: settingsValue.preferred_port,
+      auto_start: settingsValue.auto_start,
+      tray_enabled: settingsValue.tray_enabled ?? DEFAULT_SETTINGS.tray_enabled,
+      log_retention_days: settingsValue.log_retention_days,
+      provider_cooldown_seconds:
+        settingsValue.provider_cooldown_seconds ?? DEFAULT_SETTINGS.provider_cooldown_seconds,
+      provider_base_url_ping_cache_ttl_seconds:
+        settingsValue.provider_base_url_ping_cache_ttl_seconds ??
+        DEFAULT_SETTINGS.provider_base_url_ping_cache_ttl_seconds,
+      upstream_first_byte_timeout_seconds:
+        settingsValue.upstream_first_byte_timeout_seconds ??
+        DEFAULT_SETTINGS.upstream_first_byte_timeout_seconds,
+      upstream_stream_idle_timeout_seconds:
+        settingsValue.upstream_stream_idle_timeout_seconds ??
+        DEFAULT_SETTINGS.upstream_stream_idle_timeout_seconds,
+      upstream_request_timeout_non_streaming_seconds:
+        settingsValue.upstream_request_timeout_non_streaming_seconds ??
+        DEFAULT_SETTINGS.upstream_request_timeout_non_streaming_seconds,
+      intercept_anthropic_warmup_requests:
+        settingsValue.intercept_anthropic_warmup_requests ??
+        DEFAULT_SETTINGS.intercept_anthropic_warmup_requests,
+      enable_thinking_signature_rectifier:
+        settingsValue.enable_thinking_signature_rectifier ??
+        DEFAULT_SETTINGS.enable_thinking_signature_rectifier,
+      enable_response_fixer:
+        settingsValue.enable_response_fixer ?? DEFAULT_SETTINGS.enable_response_fixer,
+      response_fixer_fix_encoding:
+        settingsValue.response_fixer_fix_encoding ?? DEFAULT_SETTINGS.response_fixer_fix_encoding,
+      response_fixer_fix_sse_format:
+        settingsValue.response_fixer_fix_sse_format ??
+        DEFAULT_SETTINGS.response_fixer_fix_sse_format,
+      response_fixer_fix_truncated_json:
+        settingsValue.response_fixer_fix_truncated_json ??
+        DEFAULT_SETTINGS.response_fixer_fix_truncated_json,
+      failover_max_attempts_per_provider:
+        settingsValue.failover_max_attempts_per_provider ??
+        DEFAULT_SETTINGS.failover_max_attempts_per_provider,
+      failover_max_providers_to_try:
+        settingsValue.failover_max_providers_to_try ??
+        DEFAULT_SETTINGS.failover_max_providers_to_try,
+      circuit_breaker_failure_threshold:
+        settingsValue.circuit_breaker_failure_threshold ??
+        DEFAULT_SETTINGS.circuit_breaker_failure_threshold,
+      circuit_breaker_open_duration_minutes:
+        settingsValue.circuit_breaker_open_duration_minutes ??
+        DEFAULT_SETTINGS.circuit_breaker_open_duration_minutes,
     };
-  }, []);
+
+    persistedSettingsRef.current = nextSettings;
+    desiredSettingsRef.current = nextSettings;
+
+    setPort(nextSettings.preferred_port);
+    setAutoStart(nextSettings.auto_start);
+    setTrayEnabled(nextSettings.tray_enabled);
+    setLogRetentionDays(nextSettings.log_retention_days);
+    setSettingsReady(true);
+  }, [
+    settingsQuery.data,
+    settingsQuery.error,
+    settingsQuery.isError,
+    settingsQuery.isLoading,
+    settingsReady,
+  ]);
 
   function diffKeys(before: PersistedSettings, after: PersistedSettings): PersistKey[] {
     const keys = Object.keys(before) as PersistKey[];
@@ -392,7 +395,7 @@ export function useSettingsPersistence(options: {
     if (changedKeys.length === 0) return;
 
     try {
-      const nextSettings = await settingsSet({
+      const nextSettings = await settingsSetMutation.mutateAsync({
         preferred_port: desired.preferred_port,
         auto_start: desired.auto_start,
         tray_enabled: desired.tray_enabled,
@@ -475,9 +478,6 @@ export function useSettingsPersistence(options: {
       }
 
       const portSettled = settledKeys.includes("preferred_port");
-      if (portSettled) {
-        gatewayMetaSetPreferredPort(after.preferred_port);
-      }
 
       logToConsole("info", "更新设置", { changed: changedKeys, settings: after });
 

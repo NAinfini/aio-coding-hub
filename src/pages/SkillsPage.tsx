@@ -6,11 +6,12 @@ import { toast } from "sonner";
 import { CLIS, cliFromKeyOrDefault, isCliKey } from "../constants/clis";
 import { logToConsole } from "../services/consoleLog";
 import type { CliKey } from "../services/providers";
-import { workspacesList } from "../services/workspaces";
 import { Button } from "../ui/Button";
 import { PageHeader } from "../ui/PageHeader";
 import { TabList } from "../ui/TabList";
 import { SkillsView } from "./skills/SkillsView";
+import { hasTauriRuntime } from "../services/tauriInvoke";
+import { useWorkspacesListQuery } from "../query/workspaces";
 
 function readCliFromStorage(): CliKey {
   try {
@@ -31,33 +32,24 @@ export function SkillsPage() {
   const [activeCli, setActiveCli] = useState<CliKey>(() => readCliFromStorage());
   const currentCli = useMemo(() => cliFromKeyOrDefault(activeCli), [activeCli]);
 
-  const [activeWorkspaceId, setActiveWorkspaceId] = useState<number | null>(null);
-  const [loading, setLoading] = useState(false);
+  const tauriRuntime = hasTauriRuntime();
+
+  const workspacesQuery = useWorkspacesListQuery(activeCli);
+  const activeWorkspaceId = workspacesQuery.data?.active_id ?? null;
+  const loading = workspacesQuery.isFetching;
 
   useEffect(() => {
     writeCliToStorage(activeCli);
   }, [activeCli]);
 
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      setLoading(true);
-      try {
-        const workspaces = await workspacesList(activeCli);
-        if (cancelled) return;
-        setActiveWorkspaceId(workspaces?.active_id ?? null);
-      } catch (err) {
-        logToConsole("error", "加载工作区失败", { error: String(err), cli: activeCli });
-        toast("加载失败：请查看控制台日志");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [activeCli]);
+    if (!workspacesQuery.error) return;
+    logToConsole("error", "加载工作区失败", {
+      error: String(workspacesQuery.error),
+      cli: activeCli,
+    });
+    toast("加载失败：请查看控制台日志");
+  }, [activeCli, workspacesQuery.error]);
 
   return (
     <div className="space-y-6">
@@ -89,6 +81,8 @@ export function SkillsPage() {
 
       {loading ? (
         <div className="text-sm text-slate-600">加载中…</div>
+      ) : !tauriRuntime ? (
+        <div className="text-sm text-slate-600">仅在 Tauri Desktop 环境可用</div>
       ) : !activeWorkspaceId ? (
         <div className="text-sm text-slate-600">
           未找到 {currentCli.name} 的当前工作区（workspace）。请先在 Workspaces 页面创建并设为当前。

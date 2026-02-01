@@ -1,7 +1,10 @@
-import { useSyncExternalStore } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import { toast } from "sonner";
+import { queryClient } from "../query/queryClient";
+import { updaterKeys } from "../query/keys";
+import { useAppAboutQuery } from "../query/appAbout";
+import { useUpdaterCheckQuery } from "../query/updater";
 import { logToConsole } from "../services/consoleLog";
-import { appAboutGet, type AppAboutInfo } from "../services/appAbout";
 import {
   updaterCheck,
   updaterDownloadAndInstall,
@@ -9,6 +12,7 @@ import {
   type UpdaterDownloadEvent,
 } from "../services/updater";
 import { hasTauriRuntime } from "../services/tauriInvoke";
+import type { AppAboutInfo } from "../services/appAbout";
 
 const STORAGE_KEY_LAST_CHECKED_AT_MS = "updater.lastCheckedAtMs";
 const AUTO_CHECK_DELAY_MS = 2000;
@@ -29,12 +33,17 @@ export type UpdateMeta = {
 
 type Listener = () => void;
 
-let snapshot: UpdateMeta = {
-  about: null,
-  updateCandidate: null,
-  checkingUpdate: false,
-  dialogOpen: false,
+type UpdateUiState = Pick<
+  UpdateMeta,
+  | "dialogOpen"
+  | "installingUpdate"
+  | "installError"
+  | "installTotalBytes"
+  | "installDownloadedBytes"
+>;
 
+let uiSnapshot: UpdateUiState = {
+  dialogOpen: false,
   installingUpdate: false,
   installError: null,
   installTotalBytes: null,
@@ -55,8 +64,8 @@ function emit() {
   for (const listener of listeners) listener();
 }
 
-function setSnapshot(patch: Partial<UpdateMeta>) {
-  snapshot = { ...snapshot, ...patch };
+function setUiSnapshot(patch: Partial<UpdateUiState>) {
+  uiSnapshot = { ...uiSnapshot, ...patch };
   emit();
 }
 
@@ -86,13 +95,6 @@ async function ensureStarted() {
       started = true;
       starting = null;
       return;
-    }
-
-    try {
-      const about = await appAboutGet();
-      setSnapshot({ about });
-    } catch {
-      setSnapshot({ about: null });
     }
 
     scheduleAutoCheck();
@@ -143,11 +145,11 @@ function scheduleAutoCheck() {
   if (autoCheckScheduled) return;
   autoCheckScheduled = true;
 
-  window.setTimeout(() => {
+  setTimeout(() => {
     autoCheckOnStartup().catch(() => {});
   }, AUTO_CHECK_DELAY_MS);
 
-  window.setInterval(() => {
+  setInterval(() => {
     autoCheckIfDue().catch(() => {});
   }, AUTO_CHECK_TICK_MS);
 }
@@ -160,22 +162,22 @@ export async function updateCheckNow(options: {
 
   sessionChecked = true;
 
-  if (snapshot.checkingUpdate) {
-    return checkingPromise ?? snapshot.updateCandidate;
-  }
+  if (!hasTauriRuntime()) return null;
+  if (checkingPromise) return checkingPromise;
 
   checkingPromise = (async () => {
     lastCheckError = null;
-    setSnapshot({ checkingUpdate: true });
     try {
-      const update = await updaterCheck();
+      const update = await queryClient.fetchQuery({
+        queryKey: updaterKeys.check(),
+        queryFn: () => updaterCheck(),
+        staleTime: 0,
+      });
+
       writeLastCheckedAtMs(Date.now());
 
-      // Keep existing updateCandidate when check fails; but if check succeeds with no update, clear it.
-      setSnapshot({ updateCandidate: update });
-
       if (update && options.openDialogIfUpdate) {
-        setSnapshot({
+        setUiSnapshot({
           dialogOpen: true,
           installError: null,
           installDownloadedBytes: 0,
@@ -197,7 +199,6 @@ export async function updateCheckNow(options: {
       if (!options.silent) toast(`检查更新失败：${message}`);
       return null;
     } finally {
-      setSnapshot({ checkingUpdate: false });
       checkingPromise = null;
     }
   })();
@@ -208,24 +209,28 @@ export async function updateCheckNow(options: {
 function onUpdaterDownloadEvent(evt: UpdaterDownloadEvent) {
   if (evt.event === "started") {
     const total = evt.data?.contentLength;
-    setSnapshot({ installTotalBytes: typeof total === "number" ? total : null });
+    setUiSnapshot({ installTotalBytes: typeof total === "number" ? total : null });
     return;
   }
   if (evt.event === "progress") {
     const chunk = evt.data?.chunkLength;
     if (typeof chunk === "number" && Number.isFinite(chunk) && chunk > 0) {
-      setSnapshot({ installDownloadedBytes: snapshot.installDownloadedBytes + chunk });
+      setUiSnapshot({ installDownloadedBytes: uiSnapshot.installDownloadedBytes + chunk });
     }
   }
 }
 
 export async function updateDownloadAndInstall(): Promise<boolean | null> {
   await ensureStarted();
+  if (!hasTauriRuntime()) return null;
 
-  if (!snapshot.updateCandidate) return null;
-  if (snapshot.installingUpdate) return installingPromise ?? true;
+  const updateCandidate =
+    queryClient.getQueryData<UpdaterCheckUpdate | null>(updaterKeys.check()) ?? null;
+  if (!updateCandidate) return null;
 
-  setSnapshot({
+  if (uiSnapshot.installingUpdate) return installingPromise ?? true;
+
+  setUiSnapshot({
     installError: null,
     installDownloadedBytes: 0,
     installTotalBytes: null,
@@ -235,18 +240,18 @@ export async function updateDownloadAndInstall(): Promise<boolean | null> {
   installingPromise = (async () => {
     try {
       const ok = await updaterDownloadAndInstall({
-        rid: snapshot.updateCandidate!.rid,
+        rid: updateCandidate.rid,
         onEvent: onUpdaterDownloadEvent,
       });
       return ok;
     } catch (err) {
       const message = String(err);
-      setSnapshot({ installError: message });
+      setUiSnapshot({ installError: message });
       logToConsole("error", "安装更新失败", { error: message });
       toast("安装更新失败：请稍后重试");
       return false;
     } finally {
-      setSnapshot({ installingUpdate: false });
+      setUiSnapshot({ installingUpdate: false });
       installingPromise = null;
     }
   })();
@@ -255,11 +260,11 @@ export async function updateDownloadAndInstall(): Promise<boolean | null> {
 }
 
 export function updateDialogSetOpen(open: boolean) {
-  if (!open && snapshot.installingUpdate) return;
+  if (!open && uiSnapshot.installingUpdate) return;
 
-  setSnapshot({ dialogOpen: open });
+  setUiSnapshot({ dialogOpen: open });
   if (!open) {
-    setSnapshot({
+    setUiSnapshot({
       installError: null,
       installDownloadedBytes: 0,
       installTotalBytes: null,
@@ -269,13 +274,40 @@ export function updateDialogSetOpen(open: boolean) {
 }
 
 export function useUpdateMeta(): UpdateMeta {
-  return useSyncExternalStore(
+  const aboutQuery = useAppAboutQuery();
+  const updaterCheckQuery = useUpdaterCheckQuery();
+
+  const ui = useSyncExternalStore(
     (listener) => {
       listeners.add(listener);
       void ensureStarted();
       return () => listeners.delete(listener);
     },
-    () => snapshot,
-    () => snapshot
+    () => uiSnapshot,
+    () => uiSnapshot
+  );
+
+  return useMemo(
+    () => ({
+      about: aboutQuery.data ?? null,
+      updateCandidate: updaterCheckQuery.data ?? null,
+      checkingUpdate: updaterCheckQuery.isFetching,
+      dialogOpen: ui.dialogOpen,
+
+      installingUpdate: ui.installingUpdate,
+      installError: ui.installError,
+      installTotalBytes: ui.installTotalBytes,
+      installDownloadedBytes: ui.installDownloadedBytes,
+    }),
+    [
+      aboutQuery.data,
+      ui.dialogOpen,
+      ui.installDownloadedBytes,
+      ui.installError,
+      ui.installTotalBytes,
+      ui.installingUpdate,
+      updaterCheckQuery.data,
+      updaterCheckQuery.isFetching,
+    ]
   );
 }

@@ -253,6 +253,7 @@ export function SortModesView({
     if (activeModeId == null) {
       setModeProvidersAvailable(true);
       setModeProviderIds([]);
+      modeProviderIdsRef.current = [];
       setModeProvidersLoading(false);
       return;
     }
@@ -265,15 +266,18 @@ export function SortModesView({
         if (!ids) {
           setModeProvidersAvailable(false);
           setModeProviderIds([]);
+          modeProviderIdsRef.current = [];
           return;
         }
         setModeProvidersAvailable(true);
         setModeProviderIds(ids);
+        modeProviderIdsRef.current = ids;
       })
       .catch((err) => {
         if (cancelled) return;
         setModeProvidersAvailable(true);
         setModeProviderIds([]);
+        modeProviderIdsRef.current = [];
         logToConsole("error", "读取排序模板 Provider 列表失败", {
           error: String(err),
           mode_id: activeModeId,
@@ -412,17 +416,20 @@ export function SortModesView({
         toast("仅在 Tauri Desktop 环境可用");
         if (activeModeIdRef.current === modeId && activeCliRef.current === cliKey) {
           setModeProviderIds(prevIds);
+          modeProviderIdsRef.current = prevIds;
         }
         return;
       }
 
       if (activeModeIdRef.current === modeId && activeCliRef.current === cliKey) {
         setModeProviderIds(saved);
+        modeProviderIdsRef.current = saved;
         toast("模式顺序已更新");
       }
     } catch (err) {
       if (activeModeIdRef.current === modeId && activeCliRef.current === cliKey) {
         setModeProviderIds(prevIds);
+        modeProviderIdsRef.current = prevIds;
       }
       logToConsole("error", "更新排序模板顺序失败", {
         error: String(err),
@@ -443,6 +450,7 @@ export function SortModesView({
     if (prev.includes(providerId)) return;
     const next = [...prev, providerId];
     setModeProviderIds(next);
+    modeProviderIdsRef.current = next;
     void persistModeProvidersOrder(modeId, cliKey, next, prev);
   }
 
@@ -454,6 +462,7 @@ export function SortModesView({
     if (!prev.includes(providerId)) return;
     const next = prev.filter((id) => id !== providerId);
     setModeProviderIds(next);
+    modeProviderIdsRef.current = next;
     void persistModeProvidersOrder(modeId, cliKey, next, prev);
   }
 
@@ -470,6 +479,7 @@ export function SortModesView({
 
     const nextIds = arrayMove(prevIds, oldIndex, newIndex);
     setModeProviderIds(nextIds);
+    modeProviderIdsRef.current = nextIds;
     void persistModeProvidersOrder(modeId, activeCliRef.current, nextIds, prevIds);
   }
 

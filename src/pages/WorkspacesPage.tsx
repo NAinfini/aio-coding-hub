@@ -4,22 +4,21 @@ import { Eye, Layers, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { CLIS, cliLongLabel } from "../constants/clis";
-import { logToConsole } from "../services/consoleLog";
-import { mcpServersList } from "../services/mcp";
-import type { CliKey } from "../services/providers";
-import { promptsList } from "../services/prompts";
-import { skillsInstalledList } from "../services/skills";
+import { useMcpServersListQuery } from "../query/mcp";
+import { usePromptsListQuery } from "../query/prompts";
+import { useSkillsInstalledListQuery } from "../query/skills";
 import {
-  workspaceApply,
-  workspaceCreate,
-  workspaceDelete,
-  workspacePreview,
-  workspaceRename,
-  workspacesList,
-  type WorkspaceApplyReport,
-  type WorkspacePreview,
-  type WorkspaceSummary,
-} from "../services/workspaces";
+  pickWorkspaceById,
+  useWorkspaceApplyMutation,
+  useWorkspaceCreateMutation,
+  useWorkspaceDeleteMutation,
+  useWorkspacePreviewQuery,
+  useWorkspaceRenameMutation,
+  useWorkspacesListQuery,
+} from "../query/workspaces";
+import { logToConsole } from "../services/consoleLog";
+import type { CliKey } from "../services/providers";
+import { type WorkspaceApplyReport, type WorkspaceSummary } from "../services/workspaces";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { Dialog } from "../ui/Dialog";
@@ -131,10 +130,16 @@ type CreateMode = "clone_active" | "blank";
 
 export function WorkspacesPage() {
   const [activeCli, setActiveCli] = useState<CliKey>("claude");
-  const [loading, setLoading] = useState(false);
+  const workspacesQuery = useWorkspacesListQuery(activeCli);
+  const createMutation = useWorkspaceCreateMutation();
+  const renameMutation = useWorkspaceRenameMutation();
+  const deleteMutation = useWorkspaceDeleteMutation();
+  const applyMutation = useWorkspaceApplyMutation();
 
-  const [items, setItems] = useState<WorkspaceSummary[]>([]);
-  const [activeWorkspaceId, setActiveWorkspaceId] = useState<number | null>(null);
+  const items: WorkspaceSummary[] = workspacesQuery.data?.items ?? [];
+  const activeWorkspaceId: number | null = workspacesQuery.data?.active_id ?? null;
+  const loading = workspacesQuery.isFetching;
+
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<number | null>(null);
   const [filterText, setFilterText] = useState("");
   const [rightTab, setRightTab] = useState<RightTab>("overview");
@@ -150,49 +155,30 @@ export function WorkspacesPage() {
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  const [previewLoading, setPreviewLoading] = useState(false);
-  const [preview, setPreview] = useState<WorkspacePreview | null>(null);
   const [applyReport, setApplyReport] = useState<WorkspaceApplyReport | null>(null);
-
-  const [overviewLoading, setOverviewLoading] = useState(false);
-  const [overviewStats, setOverviewStats] = useState<OverviewStats | null>(null);
 
   const [applyOpen, setApplyOpen] = useState(false);
   const [applyConfirm, setApplyConfirm] = useState("");
-  const [applying, setApplying] = useState(false);
-
-  async function refresh(cliKey: CliKey) {
-    setLoading(true);
-    try {
-      const result = await workspacesList(cliKey);
-      if (!result) {
-        setItems([]);
-        setActiveWorkspaceId(null);
-        setSelectedWorkspaceId(null);
-        return;
-      }
-
-      setItems(result.items);
-      setActiveWorkspaceId(result.active_id);
-
-      setSelectedWorkspaceId((prev) => {
-        const stillExists = prev != null && result.items.some((w) => w.id === prev);
-        if (stillExists) return prev;
-        if (result.active_id != null) return result.active_id;
-        return result.items[0]?.id ?? null;
-      });
-    } catch (err) {
-      logToConsole("error", "加载工作区失败", { error: String(err), cli: cliKey });
-      toast("加载失败：请查看控制台日志");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   useEffect(() => {
-    void refresh(activeCli);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeCli]);
+    if (!workspacesQuery.error) return;
+    logToConsole("error", "加载工作区失败", {
+      error: String(workspacesQuery.error),
+      cli: activeCli,
+    });
+    toast("加载失败：请查看控制台日志");
+  }, [activeCli, workspacesQuery.error]);
+
+  useEffect(() => {
+    const result = workspacesQuery.data;
+    if (!result) return;
+    setSelectedWorkspaceId((prev) => {
+      const stillExists = prev != null && result.items.some((w) => w.id === prev);
+      if (stillExists) return prev;
+      if (result.active_id != null) return result.active_id;
+      return result.items[0]?.id ?? null;
+    });
+  }, [workspacesQuery.data]);
 
   const filtered = useMemo(() => {
     const q = filterText.trim().toLowerCase();
@@ -204,8 +190,7 @@ export function WorkspacesPage() {
   }, [filterText, items]);
 
   const selectedWorkspace = useMemo(() => {
-    const byId = new Map(items.map((w) => [w.id, w]));
-    return (selectedWorkspaceId != null ? byId.get(selectedWorkspaceId) : null) ?? null;
+    return pickWorkspaceById(items, selectedWorkspaceId);
   }, [items, selectedWorkspaceId]);
 
   const workspaceById = useMemo(() => new Map(items.map((w) => [w.id, w])), [items]);
@@ -218,81 +203,49 @@ export function WorkspacesPage() {
     setSelectedWorkspaceId(filtered[0].id);
   }, [filterText, filtered, selectedWorkspace]);
 
-  async function refreshOverview(workspaceId: number) {
-    setOverviewLoading(true);
-    try {
-      const [prompts, mcpServers, skills] = await Promise.all([
-        promptsList(workspaceId),
-        mcpServersList(workspaceId),
-        skillsInstalledList(workspaceId),
-      ]);
+  const overviewWorkspaceId = rightTab === "overview" ? (selectedWorkspace?.id ?? null) : null;
+  const promptsQuery = usePromptsListQuery(overviewWorkspaceId, {
+    enabled: overviewWorkspaceId != null,
+  });
+  const mcpServersQuery = useMcpServersListQuery(overviewWorkspaceId, {
+    enabled: overviewWorkspaceId != null,
+  });
+  const skillsQuery = useSkillsInstalledListQuery(overviewWorkspaceId, {
+    enabled: overviewWorkspaceId != null,
+  });
 
-      if (!prompts || !mcpServers || !skills) {
-        setOverviewStats(null);
-        return;
-      }
+  const overviewLoading =
+    promptsQuery.isFetching || mcpServersQuery.isFetching || skillsQuery.isFetching;
 
-      setOverviewStats({
-        prompts: {
-          total: prompts.length,
-          enabled: prompts.filter((p) => p.enabled).length,
-        },
-        mcp: {
-          total: mcpServers.length,
-          enabled: mcpServers.filter((s) => s.enabled).length,
-        },
-        skills: {
-          total: skills.length,
-          enabled: skills.filter((s) => s.enabled).length,
-        },
-      });
-    } catch (err) {
-      logToConsole("error", "加载工作区概览失败", {
-        error: String(err),
-        workspace_id: workspaceId,
-      });
-      setOverviewStats(null);
-    } finally {
-      setOverviewLoading(false);
-    }
-  }
+  const overviewStats: OverviewStats | null = useMemo(() => {
+    if (!overviewWorkspaceId) return null;
+    const prompts = promptsQuery.data;
+    const mcpServers = mcpServersQuery.data;
+    const skills = skillsQuery.data;
+    if (!prompts || !mcpServers || !skills) return null;
 
-  async function refreshPreview(workspaceId: number) {
-    setPreviewLoading(true);
-    try {
-      const next = await workspacePreview(workspaceId);
-      setPreview(next ?? null);
-    } catch (err) {
-      logToConsole("error", "加载工作区预览失败", {
-        error: String(err),
-        workspace_id: workspaceId,
-      });
-      setPreview(null);
-      toast("预览失败：请查看控制台日志");
-    } finally {
-      setPreviewLoading(false);
-    }
-  }
+    return {
+      prompts: {
+        total: prompts.length,
+        enabled: prompts.filter((p) => p.enabled).length,
+      },
+      mcp: {
+        total: mcpServers.length,
+        enabled: mcpServers.filter((s) => s.enabled).length,
+      },
+      skills: {
+        total: skills.length,
+        enabled: skills.filter((s) => s.enabled).length,
+      },
+    };
+  }, [mcpServersQuery.data, overviewWorkspaceId, promptsQuery.data, skillsQuery.data]);
 
-  useEffect(() => {
-    if (rightTab !== "overview") return;
-    if (!selectedWorkspace) {
-      setOverviewStats(null);
-      return;
-    }
-    void refreshOverview(selectedWorkspace.id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rightTab, selectedWorkspace?.id]);
-
-  useEffect(() => {
-    if (rightTab !== "preview_apply") return;
-    if (!selectedWorkspace) {
-      setPreview(null);
-      return;
-    }
-    void refreshPreview(selectedWorkspace.id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rightTab, selectedWorkspace?.id]);
+  const previewQuery = useWorkspacePreviewQuery(selectedWorkspace?.id ?? null, {
+    enabled: rightTab === "preview_apply",
+  });
+  const preview = previewQuery.data ?? null;
+  const previewLoading = previewQuery.isFetching;
+  const applying = applyMutation.isPending;
 
   const createError = useMemo(() => {
     const name = normalizeWorkspaceName(createName);
@@ -332,10 +285,10 @@ export function WorkspacesPage() {
     if (!name) return;
 
     try {
-      const created = await workspaceCreate({
-        cli_key: activeCli,
+      const created = await createMutation.mutateAsync({
+        cliKey: activeCli,
         name,
-        clone_from_active: createMode === "clone_active",
+        cloneFromActive: createMode === "clone_active",
       });
       if (!created) {
         toast("仅在 Tauri Desktop 环境可用");
@@ -344,7 +297,6 @@ export function WorkspacesPage() {
 
       toast("已创建");
       setCreateOpen(false);
-      await refresh(activeCli);
       setSelectedWorkspaceId(created.id);
       setRightTab("overview");
     } catch (err) {
@@ -366,7 +318,11 @@ export function WorkspacesPage() {
     if (!name) return;
 
     try {
-      const next = await workspaceRename({ workspace_id: renameTarget.id, name });
+      const next = await renameMutation.mutateAsync({
+        cliKey: activeCli,
+        workspaceId: renameTarget.id,
+        name,
+      });
       if (!next) {
         toast("仅在 Tauri Desktop 环境可用");
         return;
@@ -374,7 +330,6 @@ export function WorkspacesPage() {
       toast("已重命名");
       setRenameOpen(false);
       setRenameTargetId(null);
-      await refresh(activeCli);
     } catch (err) {
       logToConsole("error", "重命名工作区失败", { error: String(err), id: renameTarget.id });
       toast(`重命名失败：${String(err)}`);
@@ -389,7 +344,10 @@ export function WorkspacesPage() {
   async function deleteWorkspace() {
     if (!deleteTarget) return;
     try {
-      const ok = await workspaceDelete(deleteTarget.id);
+      const ok = await deleteMutation.mutateAsync({
+        cliKey: activeCli,
+        workspaceId: deleteTarget.id,
+      });
       if (!ok) {
         toast("仅在 Tauri Desktop 环境可用");
         return;
@@ -397,7 +355,6 @@ export function WorkspacesPage() {
       toast("已删除");
       setDeleteOpen(false);
       setDeleteTargetId(null);
-      await refresh(activeCli);
     } catch (err) {
       logToConsole("error", "删除工作区失败", { error: String(err), id: deleteTarget.id });
       toast(`删除失败：${String(err)}`);
@@ -408,10 +365,11 @@ export function WorkspacesPage() {
     if (!selectedWorkspace) return;
     if (selectedWorkspace.id === activeWorkspaceId) return;
     if (applying) return;
-
-    setApplying(true);
     try {
-      const next = await workspaceApply(selectedWorkspace.id);
+      const next = await applyMutation.mutateAsync({
+        cliKey: activeCli,
+        workspaceId: selectedWorkspace.id,
+      });
       if (!next) {
         toast("仅在 Tauri Desktop 环境可用");
         return;
@@ -421,25 +379,21 @@ export function WorkspacesPage() {
       toast("已应用为当前工作区");
       setApplyOpen(false);
       setApplyConfirm("");
-      await refresh(activeCli);
-      await refreshPreview(selectedWorkspace.id);
     } catch (err) {
       logToConsole("error", "应用工作区失败", {
         error: String(err),
         workspace_id: selectedWorkspace.id,
       });
       toast(`应用失败：${String(err)}`);
-    } finally {
-      setApplying(false);
     }
   }
 
   async function rollbackToPrevious() {
     if (!applyReport?.from_workspace_id) return;
     if (applying) return;
-    setApplying(true);
+    const workspaceId = applyReport.from_workspace_id;
     try {
-      const next = await workspaceApply(applyReport.from_workspace_id);
+      const next = await applyMutation.mutateAsync({ cliKey: activeCli, workspaceId });
       if (!next) {
         toast("仅在 Tauri Desktop 环境可用");
         return;
@@ -447,18 +401,12 @@ export function WorkspacesPage() {
 
       setApplyReport(next);
       toast("已回滚到上一个工作区");
-      await refresh(activeCli);
-      if (selectedWorkspace) {
-        await refreshPreview(selectedWorkspace.id);
-      }
     } catch (err) {
       logToConsole("error", "回滚工作区失败", {
         error: String(err),
-        from_workspace_id: applyReport.from_workspace_id,
+        from_workspace_id: workspaceId,
       });
       toast(`回滚失败：${String(err)}`);
-    } finally {
-      setApplying(false);
     }
   }
 
@@ -979,7 +927,7 @@ export function WorkspacesPage() {
                     <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-3">
                       <Button
                         variant="secondary"
-                        onClick={() => void refreshPreview(selectedWorkspace.id)}
+                        onClick={() => void previewQuery.refetch()}
                         disabled={previewLoading}
                       >
                         刷新预览

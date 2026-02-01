@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   DndContext,
   PointerSensor,
@@ -20,31 +21,29 @@ import { CSS } from "@dnd-kit/utilities";
 import { CLIS } from "../../constants/clis";
 import { ClaudeModelValidationDialog } from "../../components/ClaudeModelValidationDialog";
 import { logToConsole } from "../../services/consoleLog";
+import type { GatewayProviderCircuitStatus } from "../../services/gateway";
+import type { CliKey, ProviderSummary } from "../../services/providers";
+import { gatewayKeys, providersKeys } from "../../query/keys";
 import {
-  providerDelete,
-  providerSetEnabled,
-  providersReorder,
-  type CliKey,
-  type ProviderSummary,
-} from "../../services/providers";
+  useGatewayCircuitResetCliMutation,
+  useGatewayCircuitResetProviderMutation,
+  useGatewayCircuitStatusQuery,
+} from "../../query/gateway";
 import {
-  gatewayCircuitResetCli,
-  gatewayCircuitResetProvider,
-  gatewayCircuitStatus,
-  type GatewayProviderCircuitStatus,
-} from "../../services/gateway";
+  useProviderDeleteMutation,
+  useProviderSetEnabledMutation,
+  useProvidersListQuery,
+  useProvidersReorderMutation,
+} from "../../query/providers";
 import { Button } from "../../ui/Button";
 import { Card } from "../../ui/Card";
 import { Dialog } from "../../ui/Dialog";
 import { Switch } from "../../ui/Switch";
 import { cn } from "../../utils/cn";
 import { formatCountdownSeconds, formatUnixSeconds } from "../../utils/formatters";
-import { hasTauriRuntime } from "../../services/tauriInvoke";
 import { providerBaseUrlSummary } from "./baseUrl";
 import { ProviderEditorDialog } from "./ProviderEditorDialog";
 import { FlaskConical } from "lucide-react";
-
-const CIRCUIT_EVENT_REFRESH_THROTTLE_MS = 1000;
 
 type SortableProviderCardProps = {
   provider: ProviderSummary;
@@ -230,39 +229,38 @@ function SortableProviderCard({
 export type ProvidersViewProps = {
   activeCli: CliKey;
   setActiveCli: (cliKey: CliKey) => void;
-  providers: ProviderSummary[];
-  setProviders: React.Dispatch<React.SetStateAction<ProviderSummary[]>>;
-  providersLoading: boolean;
-  refreshProviders: (cliKey: CliKey) => Promise<void>;
 };
 
-export function ProvidersView({
-  activeCli,
-  setActiveCli,
-  providers,
-  setProviders,
-  providersLoading,
-  refreshProviders,
-}: ProvidersViewProps) {
+export function ProvidersView({ activeCli, setActiveCli }: ProvidersViewProps) {
+  const queryClient = useQueryClient();
+
   const activeCliRef = useRef(activeCli);
   useEffect(() => {
     activeCliRef.current = activeCli;
   }, [activeCli]);
+
+  const providersQuery = useProvidersListQuery(activeCli);
+  const providers: ProviderSummary[] = providersQuery.data ?? [];
+  const providersLoading = providersQuery.isFetching;
 
   const providersRef = useRef(providers);
   useEffect(() => {
     providersRef.current = providers;
   }, [providers]);
 
-  const [circuitByProviderId, setCircuitByProviderId] = useState<
-    Record<number, GatewayProviderCircuitStatus>
-  >({});
-  const [circuitLoading, setCircuitLoading] = useState(false);
+  const circuitQuery = useGatewayCircuitStatusQuery(activeCli);
+  const circuitRows: GatewayProviderCircuitStatus[] = circuitQuery.data ?? [];
+  const circuitLoading = circuitQuery.isFetching;
+  const circuitByProviderId = useMemo(() => {
+    const next: Record<number, GatewayProviderCircuitStatus> = {};
+    for (const row of circuitRows) {
+      next[row.provider_id] = row;
+    }
+    return next;
+  }, [circuitRows]);
+
   const [circuitResetting, setCircuitResetting] = useState<Record<number, boolean>>({});
   const [circuitResettingAll, setCircuitResettingAll] = useState(false);
-  const circuitRefreshInFlightRef = useRef(false);
-  const circuitRefreshQueuedRef = useRef(false);
-  const circuitEventRefreshTimerRef = useRef<number | null>(null);
   const circuitAutoRefreshTimerRef = useRef<number | null>(null);
 
   const hasUnavailableCircuit = useMemo(
@@ -274,6 +272,12 @@ export function ProvidersView({
       ),
     [circuitByProviderId]
   );
+
+  const resetCircuitProviderMutation = useGatewayCircuitResetProviderMutation();
+  const resetCircuitCliMutation = useGatewayCircuitResetCliMutation();
+  const providerSetEnabledMutation = useProviderSetEnabledMutation();
+  const providerDeleteMutation = useProviderDeleteMutation();
+  const providersReorderMutation = useProvidersReorderMutation();
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createCliKeyLocked, setCreateCliKeyLocked] = useState<CliKey | null>(null);
@@ -298,67 +302,10 @@ export function ProvidersView({
     })
   );
 
-  const refreshCircuit = useMemo(
-    () => async (cliKey: CliKey) => {
-      if (circuitRefreshInFlightRef.current) {
-        circuitRefreshQueuedRef.current = true;
-        return;
-      }
-
-      circuitRefreshInFlightRef.current = true;
-      if (activeCliRef.current === cliKey) setCircuitLoading(true);
-
-      try {
-        const rows = await gatewayCircuitStatus(cliKey);
-        if (activeCliRef.current !== cliKey) return;
-        if (!rows) {
-          setCircuitByProviderId({});
-          return;
-        }
-
-        const next: Record<number, GatewayProviderCircuitStatus> = {};
-        for (const row of rows) {
-          next[row.provider_id] = row;
-        }
-        setCircuitByProviderId(next);
-      } catch (err) {
-        if (activeCliRef.current !== cliKey) return;
-        logToConsole("warn", "读取熔断状态失败", { cli: cliKey, error: String(err) });
-        setCircuitByProviderId({});
-      } finally {
-        circuitRefreshInFlightRef.current = false;
-
-        if (circuitRefreshQueuedRef.current) {
-          circuitRefreshQueuedRef.current = false;
-          void refreshCircuit(activeCliRef.current);
-          return;
-        }
-
-        if (activeCliRef.current === cliKey) {
-          setCircuitLoading(false);
-        }
-      }
-    },
-    []
-  );
-
-  const scheduleRefreshCircuit = useMemo(
-    () => () => {
-      if (circuitEventRefreshTimerRef.current != null) return;
-      circuitEventRefreshTimerRef.current = window.setTimeout(() => {
-        circuitEventRefreshTimerRef.current = null;
-        void refreshCircuit(activeCliRef.current);
-      }, CIRCUIT_EVENT_REFRESH_THROTTLE_MS);
-    },
-    [refreshCircuit]
-  );
-
   useEffect(() => {
-    setCircuitByProviderId({});
     setCircuitResetting({});
     setCircuitResettingAll(false);
-    void refreshCircuit(activeCli);
-  }, [activeCli, refreshCircuit]);
+  }, [activeCli]);
 
   useEffect(() => {
     if (circuitAutoRefreshTimerRef.current != null) {
@@ -395,7 +342,7 @@ export function ProvidersView({
     const delayMs = Math.max(200, (nextAvailableUntil - nowUnix) * 1000 + 250);
     circuitAutoRefreshTimerRef.current = window.setTimeout(() => {
       circuitAutoRefreshTimerRef.current = null;
-      void refreshCircuit(activeCliRef.current);
+      void circuitQuery.refetch();
     }, delayMs);
 
     return () => {
@@ -404,50 +351,19 @@ export function ProvidersView({
         circuitAutoRefreshTimerRef.current = null;
       }
     };
-  }, [circuitByProviderId, hasUnavailableCircuit, refreshCircuit]);
-
-  useEffect(() => {
-    if (!hasTauriRuntime()) return;
-
-    let cancelled = false;
-    let unlisten: null | (() => void) = null;
-
-    import("@tauri-apps/api/event")
-      .then(({ listen }) =>
-        listen("gateway:circuit", (event) => {
-          if (cancelled) return;
-          const payload = event.payload as any;
-          if (!payload) return;
-          if (payload.cli_key && payload.cli_key !== activeCliRef.current) return;
-          scheduleRefreshCircuit();
-        })
-      )
-      .then((fn) => {
-        unlisten = fn;
-      })
-      .catch(() => {
-        // ignore: events unavailable in non-tauri environment
-      });
-
-    return () => {
-      cancelled = true;
-      if (unlisten) unlisten();
-      if (circuitEventRefreshTimerRef.current != null) {
-        window.clearTimeout(circuitEventRefreshTimerRef.current);
-        circuitEventRefreshTimerRef.current = null;
-      }
-    };
-  }, [scheduleRefreshCircuit]);
+  }, [circuitByProviderId, circuitQuery, hasUnavailableCircuit]);
 
   async function toggleProviderEnabled(provider: ProviderSummary) {
     try {
-      const next = await providerSetEnabled(provider.id, !provider.enabled);
+      const next = await providerSetEnabledMutation.mutateAsync({
+        providerId: provider.id,
+        enabled: !provider.enabled,
+      });
       if (!next) {
         toast("仅在 Tauri Desktop 环境可用");
         return;
       }
 
-      setProviders((prev) => prev.map((p) => (p.id === next.id ? next : p)));
       logToConsole("info", "更新 Provider 状态", { id: next.id, enabled: next.enabled });
       toast(next.enabled ? "已启用 Provider" : "已禁用 Provider");
     } catch (err) {
@@ -461,14 +377,17 @@ export function ProvidersView({
     setCircuitResetting((cur) => ({ ...cur, [provider.id]: true }));
 
     try {
-      const ok = await gatewayCircuitResetProvider(provider.id);
+      const ok = await resetCircuitProviderMutation.mutateAsync({
+        cliKey: provider.cli_key,
+        providerId: provider.id,
+      });
       if (!ok) {
         toast("仅在 Tauri Desktop 环境可用");
         return;
       }
 
       toast("已解除熔断");
-      void refreshCircuit(provider.cli_key);
+      void circuitQuery.refetch();
     } catch (err) {
       logToConsole("error", "解除熔断失败", { provider_id: provider.id, error: String(err) });
       toast(`解除熔断失败：${String(err)}`);
@@ -482,14 +401,14 @@ export function ProvidersView({
     setCircuitResettingAll(true);
 
     try {
-      const count = await gatewayCircuitResetCli(cliKey);
+      const count = await resetCircuitCliMutation.mutateAsync({ cliKey });
       if (count == null) {
         toast("仅在 Tauri Desktop 环境可用");
         return;
       }
 
       toast(count > 0 ? `已解除 ${count} 个 Provider 的熔断` : "无 Provider 需要处理");
-      void refreshCircuit(cliKey);
+      void circuitQuery.refetch();
     } catch (err) {
       logToConsole("error", "解除熔断（全部）失败", { cli: cliKey, error: String(err) });
       toast(`解除熔断失败：${String(err)}`);
@@ -508,13 +427,15 @@ export function ProvidersView({
     if (!deleteTarget || deleting) return;
     setDeleting(true);
     try {
-      const ok = await providerDelete(deleteTarget.id);
+      const ok = await providerDeleteMutation.mutateAsync({
+        cliKey: deleteTarget.cli_key,
+        providerId: deleteTarget.id,
+      });
       if (!ok) {
         toast("仅在 Tauri Desktop 环境可用");
         return;
       }
 
-      setProviders((prev) => prev.filter((p) => p.id !== deleteTarget.id));
       logToConsole("info", "删除 Provider", {
         id: deleteTarget.id,
         name: deleteTarget.name,
@@ -538,12 +459,15 @@ export function ProvidersView({
     prevProviders: ProviderSummary[]
   ) {
     try {
-      const saved = await providersReorder(
+      const saved = await providersReorderMutation.mutateAsync({
         cliKey,
-        nextProviders.map((p) => p.id)
-      );
+        orderedProviderIds: nextProviders.map((p) => p.id),
+      });
       if (!saved) {
         toast("仅在 Tauri Desktop 环境可用");
+        if (activeCliRef.current === cliKey) {
+          queryClient.setQueryData(providersKeys.list(cliKey), prevProviders);
+        }
         return;
       }
 
@@ -551,7 +475,6 @@ export function ProvidersView({
         return;
       }
 
-      setProviders(saved);
       logToConsole("info", "更新 Provider 顺序", {
         cli: cliKey,
         order: saved.map((p) => p.id),
@@ -559,7 +482,7 @@ export function ProvidersView({
       toast("顺序已更新");
     } catch (err) {
       if (activeCliRef.current === cliKey) {
-        setProviders(prevProviders);
+        queryClient.setQueryData(providersKeys.list(cliKey), prevProviders);
       }
       logToConsole("error", "更新 Provider 顺序失败", {
         cli: cliKey,
@@ -581,7 +504,7 @@ export function ProvidersView({
     if (oldIndex === -1 || newIndex === -1) return;
 
     const nextProviders = arrayMove(prevProviders, oldIndex, newIndex);
-    setProviders(nextProviders);
+    queryClient.setQueryData(providersKeys.list(cliKey), nextProviders);
     void persistProvidersOrder(cliKey, nextProviders, prevProviders);
   }
 
@@ -691,8 +614,8 @@ export function ProvidersView({
           }}
           cliKey={createCliKeyLocked}
           onSaved={(cliKey) => {
-            void refreshProviders(cliKey);
-            void refreshCircuit(cliKey);
+            queryClient.invalidateQueries({ queryKey: providersKeys.list(cliKey) });
+            queryClient.invalidateQueries({ queryKey: gatewayKeys.circuitStatus(cliKey) });
           }}
         />
       ) : null}
@@ -706,8 +629,8 @@ export function ProvidersView({
           }}
           provider={editTarget}
           onSaved={(cliKey) => {
-            void refreshProviders(cliKey);
-            void refreshCircuit(cliKey);
+            queryClient.invalidateQueries({ queryKey: providersKeys.list(cliKey) });
+            queryClient.invalidateQueries({ queryKey: gatewayKeys.circuitStatus(cliKey) });
           }}
         />
       ) : null}

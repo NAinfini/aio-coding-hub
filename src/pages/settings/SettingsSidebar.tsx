@@ -1,25 +1,24 @@
 import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 import { useCallback, useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { UpdateMeta } from "../../hooks/useUpdateMeta";
 import { updateCheckNow } from "../../hooks/useUpdateMeta";
 import { AIO_RELEASES_URL } from "../../constants/urls";
 import { logToConsole } from "../../services/consoleLog";
 import {
-  modelPricesList,
-  modelPricesSyncBasellm,
   subscribeModelPricesUpdated,
   type ModelPricesSyncReport,
 } from "../../services/modelPrices";
-import { usageSummary } from "../../services/usage";
 import {
-  appDataDirGet,
-  appDataReset,
-  appExit,
-  dbDiskUsageGet,
-  requestLogsClearAll,
-  type DbDiskUsage,
-} from "../../services/dataManagement";
+  useModelPricesSyncBasellmMutation,
+  useModelPricesTotalCountQuery,
+  isModelPricesSyncNotModified,
+} from "../../query/modelPrices";
+import { modelPricesKeys } from "../../query/keys";
+import { useUsageSummaryQuery } from "../../query/usage";
+import { appDataDirGet, appDataReset, appExit } from "../../services/dataManagement";
+import { useDbDiskUsageQuery, useRequestLogsClearAllMutation } from "../../query/dataManagement";
 import { SettingsAboutCard } from "./SettingsAboutCard";
 import { SettingsDataManagementCard } from "./SettingsDataManagementCard";
 import { SettingsDataSyncCard } from "./SettingsDataSyncCard";
@@ -35,19 +34,43 @@ export type SettingsSidebarProps = {
 export function SettingsSidebar({ updateMeta }: SettingsSidebarProps) {
   const about = updateMeta.about;
 
-  const [syncingModelPrices, setSyncingModelPrices] = useState(false);
+  const queryClient = useQueryClient();
+
+  const modelPricesCountQuery = useModelPricesTotalCountQuery();
+  const modelPricesSyncMutation = useModelPricesSyncBasellmMutation();
+
+  const todaySummaryQuery = useUsageSummaryQuery("today", { cliKey: null });
+
+  const dbDiskUsageQuery = useDbDiskUsageQuery();
+  const clearRequestLogsMutation = useRequestLogsClearAllMutation();
+
   const [lastModelPricesSyncReport, setLastModelPricesSyncReport] =
     useState<ModelPricesSyncReport | null>(null);
   const [lastModelPricesSyncError, setLastModelPricesSyncError] = useState<string | null>(null);
   const [modelPriceAliasesDialogOpen, setModelPriceAliasesDialogOpen] = useState(false);
-  const [modelPricesAvailable, setModelPricesAvailable] = useState<AvailableStatus>("checking");
-  const [modelPricesCount, setModelPricesCount] = useState<number | null>(null);
 
-  const [todayRequestsAvailable, setTodayRequestsAvailable] = useState<AvailableStatus>("checking");
-  const [todayRequestsTotal, setTodayRequestsTotal] = useState<number | null>(null);
+  const syncingModelPrices = modelPricesSyncMutation.isPending;
 
-  const [dbDiskUsageAvailable, setDbDiskUsageAvailable] = useState<AvailableStatus>("checking");
-  const [dbDiskUsage, setDbDiskUsage] = useState<DbDiskUsage | null>(null);
+  const modelPricesCount = modelPricesCountQuery.data ?? null;
+  const modelPricesAvailable: AvailableStatus = modelPricesCountQuery.isLoading
+    ? "checking"
+    : modelPricesCount != null
+      ? "available"
+      : "unavailable";
+
+  const todayRequestsTotal = todaySummaryQuery.data?.requests_total ?? null;
+  const todayRequestsAvailable: AvailableStatus = todaySummaryQuery.isLoading
+    ? "checking"
+    : todaySummaryQuery.data
+      ? "available"
+      : "unavailable";
+
+  const dbDiskUsage = dbDiskUsageQuery.data ?? null;
+  const dbDiskUsageAvailable: AvailableStatus = dbDiskUsageQuery.isLoading
+    ? "checking"
+    : dbDiskUsage != null
+      ? "available"
+      : "unavailable";
 
   const [clearRequestLogsDialogOpen, setClearRequestLogsDialogOpen] = useState(false);
   const [clearingRequestLogs, setClearingRequestLogs] = useState(false);
@@ -98,85 +121,16 @@ export function SettingsSidebar({ updateMeta }: SettingsSidebarProps) {
     }
   }
 
-  const refreshModelPricesCount = useCallback(async () => {
-    setModelPricesAvailable("checking");
-    try {
-      const [codex, claude, gemini] = await Promise.all([
-        modelPricesList("codex"),
-        modelPricesList("claude"),
-        modelPricesList("gemini"),
-      ]);
-
-      if (!codex || !claude || !gemini) {
-        setModelPricesAvailable("unavailable");
-        setModelPricesCount(null);
-        return;
-      }
-
-      setModelPricesAvailable("available");
-      setModelPricesCount(codex.length + claude.length + gemini.length);
-    } catch {
-      setModelPricesAvailable("unavailable");
-      setModelPricesCount(null);
-    }
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    setTodayRequestsAvailable("checking");
-    usageSummary("today")
-      .then((summary) => {
-        if (cancelled) return;
-        if (!summary) {
-          setTodayRequestsAvailable("unavailable");
-          setTodayRequestsTotal(null);
-          return;
-        }
-        setTodayRequestsAvailable("available");
-        setTodayRequestsTotal(summary.requests_total);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setTodayRequestsAvailable("unavailable");
-        setTodayRequestsTotal(null);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    refreshModelPricesCount().catch(() => {});
-  }, [refreshModelPricesCount]);
-
   const refreshDbDiskUsage = useCallback(async () => {
-    setDbDiskUsageAvailable("checking");
-    try {
-      const usage = await dbDiskUsageGet();
-      if (!usage) {
-        setDbDiskUsageAvailable("unavailable");
-        setDbDiskUsage(null);
-        return;
-      }
-      setDbDiskUsageAvailable("available");
-      setDbDiskUsage(usage);
-    } catch {
-      setDbDiskUsageAvailable("unavailable");
-      setDbDiskUsage(null);
-    }
-  }, []);
-
-  useEffect(() => {
-    refreshDbDiskUsage().catch(() => {});
-  }, [refreshDbDiskUsage]);
+    await dbDiskUsageQuery.refetch();
+  }, [dbDiskUsageQuery]);
 
   async function clearRequestLogs() {
     if (clearingRequestLogs) return;
     setClearingRequestLogs(true);
 
     try {
-      const result = await requestLogsClearAll();
+      const result = await clearRequestLogsMutation.mutateAsync();
       if (!result) {
         toast("仅在 Tauri Desktop 环境可用");
         return;
@@ -187,7 +141,6 @@ export function SettingsSidebar({ updateMeta }: SettingsSidebarProps) {
       );
       logToConsole("info", "清理请求日志", result);
       setClearRequestLogsDialogOpen(false);
-      refreshDbDiskUsage().catch(() => {});
     } catch (err) {
       logToConsole("error", "清理请求日志失败", { error: String(err) });
       toast("清理请求日志失败：请稍后重试");
@@ -224,28 +177,24 @@ export function SettingsSidebar({ updateMeta }: SettingsSidebarProps) {
 
   useEffect(() => {
     return subscribeModelPricesUpdated(() => {
-      refreshModelPricesCount().catch(() => {});
+      queryClient.invalidateQueries({ queryKey: modelPricesKeys.all });
     });
-  }, [refreshModelPricesCount]);
+  }, [queryClient]);
 
   async function syncModelPrices(force: boolean) {
     if (syncingModelPrices) return;
-    setSyncingModelPrices(true);
     setLastModelPricesSyncError(null);
 
     try {
-      const report = await modelPricesSyncBasellm(force);
+      const report = await modelPricesSyncMutation.mutateAsync({ force });
       if (!report) {
         toast("仅在 Tauri Desktop 环境可用");
         return;
       }
 
       setLastModelPricesSyncReport(report);
-      if (report.status !== "not_modified") {
-        await refreshModelPricesCount();
-      }
 
-      if (report.status === "not_modified") {
+      if (isModelPricesSyncNotModified(report)) {
         toast("模型定价已是最新（无变更）");
         return;
       }
@@ -255,8 +204,6 @@ export function SettingsSidebar({ updateMeta }: SettingsSidebarProps) {
       logToConsole("error", "同步模型定价失败", { error: String(err) });
       toast("同步模型定价失败：请稍后重试");
       setLastModelPricesSyncError(String(err));
-    } finally {
-      setSyncingModelPrices(false);
     }
   }
 

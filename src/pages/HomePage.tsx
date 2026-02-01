@@ -2,37 +2,33 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import { CLIS } from "../constants/clis";
 import { HomeCostPanel } from "../components/home/HomeCostPanel";
 import { HomeOverviewPanel } from "../components/home/HomeOverviewPanel";
 import { RequestLogDetailDialog } from "../components/home/RequestLogDetailDialog";
 import { logToConsole } from "../services/consoleLog";
-import {
-  requestAttemptLogsByTraceId,
-  requestLogGet,
-  requestLogsListAfterIdAll,
-  requestLogsListAll,
-  type RequestAttemptLog,
-  type RequestLogDetail,
-  type RequestLogSummary,
-} from "../services/requestLogs";
-import { usageHourlySeries, type UsageHourlyRow } from "../services/usage";
 import { ProviderCircuitBadge, type OpenCircuitRow } from "../components/ProviderCircuitBadge";
-import {
-  gatewayCircuitStatus,
-  gatewayCircuitResetProvider,
-  gatewaySessionsList,
-  type GatewayActiveSession,
-} from "../services/gateway";
-import { providersList, type CliKey } from "../services/providers";
-import {
-  sortModeActiveList,
-  sortModeActiveSet,
-  sortModesList,
-  type SortModeSummary,
-} from "../services/sortModes";
 import { useCliProxy } from "../hooks/useCliProxy";
 import { useWindowForeground } from "../hooks/useWindowForeground";
+import { gatewayKeys } from "../query/keys";
+import {
+  useGatewayCircuitResetProviderMutation,
+  useGatewayCircuitStatusQuery,
+  useGatewaySessionsListQuery,
+} from "../query/gateway";
+import {
+  useRequestAttemptLogsByTraceIdQuery,
+  useRequestLogDetailQuery,
+  useRequestLogsListAllQuery,
+} from "../query/requestLogs";
+import {
+  useSortModeActiveListQuery,
+  useSortModeActiveSetMutation,
+  useSortModesListQuery,
+} from "../query/sortModes";
+import { useUsageHourlySeriesQuery } from "../query/usage";
+import { useProvidersListQuery } from "../query/providers";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { Dialog } from "../ui/Dialog";
@@ -40,9 +36,9 @@ import { PageHeader } from "../ui/PageHeader";
 import { TabList } from "../ui/TabList";
 import { hasTauriRuntime } from "../services/tauriInvoke";
 import { useTraceStore } from "../services/traceStore";
+import type { CliKey } from "../services/providers";
 
 type HomeTabKey = "overview" | "cost" | "more";
-type UsageHeatmapRefreshReason = "initial" | "manual" | "foreground" | "tab";
 type PendingSortModeSwitch = {
   cliKey: CliKey;
   modeId: number | null;
@@ -55,205 +51,120 @@ const HOME_TABS: Array<{ key: HomeTabKey; label: string }> = [
   { key: "more", label: "更多" },
 ];
 
-const REALTIME_TRACE_EXIT_TOTAL_MS = 1000;
-const OPEN_CIRCUITS_EVENT_REFRESH_THROTTLE_MS = 1000;
-
-function openCircuitRowsEqual(a: OpenCircuitRow[], b: OpenCircuitRow[]) {
-  if (a === b) return true;
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    const left = a[i];
-    const right = b[i];
-    if (left.cli_key !== right.cli_key) return false;
-    if (left.provider_id !== right.provider_id) return false;
-    if (left.provider_name !== right.provider_name) return false;
-    if (left.open_until !== right.open_until) return false;
-  }
-  return true;
-}
-
 export function HomePage() {
   const { traces } = useTraceStore();
   const tauriRuntime = hasTauriRuntime();
   const showCustomTooltip = tauriRuntime;
+
+  const queryClient = useQueryClient();
 
   const cliProxy = useCliProxy();
 
   const [tab, setTab] = useState<HomeTabKey>("overview");
   const tabRef = useRef(tab);
 
-  const [sortModes, setSortModes] = useState<SortModeSummary[]>([]);
-  const [sortModesLoading, setSortModesLoading] = useState(false);
-  const [sortModesAvailable, setSortModesAvailable] = useState<boolean | null>(null);
-  const [activeModeByCli, setActiveModeByCli] = useState<Record<CliKey, number | null>>({
-    claude: null,
-    codex: null,
-    gemini: null,
-  });
-  const [activeModeToggling, setActiveModeToggling] = useState<Record<CliKey, boolean>>({
-    claude: false,
-    codex: false,
-    gemini: false,
-  });
+  const [switchingCliKey, setSwitchingCliKey] = useState<CliKey | null>(null);
   const [pendingSortModeSwitch, setPendingSortModeSwitch] = useState<PendingSortModeSwitch | null>(
     null
   );
 
-  const [requestLogs, setRequestLogs] = useState<RequestLogSummary[]>([]);
-  const [requestLogsLoading, setRequestLogsLoading] = useState(false);
-  const [requestLogsRefreshing, setRequestLogsRefreshing] = useState(false);
-  const [requestLogsAvailable, setRequestLogsAvailable] = useState<boolean | null>(null);
   const [selectedLogId, setSelectedLogId] = useState<number | null>(null);
-  const [selectedLog, setSelectedLog] = useState<RequestLogDetail | null>(null);
-  const [selectedLogLoading, setSelectedLogLoading] = useState(false);
-  const [attemptLogs, setAttemptLogs] = useState<RequestAttemptLog[]>([]);
-  const [attemptLogsLoading, setAttemptLogsLoading] = useState(false);
 
-  const [usageHeatmapRows, setUsageHeatmapRows] = useState<UsageHourlyRow[]>([]);
-  const [usageHeatmapLoading, setUsageHeatmapLoading] = useState(false);
-  const usageHeatmapRequestSeqRef = useRef(0);
-  const usageHeatmapInFlightSeqRef = useRef<number | null>(null);
-
-  const [activeSessions, setActiveSessions] = useState<GatewayActiveSession[]>([]);
-  const [activeSessionsLoading, setActiveSessionsLoading] = useState(false);
-  const [activeSessionsAvailable, setActiveSessionsAvailable] = useState<boolean | null>(null);
-
-  const [openCircuits, setOpenCircuits] = useState<OpenCircuitRow[]>([]);
   const [resettingProviderIds, setResettingProviderIds] = useState<Set<number>>(new Set());
-  const openCircuitsRefreshInFlightRef = useRef(false);
-  const openCircuitsRefreshQueuedRef = useRef(false);
-  const openCircuitsEventRefreshTimerRef = useRef<number | null>(null);
   const openCircuitsAutoRefreshTimerRef = useRef<number | null>(null);
 
-  const requestLogsRef = useRef<RequestLogSummary[]>([]);
-  const requestLogsInFlightRef = useRef(false);
-  const requestLogsAutoRefreshTimerRef = useRef<number | null>(null);
-  const completedTraceIdsSeenRef = useRef<Set<string>>(new Set());
-  const initializedTraceSeenRef = useRef(false);
-  const [, setRealtimeExitHoldUntilMs] = useState(0);
-  const realtimeExitHoldUntilRef = useRef(0);
-  const realtimeExitHoldTimerRef = useRef<number | null>(null);
+  const resetCircuitProviderMutation = useGatewayCircuitResetProviderMutation();
+  const claudeCircuitsQuery = useGatewayCircuitStatusQuery("claude");
+  const codexCircuitsQuery = useGatewayCircuitStatusQuery("codex");
+  const geminiCircuitsQuery = useGatewayCircuitStatusQuery("gemini");
+  const claudeProvidersQuery = useProvidersListQuery("claude");
+  const codexProvidersQuery = useProvidersListQuery("codex");
+  const geminiProvidersQuery = useProvidersListQuery("gemini");
 
-  useEffect(() => {
-    return () => {
-      usageHeatmapRequestSeqRef.current += 1;
-      usageHeatmapInFlightSeqRef.current = null;
-      if (realtimeExitHoldTimerRef.current != null) {
-        window.clearTimeout(realtimeExitHoldTimerRef.current);
-        realtimeExitHoldTimerRef.current = null;
-      }
-      if (openCircuitsAutoRefreshTimerRef.current != null) {
-        window.clearTimeout(openCircuitsAutoRefreshTimerRef.current);
-        openCircuitsAutoRefreshTimerRef.current = null;
-      }
-      if (openCircuitsEventRefreshTimerRef.current != null) {
-        window.clearTimeout(openCircuitsEventRefreshTimerRef.current);
-        openCircuitsEventRefreshTimerRef.current = null;
-      }
-      if (requestLogsAutoRefreshTimerRef.current != null) {
-        window.clearTimeout(requestLogsAutoRefreshTimerRef.current);
-        requestLogsAutoRefreshTimerRef.current = null;
-      }
-    };
-  }, []);
+  const openCircuits = useMemo<OpenCircuitRow[]>(() => {
+    if (!tauriRuntime) return [];
 
-  const refreshOpenCircuits = useCallback(async () => {
-    if (!hasTauriRuntime()) {
-      setOpenCircuits((prev) => (prev.length === 0 ? prev : []));
-      return;
-    }
+    const specs = [
+      {
+        cliKey: "claude" as const,
+        circuits: claudeCircuitsQuery.data ?? [],
+        providers: claudeProvidersQuery.data ?? [],
+      },
+      {
+        cliKey: "codex" as const,
+        circuits: codexCircuitsQuery.data ?? [],
+        providers: codexProvidersQuery.data ?? [],
+      },
+      {
+        cliKey: "gemini" as const,
+        circuits: geminiCircuitsQuery.data ?? [],
+        providers: geminiProvidersQuery.data ?? [],
+      },
+    ];
 
-    if (openCircuitsRefreshInFlightRef.current) {
-      openCircuitsRefreshQueuedRef.current = true;
-      return;
-    }
-
-    openCircuitsRefreshInFlightRef.current = true;
-    try {
-      const rowsByCli = await Promise.all(
-        CLIS.map(async (cli) => {
-          const cliKey = cli.key as CliKey;
-          try {
-            const circuits = await gatewayCircuitStatus(cliKey);
-            const unavailable = (circuits ?? []).filter(
-              (row) =>
-                row.state === "OPEN" ||
-                (row.cooldown_until != null && Number.isFinite(row.cooldown_until))
-            );
-
-            if (unavailable.length === 0) {
-              return [] as OpenCircuitRow[];
-            }
-
-            const providers = await providersList(cliKey);
-            const providerNameById: Record<number, string> = {};
-            for (const provider of providers ?? []) {
-              const name = provider.name?.trim();
-              if (!name) continue;
-              providerNameById[provider.id] = name;
-            }
-
-            return unavailable.map((row) => {
-              const cooldownUntil = row.cooldown_until ?? null;
-              if (row.state !== "OPEN") {
-                return {
-                  cli_key: cliKey,
-                  provider_id: row.provider_id,
-                  provider_name: providerNameById[row.provider_id] ?? "未知",
-                  open_until: cooldownUntil,
-                };
-              }
-
-              const openUntil = row.open_until ?? null;
-              const until =
-                openUntil == null
-                  ? cooldownUntil
-                  : cooldownUntil == null
-                    ? openUntil
-                    : Math.max(openUntil, cooldownUntil);
-
-              return {
-                cli_key: cliKey,
-                provider_id: row.provider_id,
-                provider_name: providerNameById[row.provider_id] ?? "未知",
-                open_until: until,
-              };
-            });
-          } catch (err) {
-            logToConsole("warn", "读取熔断状态失败", { cli: cliKey, error: String(err) });
-            return [] as OpenCircuitRow[];
-          }
-        })
+    const rows: OpenCircuitRow[] = [];
+    for (const spec of specs) {
+      const unavailable = spec.circuits.filter(
+        (row) =>
+          row.state === "OPEN" ||
+          (row.cooldown_until != null && Number.isFinite(row.cooldown_until))
       );
+      if (unavailable.length === 0) continue;
 
-      const next = rowsByCli.flat();
-      next.sort((a, b) => {
-        const aUntil = a.open_until ?? Number.POSITIVE_INFINITY;
-        const bUntil = b.open_until ?? Number.POSITIVE_INFINITY;
-        if (aUntil !== bUntil) return aUntil - bUntil;
-        if (a.cli_key !== b.cli_key) return a.cli_key.localeCompare(b.cli_key);
-        return a.provider_name.localeCompare(b.provider_name);
-      });
+      const providerNameById: Record<number, string> = {};
+      for (const provider of spec.providers) {
+        const name = provider.name?.trim();
+        if (!name) continue;
+        providerNameById[provider.id] = name;
+      }
 
-      setOpenCircuits((prev) => (openCircuitRowsEqual(prev, next) ? prev : next));
-    } finally {
-      openCircuitsRefreshInFlightRef.current = false;
-      if (openCircuitsRefreshQueuedRef.current) {
-        openCircuitsRefreshQueuedRef.current = false;
-        void refreshOpenCircuits();
+      for (const row of unavailable) {
+        const cooldownUntil = row.cooldown_until ?? null;
+        if (row.state !== "OPEN") {
+          rows.push({
+            cli_key: spec.cliKey,
+            provider_id: row.provider_id,
+            provider_name: providerNameById[row.provider_id] ?? "未知",
+            open_until: cooldownUntil,
+          });
+          continue;
+        }
+
+        const openUntil = row.open_until ?? null;
+        const until =
+          openUntil == null
+            ? cooldownUntil
+            : cooldownUntil == null
+              ? openUntil
+              : Math.max(openUntil, cooldownUntil);
+
+        rows.push({
+          cli_key: spec.cliKey,
+          provider_id: row.provider_id,
+          provider_name: providerNameById[row.provider_id] ?? "未知",
+          open_until: until,
+        });
       }
     }
-  }, []);
 
-  const scheduleRefreshOpenCircuits = useCallback(() => {
-    if (!hasTauriRuntime()) return;
+    rows.sort((a, b) => {
+      const aUntil = a.open_until ?? Number.POSITIVE_INFINITY;
+      const bUntil = b.open_until ?? Number.POSITIVE_INFINITY;
+      if (aUntil !== bUntil) return aUntil - bUntil;
+      if (a.cli_key !== b.cli_key) return a.cli_key.localeCompare(b.cli_key);
+      return a.provider_name.localeCompare(b.provider_name);
+    });
 
-    if (openCircuitsEventRefreshTimerRef.current != null) return;
-    openCircuitsEventRefreshTimerRef.current = window.setTimeout(() => {
-      openCircuitsEventRefreshTimerRef.current = null;
-      void refreshOpenCircuits();
-    }, OPEN_CIRCUITS_EVENT_REFRESH_THROTTLE_MS);
-  }, [refreshOpenCircuits]);
+    return rows;
+  }, [
+    claudeCircuitsQuery.data,
+    claudeProvidersQuery.data,
+    codexCircuitsQuery.data,
+    codexProvidersQuery.data,
+    geminiCircuitsQuery.data,
+    geminiProvidersQuery.data,
+    tauriRuntime,
+  ]);
 
   const handleResetProvider = useCallback(
     async (providerId: number) => {
@@ -261,13 +172,12 @@ export function HomePage() {
 
       setResettingProviderIds((prev) => new Set(prev).add(providerId));
       try {
-        const result = await gatewayCircuitResetProvider(providerId);
+        const result = await resetCircuitProviderMutation.mutateAsync({ providerId });
         if (result) {
           toast.success("已解除熔断");
         } else {
           toast.error("解除熔断失败");
         }
-        void refreshOpenCircuits();
       } catch (err) {
         logToConsole("error", "解除熔断失败", { providerId, error: String(err) });
         toast.error("解除熔断失败");
@@ -279,40 +189,8 @@ export function HomePage() {
         });
       }
     },
-    [resettingProviderIds, refreshOpenCircuits]
+    [resetCircuitProviderMutation, resettingProviderIds]
   );
-
-  useEffect(() => {
-    void refreshOpenCircuits();
-  }, [refreshOpenCircuits]);
-
-  useEffect(() => {
-    if (!hasTauriRuntime()) return;
-
-    let cancelled = false;
-    let unlisten: null | (() => void) = null;
-
-    import("@tauri-apps/api/event")
-      .then(({ listen }) =>
-        listen("gateway:circuit", (event) => {
-          if (cancelled) return;
-          const payload = event.payload as any;
-          if (!payload) return;
-          scheduleRefreshOpenCircuits();
-        })
-      )
-      .then((fn) => {
-        unlisten = fn;
-      })
-      .catch(() => {
-        // ignore: events unavailable in non-tauri environment
-      });
-
-    return () => {
-      cancelled = true;
-      if (unlisten) unlisten();
-    };
-  }, [scheduleRefreshOpenCircuits]);
 
   useEffect(() => {
     if (openCircuitsAutoRefreshTimerRef.current != null) {
@@ -320,6 +198,7 @@ export function HomePage() {
       openCircuitsAutoRefreshTimerRef.current = null;
     }
 
+    if (!tauriRuntime) return;
     if (openCircuits.length === 0) return;
 
     const nowUnix = Math.floor(Date.now() / 1000);
@@ -335,7 +214,7 @@ export function HomePage() {
 
     openCircuitsAutoRefreshTimerRef.current = window.setTimeout(() => {
       openCircuitsAutoRefreshTimerRef.current = null;
-      void refreshOpenCircuits();
+      queryClient.invalidateQueries({ queryKey: gatewayKeys.circuits() });
     }, delayMs);
 
     return () => {
@@ -344,453 +223,159 @@ export function HomePage() {
         openCircuitsAutoRefreshTimerRef.current = null;
       }
     };
-  }, [openCircuits, refreshOpenCircuits]);
+  }, [openCircuits, queryClient, tauriRuntime]);
 
-  useEffect(() => {
-    let cancelled = false;
-    setSortModesLoading(true);
-    Promise.all([sortModesList(), sortModeActiveList()])
-      .then(([modes, active]) => {
-        if (cancelled) return;
-        if (!modes || !active) {
-          setSortModesAvailable(false);
-          setSortModes([]);
-          setActiveModeByCli({ claude: null, codex: null, gemini: null });
-          return;
-        }
+  const usageHeatmapQuery = useUsageHourlySeriesQuery(15, { enabled: tab === "overview" });
+  const usageHeatmapRows = usageHeatmapQuery.data ?? [];
+  const usageHeatmapLoading = usageHeatmapQuery.isFetching;
 
-        setSortModesAvailable(true);
-        setSortModes(modes);
+  const sessionsQuery = useGatewaySessionsListQuery(50, {
+    enabled: tab === "overview",
+    refetchIntervalMs: 5000,
+  });
+  const activeSessions = sessionsQuery.data ?? [];
+  const activeSessionsLoading = sessionsQuery.isLoading;
+  const activeSessionsAvailable: boolean | null = !tauriRuntime
+    ? false
+    : sessionsQuery.isLoading
+      ? null
+      : sessionsQuery.data != null;
 
-        const nextActive: Record<CliKey, number | null> = {
-          claude: null,
-          codex: null,
-          gemini: null,
-        };
-        for (const row of active) {
-          nextActive[row.cli_key] = row.mode_id ?? null;
-        }
-        setActiveModeByCli(nextActive);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setSortModesAvailable(true);
-        setSortModes([]);
-        setActiveModeByCli({ claude: null, codex: null, gemini: null });
-        logToConsole("error", "读取排序模板失败", { error: String(err) });
-        toast(`读取排序模板失败：${String(err)}`);
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setSortModesLoading(false);
-      });
-    return () => {
-      cancelled = true;
+  const requestLogsQuery = useRequestLogsListAllQuery(50, { enabled: tab === "overview" });
+  const requestLogs = requestLogsQuery.data ?? [];
+  const requestLogsLoading = requestLogsQuery.isLoading;
+  const requestLogsRefreshing = requestLogsQuery.isFetching && !requestLogsQuery.isLoading;
+  const requestLogsAvailable: boolean | null = !tauriRuntime
+    ? false
+    : requestLogsQuery.isLoading
+      ? null
+      : requestLogsQuery.data != null;
+
+  const sortModesQuery = useSortModesListQuery();
+  const sortModeActiveQuery = useSortModeActiveListQuery();
+  const sortModeActiveSetMutation = useSortModeActiveSetMutation();
+
+  const sortModes = sortModesQuery.data ?? [];
+  const sortModesLoading = sortModesQuery.isLoading || sortModeActiveQuery.isLoading;
+  const sortModesAvailable: boolean | null = !tauriRuntime
+    ? false
+    : sortModesLoading
+      ? null
+      : sortModesQuery.data != null && sortModeActiveQuery.data != null;
+
+  const activeModeByCli = useMemo<Record<CliKey, number | null>>(() => {
+    const next: Record<CliKey, number | null> = {
+      claude: null,
+      codex: null,
+      gemini: null,
     };
-  }, []);
+    for (const row of sortModeActiveQuery.data ?? []) {
+      next[row.cli_key] = row.mode_id ?? null;
+    }
+    return next;
+  }, [sortModeActiveQuery.data]);
 
-  function setCliActiveMode(cliKey: CliKey, modeId: number | null) {
-    if (activeModeToggling[cliKey]) return;
+  const activeModeToggling = useMemo<Record<CliKey, boolean>>(
+    () => ({
+      claude: switchingCliKey === "claude",
+      codex: switchingCliKey === "codex",
+      gemini: switchingCliKey === "gemini",
+    }),
+    [switchingCliKey]
+  );
 
-    const prev = activeModeByCli[cliKey];
-    if (prev === modeId) return;
+  const setCliActiveMode = useCallback(
+    async (cliKey: CliKey, modeId: number | null) => {
+      if (switchingCliKey != null) return;
 
-    setActiveModeByCli((cur) => ({ ...cur, [cliKey]: modeId }));
-    setActiveModeToggling((cur) => ({ ...cur, [cliKey]: true }));
+      const prev = activeModeByCli[cliKey] ?? null;
+      if (prev === modeId) return;
 
-    sortModeActiveSet({ cli_key: cliKey, mode_id: modeId })
-      .then((res) => {
+      setSwitchingCliKey(cliKey);
+      try {
+        const res = await sortModeActiveSetMutation.mutateAsync({ cliKey, modeId });
         if (!res) {
           toast("仅在 Tauri Desktop 环境可用");
-          setActiveModeByCli((cur) => ({ ...cur, [cliKey]: prev }));
           return;
         }
 
         const next = res.mode_id ?? null;
-        setActiveModeByCli((cur) => ({ ...cur, [cliKey]: next }));
         if (next == null) {
           toast("已切回：Default");
           return;
         }
         const label = sortModes.find((m) => m.id === next)?.name ?? `#${next}`;
         toast(`已激活：${label}`);
-      })
-      .catch((err) => {
+      } catch (err) {
         toast(`切换排序模板失败：${String(err)}`);
         logToConsole("error", "切换排序模板失败", {
           cli: cliKey,
           mode_id: modeId,
           error: String(err),
         });
-        setActiveModeByCli((cur) => ({ ...cur, [cliKey]: prev }));
-      })
-      .finally(() => {
-        setActiveModeToggling((cur) => ({ ...cur, [cliKey]: false }));
-      });
-  }
-
-  function requestCliActiveModeSwitch(cliKey: CliKey, modeId: number | null) {
-    if (activeModeToggling[cliKey] || sortModesLoading) return;
-
-    const prev = activeModeByCli[cliKey] ?? null;
-    if (prev === modeId) return;
-
-    const activeSessionCount = activeSessions.filter((row) => row.cli_key === cliKey).length;
-    if (activeSessionCount > 0) {
-      setPendingSortModeSwitch({ cliKey, modeId, activeSessionCount });
-      return;
-    }
-
-    setCliActiveMode(cliKey, modeId);
-  }
-
-  const refreshUsageHeatmap = useCallback(
-    (input?: { silent?: boolean; reason?: UsageHeatmapRefreshReason }) => {
-      if (usageHeatmapInFlightSeqRef.current != null) return;
-
-      const reason: UsageHeatmapRefreshReason = input?.reason ?? "manual";
-      const silent = Boolean(input?.silent);
-      const logTitle =
-        reason === "initial"
-          ? "加载用量热力图失败"
-          : reason === "foreground"
-            ? "前台自动刷新用量失败"
-            : reason === "tab"
-              ? "切回概览自动刷新用量失败"
-              : "刷新用量热力图失败";
-      const toastText =
-        reason === "initial" ? "加载用量失败：请查看控制台日志" : "刷新用量失败：请查看控制台日志";
-
-      usageHeatmapRequestSeqRef.current += 1;
-      const seq = usageHeatmapRequestSeqRef.current;
-      usageHeatmapInFlightSeqRef.current = seq;
-
-      setUsageHeatmapLoading(true);
-
-      void (async () => {
-        try {
-          const rows = await usageHourlySeries(15);
-          if (seq !== usageHeatmapRequestSeqRef.current) return;
-          if (!rows) {
-            if (!silent) setUsageHeatmapRows([]);
-            return;
-          }
-          setUsageHeatmapRows(rows);
-        } catch (err) {
-          if (seq !== usageHeatmapRequestSeqRef.current) return;
-          logToConsole(reason === "foreground" || reason === "tab" ? "warn" : "error", logTitle, {
-            error: String(err),
-            reason,
-          });
-          if (!silent) setUsageHeatmapRows([]);
-          if (!silent) toast(toastText);
-        } finally {
-          if (usageHeatmapInFlightSeqRef.current === seq) {
-            usageHeatmapInFlightSeqRef.current = null;
-          }
-          if (seq !== usageHeatmapRequestSeqRef.current) return;
-          setUsageHeatmapLoading(false);
-        }
-      })();
+      } finally {
+        setSwitchingCliKey(null);
+      }
     },
-    []
+    [activeModeByCli, sortModeActiveSetMutation, sortModes, switchingCliKey]
   );
 
-  useEffect(() => {
-    refreshUsageHeatmap({ reason: "initial" });
-  }, [refreshUsageHeatmap]);
+  const requestCliActiveModeSwitch = useCallback(
+    (cliKey: CliKey, modeId: number | null) => {
+      if (activeModeToggling[cliKey] || sortModesLoading) return;
+
+      const prev = activeModeByCli[cliKey] ?? null;
+      if (prev === modeId) return;
+
+      const activeSessionCount = activeSessions.filter((row) => row.cli_key === cliKey).length;
+      if (activeSessionCount > 0) {
+        setPendingSortModeSwitch({ cliKey, modeId, activeSessionCount });
+        return;
+      }
+
+      void setCliActiveMode(cliKey, modeId);
+    },
+    [activeModeByCli, activeModeToggling, activeSessions, setCliActiveMode, sortModesLoading]
+  );
+
+  const refreshUsageHeatmap = useCallback(() => {
+    void usageHeatmapQuery.refetch().then((res) => {
+      if (res.error) toast("刷新用量失败：请查看控制台日志");
+    });
+  }, [usageHeatmapQuery]);
+
+  const refreshRequestLogs = useCallback(() => {
+    void requestLogsQuery.refetch().then((res) => {
+      if (res.error) toast("读取使用记录失败：请查看控制台日志");
+    });
+  }, [requestLogsQuery]);
 
   useEffect(() => {
     const prev = tabRef.current;
     tabRef.current = tab;
     if (!tauriRuntime) return;
     if (prev !== "overview" && tab === "overview") {
-      refreshUsageHeatmap({ silent: true, reason: "tab" });
+      void usageHeatmapQuery.refetch();
+      void requestLogsQuery.refetch();
     }
-  }, [tab, tauriRuntime, refreshUsageHeatmap]);
+  }, [requestLogsQuery, tab, tauriRuntime, usageHeatmapQuery]);
 
   useWindowForeground({
     enabled: tauriRuntime && tab === "overview",
     throttleMs: 1000,
-    onForeground: () => refreshUsageHeatmap({ silent: true, reason: "foreground" }),
+    onForeground: () => {
+      void usageHeatmapQuery.refetch();
+      void requestLogsQuery.refetch();
+    },
   });
 
-  useEffect(() => {
-    let cancelled = false;
-    let timer: number | null = null;
+  const selectedLogQuery = useRequestLogDetailQuery(selectedLogId);
+  const selectedLog = selectedLogQuery.data ?? null;
+  const selectedLogLoading = selectedLogQuery.isFetching;
 
-    const load = async (showLoading: boolean) => {
-      if (showLoading) setActiveSessionsLoading(true);
-      try {
-        const rows = await gatewaySessionsList(50);
-        if (cancelled) return;
-
-        if (!rows) {
-          setActiveSessionsAvailable(false);
-          setActiveSessions([]);
-          if (timer != null) {
-            window.clearInterval(timer);
-            timer = null;
-          }
-          return;
-        }
-
-        setActiveSessionsAvailable(true);
-        setActiveSessions(rows);
-      } catch (err) {
-        if (cancelled) return;
-        if (showLoading) {
-          logToConsole("warn", "读取活跃 Session 失败", { error: String(err) });
-        }
-        setActiveSessionsAvailable(true);
-        setActiveSessions([]);
-      } finally {
-        if (showLoading && !cancelled) setActiveSessionsLoading(false);
-      }
-    };
-
-    void load(true);
-    timer = window.setInterval(() => void load(false), 5000);
-
-    return () => {
-      cancelled = true;
-      if (timer != null) window.clearInterval(timer);
-    };
-  }, []);
-
-  useEffect(() => {
-    requestLogsRef.current = requestLogs;
-  }, [requestLogs]);
-
-  function requestLogCreatedAtMs(log: Pick<RequestLogSummary, "created_at" | "created_at_ms">) {
-    const ms = log.created_at_ms ?? 0;
-    if (Number.isFinite(ms) && ms > 0) return ms;
-    return log.created_at * 1000;
-  }
-
-  function sortRequestLogsDesc(a: RequestLogSummary, b: RequestLogSummary) {
-    const aTsMs = requestLogCreatedAtMs(a);
-    const bTsMs = requestLogCreatedAtMs(b);
-    if (aTsMs !== bTsMs) return bTsMs - aTsMs;
-    return b.id - a.id;
-  }
-
-  function computeRequestLogsCursorId(rows: RequestLogSummary[]) {
-    let maxId = 0;
-    for (const row of rows) {
-      if (Number.isFinite(row.id) && row.id > maxId) maxId = row.id;
-    }
-    return maxId;
-  }
-
-  function mergeRequestLogs(prev: RequestLogSummary[], incoming: RequestLogSummary[]) {
-    const byId = new Map<number, RequestLogSummary>();
-    for (const row of incoming) byId.set(row.id, row);
-    for (const row of prev) {
-      if (!byId.has(row.id)) byId.set(row.id, row);
-    }
-    const merged = Array.from(byId.values());
-    merged.sort(sortRequestLogsDesc);
-    return merged.slice(0, 50);
-  }
-
-  async function refreshRequestLogs(mode: "blocking" | "background" = "blocking") {
-    if (requestLogsInFlightRef.current) return;
-    requestLogsInFlightRef.current = true;
-    if (mode === "blocking") setRequestLogsLoading(true);
-    if (mode === "background") setRequestLogsRefreshing(true);
-
-    try {
-      const items = await requestLogsListAll(50);
-      if (!items) {
-        setRequestLogsAvailable(false);
-        setRequestLogs([]);
-        return;
-      }
-      setRequestLogsAvailable(true);
-      setRequestLogs(items);
-    } catch (err) {
-      setRequestLogsAvailable(true);
-      logToConsole("error", "读取使用记录失败", {
-        error: String(err),
-      });
-      toast("读取使用记录失败：请查看控制台日志");
-    } finally {
-      requestLogsInFlightRef.current = false;
-      if (mode === "blocking") setRequestLogsLoading(false);
-      if (mode === "background") setRequestLogsRefreshing(false);
-    }
-  }
-
-  async function refreshRequestLogsIncremental() {
-    const prev = requestLogsRef.current;
-    if (prev.length === 0) {
-      await refreshRequestLogs("background");
-      return;
-    }
-
-    if (requestLogsInFlightRef.current) return;
-    requestLogsInFlightRef.current = true;
-    setRequestLogsRefreshing(true);
-
-    try {
-      const afterId = computeRequestLogsCursorId(prev);
-      const items = await requestLogsListAfterIdAll(afterId, 50);
-      if (!items) {
-        setRequestLogsAvailable(false);
-        setRequestLogs([]);
-        return;
-      }
-      setRequestLogsAvailable(true);
-      const incoming = items ?? [];
-      if (incoming.length === 0) return;
-      setRequestLogs((cur) => {
-        const merged = mergeRequestLogs(cur, incoming);
-        if (merged.length === cur.length && merged.every((row, idx) => row.id === cur[idx]?.id)) {
-          return cur;
-        }
-        return merged;
-      });
-    } catch (err) {
-      logToConsole("warn", "增量刷新使用记录失败", {
-        error: String(err),
-      });
-    } finally {
-      requestLogsInFlightRef.current = false;
-      setRequestLogsRefreshing(false);
-    }
-  }
-
-  useEffect(() => {
-    setSelectedLogId(null);
-    setSelectedLog(null);
-    requestLogsInFlightRef.current = false;
-    setRequestLogsLoading(false);
-    setRequestLogsRefreshing(false);
-    setRequestLogs([]);
-    void refreshRequestLogs("blocking");
-  }, []);
-
-  const completedTraceMarks = useMemo(() => {
-    return traces
-      .filter((t) => Boolean(t.summary))
-      .map((t) => `${t.cli_key}:${t.trace_id}:${t.last_seen_ms}`);
-  }, [traces]);
-
-  useEffect(() => {
-    if (!initializedTraceSeenRef.current) {
-      initializedTraceSeenRef.current = true;
-      completedTraceIdsSeenRef.current = new Set(completedTraceMarks);
-      return;
-    }
-
-    let hasNewCompletion = false;
-    const seen = completedTraceIdsSeenRef.current;
-    for (const mark of completedTraceMarks) {
-      if (seen.has(mark)) continue;
-      seen.add(mark);
-      hasNewCompletion = true;
-    }
-    if (!hasNewCompletion) return;
-
-    const now = Date.now();
-    const nextHoldUntil = Math.max(
-      realtimeExitHoldUntilRef.current,
-      now + REALTIME_TRACE_EXIT_TOTAL_MS
-    );
-    realtimeExitHoldUntilRef.current = nextHoldUntil;
-    setRealtimeExitHoldUntilMs(nextHoldUntil);
-
-    if (realtimeExitHoldTimerRef.current != null) {
-      window.clearTimeout(realtimeExitHoldTimerRef.current);
-    }
-    const holdDelayMs = Math.max(200, nextHoldUntil - now + 50);
-    realtimeExitHoldTimerRef.current = window.setTimeout(() => {
-      realtimeExitHoldTimerRef.current = null;
-      if (realtimeExitHoldUntilRef.current !== nextHoldUntil) return;
-      realtimeExitHoldUntilRef.current = 0;
-      setRealtimeExitHoldUntilMs(0);
-    }, holdDelayMs);
-
-    if (requestLogsAutoRefreshTimerRef.current != null) {
-      window.clearTimeout(requestLogsAutoRefreshTimerRef.current);
-    }
-    requestLogsAutoRefreshTimerRef.current = window.setTimeout(() => {
-      requestLogsAutoRefreshTimerRef.current = null;
-      void refreshRequestLogsIncremental();
-    }, 700);
-  }, [completedTraceMarks]);
-
-  useEffect(() => {
-    if (selectedLogId == null) {
-      setSelectedLog(null);
-      setSelectedLogLoading(false);
-      setAttemptLogs([]);
-      setAttemptLogsLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    setSelectedLogLoading(true);
-    requestLogGet(selectedLogId)
-      .then((detail) => {
-        if (cancelled) return;
-        if (!detail) {
-          setSelectedLog(null);
-          return;
-        }
-        setSelectedLog(detail);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        logToConsole("error", "读取使用记录详情失败", {
-          log_id: selectedLogId,
-          error: String(err),
-        });
-        toast(`读取详情失败：${String(err)}`);
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setSelectedLogLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedLogId]);
-
-  useEffect(() => {
-    if (!selectedLog) {
-      setAttemptLogs([]);
-      setAttemptLogsLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    setAttemptLogsLoading(true);
-
-    requestAttemptLogsByTraceId(selectedLog.trace_id, 50)
-      .then((items) => {
-        if (cancelled) return;
-        setAttemptLogs(items ?? []);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        logToConsole("error", "读取 attempt logs 失败", {
-          trace_id: selectedLog.trace_id,
-          error: String(err),
-        });
-        setAttemptLogs([]);
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setAttemptLogsLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedLog]);
+  const attemptLogsQuery = useRequestAttemptLogsByTraceIdQuery(selectedLog?.trace_id ?? null, 50);
+  const attemptLogs = attemptLogsQuery.data ?? [];
+  const attemptLogsLoading = attemptLogsQuery.isFetching;
 
   return (
     <div className="flex flex-col gap-6 pb-10">
@@ -831,7 +416,7 @@ export function HomePage() {
           requestLogsLoading={requestLogsLoading}
           requestLogsRefreshing={requestLogsRefreshing}
           requestLogsAvailable={requestLogsAvailable}
-          onRefreshRequestLogs={() => void refreshRequestLogs("blocking")}
+          onRefreshRequestLogs={refreshRequestLogs}
           selectedLogId={selectedLogId}
           onSelectLogId={setSelectedLogId}
         />
@@ -870,7 +455,7 @@ export function HomePage() {
               const pending = pendingSortModeSwitch;
               if (!pending) return;
               setPendingSortModeSwitch(null);
-              setCliActiveMode(pending.cliKey, pending.modeId);
+              void setCliActiveMode(pending.cliKey, pending.modeId);
             }}
           >
             确认切换

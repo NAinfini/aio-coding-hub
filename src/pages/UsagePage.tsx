@@ -1,18 +1,13 @@
 // Usage: Usage analytics page. Backend commands: `usage_summary_v2`, `usage_leaderboard_v2` (and related `usage_*`).
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import {
-  usageLeaderboardV2,
-  usageSummaryV2,
-  type UsageLeaderboardRow,
-  type UsagePeriod,
-  type UsageScope,
-  type UsageSummary,
-} from "../services/usage";
+import type { UsageLeaderboardRow, UsagePeriod, UsageScope, UsageSummary } from "../services/usage";
 import { CLI_FILTER_ITEMS, type CliFilterKey } from "../constants/clis";
 import { PERIOD_ITEMS } from "../constants/periods";
 import { useCustomDateRange } from "../hooks/useCustomDateRange";
+import { useUsageLeaderboardV2Query, useUsageSummaryV2Query } from "../query/usage";
+import { hasTauriRuntime } from "../services/tauriInvoke";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { PageHeader } from "../ui/PageHeader";
@@ -137,7 +132,6 @@ export function UsagePage() {
   const [scope, setScope] = useState<UsageScope>("provider");
   const [period, setPeriod] = useState<UsagePeriod>("daily");
   const [cliKey, setCliKey] = useState<CliFilterKey>("all");
-  const [reloadSeq, setReloadSeq] = useState(0);
 
   const {
     customStartDate,
@@ -151,12 +145,46 @@ export function UsagePage() {
     clearCustomRange,
   } = useCustomDateRange(period, { onInvalid: (message) => toast(message) });
 
-  const [tauriAvailable, setTauriAvailable] = useState<boolean | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [errorText, setErrorText] = useState<string | null>(null);
+  const tauriRuntime = hasTauriRuntime();
+  const shouldLoad = period !== "custom" || customApplied != null;
+  const filterCliKey = cliKey === "all" ? null : cliKey;
+  const input = useMemo(
+    () => ({
+      startTs: bounds.startTs,
+      endTs: bounds.endTs,
+      cliKey: filterCliKey,
+    }),
+    [bounds.endTs, bounds.startTs, filterCliKey]
+  );
 
-  const [summary, setSummary] = useState<UsageSummary | null>(null);
-  const [rows, setRows] = useState<UsageLeaderboardRow[]>([]);
+  const summaryQuery = useUsageSummaryV2Query(period, input, { enabled: shouldLoad });
+  const leaderboardQuery = useUsageLeaderboardV2Query(
+    scope,
+    period,
+    { ...input, limit: 50 },
+    { enabled: shouldLoad }
+  );
+
+  const loading = shouldLoad && (summaryQuery.isFetching || leaderboardQuery.isFetching);
+  const errorText = (() => {
+    const err = summaryQuery.error ?? leaderboardQuery.error;
+    return err ? formatUnknownError(err) : null;
+  })();
+  const errorToastLastRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!errorText) {
+      errorToastLastRef.current = null;
+      return;
+    }
+    if (errorToastLastRef.current === errorText) return;
+    errorToastLastRef.current = errorText;
+    toast("加载用量失败：请重试（详情见页面错误信息）");
+  }, [errorText]);
+
+  const tauriAvailable: boolean | null = shouldLoad ? tauriRuntime : null;
+  const summary: UsageSummary | null = summaryQuery.data ?? null;
+  const rows: UsageLeaderboardRow[] = leaderboardQuery.data ?? [];
 
   const summaryCards = useMemo(() => {
     if (!summary) return [];
@@ -198,60 +226,6 @@ export function UsagePage() {
       },
     ];
   }, [summary]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      if (period === "custom" && !customApplied) {
-        setErrorText(null);
-        setSummary(null);
-        setRows([]);
-        setLoading(false);
-        setTauriAvailable(null);
-        return;
-      }
-
-      setErrorText(null);
-      setLoading(true);
-      try {
-        const filterCliKey = cliKey === "all" ? null : cliKey;
-        const sum = await usageSummaryV2(period, { ...bounds, cliKey: filterCliKey });
-        if (cancelled) return;
-
-        if (sum === null) {
-          setTauriAvailable(false);
-          setErrorText(null);
-          setSummary(null);
-          setRows([]);
-          return;
-        }
-
-        setTauriAvailable(true);
-        setSummary(sum);
-
-        const list = await usageLeaderboardV2(scope, period, {
-          ...bounds,
-          cliKey: filterCliKey,
-          limit: 50,
-        });
-        if (cancelled) return;
-        setRows(list ?? []);
-      } catch (err) {
-        if (cancelled) return;
-        setTauriAvailable(true);
-        setErrorText(formatUnknownError(err));
-        toast("加载用量失败：请重试（详情见页面错误信息）");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [bounds, cliKey, customApplied, period, reloadSeq, scope]);
 
   function successRate(row: UsageLeaderboardRow) {
     if (row.requests_total <= 0) return NaN;
@@ -391,7 +365,10 @@ export function UsagePage() {
             <Button
               size="sm"
               variant="secondary"
-              onClick={() => setReloadSeq((v) => v + 1)}
+              onClick={() => {
+                void summaryQuery.refetch();
+                void leaderboardQuery.refetch();
+              }}
               disabled={loading}
               className="border-rose-200 bg-white text-rose-800 hover:bg-rose-50"
             >

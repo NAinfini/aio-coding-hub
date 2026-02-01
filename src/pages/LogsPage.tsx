@@ -3,27 +3,22 @@
 // - Entry: Home "日志" button -> `/#/logs`.
 // - Backend commands: `request_logs_list_all`, `request_logs_list_after_id_all`, `request_log_get`, `request_attempt_logs_by_trace_id`.
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
+import { useMemo, useState } from "react";
 import { HomeRequestLogsPanel } from "../components/home/HomeRequestLogsPanel";
 import { RequestLogDetailDialog } from "../components/home/RequestLogDetailDialog";
 import { CLI_FILTER_ITEMS, type CliFilterKey } from "../constants/clis";
-import { logToConsole } from "../services/consoleLog";
-import {
-  requestAttemptLogsByTraceId,
-  requestLogGet,
-  requestLogsListAfterIdAll,
-  requestLogsListAll,
-  type RequestAttemptLog,
-  type RequestLogDetail,
-  type RequestLogSummary,
-} from "../services/requestLogs";
 import { hasTauriRuntime } from "../services/tauriInvoke";
 import { Card } from "../ui/Card";
 import { Input } from "../ui/Input";
 import { PageHeader } from "../ui/PageHeader";
 import { Switch } from "../ui/Switch";
 import { TabList } from "../ui/TabList";
+import {
+  useRequestAttemptLogsByTraceIdQuery,
+  useRequestLogDetailQuery,
+  useRequestLogsIncrementalPollQuery,
+  useRequestLogsListAllQuery,
+} from "../query/requestLogs";
 
 const LOGS_PAGE_LIMIT = 200;
 const AUTO_REFRESH_INTERVAL_MS = 2000;
@@ -61,40 +56,9 @@ function buildStatusPredicate(query: string): StatusPredicate | null {
   return null;
 }
 
-function requestLogCreatedAtMs(log: Pick<RequestLogSummary, "created_at" | "created_at_ms">) {
-  const ms = log.created_at_ms ?? 0;
-  if (Number.isFinite(ms) && ms > 0) return ms;
-  return log.created_at * 1000;
-}
-
-function sortRequestLogsDesc(a: RequestLogSummary, b: RequestLogSummary) {
-  const aTsMs = requestLogCreatedAtMs(a);
-  const bTsMs = requestLogCreatedAtMs(b);
-  if (aTsMs !== bTsMs) return bTsMs - aTsMs;
-  return b.id - a.id;
-}
-
-function computeRequestLogsCursorId(rows: RequestLogSummary[]) {
-  let maxId = 0;
-  for (const row of rows) {
-    if (Number.isFinite(row.id) && row.id > maxId) maxId = row.id;
-  }
-  return maxId;
-}
-
-function mergeRequestLogs(prev: RequestLogSummary[], incoming: RequestLogSummary[], limit: number) {
-  const byId = new Map<number, RequestLogSummary>();
-  for (const row of incoming) byId.set(row.id, row);
-  for (const row of prev) {
-    if (!byId.has(row.id)) byId.set(row.id, row);
-  }
-  const merged = Array.from(byId.values());
-  merged.sort(sortRequestLogsDesc);
-  return merged.slice(0, limit);
-}
-
 export function LogsPage() {
-  const showCustomTooltip = hasTauriRuntime();
+  const tauriRuntime = hasTauriRuntime();
+  const showCustomTooltip = tauriRuntime;
 
   const [cliKey, setCliKey] = useState<CliFilterKey>("all");
   const [statusFilter, setStatusFilter] = useState("");
@@ -102,23 +66,22 @@ export function LogsPage() {
   const [pathFilter, setPathFilter] = useState("");
   const [autoRefresh, setAutoRefresh] = useState(true);
 
-  const [requestLogs, setRequestLogs] = useState<RequestLogSummary[]>([]);
-  const [requestLogsLoading, setRequestLogsLoading] = useState(false);
-  const [requestLogsRefreshing, setRequestLogsRefreshing] = useState(false);
-  const [requestLogsAvailable, setRequestLogsAvailable] = useState<boolean | null>(null);
-
-  const requestLogsRef = useRef<RequestLogSummary[]>([]);
-  const requestLogsInFlightRef = useRef(false);
-
   const [selectedLogId, setSelectedLogId] = useState<number | null>(null);
-  const [selectedLog, setSelectedLog] = useState<RequestLogDetail | null>(null);
-  const [selectedLogLoading, setSelectedLogLoading] = useState(false);
-  const [attemptLogs, setAttemptLogs] = useState<RequestAttemptLog[]>([]);
-  const [attemptLogsLoading, setAttemptLogsLoading] = useState(false);
+  const requestLogsQuery = useRequestLogsListAllQuery(LOGS_PAGE_LIMIT);
+  const incrementalPollQuery = useRequestLogsIncrementalPollQuery(LOGS_PAGE_LIMIT, {
+    enabled: autoRefresh,
+    refetchIntervalMs: autoRefresh ? AUTO_REFRESH_INTERVAL_MS : false,
+  });
 
-  useEffect(() => {
-    requestLogsRef.current = requestLogs;
-  }, [requestLogs]);
+  const requestLogs = requestLogsQuery.data ?? [];
+  const requestLogsLoading = requestLogsQuery.isLoading;
+  const requestLogsRefreshing =
+    (requestLogsQuery.isFetching && !requestLogsQuery.isLoading) || incrementalPollQuery.isFetching;
+  const requestLogsAvailable: boolean | null = !tauriRuntime
+    ? false
+    : requestLogsQuery.isLoading
+      ? null
+      : requestLogsQuery.data != null;
 
   const statusPredicate = useMemo(() => buildStatusPredicate(statusFilter), [statusFilter]);
   const statusFilterValid = statusFilter.trim().length === 0 || statusPredicate != null;
@@ -142,159 +105,13 @@ export function LogsPage() {
     });
   }, [cliKey, errorCodeFilter, pathFilter, requestLogs, statusPredicate]);
 
-  async function refreshRequestLogs(mode: "blocking" | "background" = "blocking") {
-    if (!hasTauriRuntime()) {
-      setRequestLogsAvailable(false);
-      setRequestLogs([]);
-      return;
-    }
+  const selectedLogQuery = useRequestLogDetailQuery(selectedLogId);
+  const selectedLog = selectedLogQuery.data ?? null;
+  const selectedLogLoading = selectedLogQuery.isFetching;
 
-    if (requestLogsInFlightRef.current) return;
-    requestLogsInFlightRef.current = true;
-    if (mode === "blocking") setRequestLogsLoading(true);
-    if (mode === "background") setRequestLogsRefreshing(true);
-
-    try {
-      const items = await requestLogsListAll(LOGS_PAGE_LIMIT);
-      if (!items) {
-        setRequestLogsAvailable(false);
-        setRequestLogs([]);
-        return;
-      }
-      setRequestLogsAvailable(true);
-      const next = (items ?? []).slice().sort(sortRequestLogsDesc);
-      setRequestLogs(next);
-    } catch (err) {
-      setRequestLogsAvailable(true);
-      logToConsole("error", "读取日志失败", { error: String(err) });
-      toast("读取日志失败：请查看控制台日志");
-    } finally {
-      requestLogsInFlightRef.current = false;
-      if (mode === "blocking") setRequestLogsLoading(false);
-      if (mode === "background") setRequestLogsRefreshing(false);
-    }
-  }
-
-  async function refreshRequestLogsIncremental() {
-    if (!hasTauriRuntime()) return;
-
-    const prev = requestLogsRef.current;
-    if (prev.length === 0) {
-      await refreshRequestLogs("background");
-      return;
-    }
-
-    if (requestLogsInFlightRef.current) return;
-    requestLogsInFlightRef.current = true;
-    setRequestLogsRefreshing(true);
-
-    try {
-      const afterId = computeRequestLogsCursorId(prev);
-      const items = await requestLogsListAfterIdAll(afterId, LOGS_PAGE_LIMIT);
-      if (!items) {
-        setRequestLogsAvailable(false);
-        setRequestLogs([]);
-        return;
-      }
-      setRequestLogsAvailable(true);
-      const incoming = items ?? [];
-      if (incoming.length === 0) return;
-      setRequestLogs((cur) => mergeRequestLogs(cur, incoming, LOGS_PAGE_LIMIT));
-    } catch (err) {
-      logToConsole("warn", "增量刷新日志失败", { error: String(err) });
-    } finally {
-      requestLogsInFlightRef.current = false;
-      setRequestLogsRefreshing(false);
-    }
-  }
-
-  useEffect(() => {
-    setSelectedLogId(null);
-    setSelectedLog(null);
-    requestLogsInFlightRef.current = false;
-    setRequestLogsLoading(false);
-    setRequestLogsRefreshing(false);
-    setRequestLogs([]);
-    void refreshRequestLogs("blocking");
-  }, []);
-
-  useEffect(() => {
-    if (!autoRefresh) return;
-    if (!hasTauriRuntime()) return;
-    const timer = window.setInterval(
-      () => void refreshRequestLogsIncremental(),
-      AUTO_REFRESH_INTERVAL_MS
-    );
-    return () => window.clearInterval(timer);
-  }, [autoRefresh]);
-
-  useEffect(() => {
-    if (selectedLogId == null) {
-      setSelectedLog(null);
-      setSelectedLogLoading(false);
-      setAttemptLogs([]);
-      setAttemptLogsLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    setSelectedLogLoading(true);
-    requestLogGet(selectedLogId)
-      .then((detail) => {
-        if (cancelled) return;
-        if (!detail) {
-          setSelectedLog(null);
-          return;
-        }
-        setSelectedLog(detail);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        logToConsole("error", "读取日志详情失败", { log_id: selectedLogId, error: String(err) });
-        toast(`读取详情失败：${String(err)}`);
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setSelectedLogLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedLogId]);
-
-  useEffect(() => {
-    if (!selectedLog) {
-      setAttemptLogs([]);
-      setAttemptLogsLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    setAttemptLogsLoading(true);
-
-    requestAttemptLogsByTraceId(selectedLog.trace_id, 50)
-      .then((items) => {
-        if (cancelled) return;
-        setAttemptLogs(items ?? []);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        logToConsole("error", "读取 attempt logs 失败", {
-          trace_id: selectedLog.trace_id,
-          error: String(err),
-        });
-        setAttemptLogs([]);
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setAttemptLogsLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedLog]);
+  const attemptLogsQuery = useRequestAttemptLogsByTraceIdQuery(selectedLog?.trace_id ?? null, 50);
+  const attemptLogs = attemptLogsQuery.data ?? [];
+  const attemptLogsLoading = attemptLogsQuery.isFetching;
 
   return (
     <div className="flex flex-col gap-6 pb-10">
@@ -387,7 +204,7 @@ export function LogsPage() {
         requestLogsLoading={requestLogsLoading}
         requestLogsRefreshing={requestLogsRefreshing}
         requestLogsAvailable={requestLogsAvailable}
-        onRefreshRequestLogs={() => void refreshRequestLogs("blocking")}
+        onRefreshRequestLogs={() => void requestLogsQuery.refetch()}
         selectedLogId={selectedLogId}
         onSelectLogId={setSelectedLogId}
       />

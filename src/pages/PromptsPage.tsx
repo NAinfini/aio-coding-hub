@@ -6,50 +6,32 @@ import { toast } from "sonner";
 import { CLIS, cliLongLabel } from "../constants/clis";
 import { logToConsole } from "../services/consoleLog";
 import type { CliKey } from "../services/providers";
-import { startupSyncDefaultPromptsFromFilesOncePerSession } from "../services/startup";
-import { workspacesList } from "../services/workspaces";
 import { Button } from "../ui/Button";
 import { PageHeader } from "../ui/PageHeader";
 import { TabList } from "../ui/TabList";
 import { PromptsView } from "./prompts/PromptsView";
+import { hasTauriRuntime } from "../services/tauriInvoke";
+import { useWorkspacesListQuery } from "../query/workspaces";
 
 export function PromptsPage() {
   const navigate = useNavigate();
   const [activeCli, setActiveCli] = useState<CliKey>("claude");
-  const [activeWorkspaceId, setActiveWorkspaceId] = useState<number | null>(null);
-  const [loading, setLoading] = useState(false);
+  const tauriRuntime = hasTauriRuntime();
+
+  const workspacesQuery = useWorkspacesListQuery(activeCli);
+  const activeWorkspaceId = workspacesQuery.data?.active_id ?? null;
+  const loading = workspacesQuery.isFetching;
 
   const cliLabel = useMemo(() => cliLongLabel(activeCli), [activeCli]);
 
-  async function refresh(cliKey: CliKey) {
-    setLoading(true);
-    try {
-      const workspaces = await workspacesList(cliKey);
-      if (!workspaces) {
-        setActiveWorkspaceId(null);
-        return;
-      }
-      setActiveWorkspaceId(workspaces.active_id);
-    } catch (err) {
-      logToConsole("error", "加载工作区失败", { error: String(err), cli: cliKey });
-      toast("加载失败：请查看控制台日志");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      await startupSyncDefaultPromptsFromFilesOncePerSession();
-      if (cancelled) return;
-      await refresh(activeCli);
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeCli]);
+    if (!workspacesQuery.error) return;
+    logToConsole("error", "加载工作区失败", {
+      error: String(workspacesQuery.error),
+      cli: activeCli,
+    });
+    toast("加载失败：请查看控制台日志");
+  }, [activeCli, workspacesQuery.error]);
 
   return (
     <div className="space-y-6">
@@ -76,6 +58,8 @@ export function PromptsPage() {
 
       {loading ? (
         <div className="text-sm text-slate-600">加载中…</div>
+      ) : !tauriRuntime ? (
+        <div className="text-sm text-slate-600">仅在 Tauri Desktop 环境可用</div>
       ) : !activeWorkspaceId ? (
         <div className="text-sm text-slate-600">
           未找到 {cliLabel} 的当前工作区（workspace）。请先在 Workspaces 页面创建并设为当前。

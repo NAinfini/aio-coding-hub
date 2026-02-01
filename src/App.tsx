@@ -15,6 +15,7 @@ import { SkillsPage } from "./pages/SkillsPage";
 import { SkillsMarketPage } from "./pages/SkillsMarketPage";
 import { UsagePage } from "./pages/UsagePage";
 import { WorkspacesPage } from "./pages/WorkspacesPage";
+import { useGatewayQuerySync } from "./hooks/useGatewayQuerySync";
 import { listenGatewayEvents } from "./services/gatewayEvents";
 import { listenNoticeEvents } from "./services/noticeEvents";
 import {
@@ -31,6 +32,8 @@ const TOASTER_STYLE: CssVarsStyle = {
 };
 
 export default function App() {
+  useGatewayQuerySync();
+
   useEffect(() => {
     let cancelled = false;
     let cleanup: (() => void) | null = null;

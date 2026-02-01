@@ -4,17 +4,16 @@ import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { ExternalLink } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import {
+  useSkillImportLocalMutation,
+  useSkillSetEnabledMutation,
+  useSkillUninstallMutation,
+  useSkillsInstalledListQuery,
+  useSkillsLocalListQuery,
+} from "../../query/skills";
 import { logToConsole } from "../../services/consoleLog";
 import type { CliKey } from "../../services/providers";
-import {
-  skillImportLocal,
-  skillSetEnabled,
-  skillUninstall,
-  skillsInstalledList,
-  skillsLocalList,
-  type InstalledSkillSummary,
-  type LocalSkillSummary,
-} from "../../services/skills";
+import { type InstalledSkillSummary, type LocalSkillSummary } from "../../services/skills";
 import { Button } from "../../ui/Button";
 import { Card } from "../../ui/Card";
 import { Dialog } from "../../ui/Dialog";
@@ -56,82 +55,59 @@ export type SkillsViewProps = {
 };
 
 export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: SkillsViewProps) {
-  const [installed, setInstalled] = useState<InstalledSkillSummary[]>([]);
-  const [localSkills, setLocalSkills] = useState<LocalSkillSummary[]>([]);
+  const canOperateLocal = useMemo(() => isActiveWorkspace, [isActiveWorkspace]);
 
-  const [loading, setLoading] = useState(false);
-  const [localLoading, setLocalLoading] = useState(false);
-  const [togglingSkillId, setTogglingSkillId] = useState<number | null>(null);
-  const [uninstallingSkillId, setUninstallingSkillId] = useState<number | null>(null);
+  const installedQuery = useSkillsInstalledListQuery(workspaceId);
+  const localQuery = useSkillsLocalListQuery(workspaceId, { enabled: canOperateLocal });
+
+  const toggleMutation = useSkillSetEnabledMutation(workspaceId);
+  const uninstallMutation = useSkillUninstallMutation(workspaceId);
+  const importMutation = useSkillImportLocalMutation(workspaceId);
+
+  const installed: InstalledSkillSummary[] = installedQuery.data ?? [];
+  const localSkills: LocalSkillSummary[] = canOperateLocal ? (localQuery.data ?? []) : [];
+
+  const loading = installedQuery.isFetching;
+  const localLoading = canOperateLocal ? localQuery.isFetching : false;
+  const togglingSkillId = toggleMutation.isPending
+    ? (toggleMutation.variables?.skillId ?? null)
+    : null;
+  const uninstallingSkillId = uninstallMutation.isPending
+    ? (uninstallMutation.variables ?? null)
+    : null;
+  const importingLocal = importMutation.isPending;
 
   const [uninstallTarget, setUninstallTarget] = useState<InstalledSkillSummary | null>(null);
 
   const [importTarget, setImportTarget] = useState<LocalSkillSummary | null>(null);
-  const [importingLocal, setImportingLocal] = useState(false);
-
-  const canOperateLocal = useMemo(() => isActiveWorkspace, [isActiveWorkspace]);
-
-  async function refreshInstalled() {
-    setLoading(true);
-    try {
-      const rows = await skillsInstalledList(workspaceId);
-      setInstalled(rows ?? []);
-    } catch (err) {
-      logToConsole("error", "加载 Skills 数据失败", {
-        error: String(err),
-        workspace_id: workspaceId,
-      });
-      toast("加载失败：请查看控制台日志");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function refreshLocal() {
-    if (!canOperateLocal) {
-      setLocalSkills([]);
-      return;
-    }
-    setLocalLoading(true);
-    try {
-      const rows = await skillsLocalList(workspaceId);
-      setLocalSkills(rows ?? []);
-    } catch (err) {
-      logToConsole("error", "扫描本机 Skill 失败", {
-        error: String(err),
-        cli: cliKey,
-        workspace_id: workspaceId,
-      });
-      toast("扫描本机 Skill 失败：请查看控制台日志");
-    } finally {
-      setLocalLoading(false);
-    }
-  }
 
   useEffect(() => {
-    void refreshInstalled();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspaceId]);
+    if (!installedQuery.error) return;
+    logToConsole("error", "加载 Skills 数据失败", {
+      error: String(installedQuery.error),
+      workspace_id: workspaceId,
+    });
+    toast("加载失败：请查看控制台日志");
+  }, [installedQuery.error, workspaceId]);
 
   useEffect(() => {
-    void refreshLocal();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspaceId, canOperateLocal]);
+    if (!localQuery.error) return;
+    logToConsole("error", "扫描本机 Skill 失败", {
+      error: String(localQuery.error),
+      cli: cliKey,
+      workspace_id: workspaceId,
+    });
+    toast("扫描本机 Skill 失败：请查看控制台日志");
+  }, [cliKey, localQuery.error, workspaceId]);
 
   async function toggleSkillEnabled(skill: InstalledSkillSummary, enabled: boolean) {
-    if (togglingSkillId != null) return;
-    setTogglingSkillId(skill.id);
+    if (toggleMutation.isPending) return;
     try {
-      const next = await skillSetEnabled({
-        workspace_id: workspaceId,
-        skill_id: skill.id,
-        enabled,
-      });
+      const next = await toggleMutation.mutateAsync({ skillId: skill.id, enabled });
       if (!next) {
         toast("仅在 Tauri Desktop 环境可用");
         return;
       }
-      setInstalled((prev) => prev.map((row) => (row.id === next.id ? next : row)));
       if (enabled) {
         toast(isActiveWorkspace ? "已启用" : "已启用（非当前工作区，不会同步）");
       } else {
@@ -148,51 +124,43 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
         enabled,
       });
       toast(formatted.toast);
-    } finally {
-      setTogglingSkillId(null);
     }
   }
 
   async function confirmUninstallSkill() {
     if (!uninstallTarget) return;
-    if (uninstallingSkillId != null) return;
-    setUninstallingSkillId(uninstallTarget.id);
+    if (uninstallMutation.isPending) return;
+    const target = uninstallTarget;
     try {
-      const ok = await skillUninstall(uninstallTarget.id);
+      const ok = await uninstallMutation.mutateAsync(target.id);
       if (!ok) {
         toast("仅在 Tauri Desktop 环境可用");
         return;
       }
-      setInstalled((prev) => prev.filter((row) => row.id !== uninstallTarget.id));
       toast("已卸载");
-      logToConsole("info", "卸载 Skill", uninstallTarget);
+      logToConsole("info", "卸载 Skill", target);
       setUninstallTarget(null);
     } catch (err) {
       const formatted = formatActionFailureToast("卸载", err);
       logToConsole("error", "卸载 Skill 失败", {
         error: formatted.raw,
         error_code: formatted.error_code ?? undefined,
-        skill: uninstallTarget,
+        skill: target,
       });
       toast(formatted.toast);
-    } finally {
-      setUninstallingSkillId(null);
     }
   }
 
   async function confirmImportLocalSkill() {
     if (!importTarget) return;
-    if (importingLocal) return;
+    if (importMutation.isPending) return;
     if (!canOperateLocal) {
       toast("仅当前工作区可导入本机 Skill。请先切换该工作区为当前。");
       return;
     }
-    setImportingLocal(true);
+    const target = importTarget;
     try {
-      const next = await skillImportLocal({
-        workspace_id: workspaceId,
-        dir_name: importTarget.dir_name,
-      });
+      const next = await importMutation.mutateAsync(target.dir_name);
       if (!next) {
         toast("仅在 Tauri Desktop 环境可用");
         return;
@@ -205,8 +173,6 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
         imported: next,
       });
       setImportTarget(null);
-      await refreshInstalled();
-      await refreshLocal();
     } catch (err) {
       const formatted = formatActionFailureToast("导入", err);
       logToConsole("error", "导入本机 Skill 失败", {
@@ -214,11 +180,9 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
         error_code: formatted.error_code ?? undefined,
         cli: cliKey,
         workspace_id: workspaceId,
-        skill: importTarget,
+        skill: target,
       });
       toast(formatted.toast);
-    } finally {
-      setImportingLocal(false);
     }
   }
 

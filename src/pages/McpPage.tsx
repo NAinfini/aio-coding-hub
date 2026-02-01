@@ -1,39 +1,26 @@
 // Usage: Manage MCP servers for the active workspace of a CLI (renders sub-view under `src/pages/mcp/*`).
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { PageHeader } from "../ui/PageHeader";
 import { TabList } from "../ui/TabList";
 import { CLIS, cliLongLabel } from "../constants/clis";
 import type { CliKey } from "../services/providers";
-import { workspacesList } from "../services/workspaces";
 import { Button } from "../ui/Button";
 import { McpServersView } from "./mcp/McpServersView";
+import { hasTauriRuntime } from "../services/tauriInvoke";
+import { useWorkspacesListQuery } from "../query/workspaces";
 
 export function McpPage() {
   const navigate = useNavigate();
   const [activeCli, setActiveCli] = useState<CliKey>("claude");
-  const [activeWorkspaceId, setActiveWorkspaceId] = useState<number | null>(null);
-  const [loading, setLoading] = useState(false);
+  const tauriRuntime = hasTauriRuntime();
+
+  const workspacesQuery = useWorkspacesListQuery(activeCli);
+  const activeWorkspaceId = workspacesQuery.data?.active_id ?? null;
+  const loading = workspacesQuery.isFetching;
 
   const cliLabel = useMemo(() => cliLongLabel(activeCli), [activeCli]);
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      setLoading(true);
-      try {
-        const workspaces = await workspacesList(activeCli);
-        if (cancelled) return;
-        setActiveWorkspaceId(workspaces?.active_id ?? null);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [activeCli]);
 
   return (
     <div className="space-y-6">
@@ -60,6 +47,8 @@ export function McpPage() {
 
       {loading ? (
         <div className="text-sm text-slate-600">加载中…</div>
+      ) : !tauriRuntime ? (
+        <div className="text-sm text-slate-600">仅在 Tauri Desktop 环境可用</div>
       ) : !activeWorkspaceId ? (
         <div className="text-sm text-slate-600">
           未找到 {cliLabel} 的当前工作区（workspace）。请先在 Workspaces 页面创建并设为当前。

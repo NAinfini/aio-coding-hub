@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { cliProxySetEnabled, cliProxyStatusAll } from "../services/cliProxy";
 import { logToConsole } from "../services/consoleLog";
 import type { CliKey } from "../services/providers";
+import { useCliProxySetEnabledMutation, useCliProxyStatusAllQuery } from "../query/cliProxy";
 
 const DEFAULT_ENABLED: Record<CliKey, boolean> = {
   claude: true,
@@ -17,87 +17,67 @@ const DEFAULT_TOGGLING: Record<CliKey, boolean> = {
 };
 
 export function useCliProxy() {
-  const [enabled, setEnabled] = useState<Record<CliKey, boolean>>(DEFAULT_ENABLED);
   const [toggling, setToggling] = useState<Record<CliKey, boolean>>(DEFAULT_TOGGLING);
 
-  const enabledRef = useRef(enabled);
-  const togglingRef = useRef(toggling);
+  const statusQuery = useCliProxyStatusAllQuery();
+  const setEnabledMutation = useCliProxySetEnabledMutation();
 
-  useEffect(() => {
-    enabledRef.current = enabled;
-  }, [enabled]);
-
-  useEffect(() => {
-    togglingRef.current = toggling;
-  }, [toggling]);
+  const enabled = useMemo<Record<CliKey, boolean>>(() => {
+    const next: Record<CliKey, boolean> = { ...DEFAULT_ENABLED };
+    const statuses = statusQuery.data ?? null;
+    if (!statuses) return next;
+    for (const row of statuses) {
+      if (row.cli_key in next) {
+        next[row.cli_key as CliKey] = Boolean(row.enabled);
+      }
+    }
+    return next;
+  }, [statusQuery.data]);
 
   const refresh = useCallback(() => {
-    let cancelled = false;
-    cliProxyStatusAll()
-      .then((statuses) => {
-        if (cancelled) return;
-        if (!statuses) return;
-        setEnabled((prev) => {
-          const next = { ...prev };
-          for (const row of statuses) {
-            next[row.cli_key] = Boolean(row.enabled);
+    void statusQuery.refetch();
+    return () => {};
+  }, [statusQuery]);
+
+  const setCliProxyEnabled = useCallback(
+    (cliKey: CliKey, next: boolean) => {
+      if (toggling[cliKey]) return;
+
+      setToggling((cur) => ({ ...cur, [cliKey]: true }));
+
+      void (async () => {
+        try {
+          const res = await setEnabledMutation.mutateAsync({ cliKey, enabled: next });
+          if (!res) {
+            toast("仅在 Tauri Desktop 环境可用");
+            return;
           }
-          return next;
-        });
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        logToConsole("warn", "读取 CLI 代理状态失败", { error: String(err) });
-      });
 
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+          if (res.ok) {
+            toast(res.message || (next ? "已开启代理" : "已关闭代理"));
+            logToConsole("info", next ? "开启 CLI 代理" : "关闭 CLI 代理", res);
+            return;
+          }
 
-  useEffect(() => {
-    const cleanup = refresh();
-    return cleanup;
-  }, [refresh]);
-
-  const setCliProxyEnabled = useCallback((cliKey: CliKey, next: boolean) => {
-    if (togglingRef.current[cliKey]) return;
-
-    const prev = enabledRef.current[cliKey];
-    setEnabled((cur) => ({ ...cur, [cliKey]: next }));
-    setToggling((cur) => ({ ...cur, [cliKey]: true }));
-
-    cliProxySetEnabled({ cli_key: cliKey, enabled: next })
-      .then((res) => {
-        if (!res) {
-          toast("仅在 Tauri Desktop 环境可用");
-          setEnabled((cur) => ({ ...cur, [cliKey]: prev }));
-          return;
-        }
-
-        if (res.ok) {
-          toast(res.message || (next ? "已开启代理" : "已关闭代理"));
-          logToConsole("info", next ? "开启 CLI 代理" : "关闭 CLI 代理", res);
-          setEnabled((cur) => ({ ...cur, [cliKey]: Boolean(res.enabled) }));
-        } else {
           toast(res.message ? `操作失败：${res.message}` : "操作失败");
           logToConsole("error", next ? "开启 CLI 代理失败" : "关闭 CLI 代理失败", res);
-          setEnabled((cur) => ({ ...cur, [cliKey]: prev }));
+        } catch (err) {
+          toast(`操作失败：${String(err)}`);
+          logToConsole("error", "切换 CLI 代理失败", {
+            cli: cliKey,
+            enabled: next,
+            error: String(err),
+          });
+
+          // Best-effort rollback: optimistic update may have already applied.
+          await statusQuery.refetch();
+        } finally {
+          setToggling((cur) => ({ ...cur, [cliKey]: false }));
         }
-      })
-      .catch((err) => {
-        toast(`操作失败：${String(err)}`);
-        logToConsole("error", "切换 CLI 代理失败", {
-          cli: cliKey,
-          enabled: next,
-          error: String(err),
-        });
-        setEnabled((cur) => ({ ...cur, [cliKey]: prev }));
-      })
-      .finally(() => {
-        setToggling((cur) => ({ ...cur, [cliKey]: false }));
-      });
-  }, []);
+      })();
+    },
+    [setEnabledMutation, statusQuery, toggling]
+  );
 
   return {
     enabled,

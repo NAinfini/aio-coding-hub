@@ -5,7 +5,7 @@ use tauri::Manager;
 
 const ENV_CODEX_HOME: &str = "CODEX_HOME";
 
-fn home_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+fn home_dir<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
     app.path()
         .home_dir()
         .map_err(|e| format!("failed to resolve home dir: {e}"))
@@ -37,7 +37,7 @@ fn resolve_under_home(home: &Path, raw: &str) -> PathBuf {
     home.join(candidate)
 }
 
-pub fn codex_home_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+pub fn codex_home_dir<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
     let home = home_dir(app)?;
     let raw = std::env::var(ENV_CODEX_HOME)
         .ok()
@@ -50,18 +50,24 @@ pub fn codex_home_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     })
 }
 
-pub fn codex_config_toml_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+pub fn codex_config_toml_path<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> Result<PathBuf, String> {
     Ok(codex_home_dir(app)?.join("config.toml"))
 }
 
-pub fn codex_auth_json_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+pub fn codex_auth_json_path<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> Result<PathBuf, String> {
     Ok(codex_home_dir(app)?.join("auth.json"))
 }
 
-pub fn codex_agents_md_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+pub fn codex_agents_md_path<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> Result<PathBuf, String> {
     Ok(codex_home_dir(app)?.join("AGENTS.md"))
 }
 
-pub fn codex_skills_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+pub fn codex_skills_dir<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
     Ok(codex_home_dir(app)?.join("skills"))
 }

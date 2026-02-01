@@ -4,6 +4,7 @@ mod domain;
 mod gateway;
 mod infra;
 mod shared;
+pub mod test_support;
 
 pub(crate) use app::{app_state, notice, resident};
 pub(crate) use domain::{

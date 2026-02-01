@@ -33,8 +33,8 @@ fn normalized_keys(servers: &[McpServerForSync]) -> Vec<String> {
     keys
 }
 
-pub fn sync_cli(
-    app: &tauri::AppHandle,
+pub fn sync_cli<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
     cli_key: &str,
     servers: &[McpServerForSync],
 ) -> Result<(), String> {

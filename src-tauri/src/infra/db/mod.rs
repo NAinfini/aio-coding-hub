@@ -42,11 +42,11 @@ pub(crate) fn sql_placeholders(count: usize) -> String {
     out
 }
 
-pub fn db_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+pub fn db_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
     Ok(app_paths::app_data_dir(app)?.join(DB_FILE_NAME))
 }
 
-pub fn init(app: &tauri::AppHandle) -> Result<Db, String> {
+pub fn init<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<Db, String> {
     let path = db_path(app)?;
     let path_hint = path.to_string_lossy();
 

@@ -5,8 +5,8 @@ use super::paths::{
     legacy_mcp_sync_roots, mcp_sync_files_dir, mcp_sync_manifest_path, mcp_sync_root_dir,
 };
 
-pub(super) fn try_migrate_legacy_mcp_sync_dir(
-    app: &tauri::AppHandle,
+pub(super) fn try_migrate_legacy_mcp_sync_dir<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
     cli_key: &str,
 ) -> Result<bool, String> {
     let new_root = mcp_sync_root_dir(app, cli_key)?;

@@ -20,7 +20,7 @@ fn is_safe_dotdir_name(name: &str) -> bool {
         .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_')
 }
 
-pub fn app_data_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+pub fn app_data_dir<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
     let home_dir = app
         .path()
         .home_dir()

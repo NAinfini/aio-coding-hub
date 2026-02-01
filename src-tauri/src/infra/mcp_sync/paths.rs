@@ -9,13 +9,16 @@ pub(super) fn validate_cli_key(cli_key: &str) -> Result<(), String> {
     crate::shared::cli_key::validate_cli_key(cli_key)
 }
 
-pub(super) fn home_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+pub(super) fn home_dir<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
     app.path()
         .home_dir()
         .map_err(|e| format!("failed to resolve home dir: {e}"))
 }
 
-pub(super) fn mcp_target_path(app: &tauri::AppHandle, cli_key: &str) -> Result<PathBuf, String> {
+pub(super) fn mcp_target_path<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    cli_key: &str,
+) -> Result<PathBuf, String> {
     validate_cli_key(cli_key)?;
     let home = home_dir(app)?;
 
@@ -39,7 +42,10 @@ pub(super) fn backup_file_name(cli_key: &str) -> &'static str {
     }
 }
 
-pub(super) fn mcp_sync_root_dir(app: &tauri::AppHandle, cli_key: &str) -> Result<PathBuf, String> {
+pub(super) fn mcp_sync_root_dir<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    cli_key: &str,
+) -> Result<PathBuf, String> {
     Ok(app_paths::app_data_dir(app)?.join("mcp-sync").join(cli_key))
 }
 
@@ -51,8 +57,8 @@ pub(super) fn mcp_sync_manifest_path(root: &Path) -> PathBuf {
     root.join("manifest.json")
 }
 
-pub(super) fn legacy_mcp_sync_roots(
-    app: &tauri::AppHandle,
+pub(super) fn legacy_mcp_sync_roots<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
     cli_key: &str,
 ) -> Result<Vec<PathBuf>, String> {
     let home = home_dir(app)?;

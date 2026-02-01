@@ -7,13 +7,16 @@ pub(super) use crate::shared::fs::{
     write_file_atomic_if_changed,
 };
 
-pub fn read_target_bytes(app: &tauri::AppHandle, cli_key: &str) -> Result<Option<Vec<u8>>, String> {
+pub fn read_target_bytes<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    cli_key: &str,
+) -> Result<Option<Vec<u8>>, String> {
     let path = paths::mcp_target_path(app, cli_key)?;
     read_optional_file(&path)
 }
 
-pub fn restore_target_bytes(
-    app: &tauri::AppHandle,
+pub fn restore_target_bytes<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
     cli_key: &str,
     bytes: Option<Vec<u8>>,
 ) -> Result<(), String> {

@@ -29,8 +29,8 @@ pub(super) struct McpSyncManifest {
     pub(super) managed_keys: Vec<String>,
 }
 
-pub fn read_manifest_bytes(
-    app: &tauri::AppHandle,
+pub fn read_manifest_bytes<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
     cli_key: &str,
 ) -> Result<Option<Vec<u8>>, String> {
     let root = mcp_sync_root_dir(app, cli_key)?;
@@ -38,8 +38,8 @@ pub fn read_manifest_bytes(
     read_optional_file(&path)
 }
 
-pub fn restore_manifest_bytes(
-    app: &tauri::AppHandle,
+pub fn restore_manifest_bytes<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
     cli_key: &str,
     bytes: Option<Vec<u8>>,
 ) -> Result<(), String> {
@@ -57,8 +57,8 @@ pub fn restore_manifest_bytes(
     }
 }
 
-pub(super) fn read_manifest(
-    app: &tauri::AppHandle,
+pub(super) fn read_manifest<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
     cli_key: &str,
 ) -> Result<Option<McpSyncManifest>, String> {
     let root = mcp_sync_root_dir(app, cli_key)?;
@@ -88,8 +88,8 @@ pub(super) fn read_manifest(
     Ok(Some(manifest))
 }
 
-pub(super) fn write_manifest(
-    app: &tauri::AppHandle,
+pub(super) fn write_manifest<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
     cli_key: &str,
     manifest: &McpSyncManifest,
 ) -> Result<(), String> {
@@ -104,8 +104,8 @@ pub(super) fn write_manifest(
     Ok(())
 }
 
-pub(super) fn backup_for_enable(
-    app: &tauri::AppHandle,
+pub(super) fn backup_for_enable<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
     cli_key: &str,
     existing: Option<McpSyncManifest>,
 ) -> Result<McpSyncManifest, String> {

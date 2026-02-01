@@ -43,6 +43,10 @@ tauri-plugin-autostart = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-notification = "2"
 
+[dev-dependencies]
+tempfile = "3"
+tauri = { version = "2", features = ["test"] }
+
 [patch.crates-io]
 # Patch `tauri-plugin-notification` to ensure macOS debug/dev notifications use this app's identifier
 # (instead of `com.apple.Terminal`), so the notification icon matches the app.

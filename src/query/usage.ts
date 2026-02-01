@@ -3,6 +3,7 @@ import type { CliKey } from "../services/providers";
 import {
   usageHourlySeries,
   usageLeaderboardV2,
+  usageProviderCacheRateTrendV1,
   usageSummary,
   usageSummaryV2,
   type UsagePeriod,
@@ -61,6 +62,24 @@ export function useUsageLeaderboardV2Query(
   return useQuery({
     queryKey: usageKeys.leaderboardV2(scope, period, input),
     queryFn: () => usageLeaderboardV2(scope, period, input),
+    enabled: hasTauriRuntime() && (options?.enabled ?? true),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useUsageProviderCacheRateTrendV1Query(
+  period: UsagePeriod,
+  input: {
+    startTs: number | null;
+    endTs: number | null;
+    cliKey: CliKey | null;
+    limit: number | null;
+  },
+  options?: { enabled?: boolean }
+) {
+  return useQuery({
+    queryKey: usageKeys.providerCacheRateTrendV1(period, input),
+    queryFn: () => usageProviderCacheRateTrendV1(period, input),
     enabled: hasTauriRuntime() && (options?.enabled ?? true),
     placeholderData: keepPreviousData,
   });

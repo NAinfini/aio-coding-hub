@@ -30,6 +30,7 @@ pub(super) struct AllUnavailableInput<'a> {
     pub(super) earliest_available_unix: Option<i64>,
     pub(super) skipped_open: usize,
     pub(super) skipped_cooldown: usize,
+    pub(super) skipped_limits: usize,
     pub(super) fingerprint_key: u64,
     pub(super) fingerprint_debug: String,
     pub(super) unavailable_fingerprint_key: u64,
@@ -54,6 +55,7 @@ pub(super) async fn all_providers_unavailable(input: AllUnavailableInput<'_>) ->
         earliest_available_unix,
         skipped_open,
         skipped_cooldown,
+        skipped_limits,
         fingerprint_key,
         fingerprint_debug,
         unavailable_fingerprint_key,
@@ -67,7 +69,7 @@ pub(super) async fn all_providers_unavailable(input: AllUnavailableInput<'_>) ->
         .map(|v| v as u64);
 
     let message = format!(
-        "no provider available (skipped: open={skipped_open}, cooldown={skipped_cooldown}) for cli_key={cli_key}",
+        "no provider available (skipped: open={skipped_open}, cooldown={skipped_cooldown}, limits={skipped_limits}) for cli_key={cli_key}",
     );
 
     let resp = error_response_with_retry_after(

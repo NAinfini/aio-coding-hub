@@ -206,6 +206,7 @@ where
                 }
                 Some(v.min(i64::MAX as u128) as i64)
             });
+            let completion_seen = tee.tracker.completion_seen();
 
             if let Ok(mut guard) = tee.ctx.special_settings.lock() {
                 guard.push(serde_json::json!({
@@ -217,13 +218,19 @@ where
                     "ttfb_ms": ttfb_ms,
                     "forwarded_chunks": forwarded_chunks,
                     "forwarded_bytes": forwarded_bytes,
+                    "completion_seen": completion_seen,
                     "ts": now_unix_seconds() as i64,
                 }));
             }
 
-            // 对齐 claude-code-hub：client abort 记为 499（不计入熔断/统计）。
-            // 这里使用 GW_STREAM_ABORTED 标记，并在 request_end 层做 status override + excluded_from_stats。
-            tee.finalize(Some("GW_STREAM_ABORTED"));
+            // Codex SSE（/v1/responses）：如果已观测到完成信号（response.completed / [DONE]），
+            // 则把“客户端断开”视为正常收尾，避免误记为 499（GW_STREAM_ABORTED）。
+            let is_codex_responses = tee.ctx.cli_key == "codex" && tee.ctx.path == "/v1/responses";
+            if is_codex_responses && completion_seen && (200..300).contains(&tee.ctx.status) {
+                tee.finalize(None);
+            } else {
+                tee.finalize(Some("GW_STREAM_ABORTED"));
+            }
         }
     });
 

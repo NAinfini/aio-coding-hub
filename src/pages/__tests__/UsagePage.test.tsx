@@ -8,7 +8,11 @@ import { UsagePage } from "../UsagePage";
 import { createTestQueryClient } from "../../test/utils/reactQuery";
 import { clearTauriRuntime, setTauriRuntime } from "../../test/utils/tauriRuntime";
 import { useCustomDateRange } from "../../hooks/useCustomDateRange";
-import { useUsageLeaderboardV2Query, useUsageSummaryV2Query } from "../../query/usage";
+import {
+  useUsageLeaderboardV2Query,
+  useUsageProviderCacheRateTrendV1Query,
+  useUsageSummaryV2Query,
+} from "../../query/usage";
 
 vi.mock("sonner", () => ({ toast: vi.fn() }));
 
@@ -25,6 +29,7 @@ vi.mock("../../query/usage", async () => {
     ...actual,
     useUsageSummaryV2Query: vi.fn(),
     useUsageLeaderboardV2Query: vi.fn(),
+    useUsageProviderCacheRateTrendV1Query: vi.fn(),
   };
 });
 
@@ -65,6 +70,12 @@ describe("pages/UsagePage", () => {
       error: null,
       refetch: vi.fn(),
     } as any);
+    vi.mocked(useUsageProviderCacheRateTrendV1Query).mockReturnValue({
+      data: [],
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
 
     renderWithProviders(<UsagePage />);
     expect(screen.getByText(/未检测到 Tauri Runtime/)).toBeInTheDocument();
@@ -100,6 +111,12 @@ describe("pages/UsagePage", () => {
       error: null,
       refetch: leaderboardRefetch,
     } as any);
+    vi.mocked(useUsageProviderCacheRateTrendV1Query).mockReturnValue({
+      data: [],
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
 
     renderWithProviders(<UsagePage />);
 
@@ -113,7 +130,7 @@ describe("pages/UsagePage", () => {
     expect(leaderboardRefetch).toHaveBeenCalled();
   });
 
-  it("renders summary + leaderboard table when data is available", () => {
+  it("renders usage tab table when data is available", () => {
     setTauriRuntime();
 
     vi.mocked(useCustomDateRange).mockReturnValue({
@@ -174,12 +191,66 @@ describe("pages/UsagePage", () => {
       error: null,
       refetch: vi.fn(),
     } as any);
+    vi.mocked(useUsageProviderCacheRateTrendV1Query).mockReturnValue({
+      data: [],
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
 
     renderWithProviders(<UsagePage />);
 
-    expect(screen.getByText("总 Token（输入+输出）")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "用量" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "缓存走势图" })).toBeInTheDocument();
     expect(screen.getByText("Provider-1")).toBeInTheDocument();
     expect(screen.getByText("总计")).toBeInTheDocument();
+    expect(screen.getByText("缓存 / 命中率")).toBeInTheDocument();
+  });
+
+  it("switches to cache trend tab, locks provider scope, and restores previous scope", () => {
+    setTauriRuntime();
+
+    vi.mocked(useCustomDateRange).mockReturnValue({
+      customStartDate: "",
+      setCustomStartDate: vi.fn(),
+      customEndDate: "",
+      setCustomEndDate: vi.fn(),
+      customApplied: null,
+      bounds: { startTs: 10, endTs: 20 },
+      showCustomForm: false,
+      applyCustomRange: vi.fn(),
+      clearCustomRange: vi.fn(),
+    } as any);
+
+    vi.mocked(useUsageSummaryV2Query).mockReturnValue({
+      data: null,
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useUsageLeaderboardV2Query).mockReturnValue({
+      data: [],
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useUsageProviderCacheRateTrendV1Query).mockReturnValue({
+      data: [],
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+
+    renderWithProviders(<UsagePage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "CLI" }));
+    expect(screen.getByText("Top 50 · CLI（按请求数）")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "缓存走势图" }));
+    expect(screen.getByText("缓存走势图仅支持供应商维度（已锁定）")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "用量" }));
+    expect(screen.getByText("Top 50 · CLI（按请求数）")).toBeInTheDocument();
   });
 
   it("shows custom range form and wires apply/clear handlers", async () => {
@@ -214,6 +285,12 @@ describe("pages/UsagePage", () => {
       refetch: vi.fn(),
     } as any);
     vi.mocked(useUsageLeaderboardV2Query).mockReturnValue({
+      data: [],
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useUsageProviderCacheRateTrendV1Query).mockReturnValue({
       data: [],
       isFetching: false,
       error: null,

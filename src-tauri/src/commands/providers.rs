@@ -31,6 +31,13 @@ pub(crate) async fn provider_upsert(
     cost_multiplier: f64,
     priority: Option<i64>,
     claude_models: Option<providers::ClaudeModels>,
+    limit_5h_usd: Option<f64>,
+    limit_daily_usd: Option<f64>,
+    daily_reset_mode: Option<String>,
+    daily_reset_time: Option<String>,
+    limit_weekly_usd: Option<f64>,
+    limit_monthly_usd: Option<f64>,
+    limit_total_usd: Option<f64>,
 ) -> Result<providers::ProviderSummary, String> {
     let db = ensure_db_ready(app, db_state.inner()).await?;
     blocking::run("provider_upsert", move || {
@@ -46,6 +53,13 @@ pub(crate) async fn provider_upsert(
             cost_multiplier,
             priority,
             claude_models,
+            limit_5h_usd,
+            limit_daily_usd,
+            daily_reset_mode.as_deref(),
+            daily_reset_time.as_deref(),
+            limit_weekly_usd,
+            limit_monthly_usd,
+            limit_total_usd,
         )
     })
     .await

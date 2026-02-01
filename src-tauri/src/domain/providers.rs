@@ -9,6 +9,102 @@ use std::collections::{HashMap, HashSet};
 
 const DEFAULT_PRIORITY: i64 = 100;
 const MAX_MODEL_NAME_LEN: usize = 200;
+const MAX_LIMIT_USD: f64 = 1_000_000_000.0;
+
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum DailyResetMode {
+    Fixed,
+    Rolling,
+}
+
+impl DailyResetMode {
+    fn parse(input: &str) -> Option<Self> {
+        match input.trim() {
+            "fixed" => Some(Self::Fixed),
+            "rolling" => Some(Self::Rolling),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::Fixed => "fixed",
+            Self::Rolling => "rolling",
+        }
+    }
+}
+
+fn parse_reset_time_hms(input: &str) -> Option<(u8, u8, u8)> {
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let mut parts = trimmed.split(':');
+    let h = parts.next()?;
+    let m = parts.next()?;
+    let s = parts.next();
+    if parts.next().is_some() {
+        return None;
+    }
+
+    if !(1..=2).contains(&h.len()) {
+        return None;
+    }
+    if m.len() != 2 {
+        return None;
+    }
+    if let Some(sec) = s {
+        if sec.len() != 2 {
+            return None;
+        }
+    }
+
+    let hours: u8 = h.parse().ok()?;
+    let minutes: u8 = m.parse().ok()?;
+    let seconds: u8 = s.unwrap_or("0").parse().ok()?;
+
+    if hours > 23 || minutes > 59 || seconds > 59 {
+        return None;
+    }
+
+    Some((hours, minutes, seconds))
+}
+
+fn normalize_reset_time_hms_lossy(input: &str) -> String {
+    let Some((h, m, s)) = parse_reset_time_hms(input) else {
+        return "00:00:00".to_string();
+    };
+    format!("{h:02}:{m:02}:{s:02}")
+}
+
+fn normalize_reset_time_hms_strict(field: &str, input: &str) -> Result<String, String> {
+    let Some((h, m, s)) = parse_reset_time_hms(input) else {
+        return Err(format!("SEC_INVALID_INPUT: {field} must be HH:mm[:ss]"));
+    };
+    Ok(format!("{h:02}:{m:02}:{s:02}"))
+}
+
+fn validate_limit_usd(field: &str, value: Option<f64>) -> Result<Option<f64>, String> {
+    let Some(v) = value else {
+        return Ok(None);
+    };
+    if !v.is_finite() {
+        return Err(format!(
+            "SEC_INVALID_INPUT: {field} must be a finite number"
+        ));
+    }
+    if v < 0.0 {
+        return Err(format!("SEC_INVALID_INPUT: {field} must be >= 0"));
+    }
+    if v > MAX_LIMIT_USD {
+        return Err(format!(
+            "SEC_INVALID_INPUT: {field} must be <= {MAX_LIMIT_USD}"
+        ));
+    }
+    Ok(Some(v))
+}
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ClaudeModels {
@@ -139,6 +235,13 @@ pub struct ProviderSummary {
     pub enabled: bool,
     pub priority: i64,
     pub cost_multiplier: f64,
+    pub limit_5h_usd: Option<f64>,
+    pub limit_daily_usd: Option<f64>,
+    pub daily_reset_mode: DailyResetMode,
+    pub daily_reset_time: String,
+    pub limit_weekly_usd: Option<f64>,
+    pub limit_monthly_usd: Option<f64>,
+    pub limit_total_usd: Option<f64>,
     pub created_at: i64,
     pub updated_at: i64,
 }
@@ -151,6 +254,13 @@ pub(crate) struct ProviderForGateway {
     pub base_url_mode: ProviderBaseUrlMode,
     pub api_key_plaintext: String,
     pub claude_models: ClaudeModels,
+    pub limit_5h_usd: Option<f64>,
+    pub limit_daily_usd: Option<f64>,
+    pub daily_reset_mode: DailyResetMode,
+    pub daily_reset_time: String,
+    pub limit_weekly_usd: Option<f64>,
+    pub limit_monthly_usd: Option<f64>,
+    pub limit_total_usd: Option<f64>,
 }
 
 #[derive(Debug, Clone)]
@@ -221,8 +331,13 @@ fn row_to_summary(row: &rusqlite::Row<'_>) -> Result<ProviderSummary, rusqlite::
     let base_urls_json: String = row.get("base_urls_json")?;
     let claude_models_json: String = row.get("claude_models_json")?;
     let base_url_mode_raw: String = row.get("base_url_mode")?;
+    let daily_reset_mode_raw: String = row.get("daily_reset_mode")?;
+    let daily_reset_time_raw: String = row.get("daily_reset_time")?;
     let base_url_mode =
         ProviderBaseUrlMode::parse(&base_url_mode_raw).unwrap_or(ProviderBaseUrlMode::Order);
+    let daily_reset_mode =
+        DailyResetMode::parse(&daily_reset_mode_raw).unwrap_or(DailyResetMode::Fixed);
+    let daily_reset_time = normalize_reset_time_hms_lossy(&daily_reset_time_raw);
 
     Ok(ProviderSummary {
         id: row.get("id")?,
@@ -238,6 +353,13 @@ fn row_to_summary(row: &rusqlite::Row<'_>) -> Result<ProviderSummary, rusqlite::
         enabled: row.get::<_, i64>("enabled")? != 0,
         priority: row.get("priority")?,
         cost_multiplier: row.get("cost_multiplier")?,
+        limit_5h_usd: row.get("limit_5h_usd")?,
+        limit_daily_usd: row.get("limit_daily_usd")?,
+        daily_reset_mode,
+        daily_reset_time,
+        limit_weekly_usd: row.get("limit_weekly_usd")?,
+        limit_monthly_usd: row.get("limit_monthly_usd")?,
+        limit_total_usd: row.get("limit_total_usd")?,
         created_at: row.get("created_at")?,
         updated_at: row.get("updated_at")?,
     })
@@ -267,6 +389,13 @@ SELECT
   enabled,
   priority,
   cost_multiplier,
+  limit_5h_usd,
+  limit_daily_usd,
+  daily_reset_mode,
+  daily_reset_time,
+  limit_weekly_usd,
+  limit_monthly_usd,
+  limit_total_usd,
   created_at,
   updated_at
 FROM providers
@@ -338,14 +467,21 @@ SELECT
   base_urls_json,
   base_url_mode,
   claude_models_json,
-  enabled,
-  priority,
-  cost_multiplier,
-  created_at,
-  updated_at
-FROM providers
-WHERE cli_key = ?1
-ORDER BY sort_order ASC, id DESC
+	  enabled,
+	  priority,
+	  cost_multiplier,
+	  limit_5h_usd,
+	  limit_daily_usd,
+	  daily_reset_mode,
+	  daily_reset_time,
+	  limit_weekly_usd,
+	  limit_monthly_usd,
+	  limit_total_usd,
+	  created_at,
+	  updated_at
+	FROM providers
+	WHERE cli_key = ?1
+	ORDER BY sort_order ASC, id DESC
 "#,
         )
         .map_err(|e| format!("DB_ERROR: failed to prepare query: {e}"))?;
@@ -377,7 +513,14 @@ SELECT
   p.base_urls_json,
   p.base_url_mode,
   p.api_key_plaintext,
-  p.claude_models_json
+  p.claude_models_json,
+  p.limit_5h_usd,
+  p.limit_daily_usd,
+  p.daily_reset_mode,
+  p.daily_reset_time,
+  p.limit_weekly_usd,
+  p.limit_monthly_usd,
+  p.limit_total_usd
 FROM sort_mode_providers mp
 JOIN providers p ON p.id = mp.provider_id
 WHERE mp.mode_id = ?1
@@ -395,8 +538,13 @@ ORDER BY mp.sort_order ASC
             let base_urls_json: String = row.get("base_urls_json")?;
             let base_url_mode_raw: String = row.get("base_url_mode")?;
             let claude_models_json: String = row.get("claude_models_json")?;
+            let daily_reset_mode_raw: String = row.get("daily_reset_mode")?;
+            let daily_reset_time_raw: String = row.get("daily_reset_time")?;
             let base_url_mode = ProviderBaseUrlMode::parse(&base_url_mode_raw)
                 .unwrap_or(ProviderBaseUrlMode::Order);
+            let daily_reset_mode =
+                DailyResetMode::parse(&daily_reset_mode_raw).unwrap_or(DailyResetMode::Fixed);
+            let daily_reset_time = normalize_reset_time_hms_lossy(&daily_reset_time_raw);
             Ok(ProviderForGateway {
                 id: row.get("id")?,
                 name: row.get("name")?,
@@ -408,6 +556,13 @@ ORDER BY mp.sort_order ASC
                 } else {
                     ClaudeModels::default()
                 },
+                limit_5h_usd: row.get("limit_5h_usd")?,
+                limit_daily_usd: row.get("limit_daily_usd")?,
+                daily_reset_mode,
+                daily_reset_time,
+                limit_weekly_usd: row.get("limit_weekly_usd")?,
+                limit_monthly_usd: row.get("limit_monthly_usd")?,
+                limit_total_usd: row.get("limit_total_usd")?,
             })
         })
         .map_err(|e| format!("DB_ERROR: failed to list gateway sort_mode providers: {e}"))?;
@@ -433,7 +588,14 @@ SELECT
   base_urls_json,
   base_url_mode,
   api_key_plaintext,
-  claude_models_json
+  claude_models_json,
+  limit_5h_usd,
+  limit_daily_usd,
+  daily_reset_mode,
+  daily_reset_time,
+  limit_weekly_usd,
+  limit_monthly_usd,
+  limit_total_usd
 FROM providers
 WHERE cli_key = ?1
   AND enabled = 1
@@ -448,8 +610,13 @@ ORDER BY sort_order ASC, id DESC
             let base_urls_json: String = row.get("base_urls_json")?;
             let base_url_mode_raw: String = row.get("base_url_mode")?;
             let claude_models_json: String = row.get("claude_models_json")?;
+            let daily_reset_mode_raw: String = row.get("daily_reset_mode")?;
+            let daily_reset_time_raw: String = row.get("daily_reset_time")?;
             let base_url_mode = ProviderBaseUrlMode::parse(&base_url_mode_raw)
                 .unwrap_or(ProviderBaseUrlMode::Order);
+            let daily_reset_mode =
+                DailyResetMode::parse(&daily_reset_mode_raw).unwrap_or(DailyResetMode::Fixed);
+            let daily_reset_time = normalize_reset_time_hms_lossy(&daily_reset_time_raw);
             Ok(ProviderForGateway {
                 id: row.get("id")?,
                 name: row.get("name")?,
@@ -461,6 +628,13 @@ ORDER BY sort_order ASC, id DESC
                 } else {
                     ClaudeModels::default()
                 },
+                limit_5h_usd: row.get("limit_5h_usd")?,
+                limit_daily_usd: row.get("limit_daily_usd")?,
+                daily_reset_mode,
+                daily_reset_time,
+                limit_weekly_usd: row.get("limit_weekly_usd")?,
+                limit_monthly_usd: row.get("limit_monthly_usd")?,
+                limit_total_usd: row.get("limit_total_usd")?,
             })
         })
         .map_err(|e| format!("DB_ERROR: failed to list gateway providers: {e}"))?;
@@ -540,6 +714,13 @@ pub fn upsert(
     cost_multiplier: f64,
     priority: Option<i64>,
     claude_models: Option<ClaudeModels>,
+    limit_5h_usd: Option<f64>,
+    limit_daily_usd: Option<f64>,
+    daily_reset_mode: Option<&str>,
+    daily_reset_time: Option<&str>,
+    limit_weekly_usd: Option<f64>,
+    limit_monthly_usd: Option<f64>,
+    limit_total_usd: Option<f64>,
 ) -> Result<ProviderSummary, String> {
     let cli_key = cli_key.trim();
     validate_cli_key(cli_key)?;
@@ -587,6 +768,21 @@ pub fn upsert(
             let claude_models_json =
                 serde_json::to_string(&claude_models).map_err(|e| format!("SYSTEM_ERROR: {e}"))?;
 
+            let limit_5h_usd = validate_limit_usd("limit_5h_usd", limit_5h_usd)?;
+            let limit_daily_usd = validate_limit_usd("limit_daily_usd", limit_daily_usd)?;
+            let limit_weekly_usd = validate_limit_usd("limit_weekly_usd", limit_weekly_usd)?;
+            let limit_monthly_usd = validate_limit_usd("limit_monthly_usd", limit_monthly_usd)?;
+            let limit_total_usd = validate_limit_usd("limit_total_usd", limit_total_usd)?;
+
+            let daily_reset_mode_raw = daily_reset_mode.unwrap_or("fixed");
+            let daily_reset_mode =
+                DailyResetMode::parse(daily_reset_mode_raw).ok_or_else(|| {
+                    "SEC_INVALID_INPUT: daily_reset_mode must be 'fixed' or 'rolling'".to_string()
+                })?;
+            let daily_reset_time_raw = daily_reset_time.unwrap_or("00:00:00");
+            let daily_reset_time =
+                normalize_reset_time_hms_strict("daily_reset_time", daily_reset_time_raw)?;
+
             conn.execute(
                 r#"
 INSERT INTO providers(
@@ -603,9 +799,16 @@ INSERT INTO providers(
   enabled,
   priority,
   cost_multiplier,
+  limit_5h_usd,
+  limit_daily_usd,
+  daily_reset_mode,
+  daily_reset_time,
+  limit_weekly_usd,
+  limit_monthly_usd,
+  limit_total_usd,
   created_at,
   updated_at
-) VALUES (?1, ?2, ?3, ?4, ?5, ?6, '{}', '{}', ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+) VALUES (?1, ?2, ?3, ?4, ?5, ?6, '{}', '{}', ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)
 "#,
                 params![
                     cli_key,
@@ -619,6 +822,13 @@ INSERT INTO providers(
                     enabled_to_int(enabled),
                     priority,
                     cost_multiplier,
+                    limit_5h_usd,
+                    limit_daily_usd,
+                    daily_reset_mode.as_str(),
+                    daily_reset_time,
+                    limit_weekly_usd,
+                    limit_monthly_usd,
+                    limit_total_usd,
                     now,
                     now
                 ],
@@ -642,11 +852,11 @@ INSERT INTO providers(
                 .transaction()
                 .map_err(|e| format!("DB_ERROR: failed to start transaction: {e}"))?;
 
-            let existing: Option<(String, String, i64, String)> = tx
+            let existing: Option<(String, String, i64, String, String, String)> = tx
                 .query_row(
-                    "SELECT cli_key, api_key_plaintext, priority, claude_models_json FROM providers WHERE id = ?1",
+                    "SELECT cli_key, api_key_plaintext, priority, claude_models_json, daily_reset_mode, daily_reset_time FROM providers WHERE id = ?1",
                     params![id],
-                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)),
                 )
                 .optional()
                 .map_err(|e| format!("DB_ERROR: failed to query provider: {e}"))?;
@@ -656,6 +866,8 @@ INSERT INTO providers(
                 existing_api_key,
                 existing_priority,
                 existing_claude_models_json,
+                existing_daily_reset_mode_raw,
+                existing_daily_reset_time_raw,
             )) = existing
             else {
                 return Err("DB_NOT_FOUND: provider not found".to_string());
@@ -689,6 +901,30 @@ INSERT INTO providers(
                 "{}".to_string()
             };
 
+            let next_limit_5h_usd = validate_limit_usd("limit_5h_usd", limit_5h_usd)?;
+            let next_limit_daily_usd = validate_limit_usd("limit_daily_usd", limit_daily_usd)?;
+            let next_limit_weekly_usd = validate_limit_usd("limit_weekly_usd", limit_weekly_usd)?;
+            let next_limit_monthly_usd =
+                validate_limit_usd("limit_monthly_usd", limit_monthly_usd)?;
+            let next_limit_total_usd = validate_limit_usd("limit_total_usd", limit_total_usd)?;
+
+            let existing_daily_reset_mode = DailyResetMode::parse(&existing_daily_reset_mode_raw)
+                .unwrap_or(DailyResetMode::Fixed);
+            let existing_daily_reset_time =
+                normalize_reset_time_hms_lossy(&existing_daily_reset_time_raw);
+
+            let next_daily_reset_mode = match daily_reset_mode {
+                None => existing_daily_reset_mode,
+                Some(v) => DailyResetMode::parse(v).ok_or_else(|| {
+                    "SEC_INVALID_INPUT: daily_reset_mode must be 'fixed' or 'rolling'".to_string()
+                })?,
+            };
+
+            let next_daily_reset_time = match daily_reset_time {
+                None => existing_daily_reset_time,
+                Some(v) => normalize_reset_time_hms_strict("daily_reset_time", v)?,
+            };
+
             tx.execute(
                 r#"
 UPDATE providers
@@ -704,8 +940,15 @@ SET
   enabled = ?7,
   cost_multiplier = ?8,
   priority = ?9,
-  updated_at = ?10
-WHERE id = ?11
+  limit_5h_usd = ?10,
+  limit_daily_usd = ?11,
+  daily_reset_mode = ?12,
+  daily_reset_time = ?13,
+  limit_weekly_usd = ?14,
+  limit_monthly_usd = ?15,
+  limit_total_usd = ?16,
+  updated_at = ?17
+WHERE id = ?18
 "#,
                 params![
                     name,
@@ -717,6 +960,13 @@ WHERE id = ?11
                     enabled_to_int(enabled),
                     cost_multiplier,
                     next_priority,
+                    next_limit_5h_usd,
+                    next_limit_daily_usd,
+                    next_daily_reset_mode.as_str(),
+                    next_daily_reset_time,
+                    next_limit_weekly_usd,
+                    next_limit_monthly_usd,
+                    next_limit_total_usd,
                     now,
                     id
                 ],

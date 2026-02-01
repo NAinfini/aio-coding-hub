@@ -20,6 +20,13 @@ export type ProviderSummary = {
   enabled: boolean;
   priority: number;
   cost_multiplier: number;
+  limit_5h_usd: number | null;
+  limit_daily_usd: number | null;
+  daily_reset_mode: "fixed" | "rolling";
+  daily_reset_time: string;
+  limit_weekly_usd: number | null;
+  limit_monthly_usd: number | null;
+  limit_total_usd: number | null;
   created_at: number;
   updated_at: number;
 };
@@ -39,6 +46,13 @@ export async function providerUpsert(input: {
   cost_multiplier: number;
   priority?: number | null;
   claude_models?: ClaudeModels | null;
+  limit_5h_usd: number | null;
+  limit_daily_usd: number | null;
+  daily_reset_mode: "fixed" | "rolling";
+  daily_reset_time: string;
+  limit_weekly_usd: number | null;
+  limit_monthly_usd: number | null;
+  limit_total_usd: number | null;
 }) {
   return invokeTauriOrNull<ProviderSummary>("provider_upsert", {
     providerId: input.provider_id ?? null,
@@ -51,6 +65,13 @@ export async function providerUpsert(input: {
     costMultiplier: input.cost_multiplier,
     priority: input.priority ?? null,
     claudeModels: input.claude_models ?? null,
+    limit5hUsd: input.limit_5h_usd,
+    limitDailyUsd: input.limit_daily_usd,
+    dailyResetMode: input.daily_reset_mode,
+    dailyResetTime: input.daily_reset_time,
+    limitWeeklyUsd: input.limit_weekly_usd,
+    limitMonthlyUsd: input.limit_monthly_usd,
+    limitTotalUsd: input.limit_total_usd,
   });
 }
 

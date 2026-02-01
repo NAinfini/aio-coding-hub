@@ -63,6 +63,24 @@ export const usageKeys = {
       input.cliKey,
       input.limit,
     ] as const,
+  providerCacheRateTrendV1: (
+    period: UsagePeriod,
+    input: {
+      startTs: number | null;
+      endTs: number | null;
+      cliKey: CliKey | null;
+      limit: number | null;
+    }
+  ) =>
+    [
+      ...usageAllKey,
+      "providerCacheRateTrendV1",
+      period,
+      input.startTs,
+      input.endTs,
+      input.cliKey,
+      input.limit,
+    ] as const,
 };
 
 const costAllKey = ["cost"] as const;

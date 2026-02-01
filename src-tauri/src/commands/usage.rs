@@ -106,3 +106,30 @@ pub(crate) async fn usage_hourly_series(
     })
     .await
 }
+
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn usage_provider_cache_rate_trend_v1(
+    app: tauri::AppHandle,
+    db_state: tauri::State<'_, DbInitState>,
+    period: String,
+    start_ts: Option<i64>,
+    end_ts: Option<i64>,
+    cli_key: Option<String>,
+    limit: Option<u32>,
+) -> Result<Vec<usage_stats::UsageProviderCacheRateTrendRowV1>, String> {
+    let db = ensure_db_ready(app, db_state.inner()).await?;
+    let limit = limit.map(|v| v as usize);
+
+    blocking::run("usage_provider_cache_rate_trend_v1", move || {
+        usage_stats::provider_cache_rate_trend_v1(
+            &db,
+            &period,
+            start_ts,
+            end_ts,
+            cli_key.as_deref(),
+            limit,
+        )
+    })
+    .await
+}

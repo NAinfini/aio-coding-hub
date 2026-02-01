@@ -320,6 +320,7 @@ pub struct SseUsageTracker {
     claude_message_delta: Option<UsageMetrics>,
     last_generic: Option<UsageMetrics>,
     last_model: Option<String>,
+    completion_seen: bool,
 }
 
 fn trim_ascii(bytes: &[u8]) -> &[u8] {
@@ -347,7 +348,12 @@ impl SseUsageTracker {
             claude_message_delta: None,
             last_generic: None,
             last_model: None,
+            completion_seen: false,
         }
+    }
+
+    pub fn completion_seen(&self) -> bool {
+        self.completion_seen
     }
 
     pub fn ingest_chunk(&mut self, chunk: &[u8]) {
@@ -397,6 +403,7 @@ impl SseUsageTracker {
                 rest = &rest[1..];
             }
             if rest == b"[DONE]" {
+                self.completion_seen = true;
                 return;
             }
 
@@ -434,6 +441,10 @@ impl SseUsageTracker {
     }
 
     fn ingest_event(&mut self, event: &[u8], data: &Value) {
+        if let Some("response.completed") = data.get("type").and_then(|v| v.as_str()) {
+            self.completion_seen = true;
+        }
+
         if let Some(model) = extract_model_from_json_value(data) {
             self.last_model = Some(model);
         }

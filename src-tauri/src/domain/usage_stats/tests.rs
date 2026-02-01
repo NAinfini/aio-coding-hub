@@ -1,3 +1,4 @@
+use super::cache_rate_trend_v1::provider_cache_rate_trend_v1_with_conn;
 use super::leaderboard_v2::leaderboard_v2_with_conn;
 use super::summary::summary_query;
 use super::*;
@@ -318,4 +319,89 @@ INSERT INTO request_logs (
     assert_eq!(row.requests_total, 2);
     assert_eq!(row.requests_success, 2);
     assert_eq!(row.requests_failed, 0);
+}
+
+#[test]
+fn v1_provider_cache_rate_trend_uses_effective_denom_and_bucket() {
+    let conn = setup_conn();
+
+    conn.execute(
+        r#"INSERT INTO providers (id, name) VALUES (?1, ?2);"#,
+        params![123, "OpenAI"],
+    )
+    .expect("insert provider");
+
+    let start_ts_today = compute_start_ts(&conn, UsageRange::Today)
+        .expect("compute_start_ts today")
+        .expect("start ts exists");
+
+    for (created_at, input_tokens, cache_read_input_tokens) in [
+        (start_ts_today + 3600, 500i64, 200i64),
+        (start_ts_today + 7200, 100i64, 50i64),
+    ] {
+        conn.execute(
+            r#"
+INSERT INTO request_logs (
+  cli_key,
+  attempts_json,
+  final_provider_id,
+  status,
+  error_code,
+  duration_ms,
+  input_tokens,
+  cache_read_input_tokens,
+  created_at
+) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9);
+            "#,
+            params![
+                "codex",
+                r#"[{"provider_id":123,"provider_name":"OpenAI","outcome":"success"}]"#,
+                123,
+                200,
+                Option::<String>::None,
+                1000,
+                input_tokens,
+                cache_read_input_tokens,
+                created_at
+            ],
+        )
+        .expect("insert request log");
+    }
+
+    let rows_hour = provider_cache_rate_trend_v1_with_conn(
+        &conn,
+        UsagePeriodV2::Daily,
+        Some(start_ts_today),
+        Some(start_ts_today + 86_400),
+        None,
+        None,
+    )
+    .expect("provider_cache_rate_trend_v1_with_conn hour");
+
+    assert_eq!(rows_hour.len(), 2);
+    assert_eq!(rows_hour[0].name, "codex/OpenAI");
+    assert_eq!(rows_hour[0].hour, Some(1));
+    assert_eq!(rows_hour[0].denom_tokens, 500);
+    assert_eq!(rows_hour[0].cache_read_input_tokens, 200);
+
+    assert_eq!(rows_hour[1].hour, Some(2));
+    assert_eq!(rows_hour[1].denom_tokens, 100);
+    assert_eq!(rows_hour[1].cache_read_input_tokens, 50);
+
+    // Weekly bucket is day-based and aggregates both rows into a single point.
+    let rows_day = provider_cache_rate_trend_v1_with_conn(
+        &conn,
+        UsagePeriodV2::Weekly,
+        Some(start_ts_today),
+        Some(start_ts_today + 86_400),
+        None,
+        None,
+    )
+    .expect("provider_cache_rate_trend_v1_with_conn day");
+
+    assert_eq!(rows_day.len(), 1);
+    assert_eq!(rows_day[0].hour, None);
+    assert_eq!(rows_day[0].denom_tokens, 600);
+    assert_eq!(rows_day[0].cache_read_input_tokens, 250);
+    assert_eq!(rows_day[0].requests_success, 2);
 }

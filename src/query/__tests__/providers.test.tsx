@@ -30,6 +30,31 @@ vi.mock("../../services/providers", async () => {
   };
 });
 
+function makeProvider(
+  partial: Partial<ProviderSummary> & Pick<ProviderSummary, "id" | "cli_key" | "name">
+): ProviderSummary {
+  return {
+    id: partial.id,
+    cli_key: partial.cli_key,
+    name: partial.name,
+    base_urls: partial.base_urls ?? [],
+    base_url_mode: partial.base_url_mode ?? "order",
+    claude_models: partial.claude_models ?? {},
+    enabled: partial.enabled ?? true,
+    priority: partial.priority ?? 0,
+    cost_multiplier: partial.cost_multiplier ?? 1,
+    limit_5h_usd: partial.limit_5h_usd ?? null,
+    limit_daily_usd: partial.limit_daily_usd ?? null,
+    daily_reset_mode: partial.daily_reset_mode ?? "fixed",
+    daily_reset_time: partial.daily_reset_time ?? "00:00:00",
+    limit_weekly_usd: partial.limit_weekly_usd ?? null,
+    limit_monthly_usd: partial.limit_monthly_usd ?? null,
+    limit_total_usd: partial.limit_total_usd ?? null,
+    created_at: partial.created_at ?? 0,
+    updated_at: partial.updated_at ?? 0,
+  };
+}
+
 describe("query/providers", () => {
   it("does not call providersList without tauri runtime", async () => {
     const client = createTestQueryClient();
@@ -71,19 +96,12 @@ describe("query/providers", () => {
   it("useProviderSetEnabledMutation updates cached providers list", async () => {
     setTauriRuntime();
 
-    const provider: ProviderSummary = {
+    const provider: ProviderSummary = makeProvider({
       id: 1,
       cli_key: "claude",
       name: "P1",
-      base_urls: [],
-      base_url_mode: "order",
-      claude_models: {},
       enabled: false,
-      priority: 0,
-      cost_multiplier: 1,
-      created_at: 0,
-      updated_at: 0,
-    };
+    });
     const updated: ProviderSummary = { ...provider, enabled: true };
 
     vi.mocked(providerSetEnabled).mockResolvedValue(updated);
@@ -104,19 +122,12 @@ describe("query/providers", () => {
   it("useProviderSetEnabledMutation is a no-op when service returns null", async () => {
     setTauriRuntime();
 
-    const provider: ProviderSummary = {
+    const provider: ProviderSummary = makeProvider({
       id: 1,
       cli_key: "claude",
       name: "P1",
-      base_urls: [],
-      base_url_mode: "order",
-      claude_models: {},
       enabled: false,
-      priority: 0,
-      cost_multiplier: 1,
-      created_at: 0,
-      updated_at: 0,
-    };
+    });
 
     vi.mocked(providerSetEnabled).mockResolvedValue(null);
 
@@ -135,19 +146,12 @@ describe("query/providers", () => {
   it("useProviderSetEnabledMutation does not update when list cache is missing", async () => {
     setTauriRuntime();
 
-    const provider: ProviderSummary = {
+    const provider: ProviderSummary = makeProvider({
       id: 1,
       cli_key: "claude",
       name: "P1",
-      base_urls: [],
-      base_url_mode: "order",
-      claude_models: {},
       enabled: true,
-      priority: 0,
-      cost_multiplier: 1,
-      created_at: 0,
-      updated_at: 0,
-    };
+    });
 
     vi.mocked(providerSetEnabled).mockResolvedValue(provider);
 
@@ -167,32 +171,8 @@ describe("query/providers", () => {
     setTauriRuntime();
 
     const providers: ProviderSummary[] = [
-      {
-        id: 1,
-        cli_key: "claude",
-        name: "P1",
-        base_urls: [],
-        base_url_mode: "order",
-        claude_models: {},
-        enabled: true,
-        priority: 0,
-        cost_multiplier: 1,
-        created_at: 0,
-        updated_at: 0,
-      },
-      {
-        id: 2,
-        cli_key: "claude",
-        name: "P2",
-        base_urls: [],
-        base_url_mode: "order",
-        claude_models: {},
-        enabled: true,
-        priority: 0,
-        cost_multiplier: 1,
-        created_at: 0,
-        updated_at: 0,
-      },
+      makeProvider({ id: 1, cli_key: "claude", name: "P1" }),
+      makeProvider({ id: 2, cli_key: "claude", name: "P2" }),
     ];
 
     vi.mocked(providerDelete).mockResolvedValue(true);
@@ -213,21 +193,7 @@ describe("query/providers", () => {
   it("useProviderDeleteMutation is a no-op when service returns false", async () => {
     setTauriRuntime();
 
-    const providers: ProviderSummary[] = [
-      {
-        id: 1,
-        cli_key: "claude",
-        name: "P1",
-        base_urls: [],
-        base_url_mode: "order",
-        claude_models: {},
-        enabled: true,
-        priority: 0,
-        cost_multiplier: 1,
-        created_at: 0,
-        updated_at: 0,
-      },
-    ];
+    const providers: ProviderSummary[] = [makeProvider({ id: 1, cli_key: "claude", name: "P1" })];
 
     vi.mocked(providerDelete).mockResolvedValue(false);
 
@@ -264,32 +230,8 @@ describe("query/providers", () => {
     setTauriRuntime();
 
     const providers: ProviderSummary[] = [
-      {
-        id: 1,
-        cli_key: "claude",
-        name: "P1",
-        base_urls: [],
-        base_url_mode: "order",
-        claude_models: {},
-        enabled: true,
-        priority: 0,
-        cost_multiplier: 1,
-        created_at: 0,
-        updated_at: 0,
-      },
-      {
-        id: 2,
-        cli_key: "claude",
-        name: "P2",
-        base_urls: [],
-        base_url_mode: "order",
-        claude_models: {},
-        enabled: true,
-        priority: 0,
-        cost_multiplier: 1,
-        created_at: 0,
-        updated_at: 0,
-      },
+      makeProvider({ id: 1, cli_key: "claude", name: "P1" }),
+      makeProvider({ id: 2, cli_key: "claude", name: "P2" }),
     ];
     const next: ProviderSummary[] = [providers[1], providers[0]];
 
@@ -311,21 +253,7 @@ describe("query/providers", () => {
   it("useProvidersReorderMutation is a no-op when service returns null", async () => {
     setTauriRuntime();
 
-    const providers: ProviderSummary[] = [
-      {
-        id: 1,
-        cli_key: "claude",
-        name: "P1",
-        base_urls: [],
-        base_url_mode: "order",
-        claude_models: {},
-        enabled: true,
-        priority: 0,
-        cost_multiplier: 1,
-        created_at: 0,
-        updated_at: 0,
-      },
-    ];
+    const providers: ProviderSummary[] = [makeProvider({ id: 1, cli_key: "claude", name: "P1" })];
 
     vi.mocked(providersReorder).mockResolvedValue(null);
 

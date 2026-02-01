@@ -6,12 +6,17 @@ import type { UsageLeaderboardRow, UsagePeriod, UsageScope, UsageSummary } from 
 import { CLI_FILTER_ITEMS, type CliFilterKey } from "../constants/clis";
 import { PERIOD_ITEMS } from "../constants/periods";
 import { useCustomDateRange } from "../hooks/useCustomDateRange";
-import { useUsageLeaderboardV2Query, useUsageSummaryV2Query } from "../query/usage";
+import { UsageProviderCacheRateTrendChart } from "../components/UsageProviderCacheRateTrendChart";
+import {
+  useUsageLeaderboardV2Query,
+  useUsageProviderCacheRateTrendV1Query,
+  useUsageSummaryV2Query,
+} from "../query/usage";
 import { hasTauriRuntime } from "../services/tauriInvoke";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { PageHeader } from "../ui/PageHeader";
-import { cn } from "../utils/cn";
+import { TabList, type TabListItem } from "../ui/TabList";
 import { formatUnknownError } from "../utils/errors";
 import {
   formatDurationMs,
@@ -32,43 +37,6 @@ const SCOPE_ITEMS: ScopeItem[] = [
 const FILTER_LABEL_CLASS = "w-16 shrink-0 pt-1.5 text-right text-xs font-medium text-slate-600";
 const FILTER_OPTIONS_CLASS = "min-w-0 flex flex-1 flex-wrap items-center gap-2";
 const FILTER_OPTION_BUTTON_CLASS = "w-24 whitespace-nowrap";
-
-function StatCard({
-  title,
-  value,
-  hint,
-  className,
-}: {
-  title: string;
-  value: string;
-  hint?: string;
-  className?: string;
-}) {
-  return (
-    <Card
-      padding="md"
-      className={cn("flex h-full flex-col transition-shadow hover:shadow-lg", className)}
-    >
-      <div className="text-xs font-medium uppercase tracking-wide text-slate-500">{title}</div>
-      <div className="mt-3 text-xl font-semibold tracking-tight text-slate-900 xl:text-2xl">
-        {value}
-      </div>
-      {hint ? (
-        <div className="mt-auto pt-3 text-xs leading-relaxed text-slate-500">{hint}</div>
-      ) : null}
-    </Card>
-  );
-}
-
-function StatCardSkeleton({ className }: { className?: string }) {
-  return (
-    <Card padding="md" className={cn("h-full animate-pulse", className)}>
-      <div className="h-3 w-20 rounded-md bg-slate-200" />
-      <div className="mt-4 h-7 w-28 rounded-md bg-slate-200" />
-      <div className="mt-4 h-3 w-36 rounded-md bg-slate-100" />
-    </Card>
-  );
-}
 
 function TokenBreakdown({
   totalTokens,
@@ -101,17 +69,15 @@ function TokenBreakdown({
 
 function CacheBreakdown({
   inputTokens,
-  outputTokens,
   cacheCreationInputTokens,
   cacheReadInputTokens,
 }: {
   inputTokens: number;
-  outputTokens: number;
   cacheCreationInputTokens: number;
   cacheReadInputTokens: number;
 }) {
-  const denom = inputTokens + outputTokens + cacheCreationInputTokens + cacheReadInputTokens;
-  const rate = denom > 0 ? cacheReadInputTokens / denom : NaN;
+  const denom = inputTokens + cacheReadInputTokens;
+  const hitRate = denom > 0 ? cacheReadInputTokens / denom : NaN;
 
   return (
     <div className="space-y-0.5 text-[10px] leading-4">
@@ -122,16 +88,25 @@ function CacheBreakdown({
         读取 <span className="text-slate-700">{formatInteger(cacheReadInputTokens)}</span>
       </div>
       <div className="text-slate-500">
-        缓存率 <span className="text-slate-700">{formatPercent(rate, 2)}</span>
+        命中率 <span className="text-slate-700">{formatPercent(hitRate, 2)}</span>
       </div>
     </div>
   );
 }
 
+type UsageTableTab = "usage" | "cacheTrend";
+
+const USAGE_TABLE_TAB_ITEMS = [
+  { key: "usage", label: "用量" },
+  { key: "cacheTrend", label: "缓存走势图" },
+] satisfies Array<TabListItem<UsageTableTab>>;
+
 export function UsagePage() {
+  const [tableTab, setTableTab] = useState<UsageTableTab>("usage");
   const [scope, setScope] = useState<UsageScope>("provider");
   const [period, setPeriod] = useState<UsagePeriod>("daily");
   const [cliKey, setCliKey] = useState<CliFilterKey>("all");
+  const scopeBeforeCacheTrendRef = useRef<UsageScope>("provider");
 
   const {
     customStartDate,
@@ -157,17 +132,31 @@ export function UsagePage() {
     [bounds.endTs, bounds.startTs, filterCliKey]
   );
 
-  const summaryQuery = useUsageSummaryV2Query(period, input, { enabled: shouldLoad });
+  const usageEnabled = shouldLoad && tableTab === "usage";
+  const cacheTrendEnabled = shouldLoad && tableTab === "cacheTrend";
+
+  const summaryQuery = useUsageSummaryV2Query(period, input, { enabled: usageEnabled });
   const leaderboardQuery = useUsageLeaderboardV2Query(
     scope,
     period,
     { ...input, limit: 50 },
-    { enabled: shouldLoad }
+    { enabled: usageEnabled }
+  );
+  const cacheTrendQuery = useUsageProviderCacheRateTrendV1Query(
+    period,
+    { ...input, limit: null },
+    { enabled: cacheTrendEnabled }
   );
 
-  const loading = shouldLoad && (summaryQuery.isFetching || leaderboardQuery.isFetching);
+  const usageLoading = usageEnabled && (summaryQuery.isFetching || leaderboardQuery.isFetching);
+  const cacheTrendLoading = cacheTrendEnabled && cacheTrendQuery.isFetching;
+  const loading = shouldLoad && (usageLoading || cacheTrendLoading);
+
   const errorText = (() => {
-    const err = summaryQuery.error ?? leaderboardQuery.error;
+    const err =
+      tableTab === "cacheTrend"
+        ? cacheTrendQuery.error
+        : (summaryQuery.error ?? leaderboardQuery.error);
     return err ? formatUnknownError(err) : null;
   })();
   const errorToastLastRef = useRef<string | null>(null);
@@ -185,47 +174,24 @@ export function UsagePage() {
   const tauriAvailable: boolean | null = shouldLoad ? tauriRuntime : null;
   const summary: UsageSummary | null = summaryQuery.data ?? null;
   const rows: UsageLeaderboardRow[] = leaderboardQuery.data ?? [];
+  const cacheTrendRows = cacheTrendQuery.data ?? [];
+  const cacheTrendProviderCount = useMemo(
+    () => new Set(cacheTrendRows.map((row) => row.key)).size,
+    [cacheTrendRows]
+  );
 
-  const summaryCards = useMemo(() => {
-    if (!summary) return [];
+  function onChangeTableTab(next: UsageTableTab) {
+    if (next === tableTab) return;
 
-    const requestsHint = `${formatInteger(summary.requests_total)} 请求 · ${formatInteger(
-      summary.requests_with_usage
-    )} 有用量`;
-
-    return [
-      {
-        title: "总 Token（输入+输出）",
-        value: formatInteger(summary.io_total_tokens),
-        hint: requestsHint,
-      },
-      {
-        title: "输入 Token",
-        value: formatInteger(summary.input_tokens),
-        hint: requestsHint,
-      },
-      {
-        title: "输出 Token",
-        value: formatInteger(summary.output_tokens),
-        hint: requestsHint,
-      },
-      {
-        title: "缓存创建（输入）",
-        value: formatInteger(summary.cache_creation_input_tokens),
-        hint: "缓存创建总计",
-      },
-      {
-        title: "缓存读取（输入）",
-        value: formatInteger(summary.cache_read_input_tokens),
-        hint: "上游返回",
-      },
-      {
-        title: "缓存创建（5m）",
-        value: formatInteger(summary.cache_creation_5m_input_tokens),
-        hint: "上游返回",
-      },
-    ];
-  }, [summary]);
+    if (next === "cacheTrend") {
+      scopeBeforeCacheTrendRef.current = scope;
+      if (scope !== "provider") setScope("provider");
+    } else {
+      const prev = scopeBeforeCacheTrendRef.current;
+      if (prev && prev !== scope) setScope(prev);
+    }
+    setTableTab(next);
+  }
 
   function successRate(row: UsageLeaderboardRow) {
     if (row.requests_total <= 0) return NaN;
@@ -277,12 +243,17 @@ export function UsagePage() {
                 size="sm"
                 variant={scope === item.key ? "primary" : "secondary"}
                 onClick={() => setScope(item.key)}
-                disabled={loading}
+                disabled={loading || tableTab === "cacheTrend"}
                 className={FILTER_OPTION_BUTTON_CLASS}
               >
                 {item.label}
               </Button>
             ))}
+            {tableTab === "cacheTrend" ? (
+              <span className="w-full pt-1 text-xs text-slate-500">
+                缓存走势图仅支持供应商维度（已锁定）
+              </span>
+            ) : null}
           </div>
         </div>
 
@@ -366,6 +337,10 @@ export function UsagePage() {
               size="sm"
               variant="secondary"
               onClick={() => {
+                if (tableTab === "cacheTrend") {
+                  void cacheTrendQuery.refetch();
+                  return;
+                }
                 void summaryQuery.refetch();
                 void leaderboardQuery.refetch();
               }}
@@ -389,33 +364,58 @@ export function UsagePage() {
         </Card>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
-        {loading ? (
-          Array.from({ length: 6 }).map((_, idx) => <StatCardSkeleton key={idx} />)
-        ) : summaryCards.length === 0 ? (
-          <Card padding="md" className="col-span-full">
-            <div className="text-sm text-slate-600">
-              {errorText
-                ? '加载失败：暂无可展示的用量摘要。请点击上方"重试"。'
-                : period === "custom" && !customApplied
-                  ? '自定义范围：请选择日期后点击"应用"。'
-                  : "暂无用量数据。请先通过网关发起请求。"}
-            </div>
-          </Card>
-        ) : (
-          summaryCards.map((card) => (
-            <StatCard key={card.title} title={card.title} value={card.value} hint={card.hint} />
-          ))
-        )}
-      </div>
-
       <Card padding="none">
         <div className="flex items-center justify-between gap-4 px-6 pb-0 pt-5">
-          <div className="text-sm font-semibold text-slate-900">{tableTitle}</div>
+          <div className="flex items-center gap-3">
+            <TabList
+              ariaLabel="用量数据视图"
+              items={USAGE_TABLE_TAB_ITEMS}
+              value={tableTab}
+              onChange={onChangeTableTab}
+              className="shrink-0"
+              size="sm"
+            />
+          </div>
+          <div className="text-xs text-slate-500">
+            {tableTab === "cacheTrend"
+              ? cacheTrendProviderCount > 0
+                ? `${formatInteger(cacheTrendProviderCount)} · 命中率走势`
+                : "命中率走势"
+              : `Top 50 · ${tableTitle}（按请求数）`}
+          </div>
         </div>
 
         <div className="mt-4">
-          {loading ? (
+          {tableTab === "cacheTrend" ? (
+            <div className="px-6 pb-6">
+              {cacheTrendLoading && cacheTrendRows.length === 0 ? (
+                <div className="h-80 animate-pulse rounded-lg bg-slate-100" />
+              ) : cacheTrendRows.length === 0 ? (
+                <div className="text-sm text-slate-600">
+                  {errorText
+                    ? '加载失败：暂无可展示的数据。请点击上方"重试"。'
+                    : period === "custom" && !customApplied
+                      ? '自定义范围：请选择日期后点击"应用"。'
+                      : "暂无可展示的缓存命中率数据。"}
+                </div>
+              ) : (
+                <>
+                  <div className="h-80">
+                    <UsageProviderCacheRateTrendChart
+                      rows={cacheTrendRows}
+                      period={period}
+                      customApplied={customApplied}
+                      className="h-full"
+                    />
+                  </div>
+                  <div className="mt-3 text-xs text-slate-500">
+                    命中率=读取 /（有效输入 + 读取）。有效输入：Codex/Gemini 做 input-cache_read
+                    纠偏；Claude 原样。预警阈值：60%（低于阈值的时间段会高亮背景）。
+                  </div>
+                </>
+              )}
+            </div>
+          ) : loading ? (
             <div className="overflow-x-auto">
               <table className="w-full border-separate border-spacing-0 text-left text-sm">
                 <thead>
@@ -428,7 +428,7 @@ export function UsagePage() {
                       总 Token
                     </th>
                     <th className="border-b border-slate-200 bg-slate-50/60 px-3 py-2.5">
-                      缓存 / 缓存率
+                      缓存 / 命中率
                     </th>
                     <th className="border-b border-slate-200 bg-slate-50/60 px-3 py-2.5">
                       平均耗时
@@ -512,7 +512,7 @@ export function UsagePage() {
                       总 Token
                     </th>
                     <th className="border-b border-slate-200 bg-slate-50/60 px-3 py-2.5 backdrop-blur-sm">
-                      缓存 / 缓存率
+                      缓存 / 命中率
                     </th>
                     <th className="border-b border-slate-200 bg-slate-50/60 px-3 py-2.5 backdrop-blur-sm">
                       平均耗时
@@ -571,7 +571,6 @@ export function UsagePage() {
                         <td className="border-b border-slate-100 px-3 py-3 font-mono text-xs tabular-nums text-slate-700">
                           <CacheBreakdown
                             inputTokens={row.input_tokens}
-                            outputTokens={row.output_tokens}
                             cacheCreationInputTokens={row.cache_creation_input_tokens}
                             cacheReadInputTokens={row.cache_read_input_tokens}
                           />
@@ -629,7 +628,6 @@ export function UsagePage() {
                       <td className="border-b border-slate-200 px-3 py-3 font-mono text-xs font-medium tabular-nums text-slate-900">
                         <CacheBreakdown
                           inputTokens={summary.input_tokens}
-                          outputTokens={summary.output_tokens}
                           cacheCreationInputTokens={summary.cache_creation_input_tokens}
                           cacheReadInputTokens={summary.cache_read_input_tokens}
                         />

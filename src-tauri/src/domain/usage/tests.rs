@@ -87,3 +87,24 @@ fn parse_generic_sse_usage_without_event_name() {
     assert_eq!(extract.metrics.output_tokens, Some(2));
     assert_eq!(extract.metrics.total_tokens, Some(3));
 }
+
+#[test]
+fn parse_sse_done_marker_marks_completion_seen() {
+    let sse = b"data: [DONE]\n\n";
+    let mut tracker = SseUsageTracker::new("codex");
+    tracker.ingest_chunk(sse);
+    assert!(tracker.completion_seen());
+    assert!(tracker.finalize().is_none());
+}
+
+#[test]
+fn parse_codex_response_completed_marks_completion_seen() {
+    let sse = b"data: {\"type\":\"response.completed\",\"response\":{\"usage\":{\"input_tokens\":1,\"output_tokens\":2,\"total_tokens\":3}}}\n\n";
+    let mut tracker = SseUsageTracker::new("codex");
+    tracker.ingest_chunk(sse);
+    let extract = tracker.finalize().expect("should parse usage");
+    assert!(tracker.completion_seen());
+    assert_eq!(extract.metrics.input_tokens, Some(1));
+    assert_eq!(extract.metrics.output_tokens, Some(2));
+    assert_eq!(extract.metrics.total_tokens, Some(3));
+}

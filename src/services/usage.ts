@@ -61,6 +61,16 @@ export type UsageHourlyRow = {
   total_tokens: number;
 };
 
+export type UsageProviderCacheRateTrendRowV1 = {
+  day: string;
+  hour: number | null;
+  key: string;
+  name: string;
+  denom_tokens: number;
+  cache_read_input_tokens: number;
+  requests_success: number;
+};
+
 export type UsageLeaderboardRow = {
   key: string;
   name: string;
@@ -137,4 +147,25 @@ export async function usageLeaderboardV2(
     cliKey: input?.cliKey ?? null,
     limit: input?.limit,
   });
+}
+
+export async function usageProviderCacheRateTrendV1(
+  period: UsagePeriod,
+  input?: {
+    startTs?: number | null;
+    endTs?: number | null;
+    cliKey?: CliKey | null;
+    limit?: number | null;
+  }
+) {
+  return invokeTauriOrNull<UsageProviderCacheRateTrendRowV1[]>(
+    "usage_provider_cache_rate_trend_v1",
+    {
+      period,
+      startTs: input?.startTs ?? null,
+      endTs: input?.endTs ?? null,
+      cliKey: input?.cliKey ?? null,
+      limit: input?.limit,
+    }
+  );
 }

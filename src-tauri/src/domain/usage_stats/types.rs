@@ -64,6 +64,17 @@ pub struct UsageHourlyRow {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct UsageProviderCacheRateTrendRowV1 {
+    pub day: String,
+    pub hour: Option<i64>,
+    pub key: String,
+    pub name: String,
+    pub denom_tokens: i64,
+    pub cache_read_input_tokens: i64,
+    pub requests_success: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct UsageLeaderboardRow {
     pub key: String,
     pub name: String,

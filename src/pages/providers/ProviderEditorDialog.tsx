@@ -22,6 +22,8 @@ import { BaseUrlEditor } from "./BaseUrlEditor";
 import type { BaseUrlRow, ProviderBaseUrlMode } from "./types";
 import {
   parseAndValidateCostMultiplier,
+  parseAndValidateLimitUsd,
+  parseAndNormalizeResetTimeHms,
   validateProviderClaudeModels,
   validateProviderApiKeyForCreate,
   validateProviderName,
@@ -43,6 +45,56 @@ function BaseUrlModeRadioGroup({ value, onChange, disabled }: BaseUrlModeRadioGr
     <div
       role="radiogroup"
       aria-label="Base URL 模式"
+      className={cn(
+        "inline-flex w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm",
+        disabled ? "opacity-60" : null
+      )}
+    >
+      {items.map((item, index) => {
+        const active = value === item.value;
+        return (
+          <button
+            key={item.value}
+            type="button"
+            onClick={() => onChange(item.value)}
+            role="radio"
+            aria-checked={active}
+            disabled={disabled}
+            className={cn(
+              "flex-1 px-3 py-2 text-sm font-medium transition",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0052FF]/30 focus-visible:ring-offset-2 focus-visible:ring-offset-[#FAFAFA]",
+              index < items.length - 1 ? "border-r border-slate-200" : null,
+              active ? "bg-gradient-to-br from-[#0052FF] to-[#4D7CFF] text-white" : null,
+              !active ? "bg-white text-slate-700 hover:bg-slate-50" : null,
+              disabled ? "cursor-not-allowed" : null
+            )}
+          >
+            {item.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+type DailyResetMode = "fixed" | "rolling";
+
+type DailyResetModeRadioGroupProps = {
+  value: DailyResetMode;
+  onChange: (mode: DailyResetMode) => void;
+  disabled?: boolean;
+};
+
+function DailyResetModeRadioGroup({ value, onChange, disabled }: DailyResetModeRadioGroupProps) {
+  const items = [
+    { value: "fixed" as const, label: "固定时间" },
+    { value: "rolling" as const, label: "滚动窗口 (24h)" },
+  ];
+
+  return (
+    <div
+      role="radiogroup"
+      aria-label="每日重置模式"
       className={cn(
         "inline-flex w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm",
         disabled ? "opacity-60" : null
@@ -115,6 +167,13 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
   const [apiKey, setApiKey] = useState("");
   const [costMultiplier, setCostMultiplier] = useState("1.0");
   const [claudeModels, setClaudeModels] = useState<ClaudeModels>({});
+  const [limit5hUsd, setLimit5hUsd] = useState("");
+  const [limitDailyUsd, setLimitDailyUsd] = useState("");
+  const [dailyResetMode, setDailyResetMode] = useState<DailyResetMode>("fixed");
+  const [dailyResetTime, setDailyResetTime] = useState("00:00:00");
+  const [limitWeeklyUsd, setLimitWeeklyUsd] = useState("");
+  const [limitMonthlyUsd, setLimitMonthlyUsd] = useState("");
+  const [limitTotalUsd, setLimitTotalUsd] = useState("");
   const [enabled, setEnabled] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -137,6 +196,13 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
       setApiKey("");
       setCostMultiplier("1.0");
       setClaudeModels({});
+      setLimit5hUsd("");
+      setLimitDailyUsd("");
+      setDailyResetMode("fixed");
+      setDailyResetTime("00:00:00");
+      setLimitWeeklyUsd("");
+      setLimitMonthlyUsd("");
+      setLimitTotalUsd("");
       setEnabled(true);
       return;
     }
@@ -149,6 +215,21 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
     setEnabled(props.provider.enabled);
     setCostMultiplier(String(props.provider.cost_multiplier ?? 1.0));
     setClaudeModels(props.provider.claude_models ?? {});
+    setLimit5hUsd(props.provider.limit_5h_usd != null ? String(props.provider.limit_5h_usd) : "");
+    setLimitDailyUsd(
+      props.provider.limit_daily_usd != null ? String(props.provider.limit_daily_usd) : ""
+    );
+    setDailyResetMode(props.provider.daily_reset_mode ?? "fixed");
+    setDailyResetTime(props.provider.daily_reset_time ?? "00:00:00");
+    setLimitWeeklyUsd(
+      props.provider.limit_weekly_usd != null ? String(props.provider.limit_weekly_usd) : ""
+    );
+    setLimitMonthlyUsd(
+      props.provider.limit_monthly_usd != null ? String(props.provider.limit_monthly_usd) : ""
+    );
+    setLimitTotalUsd(
+      props.provider.limit_total_usd != null ? String(props.provider.limit_total_usd) : ""
+    );
   }, [cliKey, editingProviderId, mode, open]);
 
   const setBaseUrlRowsFromUser: Dispatch<SetStateAction<BaseUrlRow[]>> = (action) => {
@@ -178,6 +259,38 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
       return;
     }
 
+    const parsedLimit5h = parseAndValidateLimitUsd(limit5hUsd, "5 小时消费上限");
+    if (!parsedLimit5h.ok) {
+      toast(parsedLimit5h.message);
+      return;
+    }
+    const parsedLimitDaily = parseAndValidateLimitUsd(limitDailyUsd, "每日消费上限");
+    if (!parsedLimitDaily.ok) {
+      toast(parsedLimitDaily.message);
+      return;
+    }
+    const parsedLimitWeekly = parseAndValidateLimitUsd(limitWeeklyUsd, "周消费上限");
+    if (!parsedLimitWeekly.ok) {
+      toast(parsedLimitWeekly.message);
+      return;
+    }
+    const parsedLimitMonthly = parseAndValidateLimitUsd(limitMonthlyUsd, "月消费上限");
+    if (!parsedLimitMonthly.ok) {
+      toast(parsedLimitMonthly.message);
+      return;
+    }
+    const parsedLimitTotal = parseAndValidateLimitUsd(limitTotalUsd, "总消费上限");
+    if (!parsedLimitTotal.ok) {
+      toast(parsedLimitTotal.message);
+      return;
+    }
+
+    const parsedResetTime = parseAndNormalizeResetTimeHms(dailyResetTime);
+    if (!parsedResetTime.ok) {
+      toast(parsedResetTime.message);
+      return;
+    }
+
     const normalized = normalizeBaseUrlRows(baseUrlRows);
     if (!normalized.ok) {
       toast(normalized.message);
@@ -203,6 +316,13 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
         api_key: apiKey,
         enabled,
         cost_multiplier: parsedCost.value,
+        limit_5h_usd: parsedLimit5h.value,
+        limit_daily_usd: parsedLimitDaily.value,
+        daily_reset_mode: dailyResetMode,
+        daily_reset_time: parsedResetTime.value,
+        limit_weekly_usd: parsedLimitWeekly.value,
+        limit_monthly_usd: parsedLimitMonthly.value,
+        limit_total_usd: parsedLimitTotal.value,
         ...(cliKey === "claude" ? { claude_models: claudeModels } : {}),
       });
 
@@ -221,6 +341,13 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
         enabled: saved.enabled,
         cost_multiplier: saved.cost_multiplier,
         claude_models: saved.claude_models,
+        limit_5h_usd: saved.limit_5h_usd,
+        limit_daily_usd: saved.limit_daily_usd,
+        daily_reset_mode: saved.daily_reset_mode,
+        daily_reset_time: saved.daily_reset_time,
+        limit_weekly_usd: saved.limit_weekly_usd,
+        limit_monthly_usd: saved.limit_monthly_usd,
+        limit_total_usd: saved.limit_total_usd,
       });
       toast(mode === "create" ? "Provider 已保存" : "Provider 已更新");
 
@@ -315,6 +442,107 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
             />
           </FormField>
         </div>
+
+        <details className="group rounded-xl border border-slate-200 bg-white shadow-sm open:ring-2 open:ring-[#0052FF]/10 transition-all">
+          <summary className="flex cursor-pointer items-center justify-between px-4 py-3 select-none">
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-slate-700 group-open:text-[#0052FF]">
+                消费限制
+              </span>
+              <span className="text-xs font-mono text-slate-500">支持 5h / 日 / 周 / 月 / 总</span>
+            </div>
+            <ChevronDown className="h-4 w-4 text-slate-400 transition-transform group-open:rotate-180" />
+          </summary>
+
+          <div className="space-y-4 border-t border-slate-100 px-4 py-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <FormField label="5 小时消费上限 (USD)" hint="留空表示不限制">
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={limit5hUsd}
+                  onChange={(e) => setLimit5hUsd(e.currentTarget.value)}
+                  placeholder="例如: 10"
+                  disabled={saving}
+                />
+              </FormField>
+
+              <FormField label="总消费上限 (USD)" hint="达到后需手动调整/清除">
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={limitTotalUsd}
+                  onChange={(e) => setLimitTotalUsd(e.currentTarget.value)}
+                  placeholder="例如: 1000"
+                  disabled={saving}
+                />
+              </FormField>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <FormField label="每日消费上限 (USD)" hint="留空表示不限制">
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={limitDailyUsd}
+                  onChange={(e) => setLimitDailyUsd(e.currentTarget.value)}
+                  placeholder="例如: 100"
+                  disabled={saving}
+                />
+              </FormField>
+
+              <FormField label="每日重置模式" hint="rolling 为过去 24 小时窗口">
+                <DailyResetModeRadioGroup
+                  value={dailyResetMode}
+                  onChange={setDailyResetMode}
+                  disabled={saving}
+                />
+              </FormField>
+            </div>
+
+            <FormField
+              label="固定重置时间 (HH:mm:ss)"
+              hint={dailyResetMode === "fixed" ? "默认 00:00:00（本机时区）" : "rolling 模式下忽略"}
+            >
+              <Input
+                type="time"
+                step="1"
+                value={dailyResetTime}
+                onChange={(e) => setDailyResetTime(e.currentTarget.value)}
+                disabled={saving || dailyResetMode !== "fixed"}
+              />
+            </FormField>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <FormField label="周消费上限 (USD)" hint="自然周：周一 00:00:00">
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={limitWeeklyUsd}
+                  onChange={(e) => setLimitWeeklyUsd(e.currentTarget.value)}
+                  placeholder="例如: 500"
+                  disabled={saving}
+                />
+              </FormField>
+
+              <FormField label="月消费上限 (USD)" hint="自然月：每月 1 号 00:00:00">
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={limitMonthlyUsd}
+                  onChange={(e) => setLimitMonthlyUsd(e.currentTarget.value)}
+                  placeholder="例如: 2000"
+                  disabled={saving}
+                />
+              </FormField>
+            </div>
+          </div>
+        </details>
 
         {cliKey === "claude" ? (
           <details className="group rounded-xl border border-slate-200 bg-white shadow-sm open:ring-2 open:ring-[#0052FF]/10 transition-all">

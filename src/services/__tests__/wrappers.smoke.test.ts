@@ -188,6 +188,13 @@ describe("services wrappers (smoke)", () => {
         base_url_mode: "order",
         enabled: true,
         cost_multiplier: 1,
+        limit_5h_usd: null,
+        limit_daily_usd: null,
+        daily_reset_mode: "fixed",
+        daily_reset_time: "00:00:00",
+        limit_weekly_usd: null,
+        limit_monthly_usd: null,
+        limit_total_usd: null,
       })
     ).resolves.toBeNull();
     await expect(providerSetEnabled(1, true)).resolves.toBeNull();

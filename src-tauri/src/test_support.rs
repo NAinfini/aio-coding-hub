@@ -61,6 +61,13 @@ pub fn provider_upsert_json<R: tauri::Runtime>(
     cost_multiplier: f64,
     priority: Option<i64>,
     claude_models: Option<serde_json::Value>,
+    limit_5h_usd: Option<f64>,
+    limit_daily_usd: Option<f64>,
+    daily_reset_mode: Option<&str>,
+    daily_reset_time: Option<&str>,
+    limit_weekly_usd: Option<f64>,
+    limit_monthly_usd: Option<f64>,
+    limit_total_usd: Option<f64>,
 ) -> Result<serde_json::Value, String> {
     let db = crate::infra::db::init(app)?;
     let claude_models = match claude_models {
@@ -83,6 +90,13 @@ pub fn provider_upsert_json<R: tauri::Runtime>(
         cost_multiplier,
         priority,
         claude_models,
+        limit_5h_usd,
+        limit_daily_usd,
+        daily_reset_mode,
+        daily_reset_time,
+        limit_weekly_usd,
+        limit_monthly_usd,
+        limit_total_usd,
     )?;
     serialize_json(provider)
 }

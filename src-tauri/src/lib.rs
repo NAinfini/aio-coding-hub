@@ -237,6 +237,7 @@ pub fn run() {
             usage_leaderboard_day,
             usage_leaderboard_v2,
             usage_hourly_series,
+            usage_provider_cache_rate_trend_v1,
             cost_summary_v1,
             cost_trend_v1,
             cost_breakdown_provider_v1,

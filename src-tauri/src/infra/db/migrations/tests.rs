@@ -430,6 +430,26 @@ CREATE TABLE skills (
   UNIQUE(skill_key)
 );
 
+CREATE TABLE providers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  cli_key TEXT NOT NULL,
+  name TEXT NOT NULL,
+  base_url TEXT NOT NULL,
+  base_urls_json TEXT NOT NULL DEFAULT '[]',
+  base_url_mode TEXT NOT NULL DEFAULT 'order',
+  claude_models_json TEXT NOT NULL DEFAULT '{}',
+  api_key_plaintext TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  priority INTEGER NOT NULL DEFAULT 100,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  cost_multiplier REAL NOT NULL DEFAULT 1.0,
+  supported_models_json TEXT NOT NULL DEFAULT '{}',
+  model_mapping_json TEXT NOT NULL DEFAULT '{}',
+  UNIQUE(cli_key, name)
+);
+
 PRAGMA user_version = 29;
 "#,
     )
@@ -584,6 +604,14 @@ INSERT INTO skills(
     assert!(test_has_column(&conn, "prompts", "workspace_id"));
     assert!(!test_has_column(&conn, "prompts", "cli_key"));
 
+    assert!(test_has_column(&conn, "providers", "limit_5h_usd"));
+    assert!(test_has_column(&conn, "providers", "limit_daily_usd"));
+    assert!(test_has_column(&conn, "providers", "daily_reset_mode"));
+    assert!(test_has_column(&conn, "providers", "daily_reset_time"));
+    assert!(test_has_column(&conn, "providers", "limit_weekly_usd"));
+    assert!(test_has_column(&conn, "providers", "limit_monthly_usd"));
+    assert!(test_has_column(&conn, "providers", "limit_total_usd"));
+
     let claude_default_ws_id: i64 = conn
         .query_row(
             "SELECT id FROM workspaces WHERE cli_key = 'claude' AND name = '默认' ORDER BY id DESC LIMIT 1",
@@ -713,6 +741,26 @@ CREATE TABLE prompts (
   UNIQUE(workspace_id, name)
 );
 
+CREATE TABLE providers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  cli_key TEXT NOT NULL,
+  name TEXT NOT NULL,
+  base_url TEXT NOT NULL,
+  base_urls_json TEXT NOT NULL DEFAULT '[]',
+  base_url_mode TEXT NOT NULL DEFAULT 'order',
+  claude_models_json TEXT NOT NULL DEFAULT '{}',
+  api_key_plaintext TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  priority INTEGER NOT NULL DEFAULT 100,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  cost_multiplier REAL NOT NULL DEFAULT 1.0,
+  supported_models_json TEXT NOT NULL DEFAULT '{}',
+  model_mapping_json TEXT NOT NULL DEFAULT '{}',
+  UNIQUE(cli_key, name)
+);
+
 CREATE TABLE mcp_servers (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   server_key TEXT NOT NULL,
@@ -811,6 +859,14 @@ PRAGMA user_version = 33;
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .expect("read user_version");
     assert_eq!(user_version, 29);
+
+    assert!(test_has_column(&conn, "providers", "limit_5h_usd"));
+    assert!(test_has_column(&conn, "providers", "limit_daily_usd"));
+    assert!(test_has_column(&conn, "providers", "daily_reset_mode"));
+    assert!(test_has_column(&conn, "providers", "daily_reset_time"));
+    assert!(test_has_column(&conn, "providers", "limit_weekly_usd"));
+    assert!(test_has_column(&conn, "providers", "limit_monthly_usd"));
+    assert!(test_has_column(&conn, "providers", "limit_total_usd"));
 
     let active_id: i64 = conn
         .query_row(

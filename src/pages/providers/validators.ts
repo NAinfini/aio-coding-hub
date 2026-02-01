@@ -24,6 +24,63 @@ export function parseAndValidateCostMultiplier(raw: string) {
   return { ok: true as const, value };
 }
 
+const MAX_LIMIT_USD = 1_000_000_000;
+
+export function parseAndValidateLimitUsd(raw: string, label: string) {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return { ok: true as const, value: null };
+  }
+  const value = Number(trimmed);
+  if (!Number.isFinite(value)) {
+    return { ok: false as const, message: `${label} 必须是数字` };
+  }
+  if (value < 0) {
+    return { ok: false as const, message: `${label} 必须大于等于 0` };
+  }
+  if (value > MAX_LIMIT_USD) {
+    return { ok: false as const, message: `${label} 不能大于 ${MAX_LIMIT_USD}` };
+  }
+  return { ok: true as const, value };
+}
+
+export function parseAndNormalizeResetTimeHms(raw: string) {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return { ok: true as const, value: "00:00:00" };
+  }
+
+  const match = /^([0-9]{1,2}):([0-9]{2})(?::([0-9]{2}))?$/.exec(trimmed);
+  if (!match) {
+    return { ok: false as const, message: "固定重置时间格式必须为 HH:mm:ss（或 HH:mm）" };
+  }
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  const seconds = match[3] ? Number(match[3]) : 0;
+
+  if (
+    !Number.isInteger(hours) ||
+    !Number.isInteger(minutes) ||
+    !Number.isInteger(seconds) ||
+    hours < 0 ||
+    hours > 23 ||
+    minutes < 0 ||
+    minutes > 59 ||
+    seconds < 0 ||
+    seconds > 59
+  ) {
+    return { ok: false as const, message: "固定重置时间必须在 00:00:00 到 23:59:59 之间" };
+  }
+
+  return {
+    ok: true as const,
+    value: `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(
+      seconds
+    ).padStart(2, "0")}`,
+  };
+}
+
 const MAX_MODEL_NAME_LEN = 200;
 
 export function validateProviderClaudeModels(input: {

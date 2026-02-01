@@ -22,6 +22,10 @@ fn json_bool(value: &Value, key: &str) -> bool {
     value.get(key).and_then(|v| v.as_bool()).unwrap_or(false)
 }
 
+fn json_f64(value: &Value, key: &str) -> Option<f64> {
+    value.get(key).and_then(|v| v.as_f64())
+}
+
 #[test]
 fn providers_crud_roundtrip() {
     let app = support::TestApp::new();
@@ -43,6 +47,13 @@ fn providers_crud_roundtrip() {
         1.0,
         Some(100),
         None,
+        Some(5.0),
+        Some(100.0),
+        Some("fixed"),
+        Some("01:02:03"),
+        Some(300.0),
+        Some(1000.0),
+        Some(10000.0),
     )
     .expect("insert provider 1");
 
@@ -61,6 +72,13 @@ fn providers_crud_roundtrip() {
         1.0,
         Some(100),
         None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
     )
     .expect("insert provider 2");
 
@@ -71,6 +89,14 @@ fn providers_crud_roundtrip() {
     let id2 = json_i64(&p2, "id");
     assert!(id1 > 0);
     assert!(id2 > 0);
+
+    assert_eq!(json_str(&p1, "daily_reset_mode"), "fixed");
+    assert_eq!(json_str(&p1, "daily_reset_time"), "01:02:03");
+    assert_eq!(json_f64(&p1, "limit_5h_usd"), Some(5.0));
+    assert_eq!(json_f64(&p1, "limit_daily_usd"), Some(100.0));
+    assert_eq!(json_f64(&p1, "limit_weekly_usd"), Some(300.0));
+    assert_eq!(json_f64(&p1, "limit_monthly_usd"), Some(1000.0));
+    assert_eq!(json_f64(&p1, "limit_total_usd"), Some(10000.0));
 
     let list = aio_coding_hub_lib::test_support::providers_list_by_cli_json(&handle, "claude")
         .expect("list providers after insert");
@@ -91,6 +117,13 @@ fn providers_crud_roundtrip() {
         1.0,
         Some(101),
         None,
+        Some(5.0),
+        Some(100.0),
+        Some("fixed"),
+        Some("01:02:03"),
+        Some(300.0),
+        Some(1000.0),
+        Some(10000.0),
     )
     .expect("update provider 1");
     assert_eq!(json_str(&updated, "name"), "P1-renamed");

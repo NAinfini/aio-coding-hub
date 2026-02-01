@@ -6,6 +6,7 @@ mod context;
 mod event_helpers;
 mod finalize;
 mod provider_gate;
+mod provider_limits;
 mod request_end_helpers;
 mod send;
 mod send_timeout;
@@ -130,6 +131,7 @@ pub(super) async fn run(mut input: RequestContext) -> Response {
     let mut earliest_available_unix: Option<i64> = None;
     let mut skipped_open: usize = 0;
     let mut skipped_cooldown: usize = 0;
+    let mut skipped_limits: usize = 0;
 
     for provider in input.providers.iter() {
         if providers_tried >= max_providers_to_try {
@@ -163,6 +165,15 @@ pub(super) async fn run(mut input: RequestContext) -> Response {
         }) else {
             continue;
         };
+
+        if !provider_limits::gate_provider(provider_limits::ProviderLimitsInput {
+            ctx,
+            provider,
+            earliest_available_unix: &mut earliest_available_unix,
+            skipped_limits: &mut skipped_limits,
+        }) {
+            continue;
+        }
 
         // NOTE: model whitelist filtering removed (Claude uses slot-based model mapping).
 
@@ -466,6 +477,7 @@ pub(super) async fn run(mut input: RequestContext) -> Response {
             earliest_available_unix,
             skipped_open,
             skipped_cooldown,
+            skipped_limits,
             fingerprint_key: input.fingerprint_key,
             fingerprint_debug: input.fingerprint_debug.clone(),
             unavailable_fingerprint_key: input.unavailable_fingerprint_key,

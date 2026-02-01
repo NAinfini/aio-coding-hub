@@ -1,0 +1,208 @@
+import { renderHook, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import {
+  usageHourlySeries,
+  usageLeaderboardV2,
+  usageSummary,
+  usageSummaryV2,
+} from "../../services/usage";
+import { createQueryWrapper, createTestQueryClient } from "../../test/utils/reactQuery";
+import { setTauriRuntime } from "../../test/utils/tauriRuntime";
+import {
+  useUsageHourlySeriesQuery,
+  useUsageLeaderboardV2Query,
+  useUsageSummaryQuery,
+  useUsageSummaryV2Query,
+} from "../usage";
+
+vi.mock("../../services/usage", async () => {
+  const actual =
+    await vi.importActual<typeof import("../../services/usage")>("../../services/usage");
+  return {
+    ...actual,
+    usageHourlySeries: vi.fn(),
+    usageSummary: vi.fn(),
+    usageSummaryV2: vi.fn(),
+    usageLeaderboardV2: vi.fn(),
+  };
+});
+
+describe("query/usage", () => {
+  it("does not call usageHourlySeries without tauri runtime", async () => {
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    renderHook(() => useUsageHourlySeriesQuery(7), { wrapper });
+    await Promise.resolve();
+
+    expect(usageHourlySeries).not.toHaveBeenCalled();
+  });
+
+  it("calls usageHourlySeries with tauri runtime", async () => {
+    setTauriRuntime();
+
+    vi.mocked(usageHourlySeries).mockResolvedValue([]);
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    renderHook(() => useUsageHourlySeriesQuery(7), { wrapper });
+
+    await waitFor(() => {
+      expect(usageHourlySeries).toHaveBeenCalledWith(7);
+    });
+  });
+
+  it("respects options.enabled=false", async () => {
+    setTauriRuntime();
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    renderHook(() => useUsageHourlySeriesQuery(7, { enabled: false }), { wrapper });
+    await Promise.resolve();
+
+    expect(usageHourlySeries).not.toHaveBeenCalled();
+  });
+
+  it("does not call usageSummary without tauri runtime", async () => {
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    renderHook(() => useUsageSummaryQuery("today", { cliKey: null }), { wrapper });
+    await Promise.resolve();
+
+    expect(usageSummary).not.toHaveBeenCalled();
+  });
+
+  it("calls usageSummary with tauri runtime and respects options.enabled + refetchIntervalMs branches", async () => {
+    setTauriRuntime();
+
+    vi.mocked(usageSummary).mockResolvedValue(null);
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    renderHook(() => useUsageSummaryQuery("today", { cliKey: "claude" }), { wrapper });
+
+    await waitFor(() => {
+      expect(usageSummary).toHaveBeenCalledWith("today", { cliKey: "claude" });
+    });
+
+    vi.mocked(usageSummary).mockClear();
+
+    renderHook(
+      () => useUsageSummaryQuery("today", { cliKey: "claude" }, { refetchIntervalMs: false }),
+      { wrapper }
+    );
+
+    await waitFor(() => {
+      expect(usageSummary).toHaveBeenCalledWith("today", { cliKey: "claude" });
+    });
+
+    vi.mocked(usageSummary).mockClear();
+
+    renderHook(() => useUsageSummaryQuery("today", { cliKey: "claude" }, { enabled: false }), {
+      wrapper,
+    });
+    await Promise.resolve();
+
+    expect(usageSummary).not.toHaveBeenCalled();
+  });
+
+  it("calls usageSummaryV2 with tauri runtime", async () => {
+    setTauriRuntime();
+
+    vi.mocked(usageSummaryV2).mockResolvedValue(null);
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    renderHook(() => useUsageSummaryV2Query("daily", { startTs: 1, endTs: 2, cliKey: "claude" }), {
+      wrapper,
+    });
+
+    await waitFor(() => {
+      expect(usageSummaryV2).toHaveBeenCalledWith("daily", {
+        startTs: 1,
+        endTs: 2,
+        cliKey: "claude",
+      });
+    });
+  });
+
+  it("does not call usageSummaryV2 when disabled", async () => {
+    setTauriRuntime();
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    renderHook(
+      () =>
+        useUsageSummaryV2Query(
+          "daily",
+          { startTs: 1, endTs: 2, cliKey: "claude" },
+          { enabled: false }
+        ),
+      { wrapper }
+    );
+    await Promise.resolve();
+
+    expect(usageSummaryV2).not.toHaveBeenCalled();
+  });
+
+  it("calls usageLeaderboardV2 with tauri runtime", async () => {
+    setTauriRuntime();
+
+    vi.mocked(usageLeaderboardV2).mockResolvedValue([]);
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    renderHook(
+      () =>
+        useUsageLeaderboardV2Query("provider", "weekly", {
+          startTs: 1,
+          endTs: 2,
+          cliKey: "claude",
+          limit: 10,
+        }),
+      { wrapper }
+    );
+
+    await waitFor(() => {
+      expect(usageLeaderboardV2).toHaveBeenCalledWith("provider", "weekly", {
+        startTs: 1,
+        endTs: 2,
+        cliKey: "claude",
+        limit: 10,
+      });
+    });
+  });
+
+  it("does not call usageLeaderboardV2 when disabled", async () => {
+    setTauriRuntime();
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    renderHook(
+      () =>
+        useUsageLeaderboardV2Query(
+          "provider",
+          "weekly",
+          {
+            startTs: 1,
+            endTs: 2,
+            cliKey: "claude",
+            limit: 10,
+          },
+          { enabled: false }
+        ),
+      { wrapper }
+    );
+    await Promise.resolve();
+
+    expect(usageLeaderboardV2).not.toHaveBeenCalled();
+  });
+});

@@ -1,0 +1,76 @@
+import { describe, expect, it } from "vitest";
+import {
+  computeOutputTokensPerSecond,
+  formatBytes,
+  formatCountdownSeconds,
+  formatDurationMs,
+  formatDurationMsShort,
+  formatInteger,
+  formatIsoDateTime,
+  formatPercent,
+  formatRelativeTimeFromMs,
+  formatRelativeTimeFromUnixSeconds,
+  formatTokensPerSecond,
+  formatUnixSeconds,
+  formatUsd,
+  formatUsdShort,
+  sanitizeTtfbMs,
+} from "../formatters";
+
+describe("utils/formatters", () => {
+  it("formatDurationMs variants", () => {
+    expect(formatDurationMs(null)).toBe("—");
+    expect(formatDurationMs(12.2)).toBe("12ms");
+    expect(formatDurationMs(1200)).toBe("1.20s");
+    expect(formatDurationMs(61_000)).toBe("1m1.0s");
+
+    expect(formatDurationMsShort(999)).toBe("999ms");
+    expect(formatDurationMsShort(1200)).toBe("1.2s");
+    expect(formatDurationMsShort(61_000)).toBe("1m");
+    expect(formatDurationMsShort(3_660_000)).toBe("1h1m");
+  });
+
+  it("sanitizeTtfbMs", () => {
+    expect(sanitizeTtfbMs(null, 1)).toBeNull();
+    expect(sanitizeTtfbMs(10, null)).toBeNull();
+    expect(sanitizeTtfbMs(10, 10)).toBeNull();
+    expect(sanitizeTtfbMs(9, 10)).toBe(9);
+  });
+
+  it("formatInteger / percent", () => {
+    expect(formatInteger(undefined)).toBe("—");
+    expect(formatInteger(12.7)).toBe("13");
+    expect(formatPercent(0.1234, 2)).toBe("12.34%");
+  });
+
+  it("tokens per second", () => {
+    expect(computeOutputTokensPerSecond(null, 1000, 100)).toBeNull();
+    expect(computeOutputTokensPerSecond(10, 0, 1)).toBeNull();
+    expect(computeOutputTokensPerSecond(10, 1000, 1000)).toBeNull();
+    expect(computeOutputTokensPerSecond(10, 1100, 100)).toBeCloseTo(10 / 1.0);
+    expect(formatTokensPerSecond(1.23)).toContain("Token/秒");
+  });
+
+  it("USD formatting", () => {
+    expect(formatUsd(null)).toBe("—");
+    expect(formatUsd(0)).toBe("$0.000000");
+    expect(formatUsdShort(1.2)).toBe("$1.20");
+  });
+
+  it("time formatters", () => {
+    expect(formatUnixSeconds(null)).toBe("—");
+    expect(formatCountdownSeconds(61)).toBe("01:01");
+    expect(formatRelativeTimeFromMs(null)).toBe("—");
+    expect(formatRelativeTimeFromMs(0, 0)).toBe("<1分钟");
+    expect(formatRelativeTimeFromUnixSeconds(0, 60_000)).toBe("1分钟");
+  });
+
+  it("bytes and ISO datetime", () => {
+    expect(formatBytes(-1)).toBe("—");
+    expect(formatBytes(10)).toBe("10 B");
+    expect(formatBytes(1024)).toContain("KB");
+    expect(formatIsoDateTime("")).toBe("—");
+    expect(formatIsoDateTime("not-a-date")).toBe("not-a-date");
+    expect(formatIsoDateTime("2020-01-02T03:04:05Z")).toContain("2020-01-02");
+  });
+});

@@ -1,0 +1,729 @@
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type {
+  AvailableSkillSummary,
+  InstalledSkillSummary,
+  LocalSkillSummary,
+  SkillRepoSummary,
+  SkillsPaths,
+} from "../../services/skills";
+import {
+  skillImportLocal,
+  skillInstall,
+  skillRepoDelete,
+  skillRepoUpsert,
+  skillReposList,
+  skillSetEnabled,
+  skillUninstall,
+  skillsDiscoverAvailable,
+  skillsInstalledList,
+  skillsLocalList,
+  skillsPathsGet,
+} from "../../services/skills";
+import { createQueryWrapper, createTestQueryClient } from "../../test/utils/reactQuery";
+import { clearTauriRuntime, setTauriRuntime } from "../../test/utils/tauriRuntime";
+import { skillsKeys } from "../keys";
+import {
+  useSkillImportLocalMutation,
+  useSkillInstallMutation,
+  useSkillRepoDeleteMutation,
+  useSkillRepoUpsertMutation,
+  useSkillReposListQuery,
+  useSkillSetEnabledMutation,
+  useSkillUninstallMutation,
+  useSkillsDiscoverAvailableMutation,
+  useSkillsDiscoverAvailableQuery,
+  useSkillsInstalledListQuery,
+  useSkillsLocalListQuery,
+  useSkillsPathsQuery,
+} from "../skills";
+
+vi.mock("../../services/skills", async () => {
+  const actual =
+    await vi.importActual<typeof import("../../services/skills")>("../../services/skills");
+  return {
+    ...actual,
+    skillReposList: vi.fn(),
+    skillsInstalledList: vi.fn(),
+    skillsLocalList: vi.fn(),
+    skillsDiscoverAvailable: vi.fn(),
+    skillsPathsGet: vi.fn(),
+    skillRepoUpsert: vi.fn(),
+    skillRepoDelete: vi.fn(),
+    skillInstall: vi.fn(),
+    skillSetEnabled: vi.fn(),
+    skillUninstall: vi.fn(),
+    skillImportLocal: vi.fn(),
+  };
+});
+
+describe("query/skills", () => {
+  beforeEach(() => {
+    clearTauriRuntime();
+    vi.clearAllMocks();
+  });
+
+  it("does not call skillReposList without tauri runtime", async () => {
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    renderHook(() => useSkillReposListQuery(), { wrapper });
+    await Promise.resolve();
+
+    expect(skillReposList).not.toHaveBeenCalled();
+  });
+
+  it("does not call skillReposList when options.enabled=false", async () => {
+    setTauriRuntime();
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    renderHook(() => useSkillReposListQuery({ enabled: false }), { wrapper });
+    await Promise.resolve();
+
+    expect(skillReposList).not.toHaveBeenCalled();
+  });
+
+  it("calls skillReposList with tauri runtime", async () => {
+    setTauriRuntime();
+    vi.mocked(skillReposList).mockResolvedValue([]);
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    renderHook(() => useSkillReposListQuery(), { wrapper });
+
+    await waitFor(() => {
+      expect(skillReposList).toHaveBeenCalled();
+    });
+  });
+
+  it("useSkillsInstalledListQuery refetch returns null when workspaceId is null", async () => {
+    setTauriRuntime();
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useSkillsInstalledListQuery(null), { wrapper });
+    await act(async () => {
+      const res = await result.current.refetch();
+      expect(res.data).toBeNull();
+    });
+
+    expect(skillsInstalledList).not.toHaveBeenCalled();
+  });
+
+  it("useSkillsInstalledListQuery calls skillsInstalledList when workspaceId is set", async () => {
+    setTauriRuntime();
+    vi.mocked(skillsInstalledList).mockResolvedValue([]);
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    renderHook(() => useSkillsInstalledListQuery(1), { wrapper });
+
+    await waitFor(() => {
+      expect(skillsInstalledList).toHaveBeenCalledWith(1);
+    });
+  });
+
+  it("useSkillsLocalListQuery refetch returns null when workspaceId is null", async () => {
+    setTauriRuntime();
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useSkillsLocalListQuery(null), { wrapper });
+    await act(async () => {
+      const res = await result.current.refetch();
+      expect(res.data).toBeNull();
+    });
+
+    expect(skillsLocalList).not.toHaveBeenCalled();
+  });
+
+  it("useSkillsLocalListQuery calls skillsLocalList when workspaceId is set", async () => {
+    setTauriRuntime();
+    vi.mocked(skillsLocalList).mockResolvedValue([]);
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    renderHook(() => useSkillsLocalListQuery(1), { wrapper });
+
+    await waitFor(() => {
+      expect(skillsLocalList).toHaveBeenCalledWith(1);
+    });
+  });
+
+  it("useSkillsDiscoverAvailableQuery respects options.enabled=false", async () => {
+    setTauriRuntime();
+    vi.mocked(skillsDiscoverAvailable).mockResolvedValue([]);
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    renderHook(() => useSkillsDiscoverAvailableQuery(false, { enabled: false }), { wrapper });
+    await Promise.resolve();
+
+    expect(skillsDiscoverAvailable).not.toHaveBeenCalled();
+  });
+
+  it("useSkillsPathsQuery refetch returns null when cliKey is null", async () => {
+    setTauriRuntime();
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useSkillsPathsQuery(null), { wrapper });
+    await act(async () => {
+      const res = await result.current.refetch();
+      expect(res.data).toBeNull();
+    });
+
+    expect(skillsPathsGet).not.toHaveBeenCalled();
+  });
+
+  it("useSkillsPathsQuery calls skillsPathsGet when cliKey is set", async () => {
+    setTauriRuntime();
+
+    const paths: SkillsPaths = {
+      ssot_dir: "/tmp/ssot",
+      repos_dir: "/tmp/repos",
+      cli_dir: "/tmp/cli",
+    };
+    vi.mocked(skillsPathsGet).mockResolvedValue(paths);
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    renderHook(() => useSkillsPathsQuery("claude"), { wrapper });
+
+    await waitFor(() => {
+      expect(skillsPathsGet).toHaveBeenCalledWith("claude");
+    });
+  });
+
+  it("useSkillsDiscoverAvailableMutation handles null rows", async () => {
+    setTauriRuntime();
+    vi.mocked(skillsDiscoverAvailable).mockResolvedValue(null);
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+    const setSpy = vi.spyOn(client, "setQueryData");
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries");
+
+    const { result } = renderHook(() => useSkillsDiscoverAvailableMutation(), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync(true);
+    });
+
+    expect(setSpy).not.toHaveBeenCalled();
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: skillsKeys.discoverAvailable(true) });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: skillsKeys.discoverAvailable(false) });
+  });
+
+  it("useSkillsDiscoverAvailableMutation updates both refresh and cached query keys", async () => {
+    setTauriRuntime();
+
+    const rows: AvailableSkillSummary[] = [
+      {
+        name: "S1",
+        description: "d",
+        source_git_url: "https://example.com/repo.git",
+        source_branch: "main",
+        source_subdir: "skills/s1",
+        installed: false,
+      },
+    ];
+    vi.mocked(skillsDiscoverAvailable).mockResolvedValue(rows);
+
+    const client = createTestQueryClient();
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries");
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useSkillsDiscoverAvailableMutation(), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync(true);
+    });
+
+    expect(client.getQueryData(skillsKeys.discoverAvailable(true))).toEqual(rows);
+    expect(client.getQueryData(skillsKeys.discoverAvailable(false))).toEqual(rows);
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: skillsKeys.discoverAvailable(true) });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: skillsKeys.discoverAvailable(false) });
+  });
+
+  it("useSkillRepoUpsertMutation no-ops on null response", async () => {
+    setTauriRuntime();
+    vi.mocked(skillRepoUpsert).mockResolvedValue(null);
+
+    const client = createTestQueryClient();
+    client.setQueryData(skillsKeys.reposList(), []);
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useSkillRepoUpsertMutation(), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync({
+        repoId: null,
+        gitUrl: "https://x",
+        branch: "main",
+        enabled: true,
+      });
+    });
+
+    expect(client.getQueryData(skillsKeys.reposList())).toEqual([]);
+  });
+
+  it("useSkillRepoUpsertMutation updates repos list and invalidates discoverAvailable(false)", async () => {
+    setTauriRuntime();
+
+    const repo: SkillRepoSummary = {
+      id: 1,
+      git_url: "https://example.com/repo.git",
+      branch: "main",
+      enabled: true,
+      created_at: 0,
+      updated_at: 0,
+    };
+    vi.mocked(skillRepoUpsert).mockResolvedValue(repo);
+
+    const client = createTestQueryClient();
+    client.setQueryData(skillsKeys.reposList(), []);
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries");
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useSkillRepoUpsertMutation(), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync({
+        repoId: null,
+        gitUrl: repo.git_url,
+        branch: repo.branch,
+        enabled: repo.enabled,
+      });
+    });
+
+    expect(client.getQueryData(skillsKeys.reposList())).toEqual([repo]);
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: skillsKeys.discoverAvailable(false) });
+  });
+
+  it("useSkillRepoUpsertMutation updates an existing repo row", async () => {
+    setTauriRuntime();
+
+    const prev: SkillRepoSummary[] = [
+      {
+        id: 1,
+        git_url: "https://example.com/repo.git",
+        branch: "main",
+        enabled: true,
+        created_at: 0,
+        updated_at: 0,
+      },
+      {
+        id: 2,
+        git_url: "https://example.com/repo2.git",
+        branch: "main",
+        enabled: false,
+        created_at: 0,
+        updated_at: 0,
+      },
+    ];
+    const updated: SkillRepoSummary = { ...prev[1]!, enabled: true };
+    vi.mocked(skillRepoUpsert).mockResolvedValue(updated);
+
+    const client = createTestQueryClient();
+    client.setQueryData(skillsKeys.reposList(), prev);
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useSkillRepoUpsertMutation(), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync({
+        repoId: updated.id,
+        gitUrl: updated.git_url,
+        branch: updated.branch,
+        enabled: updated.enabled,
+      });
+    });
+
+    expect(client.getQueryData(skillsKeys.reposList())).toEqual([prev[0], updated]);
+  });
+
+  it("useSkillRepoDeleteMutation no-ops on false result", async () => {
+    setTauriRuntime();
+    vi.mocked(skillRepoDelete).mockResolvedValue(false);
+
+    const repos: SkillRepoSummary[] = [
+      {
+        id: 1,
+        git_url: "https://example.com/repo.git",
+        branch: "main",
+        enabled: true,
+        created_at: 0,
+        updated_at: 0,
+      },
+    ];
+
+    const client = createTestQueryClient();
+    client.setQueryData(skillsKeys.reposList(), repos);
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries");
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useSkillRepoDeleteMutation(), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync(1);
+    });
+
+    expect(client.getQueryData(skillsKeys.reposList())).toEqual(repos);
+    expect(invalidateSpy).not.toHaveBeenCalled();
+  });
+
+  it("useSkillRepoDeleteMutation removes repo and invalidates discoverAvailable(false)", async () => {
+    setTauriRuntime();
+    vi.mocked(skillRepoDelete).mockResolvedValue(true);
+
+    const repos: SkillRepoSummary[] = [
+      {
+        id: 1,
+        git_url: "https://example.com/repo.git",
+        branch: "main",
+        enabled: true,
+        created_at: 0,
+        updated_at: 0,
+      },
+      {
+        id: 2,
+        git_url: "https://example.com/repo2.git",
+        branch: "main",
+        enabled: false,
+        created_at: 0,
+        updated_at: 0,
+      },
+    ];
+
+    const client = createTestQueryClient();
+    client.setQueryData(skillsKeys.reposList(), repos);
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries");
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useSkillRepoDeleteMutation(), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync(1);
+    });
+
+    expect(client.getQueryData(skillsKeys.reposList())).toEqual([repos[1]]);
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: skillsKeys.discoverAvailable(false) });
+  });
+
+  it("useSkillInstallMutation no-ops on null response", async () => {
+    setTauriRuntime();
+    vi.mocked(skillInstall).mockResolvedValue(null);
+
+    const client = createTestQueryClient();
+    client.setQueryData(skillsKeys.installedList(1), []);
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useSkillInstallMutation(1), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync({
+        gitUrl: "https://x",
+        branch: "main",
+        sourceSubdir: "s",
+        enabled: true,
+      });
+    });
+
+    expect(client.getQueryData(skillsKeys.installedList(1))).toEqual([]);
+  });
+
+  it("useSkillInstallMutation inserts into installed list and invalidates discoverAvailable(false)", async () => {
+    setTauriRuntime();
+
+    const installed: InstalledSkillSummary = {
+      id: 10,
+      skill_key: "s1",
+      name: "S1",
+      description: "d",
+      source_git_url: "https://example.com/repo.git",
+      source_branch: "main",
+      source_subdir: "skills/s1",
+      enabled: true,
+      created_at: 0,
+      updated_at: 0,
+    };
+
+    vi.mocked(skillInstall).mockResolvedValue(installed);
+
+    const client = createTestQueryClient();
+    client.setQueryData(skillsKeys.installedList(1), []);
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries");
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useSkillInstallMutation(1), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync({
+        gitUrl: installed.source_git_url,
+        branch: installed.source_branch,
+        sourceSubdir: installed.source_subdir,
+        enabled: true,
+      });
+    });
+
+    expect(client.getQueryData(skillsKeys.installedList(1))).toEqual([installed]);
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: skillsKeys.discoverAvailable(false) });
+  });
+
+  it("useSkillInstallMutation updates an existing installed row", async () => {
+    setTauriRuntime();
+
+    const prev: InstalledSkillSummary = {
+      id: 10,
+      skill_key: "s1",
+      name: "S1",
+      description: "d",
+      source_git_url: "https://example.com/repo.git",
+      source_branch: "main",
+      source_subdir: "skills/s1",
+      enabled: true,
+      created_at: 0,
+      updated_at: 0,
+    };
+    const updated = { ...prev, enabled: false };
+    vi.mocked(skillInstall).mockResolvedValue(updated);
+
+    const client = createTestQueryClient();
+    client.setQueryData(skillsKeys.installedList(1), [prev]);
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useSkillInstallMutation(1), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync({
+        gitUrl: updated.source_git_url,
+        branch: updated.source_branch,
+        sourceSubdir: updated.source_subdir,
+        enabled: updated.enabled,
+      });
+    });
+
+    expect(client.getQueryData(skillsKeys.installedList(1))).toEqual([updated]);
+  });
+
+  it("useSkillSetEnabledMutation no-ops on null response", async () => {
+    setTauriRuntime();
+    vi.mocked(skillSetEnabled).mockResolvedValue(null);
+
+    const prev: InstalledSkillSummary = {
+      id: 10,
+      skill_key: "s1",
+      name: "S1",
+      description: "d",
+      source_git_url: "https://example.com/repo.git",
+      source_branch: "main",
+      source_subdir: "skills/s1",
+      enabled: true,
+      created_at: 0,
+      updated_at: 0,
+    };
+
+    const client = createTestQueryClient();
+    client.setQueryData(skillsKeys.installedList(1), [prev]);
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useSkillSetEnabledMutation(1), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync({ skillId: 10, enabled: false });
+    });
+
+    expect(client.getQueryData(skillsKeys.installedList(1))).toEqual([prev]);
+  });
+
+  it("useSkillSetEnabledMutation updates installed list row", async () => {
+    setTauriRuntime();
+
+    const prev: InstalledSkillSummary = {
+      id: 10,
+      skill_key: "s1",
+      name: "S1",
+      description: "d",
+      source_git_url: "https://example.com/repo.git",
+      source_branch: "main",
+      source_subdir: "skills/s1",
+      enabled: true,
+      created_at: 0,
+      updated_at: 0,
+    };
+    const updated = { ...prev, enabled: false };
+    vi.mocked(skillSetEnabled).mockResolvedValue(updated);
+
+    const client = createTestQueryClient();
+    client.setQueryData(skillsKeys.installedList(1), [prev]);
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useSkillSetEnabledMutation(1), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync({ skillId: 10, enabled: false });
+    });
+
+    expect(client.getQueryData(skillsKeys.installedList(1))).toEqual([updated]);
+  });
+
+  it("useSkillUninstallMutation no-ops on false result", async () => {
+    setTauriRuntime();
+    vi.mocked(skillUninstall).mockResolvedValue(false);
+
+    const prev: InstalledSkillSummary[] = [
+      {
+        id: 10,
+        skill_key: "s1",
+        name: "S1",
+        description: "d",
+        source_git_url: "https://example.com/repo.git",
+        source_branch: "main",
+        source_subdir: "skills/s1",
+        enabled: true,
+        created_at: 0,
+        updated_at: 0,
+      },
+    ];
+
+    const client = createTestQueryClient();
+    client.setQueryData(skillsKeys.installedList(1), prev);
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries");
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useSkillUninstallMutation(1), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync(10);
+    });
+
+    expect(client.getQueryData(skillsKeys.installedList(1))).toEqual(prev);
+    expect(invalidateSpy).not.toHaveBeenCalled();
+  });
+
+  it("useSkillUninstallMutation removes installed row and invalidates discoverAvailable(false)", async () => {
+    setTauriRuntime();
+    vi.mocked(skillUninstall).mockResolvedValue(true);
+
+    const prev: InstalledSkillSummary[] = [
+      {
+        id: 10,
+        skill_key: "s1",
+        name: "S1",
+        description: "d",
+        source_git_url: "https://example.com/repo.git",
+        source_branch: "main",
+        source_subdir: "skills/s1",
+        enabled: true,
+        created_at: 0,
+        updated_at: 0,
+      },
+    ];
+
+    const client = createTestQueryClient();
+    client.setQueryData(skillsKeys.installedList(1), prev);
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries");
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useSkillUninstallMutation(1), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync(10);
+    });
+
+    expect(client.getQueryData(skillsKeys.installedList(1))).toEqual([]);
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: skillsKeys.discoverAvailable(false) });
+  });
+
+  it("useSkillImportLocalMutation no-ops on null response", async () => {
+    setTauriRuntime();
+    vi.mocked(skillImportLocal).mockResolvedValue(null);
+
+    const locals: LocalSkillSummary[] = [
+      { dir_name: "s2", path: "/tmp/s2", name: "S2", description: "d2" },
+    ];
+    vi.mocked(skillsLocalList).mockResolvedValue(locals);
+
+    const client = createTestQueryClient();
+    client.setQueryData(skillsKeys.installedList(1), []);
+    client.setQueryData(skillsKeys.localList(1), locals);
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useSkillImportLocalMutation(1), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync("s2");
+    });
+
+    expect(client.getQueryData(skillsKeys.installedList(1))).toEqual([]);
+  });
+
+  it("useSkillImportLocalMutation inserts into installed list and invalidates localList", async () => {
+    setTauriRuntime();
+
+    const next: InstalledSkillSummary = {
+      id: 11,
+      skill_key: "s2",
+      name: "S2",
+      description: "d2",
+      source_git_url: "local",
+      source_branch: "local",
+      source_subdir: "skills/s2",
+      enabled: true,
+      created_at: 0,
+      updated_at: 0,
+    };
+    vi.mocked(skillImportLocal).mockResolvedValue(next);
+
+    const locals: LocalSkillSummary[] = [
+      { dir_name: "s2", path: "/tmp/s2", name: "S2", description: "d2" },
+    ];
+    vi.mocked(skillsLocalList).mockResolvedValue(locals);
+
+    const client = createTestQueryClient();
+    client.setQueryData(skillsKeys.installedList(1), []);
+    client.setQueryData(skillsKeys.localList(1), locals);
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries");
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useSkillImportLocalMutation(1), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync("s2");
+    });
+
+    expect(client.getQueryData(skillsKeys.installedList(1))).toEqual([next]);
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: skillsKeys.localList(1) });
+  });
+
+  it("useSkillImportLocalMutation updates an existing installed row", async () => {
+    setTauriRuntime();
+
+    const prev: InstalledSkillSummary = {
+      id: 11,
+      skill_key: "s2",
+      name: "S2",
+      description: "d2",
+      source_git_url: "local",
+      source_branch: "local",
+      source_subdir: "skills/s2",
+      enabled: true,
+      created_at: 0,
+      updated_at: 0,
+    };
+    const updated = { ...prev, enabled: false };
+    vi.mocked(skillImportLocal).mockResolvedValue(updated);
+
+    const locals: LocalSkillSummary[] = [
+      { dir_name: "s2", path: "/tmp/s2", name: "S2", description: "d2" },
+    ];
+    vi.mocked(skillsLocalList).mockResolvedValue(locals);
+
+    const client = createTestQueryClient();
+    client.setQueryData(skillsKeys.installedList(1), [prev]);
+    client.setQueryData(skillsKeys.localList(1), locals);
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useSkillImportLocalMutation(1), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync("s2");
+    });
+
+    expect(client.getQueryData(skillsKeys.installedList(1))).toEqual([updated]);
+  });
+});

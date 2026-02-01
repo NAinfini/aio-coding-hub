@@ -1,0 +1,87 @@
+import { act, renderHook } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import type { CliProxyStatus } from "../../services/cliProxy";
+import { cliProxySetEnabled, cliProxyStatusAll } from "../../services/cliProxy";
+import { createQueryWrapper, createTestQueryClient } from "../../test/utils/reactQuery";
+import { setTauriRuntime } from "../../test/utils/tauriRuntime";
+import { cliProxyKeys } from "../keys";
+import { useCliProxySetEnabledMutation, useCliProxyStatusAllQuery } from "../cliProxy";
+
+vi.mock("../../services/cliProxy", async () => {
+  const actual =
+    await vi.importActual<typeof import("../../services/cliProxy")>("../../services/cliProxy");
+  return {
+    ...actual,
+    cliProxyStatusAll: vi.fn(),
+    cliProxySetEnabled: vi.fn(),
+  };
+});
+
+describe("query/cliProxy", () => {
+  it("does not call cliProxyStatusAll without tauri runtime", async () => {
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    renderHook(() => useCliProxyStatusAllQuery(), { wrapper });
+    await Promise.resolve();
+
+    expect(cliProxyStatusAll).not.toHaveBeenCalled();
+  });
+
+  it("optimistically updates status cache on setEnabled", async () => {
+    setTauriRuntime();
+
+    const initial: CliProxyStatus[] = [
+      { cli_key: "claude", enabled: true, base_origin: null },
+      { cli_key: "codex", enabled: false, base_origin: null },
+      { cli_key: "gemini", enabled: false, base_origin: null },
+    ];
+    vi.mocked(cliProxySetEnabled).mockResolvedValue({
+      trace_id: "t1",
+      cli_key: "codex",
+      enabled: true,
+      ok: true,
+      error_code: null,
+      message: "ok",
+      base_origin: "http://127.0.0.1:37123",
+    });
+
+    const client = createTestQueryClient();
+    client.setQueryData(cliProxyKeys.statusAll(), initial);
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useCliProxySetEnabledMutation(), { wrapper });
+
+    await act(async () => {
+      const promise = result.current.mutateAsync({ cliKey: "codex", enabled: true });
+
+      const optimistic = client.getQueryData<CliProxyStatus[] | null>(cliProxyKeys.statusAll());
+      expect(optimistic?.find((r) => r.cli_key === "codex")?.enabled).toBe(true);
+
+      await promise;
+    });
+
+    expect(cliProxySetEnabled).toHaveBeenCalledWith({ cli_key: "codex", enabled: true });
+  });
+
+  it("rolls back cache when setEnabled fails", async () => {
+    setTauriRuntime();
+
+    const initial: CliProxyStatus[] = [{ cli_key: "codex", enabled: false, base_origin: null }];
+    vi.mocked(cliProxySetEnabled).mockRejectedValue(new Error("boom"));
+
+    const client = createTestQueryClient();
+    client.setQueryData(cliProxyKeys.statusAll(), initial);
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useCliProxySetEnabledMutation(), { wrapper });
+
+    await act(async () => {
+      await expect(result.current.mutateAsync({ cliKey: "codex", enabled: true })).rejects.toThrow(
+        "boom"
+      );
+    });
+
+    expect(client.getQueryData(cliProxyKeys.statusAll())).toEqual(initial);
+  });
+});

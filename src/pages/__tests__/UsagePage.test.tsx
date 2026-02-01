@@ -1,0 +1,240 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router-dom";
+import type { ReactElement } from "react";
+import { toast } from "sonner";
+import { UsagePage } from "../UsagePage";
+import { createTestQueryClient } from "../../test/utils/reactQuery";
+import { clearTauriRuntime, setTauriRuntime } from "../../test/utils/tauriRuntime";
+import { useCustomDateRange } from "../../hooks/useCustomDateRange";
+import { useUsageLeaderboardV2Query, useUsageSummaryV2Query } from "../../query/usage";
+
+vi.mock("sonner", () => ({ toast: vi.fn() }));
+
+vi.mock("../../hooks/useCustomDateRange", async () => {
+  const actual = await vi.importActual<typeof import("../../hooks/useCustomDateRange")>(
+    "../../hooks/useCustomDateRange"
+  );
+  return { ...actual, useCustomDateRange: vi.fn() };
+});
+
+vi.mock("../../query/usage", async () => {
+  const actual = await vi.importActual<typeof import("../../query/usage")>("../../query/usage");
+  return {
+    ...actual,
+    useUsageSummaryV2Query: vi.fn(),
+    useUsageLeaderboardV2Query: vi.fn(),
+  };
+});
+
+function renderWithProviders(element: ReactElement) {
+  const client = createTestQueryClient();
+  return render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter>{element}</MemoryRouter>
+    </QueryClientProvider>
+  );
+}
+
+describe("pages/UsagePage", () => {
+  it("shows tauri runtime hint when not running in desktop runtime", () => {
+    clearTauriRuntime();
+
+    vi.mocked(useCustomDateRange).mockReturnValue({
+      customStartDate: "",
+      setCustomStartDate: vi.fn(),
+      customEndDate: "",
+      setCustomEndDate: vi.fn(),
+      customApplied: null,
+      bounds: { startTs: null, endTs: null },
+      showCustomForm: false,
+      applyCustomRange: vi.fn(),
+      clearCustomRange: vi.fn(),
+    } as any);
+
+    vi.mocked(useUsageSummaryV2Query).mockReturnValue({
+      data: null,
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useUsageLeaderboardV2Query).mockReturnValue({
+      data: [],
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+
+    renderWithProviders(<UsagePage />);
+    expect(screen.getByText(/未检测到 Tauri Runtime/)).toBeInTheDocument();
+  });
+
+  it("renders error card, toasts once, and allows retry", async () => {
+    setTauriRuntime();
+
+    vi.mocked(useCustomDateRange).mockReturnValue({
+      customStartDate: "",
+      setCustomStartDate: vi.fn(),
+      customEndDate: "",
+      setCustomEndDate: vi.fn(),
+      customApplied: null,
+      bounds: { startTs: 1, endTs: 2 },
+      showCustomForm: false,
+      applyCustomRange: vi.fn(),
+      clearCustomRange: vi.fn(),
+    } as any);
+
+    const summaryRefetch = vi.fn().mockResolvedValue({ data: null });
+    const leaderboardRefetch = vi.fn().mockResolvedValue({ data: [] });
+
+    vi.mocked(useUsageSummaryV2Query).mockReturnValue({
+      data: null,
+      isFetching: false,
+      error: new Error("boom"),
+      refetch: summaryRefetch,
+    } as any);
+    vi.mocked(useUsageLeaderboardV2Query).mockReturnValue({
+      data: [],
+      isFetching: false,
+      error: null,
+      refetch: leaderboardRefetch,
+    } as any);
+
+    renderWithProviders(<UsagePage />);
+
+    await waitFor(() => {
+      expect(toast).toHaveBeenCalledWith("加载用量失败：请重试（详情见页面错误信息）");
+    });
+    expect(screen.getByText("加载失败")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "重试" }));
+    expect(summaryRefetch).toHaveBeenCalled();
+    expect(leaderboardRefetch).toHaveBeenCalled();
+  });
+
+  it("renders summary + leaderboard table when data is available", () => {
+    setTauriRuntime();
+
+    vi.mocked(useCustomDateRange).mockReturnValue({
+      customStartDate: "",
+      setCustomStartDate: vi.fn(),
+      customEndDate: "",
+      setCustomEndDate: vi.fn(),
+      customApplied: null,
+      bounds: { startTs: 10, endTs: 20 },
+      showCustomForm: false,
+      applyCustomRange: vi.fn(),
+      clearCustomRange: vi.fn(),
+    } as any);
+
+    vi.mocked(useUsageSummaryV2Query).mockReturnValue({
+      data: {
+        requests_total: 10,
+        requests_with_usage: 8,
+        requests_success: 9,
+        io_total_tokens: 1000,
+        input_tokens: 400,
+        output_tokens: 600,
+        total_tokens: 1100,
+        cache_creation_input_tokens: 10,
+        cache_read_input_tokens: 20,
+        cache_creation_5m_input_tokens: 5,
+        avg_duration_ms: 100,
+        avg_ttfb_ms: 20,
+        avg_output_tokens_per_second: 12.3,
+        cost_usd: 0.0,
+      },
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+
+    vi.mocked(useUsageLeaderboardV2Query).mockReturnValue({
+      data: [
+        {
+          key: "p1",
+          name: "Provider-1",
+          requests_total: 4,
+          requests_success: 3,
+          io_total_tokens: 700,
+          input_tokens: 300,
+          output_tokens: 400,
+          total_tokens: 800,
+          cache_creation_input_tokens: 0,
+          cache_read_input_tokens: 0,
+          cache_creation_5m_input_tokens: 0,
+          avg_duration_ms: 120,
+          avg_ttfb_ms: 30,
+          avg_output_tokens_per_second: 9.5,
+          cost_usd: 1.23,
+        },
+      ],
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+
+    renderWithProviders(<UsagePage />);
+
+    expect(screen.getByText("总 Token（输入+输出）")).toBeInTheDocument();
+    expect(screen.getByText("Provider-1")).toBeInTheDocument();
+    expect(screen.getByText("总计")).toBeInTheDocument();
+  });
+
+  it("shows custom range form and wires apply/clear handlers", async () => {
+    setTauriRuntime();
+
+    const applyCustomRange = vi.fn();
+    const clearCustomRange = vi.fn();
+    const setCustomStartDate = vi.fn();
+    const setCustomEndDate = vi.fn();
+
+    vi.mocked(useCustomDateRange).mockImplementation((period: any) => {
+      const custom = period === "custom";
+      return {
+        customStartDate: "2026-01-01",
+        setCustomStartDate,
+        customEndDate: "2026-01-02",
+        setCustomEndDate,
+        customApplied: custom
+          ? { startDate: "2026-01-01", endDate: "2026-01-02", startTs: 1, endTs: 2 }
+          : null,
+        bounds: { startTs: 1, endTs: 2 },
+        showCustomForm: custom,
+        applyCustomRange,
+        clearCustomRange,
+      } as any;
+    });
+
+    vi.mocked(useUsageSummaryV2Query).mockReturnValue({
+      data: null,
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useUsageLeaderboardV2Query).mockReturnValue({
+      data: [],
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+
+    renderWithProviders(<UsagePage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "自定义" }));
+    expect(await screen.findByLabelText("开始日期")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("开始日期"), { target: { value: "2026-01-03" } });
+    expect(setCustomStartDate).toHaveBeenCalledWith("2026-01-03");
+
+    fireEvent.change(screen.getByLabelText("结束日期"), { target: { value: "2026-01-04" } });
+    expect(setCustomEndDate).toHaveBeenCalledWith("2026-01-04");
+
+    fireEvent.click(screen.getByRole("button", { name: "应用" }));
+    expect(applyCustomRange).toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "清空" }));
+    expect(clearCustomRange).toHaveBeenCalled();
+  });
+});

@@ -1,0 +1,133 @@
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { CliManagerCodexTab } from "../CodexTab";
+
+function createCodexInfo(overrides: Partial<any> = {}) {
+  return {
+    found: true,
+    version: "0.0.0",
+    executable_path: "/bin/codex",
+    resolved_via: "PATH",
+    shell: "/bin/zsh",
+    error: null,
+    ...overrides,
+  };
+}
+
+function createCodexConfig(overrides: Partial<any> = {}) {
+  return {
+    config_dir: "/home/user/.codex",
+    config_path: "/home/user/.codex/config.toml",
+    can_open_config_dir: true,
+    exists: true,
+    model: "gpt-5-codex",
+    approval_policy: "on-request",
+    sandbox_mode: "workspace-write",
+    sandbox_workspace_write_network_access: null,
+    model_reasoning_effort: "medium",
+    web_search: "cached",
+    features_shell_snapshot: false,
+    features_web_search_request: false,
+    features_unified_exec: false,
+    features_shell_tool: false,
+    features_exec_policy: false,
+    features_apply_patch_freeform: false,
+    features_remote_compaction: false,
+    features_remote_models: false,
+    features_collab: false,
+    features_collaboration_modes: false,
+    ...overrides,
+  };
+}
+
+describe("components/cli-manager/tabs/CodexTab", () => {
+  it("handles sandbox confirm flow and toggles", () => {
+    const persistCodexConfig = vi.fn();
+    const refreshCodex = vi.fn();
+    const openCodexConfigDir = vi.fn();
+
+    const confirmSpy = vi
+      .spyOn(window, "confirm")
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(true);
+
+    render(
+      <CliManagerCodexTab
+        codexAvailable="available"
+        codexLoading={false}
+        codexConfigLoading={false}
+        codexConfigSaving={false}
+        codexInfo={createCodexInfo()}
+        codexConfig={createCodexConfig()}
+        refreshCodex={refreshCodex}
+        openCodexConfigDir={openCodexConfigDir}
+        persistCodexConfig={persistCodexConfig}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "刷新" }));
+    expect(refreshCodex).toHaveBeenCalled();
+
+    // Select danger-full-access but cancel.
+    const sandboxItem = screen.getByText("沙箱模式 (sandbox_mode)").parentElement?.parentElement;
+    expect(sandboxItem).toBeTruthy();
+    const sandboxSelect = within(sandboxItem as HTMLElement).getByRole("combobox");
+    fireEvent.change(sandboxSelect, { target: { value: "danger-full-access" } });
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(persistCodexConfig).not.toHaveBeenCalledWith(
+      expect.objectContaining({ sandbox_mode: "danger-full-access" })
+    );
+
+    // Confirm selection.
+    fireEvent.change(sandboxSelect, { target: { value: "danger-full-access" } });
+    expect(persistCodexConfig).toHaveBeenCalledWith({ sandbox_mode: "danger-full-access" });
+
+    // Toggle a feature switch.
+    const collabItem = screen.getByText("collab").parentElement?.parentElement;
+    expect(collabItem).toBeTruthy();
+    fireEvent.click(within(collabItem as HTMLElement).getByRole("switch"));
+    expect(persistCodexConfig).toHaveBeenCalledWith({ features_collab: true });
+
+    // Radio group
+    fireEvent.click(screen.getByRole("radio", { name: "禁用 (disabled)" }));
+    expect(persistCodexConfig).toHaveBeenCalledWith({ web_search: "disabled" });
+
+    // Model input blur persists trimmed value.
+    const modelItem = screen.getByText("默认模型 (model)").parentElement?.parentElement;
+    expect(modelItem).toBeTruthy();
+    const modelInput = within(modelItem as HTMLElement).getByRole("textbox");
+    fireEvent.change(modelInput, { target: { value: "  gpt-5-codex  " } });
+    fireEvent.blur(modelInput);
+    expect(persistCodexConfig).toHaveBeenCalledWith({ model: "gpt-5-codex" });
+
+    // Approval policy select persists.
+    const approvalItem =
+      screen.getByText("审批策略 (approval_policy)").parentElement?.parentElement;
+    expect(approvalItem).toBeTruthy();
+    const approvalSelect = within(approvalItem as HTMLElement).getByRole("combobox");
+    fireEvent.change(approvalSelect, { target: { value: "never" } });
+    expect(persistCodexConfig).toHaveBeenCalledWith({ approval_policy: "never" });
+
+    // Exercise remaining toggle handlers for function/branch coverage.
+    for (const sw of screen.getAllByRole("switch")) fireEvent.click(sw);
+
+    confirmSpy.mockRestore();
+  });
+
+  it("renders unavailable state", () => {
+    render(
+      <CliManagerCodexTab
+        codexAvailable="unavailable"
+        codexLoading={false}
+        codexConfigLoading={false}
+        codexConfigSaving={false}
+        codexInfo={createCodexInfo()}
+        codexConfig={null}
+        refreshCodex={vi.fn()}
+        openCodexConfigDir={vi.fn()}
+        persistCodexConfig={vi.fn()}
+      />
+    );
+    expect(screen.getByText("仅在 Tauri Desktop 环境可用")).toBeInTheDocument();
+  });
+});

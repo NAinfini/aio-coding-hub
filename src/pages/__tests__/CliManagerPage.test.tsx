@@ -1,0 +1,680 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router-dom";
+import { describe, expect, it, vi } from "vitest";
+import type { ReactElement } from "react";
+import { toast } from "sonner";
+import { tauriOpenPath } from "../../test/mocks/tauri";
+import { createTestQueryClient } from "../../test/utils/reactQuery";
+import { CliManagerPage } from "../CliManagerPage";
+import { logToConsole } from "../../services/consoleLog";
+import {
+  useSettingsCircuitBreakerNoticeSetMutation,
+  useSettingsCodexSessionIdCompletionSetMutation,
+  useSettingsGatewayRectifierSetMutation,
+  useSettingsQuery,
+  useSettingsSetMutation,
+} from "../../query/settings";
+import {
+  useCliManagerClaudeInfoQuery,
+  useCliManagerClaudeSettingsQuery,
+  useCliManagerClaudeSettingsSetMutation,
+  useCliManagerCodexConfigQuery,
+  useCliManagerCodexConfigSetMutation,
+  useCliManagerCodexInfoQuery,
+  useCliManagerGeminiInfoQuery,
+} from "../../query/cliManager";
+
+vi.mock("sonner", () => ({
+  toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
+}));
+vi.mock("../../services/consoleLog", () => ({ logToConsole: vi.fn() }));
+
+vi.mock("../../components/cli-manager/tabs/GeneralTab", () => ({
+  CliManagerGeneralTab: ({
+    onPersistRectifier,
+    onPersistCircuitBreakerNotice,
+    onPersistCodexSessionIdCompletion,
+    onPersistCommonSettings,
+    blurOnEnter,
+  }: any) => (
+    <div>
+      <input aria-label="enter-blur" onKeyDown={blurOnEnter} />
+      <button type="button" onClick={() => onPersistRectifier({ enable_response_fixer: false })}>
+        persist-rectifier
+      </button>
+      <button type="button" onClick={() => onPersistCircuitBreakerNotice(true)}>
+        persist-circuit-notice
+      </button>
+      <button type="button" onClick={() => onPersistCircuitBreakerNotice(false)}>
+        disable-circuit-notice
+      </button>
+      <button type="button" onClick={() => onPersistCodexSessionIdCompletion(false)}>
+        persist-codex-completion
+      </button>
+      <button type="button" onClick={() => onPersistCodexSessionIdCompletion(true)}>
+        enable-codex-completion
+      </button>
+      <button
+        type="button"
+        onClick={() => onPersistCommonSettings({ provider_cooldown_seconds: 99 })}
+      >
+        persist-common
+      </button>
+    </div>
+  ),
+}));
+
+vi.mock("../../components/cli-manager/tabs/ClaudeTab", () => ({
+  CliManagerClaudeTab: ({ refreshClaude, openClaudeConfigDir, persistClaudeSettings }: any) => (
+    <div>
+      <div>claude-tab</div>
+      <button type="button" onClick={() => refreshClaude()}>
+        refresh-claude
+      </button>
+      <button type="button" onClick={() => openClaudeConfigDir()}>
+        open-claude-dir
+      </button>
+      <button type="button" onClick={() => persistClaudeSettings({ foo: "bar" })}>
+        save-claude
+      </button>
+    </div>
+  ),
+}));
+
+vi.mock("../../components/cli-manager/tabs/CodexTab", () => ({
+  CliManagerCodexTab: ({ refreshCodex, openCodexConfigDir, persistCodexConfig }: any) => (
+    <div>
+      <div>codex-tab</div>
+      <button type="button" onClick={() => refreshCodex()}>
+        refresh-codex
+      </button>
+      <button type="button" onClick={() => openCodexConfigDir()}>
+        open-codex-dir
+      </button>
+      <button type="button" onClick={() => persistCodexConfig({ foo: "bar" })}>
+        save-codex
+      </button>
+    </div>
+  ),
+}));
+
+vi.mock("../../components/cli-manager/tabs/GeminiTab", () => ({
+  CliManagerGeminiTab: ({ refreshGeminiInfo }: any) => (
+    <div>
+      <div>gemini-tab</div>
+      <button type="button" onClick={() => refreshGeminiInfo()}>
+        refresh-gemini
+      </button>
+    </div>
+  ),
+}));
+
+vi.mock("../../query/settings", async () => {
+  const actual =
+    await vi.importActual<typeof import("../../query/settings")>("../../query/settings");
+  return {
+    ...actual,
+    useSettingsQuery: vi.fn(),
+    useSettingsGatewayRectifierSetMutation: vi.fn(),
+    useSettingsCircuitBreakerNoticeSetMutation: vi.fn(),
+    useSettingsCodexSessionIdCompletionSetMutation: vi.fn(),
+    useSettingsSetMutation: vi.fn(),
+  };
+});
+
+vi.mock("../../query/cliManager", async () => {
+  const actual =
+    await vi.importActual<typeof import("../../query/cliManager")>("../../query/cliManager");
+  return {
+    ...actual,
+    useCliManagerClaudeInfoQuery: vi.fn(),
+    useCliManagerClaudeSettingsQuery: vi.fn(),
+    useCliManagerClaudeSettingsSetMutation: vi.fn(),
+    useCliManagerCodexInfoQuery: vi.fn(),
+    useCliManagerCodexConfigQuery: vi.fn(),
+    useCliManagerCodexConfigSetMutation: vi.fn(),
+    useCliManagerGeminiInfoQuery: vi.fn(),
+  };
+});
+
+function renderWithProviders(element: ReactElement) {
+  const client = createTestQueryClient();
+  return render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter>{element}</MemoryRouter>
+    </QueryClientProvider>
+  );
+}
+
+function createAppSettings(overrides: Partial<any> = {}) {
+  return {
+    schema_version: 1,
+    preferred_port: 37123,
+    auto_start: false,
+    tray_enabled: true,
+    log_retention_days: 30,
+    provider_cooldown_seconds: 30,
+    provider_base_url_ping_cache_ttl_seconds: 60,
+    upstream_first_byte_timeout_seconds: 0,
+    upstream_stream_idle_timeout_seconds: 0,
+    upstream_request_timeout_non_streaming_seconds: 0,
+    intercept_anthropic_warmup_requests: false,
+    enable_thinking_signature_rectifier: true,
+    enable_response_fixer: true,
+    response_fixer_fix_encoding: true,
+    response_fixer_fix_sse_format: true,
+    response_fixer_fix_truncated_json: true,
+    response_fixer_max_json_depth: 200,
+    response_fixer_max_fix_size: 1024,
+    failover_max_attempts_per_provider: 5,
+    failover_max_providers_to_try: 5,
+    circuit_breaker_failure_threshold: 5,
+    circuit_breaker_open_duration_minutes: 30,
+    enable_circuit_breaker_notice: false,
+    enable_codex_session_id_completion: true,
+    ...overrides,
+  };
+}
+
+describe("pages/CliManagerPage", () => {
+  it("drives general tab persistence and handles tauri unavailable/errors", async () => {
+    vi.mocked(useSettingsQuery).mockReturnValue({
+      data: createAppSettings(),
+      isLoading: false,
+    } as any);
+
+    const rectifierMutation = { isPending: false, mutateAsync: vi.fn() };
+    rectifierMutation.mutateAsync
+      .mockResolvedValueOnce(createAppSettings({ enable_response_fixer: false }))
+      .mockResolvedValueOnce(null)
+      .mockRejectedValueOnce(new Error("rectifier boom"));
+    vi.mocked(useSettingsGatewayRectifierSetMutation).mockReturnValue(rectifierMutation as any);
+
+    const noticeMutation = { isPending: false, mutateAsync: vi.fn() };
+    noticeMutation.mutateAsync
+      .mockResolvedValueOnce(createAppSettings({ enable_circuit_breaker_notice: true }))
+      .mockResolvedValueOnce(null);
+    vi.mocked(useSettingsCircuitBreakerNoticeSetMutation).mockReturnValue(noticeMutation as any);
+
+    const completionMutation = { isPending: false, mutateAsync: vi.fn() };
+    completionMutation.mutateAsync
+      .mockResolvedValueOnce(createAppSettings({ enable_codex_session_id_completion: false }))
+      .mockResolvedValueOnce(null);
+    vi.mocked(useSettingsCodexSessionIdCompletionSetMutation).mockReturnValue(
+      completionMutation as any
+    );
+
+    const commonMutation = { isPending: false, mutateAsync: vi.fn() };
+    commonMutation.mutateAsync
+      .mockResolvedValueOnce(createAppSettings({ provider_cooldown_seconds: 99 }))
+      .mockRejectedValueOnce(new Error("common boom"));
+    vi.mocked(useSettingsSetMutation).mockReturnValue(commonMutation as any);
+
+    // CLI manager queries are disabled until tab is selected; provide stable placeholders.
+    vi.mocked(useCliManagerClaudeInfoQuery).mockReturnValue({
+      data: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useCliManagerClaudeSettingsQuery).mockReturnValue({
+      data: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useCliManagerClaudeSettingsSetMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
+    vi.mocked(useCliManagerCodexInfoQuery).mockReturnValue({
+      data: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useCliManagerCodexConfigQuery).mockReturnValue({
+      data: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useCliManagerCodexConfigSetMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
+    vi.mocked(useCliManagerGeminiInfoQuery).mockReturnValue({
+      data: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as any);
+
+    renderWithProviders(<CliManagerPage />);
+
+    fireEvent.keyDown(screen.getByLabelText("enter-blur"), { key: "Enter" });
+
+    fireEvent.click(screen.getByRole("button", { name: "persist-rectifier" }));
+    await waitFor(() => expect(rectifierMutation.mutateAsync).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole("button", { name: "persist-rectifier" }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith("仅在 Tauri Desktop 环境可用"));
+
+    fireEvent.click(screen.getByRole("button", { name: "persist-rectifier" }));
+    await waitFor(() =>
+      expect(logToConsole).toHaveBeenCalledWith("error", "更新网关整流配置失败", {
+        error: "Error: rectifier boom",
+      })
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "persist-circuit-notice" }));
+    await waitFor(() => expect(noticeMutation.mutateAsync).toHaveBeenCalledWith(true));
+    expect(toast).toHaveBeenCalledWith("已开启熔断通知");
+
+    fireEvent.click(screen.getByRole("button", { name: "persist-circuit-notice" }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith("仅在 Tauri Desktop 环境可用"));
+
+    fireEvent.click(screen.getByRole("button", { name: "persist-codex-completion" }));
+    await waitFor(() => expect(completionMutation.mutateAsync).toHaveBeenCalledWith(false));
+    expect(toast).toHaveBeenCalledWith("已关闭 Codex Session ID 补全");
+
+    fireEvent.click(screen.getByRole("button", { name: "persist-codex-completion" }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith("仅在 Tauri Desktop 环境可用"));
+
+    fireEvent.click(screen.getByRole("button", { name: "persist-common" }));
+    await waitFor(() => expect(commonMutation.mutateAsync).toHaveBeenCalled());
+    expect(toast).toHaveBeenCalledWith("已保存");
+
+    fireEvent.click(screen.getByRole("button", { name: "persist-common" }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith("更新通用网关参数失败：请稍后重试"));
+  });
+
+  it("drives claude/codex/gemini tab actions and handles open dir edge cases", async () => {
+    vi.mocked(useSettingsQuery).mockReturnValue({
+      data: createAppSettings(),
+      isLoading: false,
+    } as any);
+    vi.mocked(useSettingsGatewayRectifierSetMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
+    vi.mocked(useSettingsCircuitBreakerNoticeSetMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
+    vi.mocked(useSettingsCodexSessionIdCompletionSetMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
+    vi.mocked(useSettingsSetMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
+
+    const claudeInfoRefetch = vi.fn().mockResolvedValue({ data: {} });
+    const claudeSettingsRefetch = vi.fn().mockResolvedValue({ data: {} });
+
+    vi.mocked(useCliManagerClaudeInfoQuery).mockReturnValue({
+      data: { config_dir: "/claude", found: true },
+      isFetching: false,
+      refetch: claudeInfoRefetch,
+    } as any);
+
+    vi.mocked(useCliManagerClaudeSettingsQuery).mockReturnValue({
+      data: { config_dir: "/claude-settings" },
+      isFetching: false,
+      refetch: claudeSettingsRefetch,
+    } as any);
+
+    const claudeSetMutation = { isPending: false, mutateAsync: vi.fn() };
+    claudeSetMutation.mutateAsync
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ ok: true })
+      .mockRejectedValueOnce(new Error("claude boom"));
+    vi.mocked(useCliManagerClaudeSettingsSetMutation).mockReturnValue(claudeSetMutation as any);
+
+    const codexInfoRefetch = vi.fn().mockResolvedValue({ data: {} });
+    const codexConfigRefetch = vi.fn().mockResolvedValue({ data: {} });
+    vi.mocked(useCliManagerCodexInfoQuery).mockReturnValue({
+      data: { found: true },
+      isFetching: false,
+      refetch: codexInfoRefetch,
+    } as any);
+
+    let codexCanOpen = false;
+    vi.mocked(useCliManagerCodexConfigQuery).mockImplementation(() => {
+      return {
+        data: {
+          config_dir: "/codex",
+          can_open_config_dir: codexCanOpen,
+        },
+        isFetching: false,
+        refetch: codexConfigRefetch,
+      } as any;
+    });
+
+    const codexSetMutation = { isPending: false, mutateAsync: vi.fn() };
+    codexSetMutation.mutateAsync
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ ok: true })
+      .mockRejectedValueOnce(new Error("CODEX_NO_PERM: denied"));
+    vi.mocked(useCliManagerCodexConfigSetMutation).mockReturnValue(codexSetMutation as any);
+
+    const geminiInfoRefetch = vi.fn().mockResolvedValue({ data: {} });
+    vi.mocked(useCliManagerGeminiInfoQuery).mockReturnValue({
+      data: { found: true },
+      isFetching: false,
+      refetch: geminiInfoRefetch,
+    } as any);
+
+    renderWithProviders(<CliManagerPage />);
+
+    // Claude tab
+    fireEvent.click(screen.getByRole("tab", { name: "Claude Code" }));
+    expect(await screen.findByText("claude-tab")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "refresh-claude" }));
+    await waitFor(() => expect(claudeInfoRefetch).toHaveBeenCalled());
+
+    vi.mocked(tauriOpenPath).mockRejectedValueOnce(new Error("open claude boom"));
+    fireEvent.click(screen.getByRole("button", { name: "open-claude-dir" }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith("打开目录失败：请查看控制台日志"));
+
+    // persist claude settings: null -> toast; ok -> toast; error -> toast
+    fireEvent.click(screen.getByRole("button", { name: "save-claude" }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith("仅在 Tauri Desktop 环境可用"));
+    fireEvent.click(screen.getByRole("button", { name: "save-claude" }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith("已更新 Claude Code 配置"));
+    fireEvent.click(screen.getByRole("button", { name: "save-claude" }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith("更新 Claude Code 配置失败：请稍后重试")
+    );
+
+    // Codex tab permission denied -> toast
+    fireEvent.click(screen.getByRole("tab", { name: "Codex" }));
+    expect(await screen.findByText("codex-tab")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "open-codex-dir" }));
+    expect(toast).toHaveBeenCalledWith(
+      "受权限限制，无法自动打开该目录（仅允许 $HOME/.codex 下的路径）"
+    );
+
+    // enable open dir and retry (error branch)
+    codexCanOpen = true;
+    fireEvent.click(screen.getByRole("tab", { name: "通用" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Codex" }));
+    await screen.findByText("codex-tab");
+
+    vi.mocked(tauriOpenPath).mockRejectedValueOnce(new Error("open codex boom"));
+    fireEvent.click(screen.getByRole("button", { name: "open-codex-dir" }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith("打开目录失败：请查看控制台日志"));
+
+    // persist codex config: null -> toast; ok -> toast; error -> toast formatted
+    fireEvent.click(screen.getByRole("button", { name: "save-codex" }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith("仅在 Tauri Desktop 环境可用"));
+    fireEvent.click(screen.getByRole("button", { name: "save-codex" }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith("已更新 Codex 配置"));
+    fireEvent.click(screen.getByRole("button", { name: "save-codex" }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith("更新 Codex 配置失败（code CODEX_NO_PERM）：denied")
+    );
+
+    // Gemini tab refresh
+    fireEvent.click(screen.getByRole("tab", { name: "Gemini" }));
+    expect(await screen.findByText("gemini-tab")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "refresh-gemini" }));
+    await waitFor(() => expect(geminiInfoRefetch).toHaveBeenCalled());
+  });
+
+  it("skips persisting when mutations are pending", async () => {
+    vi.mocked(useSettingsQuery).mockReturnValue({
+      data: createAppSettings(),
+      isLoading: false,
+    } as any);
+
+    const rectifierMutation = { isPending: true, mutateAsync: vi.fn() };
+    const noticeMutation = { isPending: true, mutateAsync: vi.fn() };
+    const completionMutation = { isPending: true, mutateAsync: vi.fn() };
+    const commonMutation = { isPending: true, mutateAsync: vi.fn() };
+
+    vi.mocked(useSettingsGatewayRectifierSetMutation).mockReturnValue(rectifierMutation as any);
+    vi.mocked(useSettingsCircuitBreakerNoticeSetMutation).mockReturnValue(noticeMutation as any);
+    vi.mocked(useSettingsCodexSessionIdCompletionSetMutation).mockReturnValue(
+      completionMutation as any
+    );
+    vi.mocked(useSettingsSetMutation).mockReturnValue(commonMutation as any);
+
+    vi.mocked(useCliManagerClaudeInfoQuery).mockReturnValue({
+      data: { config_dir: "/claude", found: true },
+      isFetching: false,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useCliManagerClaudeSettingsQuery).mockReturnValue({
+      data: { config_dir: "/claude-settings" },
+      isFetching: false,
+      refetch: vi.fn(),
+    } as any);
+    const claudeSetMutation = { isPending: true, mutateAsync: vi.fn() };
+    vi.mocked(useCliManagerClaudeSettingsSetMutation).mockReturnValue(claudeSetMutation as any);
+
+    vi.mocked(useCliManagerCodexInfoQuery).mockReturnValue({
+      data: { found: true },
+      isFetching: false,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useCliManagerCodexConfigQuery).mockReturnValue({
+      data: { config_dir: "/codex", can_open_config_dir: true },
+      isFetching: false,
+      refetch: vi.fn(),
+    } as any);
+    const codexSetMutation = { isPending: true, mutateAsync: vi.fn() };
+    vi.mocked(useCliManagerCodexConfigSetMutation).mockReturnValue(codexSetMutation as any);
+
+    vi.mocked(useCliManagerGeminiInfoQuery).mockReturnValue({
+      data: { found: true },
+      isFetching: false,
+      refetch: vi.fn(),
+    } as any);
+
+    renderWithProviders(<CliManagerPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "persist-rectifier" }));
+    fireEvent.click(screen.getByRole("button", { name: "persist-circuit-notice" }));
+    fireEvent.click(screen.getByRole("button", { name: "persist-codex-completion" }));
+    fireEvent.click(screen.getByRole("button", { name: "persist-common" }));
+
+    expect(rectifierMutation.mutateAsync).not.toHaveBeenCalled();
+    expect(noticeMutation.mutateAsync).not.toHaveBeenCalled();
+    expect(completionMutation.mutateAsync).not.toHaveBeenCalled();
+    expect(commonMutation.mutateAsync).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Claude Code" }));
+    await screen.findByText("claude-tab");
+    fireEvent.click(screen.getByRole("button", { name: "save-claude" }));
+    expect(claudeSetMutation.mutateAsync).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Codex" }));
+    await screen.findByText("codex-tab");
+    fireEvent.click(screen.getByRole("button", { name: "save-codex" }));
+    expect(codexSetMutation.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("skips persisting when settings are loading/unavailable and CLIs are checking", async () => {
+    vi.mocked(toast).mockClear();
+
+    vi.mocked(useSettingsQuery).mockReturnValue({ data: null, isLoading: true } as any);
+    vi.mocked(useSettingsGatewayRectifierSetMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
+    vi.mocked(useSettingsCircuitBreakerNoticeSetMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
+    vi.mocked(useSettingsCodexSessionIdCompletionSetMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
+    vi.mocked(useSettingsSetMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
+
+    const claudeSetMutation = { isPending: false, mutateAsync: vi.fn() };
+    const codexSetMutation = { isPending: false, mutateAsync: vi.fn() };
+
+    vi.mocked(useCliManagerClaudeInfoQuery).mockReturnValue({
+      data: null,
+      isFetching: true,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useCliManagerClaudeSettingsQuery).mockReturnValue({
+      data: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useCliManagerClaudeSettingsSetMutation).mockReturnValue(claudeSetMutation as any);
+
+    vi.mocked(useCliManagerCodexInfoQuery).mockReturnValue({
+      data: null,
+      isFetching: true,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useCliManagerCodexConfigQuery).mockReturnValue({
+      data: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useCliManagerCodexConfigSetMutation).mockReturnValue(codexSetMutation as any);
+
+    vi.mocked(useCliManagerGeminiInfoQuery).mockReturnValue({
+      data: null,
+      isFetching: true,
+      refetch: vi.fn(),
+    } as any);
+
+    renderWithProviders(<CliManagerPage />);
+
+    // rectifierAvailable is \"checking\" => no-op
+    fireEvent.click(screen.getByRole("button", { name: "persist-rectifier" }));
+
+    fireEvent.click(screen.getByRole("tab", { name: "Claude Code" }));
+    await screen.findByText("claude-tab");
+    fireEvent.click(screen.getByRole("button", { name: "save-claude" }));
+    expect(claudeSetMutation.mutateAsync).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Codex" }));
+    await screen.findByText("codex-tab");
+    fireEvent.click(screen.getByRole("button", { name: "save-codex" }));
+    expect(codexSetMutation.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("covers toggle branches, null returns, and open directory fallbacks/success paths", async () => {
+    vi.mocked(toast).mockClear();
+    vi.mocked(logToConsole).mockClear();
+    vi.mocked(tauriOpenPath).mockClear();
+
+    vi.mocked(useSettingsQuery).mockReturnValue({
+      data: createAppSettings({
+        enable_circuit_breaker_notice: undefined,
+        enable_codex_session_id_completion: undefined,
+      }),
+      isLoading: false,
+    } as any);
+
+    const noticeMutation = { isPending: false, mutateAsync: vi.fn() };
+    noticeMutation.mutateAsync
+      .mockResolvedValueOnce(createAppSettings({ enable_circuit_breaker_notice: undefined }) as any)
+      .mockRejectedValueOnce(new Error("notice boom"));
+    vi.mocked(useSettingsCircuitBreakerNoticeSetMutation).mockReturnValue(noticeMutation as any);
+
+    const completionMutation = { isPending: false, mutateAsync: vi.fn() };
+    completionMutation.mutateAsync
+      .mockResolvedValueOnce(
+        createAppSettings({ enable_codex_session_id_completion: undefined }) as any
+      )
+      .mockRejectedValueOnce(new Error("completion boom"));
+    vi.mocked(useSettingsCodexSessionIdCompletionSetMutation).mockReturnValue(
+      completionMutation as any
+    );
+
+    vi.mocked(useSettingsGatewayRectifierSetMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
+
+    const commonMutation = { isPending: false, mutateAsync: vi.fn() };
+    commonMutation.mutateAsync.mockResolvedValueOnce(null);
+    vi.mocked(useSettingsSetMutation).mockReturnValue(commonMutation as any);
+
+    vi.mocked(useCliManagerClaudeInfoQuery).mockReturnValue({
+      data: { config_dir: null, found: true },
+      isFetching: false,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useCliManagerClaudeSettingsQuery).mockReturnValue({
+      data: { config_dir: "/claude-settings" },
+      isFetching: false,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useCliManagerClaudeSettingsSetMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
+
+    vi.mocked(useCliManagerCodexInfoQuery).mockReturnValue({
+      data: { found: true },
+      isFetching: false,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useCliManagerCodexConfigQuery).mockReturnValue({
+      data: { config_dir: "/codex", can_open_config_dir: true },
+      isFetching: false,
+      refetch: vi.fn(),
+    } as any);
+    const codexSetMutation = { isPending: false, mutateAsync: vi.fn() };
+    codexSetMutation.mutateAsync.mockRejectedValueOnce(new Error("boom"));
+    vi.mocked(useCliManagerCodexConfigSetMutation).mockReturnValue(codexSetMutation as any);
+
+    vi.mocked(useCliManagerGeminiInfoQuery).mockReturnValue({
+      data: { found: true },
+      isFetching: false,
+      refetch: vi.fn(),
+    } as any);
+
+    vi.mocked(tauriOpenPath).mockResolvedValue(true as any);
+
+    renderWithProviders(<CliManagerPage />);
+
+    // circuit notice: enable then disable (catch)
+    fireEvent.click(screen.getByRole("button", { name: "persist-circuit-notice" }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith("已开启熔断通知"));
+    fireEvent.click(screen.getByRole("button", { name: "disable-circuit-notice" }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith("更新熔断通知配置失败：请稍后重试"));
+
+    // codex completion: enable then disable (catch)
+    fireEvent.click(screen.getByRole("button", { name: "enable-codex-completion" }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith("已开启 Codex Session ID 补全"));
+    fireEvent.click(screen.getByRole("button", { name: "persist-codex-completion" }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith("更新 Codex Session ID 补全配置失败：请稍后重试")
+    );
+
+    // common settings: null -> tauri-only toast
+    fireEvent.click(screen.getByRole("button", { name: "persist-common" }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith("仅在 Tauri Desktop 环境可用"));
+
+    // open dirs success + claude dir fallback (claudeInfo.config_dir=null -> use claudeSettings.config_dir)
+    fireEvent.click(screen.getByRole("tab", { name: "Claude Code" }));
+    await screen.findByText("claude-tab");
+    fireEvent.click(screen.getByRole("button", { name: "open-claude-dir" }));
+    await waitFor(() => expect(tauriOpenPath).toHaveBeenCalledWith("/claude-settings"));
+
+    fireEvent.click(screen.getByRole("tab", { name: "Codex" }));
+    await screen.findByText("codex-tab");
+    fireEvent.click(screen.getByRole("button", { name: "open-codex-dir" }));
+    await waitFor(() => expect(tauriOpenPath).toHaveBeenCalledWith("/codex"));
+
+    // persist codex config: error -> formatted toast branch (no known code)
+    fireEvent.click(screen.getByRole("button", { name: "save-codex" }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.stringContaining("更新 Codex 配置失败"))
+    );
+  });
+});

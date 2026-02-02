@@ -763,34 +763,14 @@ export function CliManagerClaudeTab({
 
                 <SettingItem
                   label="CLAUDE_CODE_ATTRIBUTION_HEADER"
-                  subtitle="禁用 attribution header（开启写入 0；关闭删除该项）。"
+                  subtitle="启用 attribution header（开启写入 1；关闭删除该项）。"
                 >
                   <Switch
-                    checked={claudeSettings.env_claude_code_attribution_header_disabled}
+                    checked={claudeSettings.env_claude_code_attribution_header}
                     onCheckedChange={(checked) =>
                       void persistClaudeSettings({
-                        env_claude_code_attribution_header_disabled: checked,
+                        env_claude_code_attribution_header: checked,
                       })
-                    }
-                    disabled={saving}
-                  />
-                </SettingItem>
-
-                <SettingItem label="DISABLE_ERROR_REPORTING" subtitle="禁用错误上报（Sentry）。">
-                  <Switch
-                    checked={claudeSettings.env_disable_error_reporting}
-                    onCheckedChange={(checked) =>
-                      void persistClaudeSettings({ env_disable_error_reporting: checked })
-                    }
-                    disabled={saving}
-                  />
-                </SettingItem>
-
-                <SettingItem label="DISABLE_TELEMETRY" subtitle="禁用 telemetry（Statsig）。">
-                  <Switch
-                    checked={claudeSettings.env_disable_telemetry}
-                    onCheckedChange={(checked) =>
-                      void persistClaudeSettings({ env_disable_telemetry: checked })
                     }
                     disabled={saving}
                   />
@@ -862,7 +842,7 @@ export function CliManagerClaudeTab({
 
                 <SettingItem
                   label="CLAUDE_CODE_SKIP_PROMPT_HISTORY"
-                  subtitle="多开 Claude Code 可能产生竞态冲突，打开此选项屏蔽相关日志。"
+                  subtitle="多开 Claude Code 可能产生竞态冲突，打开此选项屏蔽相关日志（开启写入 1；关闭删除该项）。"
                 >
                   <Switch
                     checked={claudeSettings.env_claude_code_skip_prompt_history}

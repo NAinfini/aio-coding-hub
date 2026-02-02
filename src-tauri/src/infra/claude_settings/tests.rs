@@ -15,12 +15,10 @@ fn empty_patch() -> ClaudeSettingsPatch {
         permissions_deny: None,
         env_mcp_timeout_ms: None,
         env_mcp_tool_timeout_ms: None,
-        env_disable_error_reporting: None,
-        env_disable_telemetry: None,
         env_disable_background_tasks: None,
         env_disable_terminal_title: None,
         env_claude_bash_no_login: None,
-        env_claude_code_attribution_header_disabled: None,
+        env_claude_code_attribution_header: None,
         env_claude_code_blocking_limit_override: None,
         env_claude_code_max_output_tokens: None,
         env_enable_experimental_mcp_cli: None,
@@ -46,7 +44,6 @@ fn patch_env_preserves_unmanaged_keys() {
         input,
         ClaudeSettingsPatch {
             env_mcp_timeout_ms: Some(0),
-            env_disable_error_reporting: Some(true),
             ..empty_patch()
         },
     )
@@ -67,17 +64,13 @@ fn patch_env_preserves_unmanaged_keys() {
         Some("aio-coding-hub")
     );
     assert!(env.get("MCP_TIMEOUT").is_none(), "{patched}");
-    assert_eq!(
-        env.get("DISABLE_ERROR_REPORTING").and_then(|v| v.as_str()),
-        Some("1")
-    );
 }
 
 #[test]
-fn patch_env_attribution_header_disabled_can_write_zero_and_remove_key() {
+fn patch_env_attribution_header_can_write_one_and_remove_key() {
     let input = serde_json::json!({
       "env": {
-        "CLAUDE_CODE_ATTRIBUTION_HEADER": "1",
+        "CLAUDE_CODE_ATTRIBUTION_HEADER": "0",
         "KEEP": "x"
       }
     });
@@ -85,7 +78,7 @@ fn patch_env_attribution_header_disabled_can_write_zero_and_remove_key() {
     let patched = patch_claude_settings(
         input,
         ClaudeSettingsPatch {
-            env_claude_code_attribution_header_disabled: Some(true),
+            env_claude_code_attribution_header: Some(true),
             ..empty_patch()
         },
     )
@@ -100,14 +93,14 @@ fn patch_env_attribution_header_disabled_can_write_zero_and_remove_key() {
     assert_eq!(
         env.get("CLAUDE_CODE_ATTRIBUTION_HEADER")
             .and_then(|v| v.as_str()),
-        Some("0")
+        Some("1")
     );
     assert_eq!(env.get("KEEP").and_then(|v| v.as_str()), Some("x"));
 
     let patched = patch_claude_settings(
         patched,
         ClaudeSettingsPatch {
-            env_claude_code_attribution_header_disabled: Some(false),
+            env_claude_code_attribution_header: Some(false),
             ..empty_patch()
         },
     )
@@ -203,7 +196,7 @@ fn patch_can_recover_non_object_permissions_and_env() {
         input,
         ClaudeSettingsPatch {
             permissions_allow: Some(vec!["Bash(ls:*)".to_string()]),
-            env_disable_telemetry: Some(true),
+            env_disable_background_tasks: Some(true),
             ..empty_patch()
         },
     )
@@ -225,7 +218,8 @@ fn patch_can_recover_non_object_permissions_and_env() {
         .and_then(|v| v.as_object())
         .expect("env object");
     assert_eq!(
-        env.get("DISABLE_TELEMETRY").and_then(|v| v.as_str()),
+        env.get("CLAUDE_CODE_DISABLE_BACKGROUND_TASKS")
+            .and_then(|v| v.as_str()),
         Some("1")
     );
 

@@ -50,12 +50,10 @@ export type ClaudeSettingsState = {
 
   env_mcp_timeout_ms: number | null;
   env_mcp_tool_timeout_ms: number | null;
-  env_disable_error_reporting: boolean;
-  env_disable_telemetry: boolean;
   env_disable_background_tasks: boolean;
   env_disable_terminal_title: boolean;
   env_claude_bash_no_login: boolean;
-  env_claude_code_attribution_header_disabled: boolean;
+  env_claude_code_attribution_header: boolean;
   env_claude_code_blocking_limit_override: number | null;
   env_claude_code_max_output_tokens: number | null;
   env_enable_experimental_mcp_cli: boolean;
@@ -83,12 +81,10 @@ export type ClaudeSettingsPatch = Partial<{
 
   env_mcp_timeout_ms: number;
   env_mcp_tool_timeout_ms: number;
-  env_disable_error_reporting: boolean;
-  env_disable_telemetry: boolean;
   env_disable_background_tasks: boolean;
   env_disable_terminal_title: boolean;
   env_claude_bash_no_login: boolean;
-  env_claude_code_attribution_header_disabled: boolean;
+  env_claude_code_attribution_header: boolean;
   env_claude_code_blocking_limit_override: number;
   env_claude_code_max_output_tokens: number;
   env_enable_experimental_mcp_cli: boolean;

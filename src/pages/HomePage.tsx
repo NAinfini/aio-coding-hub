@@ -1,4 +1,4 @@
-// Usage: Dashboard / overview page. Backend commands: `request_logs_*`, `request_attempt_logs_*`, `usage_*`, `gateway_*`, `providers_*`, `sort_modes_*`.
+// Usage: Dashboard / overview page. Backend commands: `request_logs_*`, `request_attempt_logs_*`, `usage_*`, `gateway_*`, `providers_*`, `sort_modes_*`, `provider_limit_usage_*`.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -17,6 +17,7 @@ import {
   useGatewayCircuitStatusQuery,
   useGatewaySessionsListQuery,
 } from "../query/gateway";
+import { useProviderLimitUsageV1Query } from "../query/providerLimitUsage";
 import {
   useRequestAttemptLogsByTraceIdQuery,
   useRequestLogDetailQuery,
@@ -241,6 +242,19 @@ export function HomePage() {
       ? null
       : sessionsQuery.data != null;
 
+  const providerLimitQuery = useProviderLimitUsageV1Query(null, {
+    enabled: tab === "overview",
+    refetchIntervalMs: 30000,
+  });
+  const providerLimitRows = providerLimitQuery.data ?? [];
+  const providerLimitLoading = providerLimitQuery.isLoading;
+  const providerLimitRefreshing = providerLimitQuery.isFetching && !providerLimitQuery.isLoading;
+  const providerLimitAvailable: boolean | null = !tauriRuntime
+    ? false
+    : providerLimitQuery.isLoading
+      ? null
+      : providerLimitQuery.data != null;
+
   const requestLogsQuery = useRequestLogsListAllQuery(50, { enabled: tab === "overview" });
   const requestLogs = requestLogsQuery.data ?? [];
   const requestLogsLoading = requestLogsQuery.isLoading;
@@ -350,6 +364,12 @@ export function HomePage() {
     });
   }, [requestLogsQuery]);
 
+  const refreshProviderLimit = useCallback(() => {
+    void providerLimitQuery.refetch().then((res) => {
+      if (res.error) toast("读取供应商限额失败：请查看控制台日志");
+    });
+  }, [providerLimitQuery]);
+
   useEffect(() => {
     const prev = tabRef.current;
     tabRef.current = tab;
@@ -357,8 +377,9 @@ export function HomePage() {
     if (prev !== "overview" && tab === "overview") {
       void usageHeatmapQuery.refetch();
       void requestLogsQuery.refetch();
+      void providerLimitQuery.refetch();
     }
-  }, [requestLogsQuery, tab, tauriRuntime, usageHeatmapQuery]);
+  }, [providerLimitQuery, requestLogsQuery, tab, tauriRuntime, usageHeatmapQuery]);
 
   useWindowForeground({
     enabled: tauriRuntime && tab === "overview",
@@ -366,6 +387,7 @@ export function HomePage() {
     onForeground: () => {
       void usageHeatmapQuery.refetch();
       void requestLogsQuery.refetch();
+      void providerLimitQuery.refetch();
     },
   });
 
@@ -414,6 +436,11 @@ export function HomePage() {
             activeSessions={activeSessions}
             activeSessionsLoading={activeSessionsLoading}
             activeSessionsAvailable={activeSessionsAvailable}
+            providerLimitRows={providerLimitRows}
+            providerLimitLoading={providerLimitLoading}
+            providerLimitAvailable={providerLimitAvailable}
+            providerLimitRefreshing={providerLimitRefreshing}
+            onRefreshProviderLimit={refreshProviderLimit}
             traces={traces}
             requestLogs={requestLogs}
             requestLogsLoading={requestLogsLoading}

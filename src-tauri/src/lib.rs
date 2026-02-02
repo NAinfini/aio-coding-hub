@@ -9,7 +9,8 @@ pub mod test_support;
 pub(crate) use app::{app_state, notice, resident};
 pub(crate) use domain::{
     claude_model_validation, claude_model_validation_history, claude_plugins, cost, cost_stats,
-    mcp, prompts, providers, skills, sort_modes, usage, usage_stats, workspace_switch, workspaces,
+    mcp, prompts, provider_limit_usage, providers, skills, sort_modes, usage, usage_stats,
+    workspace_switch, workspaces,
 };
 pub(crate) use gateway::session_manager;
 pub(crate) use infra::{
@@ -297,8 +298,8 @@ pub fn run() {
             cost_backfill_missing_v1,
             cli_proxy_status_all,
             cli_proxy_set_enabled,
-            cli_proxy_sync_enabled
-            ,
+            cli_proxy_sync_enabled,
+            provider_limit_usage_v1,
             workspaces_list,
             workspace_create,
             workspace_rename,

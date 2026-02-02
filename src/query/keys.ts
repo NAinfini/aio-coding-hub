@@ -196,3 +196,9 @@ export const wslKeys = {
   configStatus: (distros: string[]) => [...wslAllKey, "configStatus", ...distros] as const,
   overview: () => [...wslAllKey, "overview"] as const,
 };
+
+const providerLimitUsageAllKey = ["providerLimitUsage"] as const;
+export const providerLimitUsageKeys = {
+  all: providerLimitUsageAllKey,
+  list: (cliKey: CliKey | null) => [...providerLimitUsageAllKey, "list", cliKey] as const,
+};

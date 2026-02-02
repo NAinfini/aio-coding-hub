@@ -222,31 +222,31 @@ export function RealtimeTraceCards({
               "transform overflow-hidden transition-all ease-out motion-reduce:transition-none motion-reduce:transform-none",
               isExiting
                 ? "max-h-0 opacity-0 translate-y-1 !mt-0 duration-700"
-                : "max-h-[120px] opacity-100 translate-y-0 duration-700"
+                : "max-h-[120px] opacity-100 translate-y-0 duration-700 my-1.5 mx-2"
             )}
           >
             <div
               className={cn(
-                "relative transition-all duration-150",
+                "relative transition-all duration-200 rounded-lg border shadow-sm",
                 isInProgress
-                  ? "bg-gradient-to-r from-indigo-50/90 to-indigo-50/40"
-                  : "bg-gradient-to-r from-emerald-50/70 to-emerald-50/30"
+                  ? "bg-gradient-to-r from-indigo-50/80 to-white border-indigo-200"
+                  : "bg-gradient-to-r from-emerald-50/60 to-white border-emerald-200"
               )}
             >
               {/* Left accent bar */}
               <div
                 className={cn(
-                  "absolute left-0 top-1 bottom-1 w-0.5 rounded-full",
-                  isInProgress ? "bg-indigo-400" : "bg-emerald-400"
+                  "absolute left-0 top-2 bottom-2 w-1 rounded-r-full",
+                  isInProgress ? "bg-indigo-500" : "bg-emerald-500"
                 )}
               />
               {isInProgress && (
-                <div className="absolute inset-x-0 top-0 h-0.5 overflow-hidden bg-indigo-100">
-                  <div className="h-full w-1/3 animate-[loading_1s_ease-in-out_infinite] bg-indigo-500/50" />
+                <div className="absolute inset-x-0 top-0 h-0.5 overflow-hidden rounded-t-lg bg-indigo-100">
+                  <div className="h-full w-1/3 animate-[loading_1s_ease-in-out_infinite] bg-indigo-500/60" />
                 </div>
               )}
 
-              <div className="flex flex-col gap-1 px-3 py-2">
+              <div className="flex flex-col gap-1.5 px-3 py-2.5">
                 {/* Row 1: Status + CLI + Model + Time + Badges */}
                 <div className="flex items-center gap-2 min-w-0">
                   <span
@@ -301,7 +301,7 @@ export function RealtimeTraceCards({
                 {/* Row 2: Provider + Stats Grid (2 rows x 4 cols for alignment) */}
                 <div className="flex items-start gap-3 text-[11px]">
                   {/* Provider - left side (2 rows: name + placeholder) */}
-                  <div className="flex flex-col gap-y-0.5 w-[90px] shrink-0" title={routeSummary}>
+                  <div className="flex flex-col gap-y-0.5 w-[85px] shrink-0" title={routeSummary}>
                     <div className="flex items-center gap-1 h-4">
                       <Server className="h-3 w-3 text-slate-400 shrink-0" />
                       <span className="truncate font-medium text-slate-600">{providerText}</span>
@@ -385,9 +385,6 @@ export function RealtimeTraceCards({
                   </div>
                 </div>
               </div>
-
-              {/* Subtle bottom divider */}
-              <div className="absolute inset-x-3 bottom-0 h-px bg-slate-200/50" />
             </div>
           </div>
         );

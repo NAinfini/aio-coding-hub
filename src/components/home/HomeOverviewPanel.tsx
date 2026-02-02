@@ -74,46 +74,54 @@ export function HomeOverviewPanel({
   onSelectLogId,
 }: HomeOverviewPanelProps) {
   return (
-    <>
-      <HomeUsageSection
-        usageHeatmapRows={usageHeatmapRows}
-        usageHeatmapLoading={usageHeatmapLoading}
-        onRefreshUsageHeatmap={onRefreshUsageHeatmap}
-      />
-
-      <div className="grid gap-6 lg:grid-cols-10">
-        <div className="flex flex-col gap-3 lg:col-span-4">
-          <HomeWorkStatusCard
-            sortModes={sortModes}
-            sortModesLoading={sortModesLoading}
-            sortModesAvailable={sortModesAvailable}
-            activeModeByCli={activeModeByCli}
-            activeModeToggling={activeModeToggling}
-            onSetCliActiveMode={onSetCliActiveMode}
-            cliProxyEnabled={cliProxyEnabled}
-            cliProxyToggling={cliProxyToggling}
-            onSetCliProxyEnabled={onSetCliProxyEnabled}
-          />
-
-          <HomeActiveSessionsCard
-            activeSessions={activeSessions}
-            activeSessionsLoading={activeSessionsLoading}
-            activeSessionsAvailable={activeSessionsAvailable}
-          />
-        </div>
-
-        <HomeRequestLogsPanel
-          showCustomTooltip={showCustomTooltip}
-          traces={traces}
-          requestLogs={requestLogs}
-          requestLogsLoading={requestLogsLoading}
-          requestLogsRefreshing={requestLogsRefreshing}
-          requestLogsAvailable={requestLogsAvailable}
-          onRefreshRequestLogs={onRefreshRequestLogs}
-          selectedLogId={selectedLogId}
-          onSelectLogId={onSelectLogId}
+    <div className="flex flex-col h-full gap-4">
+      <div className="shrink-0">
+        <HomeUsageSection
+          usageHeatmapRows={usageHeatmapRows}
+          usageHeatmapLoading={usageHeatmapLoading}
+          onRefreshUsageHeatmap={onRefreshUsageHeatmap}
         />
       </div>
-    </>
+
+      <div className="grid gap-4 lg:grid-cols-12 flex-1 min-h-0">
+        <div className="flex flex-col gap-3 lg:col-span-5">
+          <div className="shrink-0">
+            <HomeWorkStatusCard
+              sortModes={sortModes}
+              sortModesLoading={sortModesLoading}
+              sortModesAvailable={sortModesAvailable}
+              activeModeByCli={activeModeByCli}
+              activeModeToggling={activeModeToggling}
+              onSetCliActiveMode={onSetCliActiveMode}
+              cliProxyEnabled={cliProxyEnabled}
+              cliProxyToggling={cliProxyToggling}
+              onSetCliProxyEnabled={onSetCliProxyEnabled}
+            />
+          </div>
+
+          <div className="flex-1 min-h-0">
+            <HomeActiveSessionsCard
+              activeSessions={activeSessions}
+              activeSessionsLoading={activeSessionsLoading}
+              activeSessionsAvailable={activeSessionsAvailable}
+            />
+          </div>
+        </div>
+
+        <div className="lg:col-span-7 min-h-0">
+          <HomeRequestLogsPanel
+            showCustomTooltip={showCustomTooltip}
+            traces={traces}
+            requestLogs={requestLogs}
+            requestLogsLoading={requestLogsLoading}
+            requestLogsRefreshing={requestLogsRefreshing}
+            requestLogsAvailable={requestLogsAvailable}
+            onRefreshRequestLogs={onRefreshRequestLogs}
+            selectedLogId={selectedLogId}
+            onSelectLogId={onSelectLogId}
+          />
+        </div>
+      </div>
+    </div>
   );
 }

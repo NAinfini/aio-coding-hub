@@ -139,20 +139,20 @@ describe("components/home/HomeCostPanel", () => {
       refetch: vi.fn(),
     } as any);
 
-    const onSelectLogId = vi.fn();
+    const _unusedSelectLogId = vi.fn();
 
-    render(<HomeCostPanel onSelectLogId={onSelectLogId} />);
+    render(<HomeCostPanel />);
 
     expect(screen.getByText("Top 50 最贵请求")).toBeInTheDocument();
 
     fireEvent.click(screen.getByText("P1"));
-    expect(onSelectLogId).toHaveBeenCalledWith(1);
+    expect(_unusedSelectLogId).toHaveBeenCalledWith(1);
 
     expect(screen.getByText("x1.50")).toBeInTheDocument();
     expect(screen.getByText("未知")).toBeInTheDocument();
 
     fireEvent.click(screen.getByText("P2"));
-    expect(onSelectLogId).toHaveBeenCalledWith(2);
+    expect(_unusedSelectLogId).toHaveBeenCalledWith(2);
   });
 
   it("drives filter controls and triggers refetch", () => {
@@ -217,7 +217,7 @@ describe("components/home/HomeCostPanel", () => {
       refetch,
     } as any);
 
-    render(<HomeCostPanel onSelectLogId={vi.fn()} />);
+    render(<HomeCostPanel />);
 
     // Top refresh button.
     fireEvent.click(screen.getByRole("button", { name: "刷新" }));
@@ -283,7 +283,7 @@ describe("components/home/HomeCostPanel", () => {
       refetch: vi.fn(),
     } as any);
 
-    render(<HomeCostPanel onSelectLogId={vi.fn()} />);
+    render(<HomeCostPanel />);
     expect(screen.getByText(/未检测到 Tauri Runtime/)).toBeInTheDocument();
   });
 
@@ -318,7 +318,7 @@ describe("components/home/HomeCostPanel", () => {
       refetch: vi.fn(),
     } as any);
 
-    render(<HomeCostPanel onSelectLogId={vi.fn()} />);
+    render(<HomeCostPanel />);
 
     fireEvent.click(screen.getByRole("button", { name: "自定义" }));
     expect(screen.getByText("Start")).toBeInTheDocument();
@@ -362,7 +362,7 @@ describe("components/home/HomeCostPanel", () => {
       refetch,
     } as any);
 
-    render(<HomeCostPanel onSelectLogId={vi.fn()} />);
+    render(<HomeCostPanel />);
     await waitFor(() => {
       expect(toast).toHaveBeenCalledWith("加载花费失败：请重试（详情见页面错误信息）");
     });
@@ -399,7 +399,7 @@ describe("components/home/HomeCostPanel", () => {
       refetch: vi.fn(),
     } as any);
 
-    render(<HomeCostPanel onSelectLogId={vi.fn()} />);
+    render(<HomeCostPanel />);
 
     expect(toast).toHaveBeenCalledWith("bad-range");
     expect(document.querySelectorAll(".animate-pulse").length).toBe(3);
@@ -512,7 +512,7 @@ describe("components/home/HomeCostPanel", () => {
       refetch: vi.fn(),
     } as any);
 
-    render(<HomeCostPanel onSelectLogId={vi.fn()} />);
+    render(<HomeCostPanel />);
 
     // Switch to monthly and custom to hit day-key builders.
     fireEvent.click(screen.getByRole("button", { name: "本月" }));

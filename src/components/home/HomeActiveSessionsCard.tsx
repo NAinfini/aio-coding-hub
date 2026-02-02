@@ -36,8 +36,8 @@ export function HomeActiveSessionsCard({
   );
 
   return (
-    <Card padding="sm" className="flex flex-col lg:min-h-0 lg:flex-1">
-      <div className="flex items-center justify-between gap-2">
+    <Card padding="sm" className="flex flex-col h-full">
+      <div className="flex items-center justify-between gap-2 shrink-0">
         <div className="text-sm font-semibold">活跃 Session</div>
         <div className="text-xs text-slate-400">{activeSessions.length}</div>
       </div>
@@ -49,7 +49,7 @@ export function HomeActiveSessionsCard({
       ) : activeSessions.length === 0 ? (
         <div className="mt-2 text-sm text-slate-600">暂无活跃 Session。</div>
       ) : (
-        <div className="mt-3 space-y-3 lg:min-h-0 lg:flex-1 lg:overflow-auto lg:pr-1">
+        <div className="mt-3 space-y-2 flex-1 min-h-0 overflow-auto pr-1 scrollbar-overlay">
           {visibleActiveSessions.map((row) => {
             const providerLabel =
               row.provider_name && row.provider_name !== "Unknown" ? row.provider_name : "未知";
@@ -57,7 +57,7 @@ export function HomeActiveSessionsCard({
             return (
               <div
                 key={`${row.cli_key}:${row.session_id}`}
-                className="flex-1 rounded-xl border border-slate-200/60 bg-slate-50/50 px-3 py-2 shadow-sm transition-all duration-200 hover:bg-slate-100 hover:border-accent/20"
+                className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-sm transition-all duration-200 hover:bg-slate-50 hover:border-indigo-200 hover:shadow-md"
               >
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center justify-between gap-2">

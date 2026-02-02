@@ -378,55 +378,59 @@ export function HomePage() {
   const attemptLogsLoading = attemptLogsQuery.isFetching;
 
   return (
-    <div className="flex flex-col gap-6 pb-10">
-      <PageHeader
-        title="首页"
-        actions={
-          <>
-            <ProviderCircuitBadge
-              rows={openCircuits}
-              onResetProvider={handleResetProvider}
-              resettingProviderIds={resettingProviderIds}
-            />
-            <TabList ariaLabel="首页视图切换" items={HOME_TABS} value={tab} onChange={setTab} />
-          </>
-        }
-      />
-
-      {tab === "overview" ? (
-        <HomeOverviewPanel
-          showCustomTooltip={showCustomTooltip}
-          usageHeatmapRows={usageHeatmapRows}
-          usageHeatmapLoading={usageHeatmapLoading}
-          onRefreshUsageHeatmap={refreshUsageHeatmap}
-          sortModes={sortModes}
-          sortModesLoading={sortModesLoading}
-          sortModesAvailable={sortModesAvailable}
-          activeModeByCli={activeModeByCli}
-          activeModeToggling={activeModeToggling}
-          onSetCliActiveMode={requestCliActiveModeSwitch}
-          cliProxyEnabled={cliProxy.enabled}
-          cliProxyToggling={cliProxy.toggling}
-          onSetCliProxyEnabled={cliProxy.setCliProxyEnabled}
-          activeSessions={activeSessions}
-          activeSessionsLoading={activeSessionsLoading}
-          activeSessionsAvailable={activeSessionsAvailable}
-          traces={traces}
-          requestLogs={requestLogs}
-          requestLogsLoading={requestLogsLoading}
-          requestLogsRefreshing={requestLogsRefreshing}
-          requestLogsAvailable={requestLogsAvailable}
-          onRefreshRequestLogs={refreshRequestLogs}
-          selectedLogId={selectedLogId}
-          onSelectLogId={setSelectedLogId}
+    <div className="flex flex-col h-[calc(100vh-2.5rem)] overflow-hidden">
+      <div className="shrink-0 mb-5">
+        <PageHeader
+          title="首页"
+          actions={
+            <>
+              <ProviderCircuitBadge
+                rows={openCircuits}
+                onResetProvider={handleResetProvider}
+                resettingProviderIds={resettingProviderIds}
+              />
+              <TabList ariaLabel="首页视图切换" items={HOME_TABS} value={tab} onChange={setTab} />
+            </>
+          }
         />
-      ) : tab === "cost" ? (
-        <HomeCostPanel onSelectLogId={setSelectedLogId} />
-      ) : (
-        <Card padding="md">
-          <div className="text-sm text-slate-600">更多功能开发中…</div>
-        </Card>
-      )}
+      </div>
+
+      <div className="flex-1 min-h-0">
+        {tab === "overview" ? (
+          <HomeOverviewPanel
+            showCustomTooltip={showCustomTooltip}
+            usageHeatmapRows={usageHeatmapRows}
+            usageHeatmapLoading={usageHeatmapLoading}
+            onRefreshUsageHeatmap={refreshUsageHeatmap}
+            sortModes={sortModes}
+            sortModesLoading={sortModesLoading}
+            sortModesAvailable={sortModesAvailable}
+            activeModeByCli={activeModeByCli}
+            activeModeToggling={activeModeToggling}
+            onSetCliActiveMode={requestCliActiveModeSwitch}
+            cliProxyEnabled={cliProxy.enabled}
+            cliProxyToggling={cliProxy.toggling}
+            onSetCliProxyEnabled={cliProxy.setCliProxyEnabled}
+            activeSessions={activeSessions}
+            activeSessionsLoading={activeSessionsLoading}
+            activeSessionsAvailable={activeSessionsAvailable}
+            traces={traces}
+            requestLogs={requestLogs}
+            requestLogsLoading={requestLogsLoading}
+            requestLogsRefreshing={requestLogsRefreshing}
+            requestLogsAvailable={requestLogsAvailable}
+            onRefreshRequestLogs={refreshRequestLogs}
+            selectedLogId={selectedLogId}
+            onSelectLogId={setSelectedLogId}
+          />
+        ) : tab === "cost" ? (
+          <HomeCostPanel />
+        ) : (
+          <Card padding="md">
+            <div className="text-sm text-slate-600">更多功能开发中…</div>
+          </Card>
+        )}
+      </div>
 
       <Dialog
         open={pendingSortModeSwitch != null}

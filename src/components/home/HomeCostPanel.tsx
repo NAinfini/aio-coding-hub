@@ -1,20 +1,18 @@
 // Usage:
 // - Rendered by `src/pages/HomePage.tsx` when the Home tab is switched to "花费".
-// - Provides cost analytics with period + CLI + provider + model filters, charts, and top expensive requests.
+// - Provides cost analytics with period + CLI + provider + model filters and charts.
 
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { cliBadgeTone, cliShortLabel } from "../../constants/clis";
+import { cliShortLabel } from "../../constants/clis";
 import { PERIOD_ITEMS } from "../../constants/periods";
 import { useCustomDateRange } from "../../hooks/useCustomDateRange";
 import { useCostAnalyticsV1Query } from "../../query/cost";
 import { hasTauriRuntime } from "../../services/tauriInvoke";
 import type { CliKey } from "../../services/providers";
 import type { CostPeriod, CostScatterCliProviderModelRowV1 } from "../../services/cost";
-import { Button } from "../../ui/Button";
 import { Card } from "../../ui/Card";
 import { Input } from "../../ui/Input";
-import { Select } from "../../ui/Select";
 import { cn } from "../../utils/cn";
 import { buildRecentDayKeys, dayKeyFromLocalDate } from "../../utils/dateKeys";
 import {
@@ -22,11 +20,11 @@ import {
   formatDurationMsShort,
   formatInteger,
   formatPercent,
-  formatRelativeTimeFromUnixSeconds,
   formatUsd,
   formatUsdShort,
 } from "../../utils/formatters";
 import { EChartsCanvas } from "../charts/EChartsCanvas";
+import { Calendar, Filter, RefreshCw, ChevronDown } from "lucide-react";
 
 type CliFilter = "all" | CliKey;
 
@@ -38,10 +36,6 @@ const CLI_ITEMS: CliItem[] = [
   { key: "codex", label: "Codex" },
   { key: "gemini", label: "Gemini" },
 ];
-
-const FILTER_LABEL_CLASS = "w-16 shrink-0 text-right text-xs font-medium text-slate-500";
-const FILTER_OPTIONS_CLASS = "min-w-0 flex flex-1 flex-wrap items-center gap-2";
-const FILTER_OPTION_BUTTON_CLASS = "w-24 whitespace-nowrap";
 
 function buildDayKeysBetweenUnixSeconds(startTs: number, endTs: number) {
   const startMs = startTs * 1000;
@@ -122,11 +116,7 @@ function pickTopSlices<T extends { cost_usd: number }>(rows: T[], topN: number) 
   return { head, tailSum };
 }
 
-export type HomeCostPanelProps = {
-  onSelectLogId: (id: number | null) => void;
-};
-
-export function HomeCostPanel({ onSelectLogId }: HomeCostPanelProps) {
+export function HomeCostPanel() {
   const [period, setPeriod] = useState<CostPeriod>("daily");
   const [cliKey, setCliKey] = useState<CliFilter>("all");
   const [providerId, setProviderId] = useState<number | null>(null);
@@ -177,7 +167,6 @@ export function HomeCostPanel({ onSelectLogId }: HomeCostPanelProps) {
   const providerRows = costQuery.data?.providers ?? [];
   const modelRows = costQuery.data?.models ?? [];
   const scatterRows = costQuery.data?.scatter ?? [];
-  const topRequests = costQuery.data?.topRequests ?? [];
 
   useEffect(() => {
     if (!costQuery.error) return;
@@ -590,11 +579,6 @@ export function HomeCostPanel({ onSelectLogId }: HomeCostPanelProps) {
       summary.requests_failed
     )} 失败`;
 
-    const avgCostHint =
-      summary.avg_cost_usd_per_covered_success != null
-        ? `按已覆盖请求均摊`
-        : `暂无可计算的成本均值`;
-
     return [
       {
         title: "总花费（已计算）",
@@ -608,14 +592,6 @@ export function HomeCostPanel({ onSelectLogId }: HomeCostPanelProps) {
           summary.requests_success
         )} 成功请求有成本`,
       },
-      {
-        title: "平均成本 / 成功请求",
-        value:
-          summary.avg_cost_usd_per_covered_success == null
-            ? "—"
-            : formatUsd(summary.avg_cost_usd_per_covered_success),
-        hint: avgCostHint,
-      },
     ];
   }, [coverage, summary]);
 
@@ -623,173 +599,231 @@ export function HomeCostPanel({ onSelectLogId }: HomeCostPanelProps) {
   const modelSelectValue = model == null ? "all" : model;
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+    <div className="flex flex-col gap-5 h-full overflow-auto">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
         <Card padding="md" className="lg:col-span-7">
           <div className="flex flex-col gap-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <div className="text-sm font-semibold text-slate-900">花费</div>
-              </div>
               <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => void costQuery.refetch()}
-                  disabled={fetching}
-                >
-                  刷新
-                </Button>
+                <Filter className="h-4 w-4 text-indigo-500" />
+                <div className="text-sm font-semibold text-slate-900">筛选条件</div>
               </div>
+              <button
+                type="button"
+                onClick={() => void costQuery.refetch()}
+                disabled={fetching}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all",
+                  fetching
+                    ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                    : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
+                )}
+              >
+                <RefreshCw className={cn("h-3.5 w-3.5", fetching && "animate-spin")} />
+                刷新
+              </button>
             </div>
 
             <div className="flex flex-col gap-3">
-              <div className="flex items-start gap-2">
-                <span className={FILTER_LABEL_CLASS}>CLI：</span>
-                <div className={FILTER_OPTIONS_CLASS}>
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-700">CLI</span>
+                  <div className="h-px flex-1 bg-gradient-to-r from-slate-200 to-transparent" />
+                </div>
+                <div className="flex flex-wrap gap-2">
                   {CLI_ITEMS.map((item) => (
-                    <Button
+                    <button
                       key={item.key}
-                      size="sm"
-                      variant={cliKey === item.key ? "primary" : "secondary"}
+                      type="button"
                       onClick={() => setCliKey(item.key)}
                       disabled={fetching}
-                      className={FILTER_OPTION_BUTTON_CLASS}
+                      className={cn(
+                        "rounded-lg px-4 py-2 text-sm font-medium transition-all",
+                        cliKey === item.key
+                          ? "bg-indigo-500 text-white shadow-sm"
+                          : "bg-white border border-slate-200 text-slate-700 hover:border-indigo-300 hover:bg-indigo-50/50",
+                        fetching && "opacity-50 cursor-not-allowed"
+                      )}
                     >
                       {item.label}
-                    </Button>
+                    </button>
                   ))}
                 </div>
               </div>
 
-              <div className="flex items-start gap-2">
-                <span className={FILTER_LABEL_CLASS}>时间窗：</span>
-                <div className={FILTER_OPTIONS_CLASS}>
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-3.5 w-3.5 text-slate-500" />
+                  <span className="text-xs font-semibold text-slate-700">时间窗</span>
+                  <div className="h-px flex-1 bg-gradient-to-r from-slate-200 to-transparent" />
+                </div>
+                <div className="flex flex-wrap gap-2">
                   {PERIOD_ITEMS.map((item) => (
-                    <Button
+                    <button
                       key={item.key}
-                      size="sm"
-                      variant={period === item.key ? "primary" : "secondary"}
+                      type="button"
                       onClick={() => setPeriod(item.key)}
                       disabled={fetching}
-                      className={FILTER_OPTION_BUTTON_CLASS}
+                      className={cn(
+                        "rounded-lg px-4 py-2 text-sm font-medium transition-all",
+                        period === item.key
+                          ? "bg-indigo-500 text-white shadow-sm"
+                          : "bg-white border border-slate-200 text-slate-700 hover:border-indigo-300 hover:bg-indigo-50/50",
+                        fetching && "opacity-50 cursor-not-allowed"
+                      )}
                     >
                       {item.label}
-                    </Button>
+                    </button>
                   ))}
                 </div>
               </div>
 
               {showCustomForm ? (
-                <div className="flex items-start gap-2">
-                  <div className="w-16 shrink-0" aria-hidden="true" />
-                  <div className="min-w-0 flex flex-1 flex-col gap-2 md:flex-row md:items-end">
-                    <div className="flex flex-col gap-1">
-                      <div className="text-xs font-medium text-slate-500">Start</div>
-                      <Input
-                        type="date"
-                        value={customStartDate}
-                        onChange={(e) => setCustomStartDate(e.currentTarget.value)}
-                        className="h-9"
-                        disabled={fetching}
-                      />
+                <div className="rounded-lg border border-indigo-100 bg-indigo-50/30 p-4">
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-3.5 w-3.5 text-indigo-500" />
+                      <span className="text-xs font-semibold text-slate-700">自定义日期范围</span>
                     </div>
-                    <div className="flex flex-col gap-1">
-                      <div className="text-xs font-medium text-slate-500">End</div>
-                      <Input
-                        type="date"
-                        value={customEndDate}
-                        onChange={(e) => setCustomEndDate(e.currentTarget.value)}
-                        className="h-9"
-                        disabled={fetching}
-                      />
+                    <div className="flex flex-col gap-3 md:flex-row md:items-end">
+                      <div className="flex-1">
+                        <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                          开始日期
+                        </label>
+                        <Input
+                          type="date"
+                          value={customStartDate}
+                          onChange={(e) => setCustomStartDate(e.currentTarget.value)}
+                          className="h-9 border-slate-300"
+                          disabled={fetching}
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                          结束日期
+                        </label>
+                        <Input
+                          type="date"
+                          value={customEndDate}
+                          onChange={(e) => setCustomEndDate(e.currentTarget.value)}
+                          className="h-9 border-slate-300"
+                          disabled={fetching}
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={applyCustomRange}
+                          disabled={fetching}
+                          className={cn(
+                            "rounded-lg px-4 py-2 text-sm font-medium transition-all",
+                            fetching
+                              ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                              : "bg-indigo-500 text-white hover:bg-indigo-600 shadow-sm"
+                          )}
+                        >
+                          应用
+                        </button>
+                        <button
+                          type="button"
+                          onClick={clearCustomRange}
+                          disabled={fetching}
+                          className={cn(
+                            "rounded-lg px-4 py-2 text-sm font-medium transition-all",
+                            fetching
+                              ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                              : "bg-white border border-slate-200 text-slate-700 hover:border-slate-300"
+                          )}
+                        >
+                          清空
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        onClick={applyCustomRange}
-                        disabled={fetching}
-                      >
-                        应用
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={clearCustomRange}
-                        disabled={fetching}
-                      >
-                        清空
-                      </Button>
-                      {customApplied ? (
-                        <span className="text-xs text-slate-500">
-                          已应用：{customApplied.startDate} → {customApplied.endDate}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-slate-500">请选择日期范围后点击"应用"</span>
-                      )}
-                    </div>
+                    {customApplied ? (
+                      <div className="text-xs text-indigo-700 bg-indigo-100/50 rounded-md px-3 py-1.5">
+                        已应用：{customApplied.startDate} → {customApplied.endDate}
+                      </div>
+                    ) : (
+                      <div className="text-xs text-slate-500">请选择日期范围后点击「应用」</div>
+                    )}
                   </div>
                 </div>
               ) : null}
 
-              <div className="flex flex-col gap-3 md:flex-row md:items-center">
-                <div className="flex items-center gap-2 md:flex-1">
-                  <span className={FILTER_LABEL_CLASS}>供应商：</span>
-                  <div className={cn(FILTER_OPTIONS_CLASS, "w-full")}>
-                    <Select
-                      value={providerSelectValue}
-                      onChange={(e) => {
-                        const v = e.currentTarget.value;
-                        if (v === "all") {
-                          setProviderId(null);
-                          return;
-                        }
-                        const n = Number(v);
-                        if (!Number.isFinite(n) || n <= 0) {
-                          setProviderId(null);
-                          return;
-                        }
-                        setProviderId(Math.floor(n));
-                      }}
-                      disabled={fetching || tauriAvailable === false}
-                      mono
-                      className="h-9"
-                    >
-                      <option value="all">全部</option>
-                      {providerOptions.map((row) => (
-                        <option
-                          key={`${row.cli_key}:${row.provider_id}`}
-                          value={String(row.provider_id)}
-                        >
-                          {cliShortLabel(row.cli_key)} · {row.provider_name}（
-                          {formatUsd(row.cost_usd)}）
-                        </option>
-                      ))}
-                    </Select>
-                  </div>
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                  <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+                  <span className="text-xs font-semibold text-slate-700">高级筛选</span>
+                  <div className="h-px flex-1 bg-gradient-to-r from-slate-200 to-transparent" />
                 </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-medium text-slate-600">供应商</label>
+                    <div className="relative">
+                      <select
+                        value={providerSelectValue}
+                        onChange={(e) => {
+                          const v = e.currentTarget.value;
+                          if (v === "all") {
+                            setProviderId(null);
+                            return;
+                          }
+                          const n = Number(v);
+                          if (!Number.isFinite(n) || n <= 0) {
+                            setProviderId(null);
+                            return;
+                          }
+                          setProviderId(Math.floor(n));
+                        }}
+                        disabled={fetching || tauriAvailable === false}
+                        className={cn(
+                          "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-mono text-slate-700",
+                          "focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-100",
+                          "disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed",
+                          "appearance-none cursor-pointer"
+                        )}
+                      >
+                        <option value="all">全部供应商</option>
+                        {providerOptions.map((row) => (
+                          <option
+                            key={`${row.cli_key}:${row.provider_id}`}
+                            value={String(row.provider_id)}
+                          >
+                            {cliShortLabel(row.cli_key)} · {row.provider_name} (
+                            {formatUsd(row.cost_usd)})
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                    </div>
+                  </div>
 
-                <div className="flex items-center gap-2 md:flex-1">
-                  <span className={FILTER_LABEL_CLASS}>模型：</span>
-                  <div className={cn(FILTER_OPTIONS_CLASS, "w-full")}>
-                    <Select
-                      value={modelSelectValue}
-                      onChange={(e) => {
-                        const v = e.currentTarget.value;
-                        setModel(v === "all" ? null : v);
-                      }}
-                      disabled={fetching || tauriAvailable === false}
-                      mono
-                      className="h-9"
-                    >
-                      <option value="all">全部</option>
-                      {modelOptions.map((row) => (
-                        <option key={row.model} value={row.model}>
-                          {row.model}（{formatUsd(row.cost_usd)}）
-                        </option>
-                      ))}
-                    </Select>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-medium text-slate-600">模型</label>
+                    <div className="relative">
+                      <select
+                        value={modelSelectValue}
+                        onChange={(e) => {
+                          const v = e.currentTarget.value;
+                          setModel(v === "all" ? null : v);
+                        }}
+                        disabled={fetching || tauriAvailable === false}
+                        className={cn(
+                          "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-mono text-slate-700",
+                          "focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-100",
+                          "disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed",
+                          "appearance-none cursor-pointer"
+                        )}
+                      >
+                        <option value="all">全部模型</option>
+                        {modelOptions.map((row) => (
+                          <option key={row.model} value={row.model}>
+                            {row.model} ({formatUsd(row.cost_usd)})
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -803,9 +837,13 @@ export function HomeCostPanel({ onSelectLogId }: HomeCostPanelProps) {
           </div>
         </Card>
 
-        <div className="lg:col-span-5 grid grid-cols-2 gap-3 content-start">
+        <div className="lg:col-span-5 flex flex-col gap-3">
           {loading ? (
-            Array.from({ length: 3 }).map((_, idx) => <StatCardSkeleton key={idx} />)
+            <div className="grid grid-cols-2 gap-3">
+              {Array.from({ length: 2 }).map((_, idx) => (
+                <StatCardSkeleton key={idx} />
+              ))}
+            </div>
           ) : summaryCards.length === 0 ? (
             <Card padding="md">
               <div className="text-sm text-slate-600">
@@ -815,9 +853,11 @@ export function HomeCostPanel({ onSelectLogId }: HomeCostPanelProps) {
               </div>
             </Card>
           ) : (
-            summaryCards.map((card) => (
-              <StatCard key={card.title} title={card.title} value={card.value} hint={card.hint} />
-            ))
+            <div className="grid grid-cols-2 gap-3">
+              {summaryCards.map((card) => (
+                <StatCard key={card.title} title={card.title} value={card.value} hint={card.hint} />
+              ))}
+            </div>
           )}
         </div>
       </div>
@@ -829,15 +869,18 @@ export function HomeCostPanel({ onSelectLogId }: HomeCostPanelProps) {
               <div className="text-sm font-semibold text-rose-900">加载失败</div>
               <div className="mt-1 text-sm text-rose-800">花费数据刷新失败，请重试。</div>
             </div>
-            <Button
-              size="sm"
-              variant="secondary"
+            <button
+              type="button"
               onClick={() => void costQuery.refetch()}
               disabled={fetching}
-              className="border-rose-200 bg-white text-rose-800 hover:bg-rose-50"
+              className={cn(
+                "rounded-lg px-4 py-2 text-sm font-medium transition-all",
+                "border border-rose-200 bg-white text-rose-800 hover:bg-rose-50",
+                fetching && "opacity-50 cursor-not-allowed"
+              )}
             >
               重试
-            </Button>
+            </button>
           </div>
           <div className="mt-3 rounded-lg border border-rose-200 bg-white/60 p-3 font-mono text-xs text-slate-800">
             {errorText}
@@ -912,138 +955,38 @@ export function HomeCostPanel({ onSelectLogId }: HomeCostPanelProps) {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-start">
-        <Card padding="sm" className="lg:col-span-5 flex flex-col lg:h-[600px] min-h-0">
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <div className="text-sm font-semibold text-slate-900">总成本 × 总耗时</div>
-            <div className="flex items-center gap-1">
-              {CLI_ITEMS.map((item) => (
-                <button
-                  key={item.key}
-                  type="button"
-                  onClick={() => setScatterCliFilter(item.key)}
-                  disabled={fetching}
-                  className={cn(
-                    "px-2 py-0.5 text-xs rounded-full transition-colors",
-                    scatterCliFilter === item.key
-                      ? "bg-accent text-white"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                  )}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
+      <Card padding="sm" className="flex flex-col min-h-[320px]">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <div className="text-sm font-semibold text-slate-900">总成本 × 总耗时</div>
+          <div className="flex items-center gap-1">
+            {CLI_ITEMS.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => setScatterCliFilter(item.key)}
+                disabled={fetching}
+                className={cn(
+                  "px-3 py-1 text-xs rounded-lg font-medium transition-all",
+                  scatterCliFilter === item.key
+                    ? "bg-indigo-500 text-white shadow-sm"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                )}
+              >
+                {item.label}
+              </button>
+            ))}
           </div>
-          {loading ? (
-            <div className="text-sm text-slate-400">加载中…</div>
-          ) : scatterRows.length === 0 ? (
-            <div className="text-sm text-slate-600">暂无可展示的数据。</div>
-          ) : (
-            <div className="h-[320px] lg:h-auto lg:flex-1 lg:min-h-0">
-              <EChartsCanvas option={scatterOption as any} className="h-full" />
-            </div>
-          )}
-        </Card>
-
-        <Card padding="sm" className="lg:col-span-7 flex flex-col lg:h-[600px] min-h-0">
-          <div className="flex items-center justify-between gap-4">
-            <div className="text-sm font-semibold text-slate-900">Top 50 最贵请求</div>
-            <div className="text-xs text-slate-500">点击行查看详情</div>
+        </div>
+        {loading ? (
+          <div className="text-sm text-slate-400">加载中…</div>
+        ) : scatterRows.length === 0 ? (
+          <div className="text-sm text-slate-600">暂无可展示的数据。</div>
+        ) : (
+          <div className="h-[320px] flex-1 min-h-0">
+            <EChartsCanvas option={scatterOption as any} className="h-full" />
           </div>
-
-          <div className="mt-3 max-h-[600px] overflow-y-auto relative lg:max-h-none lg:flex-1 lg:min-h-0">
-            {loading ? (
-              <div className="text-sm text-slate-400">加载中…</div>
-            ) : topRequests.length === 0 ? (
-              <div className="text-sm text-slate-600">暂无可展示的数据。</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full border-separate border-spacing-0 text-left text-sm">
-                  <thead>
-                    <tr className="text-xs text-slate-500">
-                      <th className="sticky top-0 z-10 border-b border-slate-200 bg-white px-2 py-2">
-                        #
-                      </th>
-                      <th className="sticky top-0 z-10 border-b border-slate-200 bg-white px-2 py-2">
-                        时间
-                      </th>
-                      <th className="sticky top-0 z-10 border-b border-slate-200 bg-white px-2 py-2">
-                        CLI
-                      </th>
-                      <th className="sticky top-0 z-10 border-b border-slate-200 bg-white px-2 py-2">
-                        供应商
-                      </th>
-                      <th className="sticky top-0 z-10 border-b border-slate-200 bg-white px-2 py-2">
-                        模型
-                      </th>
-                      <th className="sticky top-0 z-10 border-b border-slate-200 bg-white px-2 py-2 text-right">
-                        成本
-                      </th>
-                      <th className="sticky top-0 z-10 border-b border-slate-200 bg-white px-2 py-2 text-right">
-                        耗时
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {topRequests.map((row, index) => {
-                      const modelText = row.requested_model?.trim()
-                        ? row.requested_model.trim()
-                        : "未知";
-                      const showCostMultiplier =
-                        Number.isFinite(row.cost_multiplier) &&
-                        row.cost_multiplier > 0 &&
-                        Math.abs(row.cost_multiplier - 1) > 0.0001;
-
-                      return (
-                        <tr
-                          key={row.log_id}
-                          className="align-top cursor-pointer hover:bg-slate-50"
-                          onClick={() => onSelectLogId(row.log_id)}
-                        >
-                          <td className="border-b border-slate-100 px-2 py-2 text-xs text-slate-500">
-                            {index + 1}
-                          </td>
-                          <td className="border-b border-slate-100 px-2 py-2 text-xs text-slate-600">
-                            {formatRelativeTimeFromUnixSeconds(row.created_at)}
-                          </td>
-                          <td className="border-b border-slate-100 px-2 py-2">
-                            <span
-                              className={cn(
-                                "inline-flex min-w-[3.25rem] justify-center rounded-full px-2 py-0.5 text-[10px] font-medium",
-                                cliBadgeTone(row.cli_key)
-                              )}
-                            >
-                              {cliShortLabel(row.cli_key)}
-                            </span>
-                          </td>
-                          <td className="border-b border-slate-100 px-2 py-2 text-xs text-slate-700">
-                            <div className="font-medium">{row.provider_name}</div>
-                            {showCostMultiplier ? (
-                              <div className="mt-0.5 font-mono text-[10px] text-slate-400">
-                                x{row.cost_multiplier.toFixed(2)}
-                              </div>
-                            ) : null}
-                          </td>
-                          <td className="border-b border-slate-100 px-2 py-2 text-xs text-slate-700">
-                            <span className="font-mono">{modelText}</span>
-                          </td>
-                          <td className="border-b border-slate-100 px-2 py-2 font-mono text-xs text-slate-700 text-right">
-                            {formatUsd(row.cost_usd)}
-                          </td>
-                          <td className="border-b border-slate-100 px-2 py-2 font-mono text-xs text-slate-700 text-right">
-                            {formatDurationMs(row.duration_ms)}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </Card>
-      </div>
+        )}
+      </Card>
     </div>
   );
 }

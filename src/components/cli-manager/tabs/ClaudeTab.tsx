@@ -763,7 +763,7 @@ export function CliManagerClaudeTab({
 
                 <SettingItem
                   label="CLAUDE_CODE_ATTRIBUTION_HEADER"
-                  subtitle="启用 attribution header（开启写入 1；关闭删除该项）。"
+                  subtitle="启用 attribution header, 开启后解决部分中转无法使用的问题"
                 >
                   <Switch
                     checked={claudeSettings.env_claude_code_attribution_header}

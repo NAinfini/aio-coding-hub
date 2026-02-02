@@ -82,8 +82,8 @@ export function HomeRequestLogsPanel({
   }
 
   return (
-    <Card padding="sm" className="flex flex-col gap-3 lg:col-span-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <Card padding="sm" className="flex flex-col gap-3 lg:col-span-7 h-full">
+      <div className="flex flex-wrap items-center justify-between gap-3 shrink-0">
         <div className="flex flex-wrap items-center gap-2">
           <div className="text-sm font-semibold">{title ?? "使用记录（最近 50 条）"}</div>
         </div>
@@ -129,8 +129,8 @@ export function HomeRequestLogsPanel({
         </div>
       </div>
 
-      <div className="border rounded-lg border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="scrollbar-overlay max-h-[50vh] lg:max-h-[calc(100vh-320px)] pr-1">
+      <div className="border rounded-lg border-slate-200 bg-slate-50/30 shadow-sm overflow-hidden flex-1 min-h-0 flex flex-col">
+        <div className="scrollbar-overlay flex-1 overflow-auto pr-1 py-2">
           <RealtimeTraceCards
             traces={realtimeTraceCandidates}
             formatUnixSeconds={formatUnixSeconds}
@@ -138,10 +138,10 @@ export function HomeRequestLogsPanel({
           />
 
           {requestLogsAvailable === false ? (
-            <div className="text-sm text-slate-600">仅在 Tauri Desktop 环境可用</div>
+            <div className="p-4 text-sm text-slate-600">仅在 Tauri Desktop 环境可用</div>
           ) : requestLogs.length === 0 ? (
             requestLogsLoading ? (
-              <div className="text-sm text-slate-600">加载中…</div>
+              <div className="p-4 text-sm text-slate-600">加载中…</div>
             ) : null
           ) : (
             requestLogs.map((log) => {
@@ -229,21 +229,23 @@ export function HomeRequestLogsPanel({
                 >
                   <div
                     className={cn(
-                      "relative transition-all duration-150 group/item",
-                      selectedLogId === log.id ? "bg-slate-100/80" : "bg-white hover:bg-slate-50/80"
+                      "relative transition-all duration-200 group/item mx-2 my-1.5 rounded-lg border",
+                      selectedLogId === log.id
+                        ? "bg-indigo-50/40 border-indigo-200 shadow-sm"
+                        : "bg-white border-slate-100 hover:bg-slate-50/60 hover:border-slate-200 hover:shadow-sm"
                     )}
                   >
                     {/* Selection indicator */}
                     <div
                       className={cn(
-                        "absolute left-0 top-1 bottom-1 w-0.5 rounded-full transition-all duration-150",
+                        "absolute left-0 top-2 bottom-2 w-1 rounded-r-full transition-all duration-200",
                         selectedLogId === log.id
                           ? "bg-indigo-500 opacity-100"
-                          : "bg-slate-300 opacity-0 group-hover/item:opacity-50"
+                          : "bg-slate-300 opacity-0 group-hover/item:opacity-40"
                       )}
                     />
 
-                    <div className="flex flex-col gap-1 px-3 py-2">
+                    <div className="flex flex-col gap-1.5 px-3 py-2.5">
                       {/* Row 1: Status + CLI + Model + Time + Badges */}
                       <div className="flex items-center gap-2 min-w-0">
                         <span
@@ -302,7 +304,7 @@ export function HomeRequestLogsPanel({
                       <div className="flex items-start gap-3 text-[11px]">
                         {/* Provider - left side (2 rows: name + multiplier) */}
                         <div
-                          className="flex flex-col gap-y-0.5 w-[90px] shrink-0"
+                          className="flex flex-col gap-y-0.5 w-[85px] shrink-0"
                           title={providerTitle}
                         >
                           <div className="flex items-center gap-1 h-4">
@@ -418,9 +420,6 @@ export function HomeRequestLogsPanel({
                         </div>
                       </div>
                     </div>
-
-                    {/* Subtle bottom divider */}
-                    <div className="absolute inset-x-3 bottom-0 h-px bg-slate-100" />
                   </div>
                 </button>
               );

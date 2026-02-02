@@ -232,6 +232,21 @@ WHERE workspace_id = ?2
             )
             .map_err(|e| format!("DB_ERROR: failed to clone skills enabled: {e}"))?;
         }
+    } else {
+        tx.execute(
+            r#"
+INSERT INTO prompts(
+  workspace_id,
+  name,
+  content,
+  enabled,
+  created_at,
+  updated_at
+) VALUES (?1, ?2, ?3, 1, ?4, ?4)
+"#,
+            params![id, "默认", "", now],
+        )
+        .map_err(|e| format!("DB_ERROR: failed to seed default prompt: {e}"))?;
     }
 
     if let Err(err) = tx.commit() {

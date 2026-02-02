@@ -1,6 +1,6 @@
 // Usage: Workspaces configuration center (profiles). All edits are scoped to selected workspace; only active workspace triggers real sync.
 
-import { Eye, Layers, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { ArrowRightLeft, Layers, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { CLIS, cliLongLabel } from "../constants/clis";
@@ -31,7 +31,7 @@ import { McpServersView } from "./mcp/McpServersView";
 import { PromptsView } from "./prompts/PromptsView";
 import { SkillsView } from "./skills/SkillsView";
 
-type RightTab = "overview" | "prompts" | "mcp" | "skills" | "preview_apply";
+type RightTab = "overview" | "prompts" | "mcp" | "skills";
 
 type OverviewStats = {
   prompts: { total: number; enabled: number };
@@ -45,11 +45,10 @@ const CLI_TABS: Array<{ key: CliKey; label: string }> = CLIS.map((cli) => ({
 }));
 
 const RIGHT_TABS: Array<{ key: RightTab; label: string }> = [
-  { key: "overview", label: "概览" },
+  { key: "overview", label: "总览" },
   { key: "prompts", label: "Prompts" },
   { key: "mcp", label: "MCP" },
   { key: "skills", label: "Skills" },
-  { key: "preview_apply", label: "预览&应用" },
 ];
 
 function normalizeWorkspaceName(raw: string) {
@@ -67,39 +66,6 @@ function isDuplicateWorkspaceName(
     if (ignoreId && w.id === ignoreId) return false;
     return normalizeWorkspaceName(w.name).toLowerCase() === normalized;
   });
-}
-
-function formatUnixSeconds(ts: number) {
-  try {
-    return new Date(ts * 1000).toLocaleString();
-  } catch {
-    return String(ts);
-  }
-}
-
-function workspaceRootHint(cli: CliKey, workspaceId: number) {
-  return `~/.aio-coding-hub/workspaces/${cli}/${workspaceId}`;
-}
-
-function promptFileHint(cliKey: CliKey) {
-  if (cliKey === "claude") return "~/.claude/CLAUDE.md";
-  if (cliKey === "codex") return "~/.codex/AGENTS.md";
-  if (cliKey === "gemini") return "~/.gemini/GEMINI.md";
-  return "~";
-}
-
-function mcpConfigHint(cliKey: CliKey) {
-  if (cliKey === "claude") return "~/.claude.json";
-  if (cliKey === "codex") return "~/.codex/config.toml";
-  if (cliKey === "gemini") return "~/.gemini/settings.json";
-  return "~";
-}
-
-function skillsDirHint(cliKey: CliKey) {
-  if (cliKey === "claude") return "~/.claude/skills";
-  if (cliKey === "codex") return "~/.codex/skills";
-  if (cliKey === "gemini") return "~/.gemini/skills";
-  return "~";
 }
 
 function Badge({
@@ -146,7 +112,7 @@ export function WorkspacesPage() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createName, setCreateName] = useState("");
-  const [createMode, setCreateMode] = useState<CreateMode>("clone_active");
+  const [createMode, setCreateMode] = useState<CreateMode>("blank");
 
   const [renameTargetId, setRenameTargetId] = useState<number | null>(null);
   const [renameOpen, setRenameOpen] = useState(false);
@@ -157,8 +123,9 @@ export function WorkspacesPage() {
 
   const [applyReport, setApplyReport] = useState<WorkspaceApplyReport | null>(null);
 
-  const [applyOpen, setApplyOpen] = useState(false);
-  const [applyConfirm, setApplyConfirm] = useState("");
+  const [switchOpen, setSwitchOpen] = useState(false);
+  const [switchTargetId, setSwitchTargetId] = useState<number | null>(null);
+  const [switchConfirm, setSwitchConfirm] = useState("");
 
   useEffect(() => {
     if (!workspacesQuery.error) return;
@@ -183,10 +150,7 @@ export function WorkspacesPage() {
   const filtered = useMemo(() => {
     const q = filterText.trim().toLowerCase();
     if (!q) return items;
-    return items.filter((w) => {
-      const hay = `${w.name} ${workspaceRootHint(w.cli_key, w.id)}`.toLowerCase();
-      return hay.includes(q);
-    });
+    return items.filter((w) => normalizeWorkspaceName(w.name).toLowerCase().includes(q));
   }, [filterText, items]);
 
   const selectedWorkspace = useMemo(() => {
@@ -194,6 +158,8 @@ export function WorkspacesPage() {
   }, [items, selectedWorkspaceId]);
 
   const workspaceById = useMemo(() => new Map(items.map((w) => [w.id, w])), [items]);
+  const switchTarget: WorkspaceSummary | null =
+    switchTargetId != null ? (workspaceById.get(switchTargetId) ?? null) : null;
 
   useEffect(() => {
     if (!filterText.trim()) return;
@@ -240,8 +206,8 @@ export function WorkspacesPage() {
     };
   }, [mcpServersQuery.data, overviewWorkspaceId, promptsQuery.data, skillsQuery.data]);
 
-  const previewQuery = useWorkspacePreviewQuery(selectedWorkspace?.id ?? null, {
-    enabled: rightTab === "preview_apply",
+  const previewQuery = useWorkspacePreviewQuery(switchTarget?.id ?? null, {
+    enabled: switchOpen,
   });
   const preview = previewQuery.data ?? null;
   const previewLoading = previewQuery.isFetching;
@@ -275,7 +241,7 @@ export function WorkspacesPage() {
 
   function openCreateDialog() {
     setCreateName("");
-    setCreateMode("clone_active");
+    setCreateMode("blank");
     setCreateOpen(true);
   }
 
@@ -361,14 +327,21 @@ export function WorkspacesPage() {
     }
   }
 
-  async function applySelectedWorkspace() {
-    if (!selectedWorkspace) return;
-    if (selectedWorkspace.id === activeWorkspaceId) return;
+  function openSwitchDialog(workspaceId: number) {
+    setRightTab("overview");
+    setSwitchTargetId(workspaceId);
+    setSwitchConfirm("");
+    setSwitchOpen(true);
+  }
+
+  async function applySwitchTarget() {
+    if (!switchTarget) return;
+    if (switchTarget.id === activeWorkspaceId) return;
     if (applying) return;
     try {
       const next = await applyMutation.mutateAsync({
         cliKey: activeCli,
-        workspaceId: selectedWorkspace.id,
+        workspaceId: switchTarget.id,
       });
       if (!next) {
         toast("仅在 Tauri Desktop 环境可用");
@@ -376,13 +349,13 @@ export function WorkspacesPage() {
       }
 
       setApplyReport(next);
-      toast("已应用为当前工作区");
-      setApplyOpen(false);
-      setApplyConfirm("");
+      toast("已切换为当前工作区");
+      setSwitchOpen(false);
+      setSwitchConfirm("");
     } catch (err) {
       logToConsole("error", "应用工作区失败", {
         error: String(err),
-        workspace_id: selectedWorkspace.id,
+        workspace_id: switchTarget.id,
       });
       toast(`应用失败：${String(err)}`);
     }
@@ -416,10 +389,6 @@ export function WorkspacesPage() {
         title="工作区"
         actions={
           <>
-            <Button variant="primary" onClick={openCreateDialog}>
-              <Plus className="h-4 w-4" />
-              新建
-            </Button>
             <TabList
               ariaLabel="目标 CLI"
               items={CLI_TABS}
@@ -430,15 +399,22 @@ export function WorkspacesPage() {
         }
       />
 
-      <div className="grid gap-4 lg:min-h-0 lg:grid-cols-[360px_1fr] lg:items-start lg:overflow-hidden">
+      <div className="grid gap-4 lg:flex-1 lg:min-h-0 lg:grid-cols-[360px_1fr] lg:items-stretch lg:overflow-hidden">
         <Card padding="sm" className="flex flex-col lg:min-h-0">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                <Layers className="h-4 w-4 text-[#0052FF]" />
-                工作区
-                <span className="text-xs font-medium text-slate-500">{items.length} 个</span>
-                <Badge tone="neutral">{cliLongLabel(activeCli)}</Badge>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-900">
+                  <Layers className="h-4 w-4 shrink-0 text-[#0052FF]" />
+                  <span className="shrink-0">工作区</span>
+                  <span className="shrink-0 text-xs font-medium text-slate-500">
+                    {items.length} 个
+                  </span>
+                </div>
+                <Button variant="primary" onClick={openCreateDialog}>
+                  <Plus className="h-4 w-4" />
+                  新建
+                </Button>
               </div>
               <div className="mt-1 text-xs text-slate-500">同一 CLI 下名称不可重复。</div>
             </div>
@@ -470,7 +446,6 @@ export function WorkspacesPage() {
               filtered.map((workspace) => {
                 const isActive = workspace.id === activeWorkspaceId;
                 const isSelected = workspace.id === selectedWorkspaceId;
-                const hint = workspaceRootHint(workspace.cli_key, workspace.id);
 
                 return (
                   <div
@@ -491,7 +466,7 @@ export function WorkspacesPage() {
                       if (e.key === "Enter" || e.key === " ") setSelectedWorkspaceId(workspace.id);
                     }}
                   >
-                    <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <div className="truncate text-sm font-semibold text-slate-900">
@@ -503,60 +478,50 @@ export function WorkspacesPage() {
                             <Badge tone="neutral">可用</Badge>
                           )}
                         </div>
-                        <div
-                          className="mt-1 truncate font-mono text-[11px] text-slate-500"
-                          title={hint}
-                        >
-                          {hint}
-                        </div>
-                        <div className="mt-2 text-xs text-slate-600">
-                          更新 {formatUnixSeconds(workspace.updated_at)}
-                        </div>
                       </div>
 
-                      <div className="flex shrink-0 flex-col items-end gap-2">
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        {isActive ? null : (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedWorkspaceId(workspace.id);
+                              openSwitchDialog(workspace.id);
+                            }}
+                            className="h-8"
+                            title="对比当前工作区与目标工作区的差异，并确认切换"
+                          >
+                            <ArrowRightLeft className="h-4 w-4" />
+                            切换…
+                          </Button>
+                        )}
                         <Button
-                          size="sm"
-                          variant="secondary"
+                          size="icon"
+                          variant="ghost"
+                          aria-label="重命名"
+                          title="重命名"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setSelectedWorkspaceId(workspace.id);
-                            setRightTab("preview_apply");
+                            openRenameDialog(workspace);
                           }}
-                          className="h-8"
-                          title="查看差异并在「预览&应用」中切换为当前"
                         >
-                          <Eye className="h-4 w-4" />
-                          预览
+                          <Pencil className="h-4 w-4" />
                         </Button>
-
-                        <div className="flex items-center gap-1">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            aria-label="重命名"
-                            title="重命名"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openRenameDialog(workspace);
-                            }}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="danger"
-                            aria-label="删除"
-                            title={isActive ? "请先切换当前工作区再删除" : "删除"}
-                            disabled={isActive}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openDeleteDialog(workspace);
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                        <Button
+                          size="icon"
+                          variant="danger"
+                          aria-label="删除"
+                          title={isActive ? "请先切换当前工作区再删除" : "删除"}
+                          disabled={isActive}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openDeleteDialog(workspace);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
                   </div>
@@ -568,7 +533,7 @@ export function WorkspacesPage() {
 
         <div className="flex flex-col gap-4 lg:min-h-0 lg:overflow-hidden">
           {selectedWorkspace ? (
-            <Card padding="md" className="lg:min-h-0 lg:overflow-auto">
+            <Card padding="md" className="lg:min-h-0 lg:flex lg:flex-col">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
@@ -582,9 +547,6 @@ export function WorkspacesPage() {
                     )}
                     <Badge tone="neutral">{cliLongLabel(selectedWorkspace.cli_key)}</Badge>
                   </div>
-                  <div className="mt-1 truncate font-mono text-xs text-slate-500">
-                    {workspaceRootHint(selectedWorkspace.cli_key, selectedWorkspace.id)}
-                  </div>
                 </div>
 
                 <TabList
@@ -596,18 +558,56 @@ export function WorkspacesPage() {
                 />
               </div>
 
-              <div className="mt-4">
+              <div className="mt-4 min-h-0 flex-1 lg:overflow-y-auto custom-scrollbar lg:pr-1">
                 {rightTab === "overview" ? (
-                  <div className="space-y-3">
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                      <div className="font-medium text-slate-900">
-                        你现在在编辑一个配置档案（workspace）
+                  <div className="space-y-4">
+                    {selectedWorkspace.id === activeWorkspaceId ? (
+                      <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+                        <div className="font-medium">当前工作区</div>
+                        <div className="mt-1 text-xs text-emerald-900/80">
+                          对 Prompts/MCP/Skills 的修改会立即生效。
+                        </div>
                       </div>
-                      <div className="mt-1 text-xs text-slate-600">
-                        推荐流程：先在 Prompts/MCP/Skills 中配置 →
-                        再到「预览&应用」对比差异并切换为当前。
+                    ) : (
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <div className="font-medium text-slate-900">该工作区尚未生效</div>
+                            <div className="mt-1 text-xs text-amber-900/80">
+                              修改会先保存，切换后才会写入对应 CLI 配置（仅 AIO 托管部分）。
+                            </div>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            disabled={
+                              !selectedWorkspace || selectedWorkspace.id === activeWorkspaceId
+                            }
+                            onClick={() => openSwitchDialog(selectedWorkspace.id)}
+                          >
+                            <ArrowRightLeft className="h-4 w-4" />
+                            切换…
+                          </Button>
+                        </div>
                       </div>
-                    </div>
+                    )}
+
+                    {applyReport && applyReport.to_workspace_id === selectedWorkspace.id ? (
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                        已切换为当前（{new Date(applyReport.applied_at * 1000).toLocaleString()}）
+                        {applyReport.from_workspace_id ? (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="ml-2"
+                            disabled={applying}
+                            onClick={() => void rollbackToPrevious()}
+                          >
+                            回滚到上一个
+                          </Button>
+                        ) : null}
+                      </div>
+                    ) : null}
 
                     <div className="grid gap-3 sm:grid-cols-3">
                       <Card padding="sm">
@@ -686,48 +686,6 @@ export function WorkspacesPage() {
                         </div>
                       </Card>
                     </div>
-
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <Card padding="sm">
-                        <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                          基本信息
-                        </div>
-                        <div className="mt-2 space-y-1 text-sm text-slate-700">
-                          <div>
-                            <span className="text-slate-500">ID：</span>
-                            {selectedWorkspace.id}
-                          </div>
-                          <div>
-                            <span className="text-slate-500">创建：</span>
-                            {formatUnixSeconds(selectedWorkspace.created_at)}
-                          </div>
-                          <div>
-                            <span className="text-slate-500">更新：</span>
-                            {formatUnixSeconds(selectedWorkspace.updated_at)}
-                          </div>
-                        </div>
-                      </Card>
-
-                      <Card padding="sm">
-                        <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                          同步语义
-                        </div>
-                        <div className="mt-2 space-y-2 text-sm text-slate-700">
-                          {selectedWorkspace.id === activeWorkspaceId ? (
-                            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
-                              当前工作区：对 Prompts/MCP/Skills 的修改会即时同步到 CLI 配置。
-                            </div>
-                          ) : (
-                            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                              非当前工作区：修改仅写入数据库，不触发任何真实同步/文件写入。
-                            </div>
-                          )}
-                          <div className="text-xs text-slate-500">
-                            切换工作区在「预览&应用」中完成。
-                          </div>
-                        </div>
-                      </Card>
-                    </div>
                   </div>
                 ) : rightTab === "prompts" ? (
                   <PromptsView
@@ -744,206 +702,12 @@ export function WorkspacesPage() {
                     )}
                     <McpServersView workspaceId={selectedWorkspace.id} />
                   </>
-                ) : rightTab === "skills" ? (
+                ) : (
                   <SkillsView
                     workspaceId={selectedWorkspace.id}
                     cliKey={selectedWorkspace.cli_key}
                     isActiveWorkspace={selectedWorkspace.id === activeWorkspaceId}
                   />
-                ) : (
-                  <div className="space-y-3">
-                    <Card padding="sm">
-                      <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                        对比范围
-                      </div>
-                      <div className="mt-2 text-sm text-slate-700">
-                        当前：
-                        {(() => {
-                          const fromId = preview?.from_workspace_id ?? activeWorkspaceId;
-                          if (!fromId) return "（未设置）";
-                          return workspaceById.get(fromId)?.name ?? `#${fromId}`;
-                        })()}
-                        <span className="mx-2 text-slate-400">→</span>
-                        目标：{selectedWorkspace.name}
-                      </div>
-                      <div className="mt-1 text-xs text-slate-500">
-                        这里展示“当前工作区”和“目标工作区”的差异。确认无误后再应用为当前。
-                      </div>
-                    </Card>
-
-                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                      应用会写入用户 Home 下的 CLI 配置文件/目录（仅影响 AIO 托管的内容）：
-                      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-900">
-                        <li>Prompts：{promptFileHint(selectedWorkspace.cli_key)}</li>
-                        <li>MCP：{mcpConfigHint(selectedWorkspace.cli_key)}</li>
-                        <li>Skills：{skillsDirHint(selectedWorkspace.cli_key)}</li>
-                      </ul>
-                    </div>
-
-                    {previewLoading ? (
-                      <div className="text-sm text-slate-600">生成预览中…</div>
-                    ) : !preview ? (
-                      <div className="text-sm text-slate-600">暂无预览数据。</div>
-                    ) : (
-                      <div className="space-y-3">
-                        <Card padding="sm">
-                          <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                            Prompts
-                          </div>
-                          <div className="mt-2 text-sm text-slate-700">
-                            {preview.prompts.will_change ? (
-                              <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800">
-                                将变更
-                              </span>
-                            ) : (
-                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
-                                不变
-                              </span>
-                            )}
-                          </div>
-                          <div className="mt-2 grid gap-3 sm:grid-cols-2">
-                            <div className="rounded-xl border border-slate-200 bg-white p-3">
-                              <div className="text-xs font-medium text-slate-500">当前</div>
-                              <div className="mt-1 text-sm font-semibold text-slate-900">
-                                {preview.prompts.from_enabled?.name ?? "（未启用）"}
-                              </div>
-                              <div className="mt-1 text-xs text-slate-600">
-                                {preview.prompts.from_enabled?.excerpt ?? "—"}
-                              </div>
-                            </div>
-                            <div className="rounded-xl border border-slate-200 bg-white p-3">
-                              <div className="text-xs font-medium text-slate-500">目标</div>
-                              <div className="mt-1 text-sm font-semibold text-slate-900">
-                                {preview.prompts.to_enabled?.name ?? "（未启用）"}
-                              </div>
-                              <div className="mt-1 text-xs text-slate-600">
-                                {preview.prompts.to_enabled?.excerpt ?? "—"}
-                              </div>
-                            </div>
-                          </div>
-                        </Card>
-
-                        <Card padding="sm">
-                          <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                            MCP
-                          </div>
-                          <div className="mt-2 text-sm text-slate-700">
-                            +{preview.mcp.added.length} / -{preview.mcp.removed.length}
-                          </div>
-                          {preview.mcp.added.length || preview.mcp.removed.length ? (
-                            <div className="mt-2 grid gap-3 sm:grid-cols-2">
-                              <div className="rounded-xl border border-slate-200 bg-white p-3">
-                                <div className="text-xs font-medium text-slate-500">新增</div>
-                                <div className="mt-2 flex flex-wrap gap-2">
-                                  {preview.mcp.added.map((k) => (
-                                    <span
-                                      key={k}
-                                      className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700"
-                                    >
-                                      {k}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                              <div className="rounded-xl border border-slate-200 bg-white p-3">
-                                <div className="text-xs font-medium text-slate-500">移除</div>
-                                <div className="mt-2 flex flex-wrap gap-2">
-                                  {preview.mcp.removed.map((k) => (
-                                    <span
-                                      key={k}
-                                      className="rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-medium text-rose-700"
-                                    >
-                                      {k}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="mt-2 text-xs text-slate-500">无变化</div>
-                          )}
-                        </Card>
-
-                        <Card padding="sm">
-                          <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                            Skills
-                          </div>
-                          <div className="mt-2 text-sm text-slate-700">
-                            +{preview.skills.added.length} / -{preview.skills.removed.length}
-                          </div>
-                          {preview.skills.added.length || preview.skills.removed.length ? (
-                            <div className="mt-2 grid gap-3 sm:grid-cols-2">
-                              <div className="rounded-xl border border-slate-200 bg-white p-3">
-                                <div className="text-xs font-medium text-slate-500">新增</div>
-                                <div className="mt-2 flex flex-wrap gap-2">
-                                  {preview.skills.added.map((k) => (
-                                    <span
-                                      key={k}
-                                      className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700"
-                                    >
-                                      {k}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                              <div className="rounded-xl border border-slate-200 bg-white p-3">
-                                <div className="text-xs font-medium text-slate-500">移除</div>
-                                <div className="mt-2 flex flex-wrap gap-2">
-                                  {preview.skills.removed.map((k) => (
-                                    <span
-                                      key={k}
-                                      className="rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-medium text-rose-700"
-                                    >
-                                      {k}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="mt-2 text-xs text-slate-500">无变化</div>
-                          )}
-                        </Card>
-                      </div>
-                    )}
-
-                    {applyReport && applyReport.to_workspace_id === selectedWorkspace.id ? (
-                      <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                        已应用（{new Date(applyReport.applied_at * 1000).toLocaleString()}）
-                        {applyReport.from_workspace_id ? (
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            className="ml-2"
-                            disabled={applying}
-                            onClick={() => void rollbackToPrevious()}
-                          >
-                            回滚到上一个
-                          </Button>
-                        ) : null}
-                      </div>
-                    ) : null}
-
-                    <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-3">
-                      <Button
-                        variant="secondary"
-                        onClick={() => void previewQuery.refetch()}
-                        disabled={previewLoading}
-                      >
-                        刷新预览
-                      </Button>
-                      <Button
-                        variant="primary"
-                        disabled={selectedWorkspace.id === activeWorkspaceId}
-                        onClick={() => {
-                          setApplyConfirm("");
-                          setApplyOpen(true);
-                        }}
-                      >
-                        应用为当前
-                      </Button>
-                    </div>
-                  </div>
                 )}
               </div>
             </Card>
@@ -956,10 +720,208 @@ export function WorkspacesPage() {
       </div>
 
       <Dialog
+        open={switchOpen}
+        onOpenChange={(open) => {
+          setSwitchOpen(open);
+          if (!open) {
+            setSwitchConfirm("");
+            setSwitchTargetId(null);
+          }
+        }}
+        title="对比并切换"
+        description={
+          switchTarget ? `将切换为当前：${switchTarget.name}` : "对比当前工作区与目标工作区的差异"
+        }
+        className="max-w-3xl"
+      >
+        <div className="space-y-3">
+          <Card padding="sm">
+            <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
+              对比范围
+            </div>
+            <div className="mt-2 text-sm text-slate-700">
+              当前：
+              {(() => {
+                const fromId = preview?.from_workspace_id ?? activeWorkspaceId;
+                if (!fromId) return "（未设置）";
+                return workspaceById.get(fromId)?.name ?? `#${fromId}`;
+              })()}
+              <span className="mx-2 text-slate-400">→</span>
+              目标：{switchTarget?.name ?? "—"}
+            </div>
+            <div className="mt-1 text-xs text-slate-500">
+              仅展示 Prompts/MCP/Skills 的差异。确认无误后再切换为当前。
+            </div>
+          </Card>
+
+          {previewLoading ? (
+            <div className="text-sm text-slate-600">生成对比中…</div>
+          ) : !preview ? (
+            <div className="text-sm text-slate-600">暂无对比数据。</div>
+          ) : (
+            <div className="space-y-3">
+              <Card padding="sm">
+                <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  Prompts
+                </div>
+                <div className="mt-2 text-sm text-slate-700">
+                  {preview.prompts.will_change ? (
+                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+                      将变更
+                    </span>
+                  ) : (
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                      不变
+                    </span>
+                  )}
+                </div>
+                <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-xl border border-slate-200 bg-white p-3">
+                    <div className="text-xs font-medium text-slate-500">当前</div>
+                    <div className="mt-1 text-sm font-semibold text-slate-900">
+                      {preview.prompts.from_enabled?.name ?? "（未启用）"}
+                    </div>
+                    <div className="mt-1 text-xs text-slate-600">
+                      {preview.prompts.from_enabled?.excerpt ?? "—"}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white p-3">
+                    <div className="text-xs font-medium text-slate-500">目标</div>
+                    <div className="mt-1 text-sm font-semibold text-slate-900">
+                      {preview.prompts.to_enabled?.name ?? "（未启用）"}
+                    </div>
+                    <div className="mt-1 text-xs text-slate-600">
+                      {preview.prompts.to_enabled?.excerpt ?? "—"}
+                    </div>
+                  </div>
+                </div>
+              </Card>
+
+              <Card padding="sm">
+                <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  MCP
+                </div>
+                <div className="mt-2 text-sm text-slate-700">
+                  +{preview.mcp.added.length} / -{preview.mcp.removed.length}
+                </div>
+                {preview.mcp.added.length || preview.mcp.removed.length ? (
+                  <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-xl border border-slate-200 bg-white p-3">
+                      <div className="text-xs font-medium text-slate-500">新增</div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {preview.mcp.added.map((k) => (
+                          <span
+                            key={k}
+                            className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700"
+                          >
+                            {k}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-white p-3">
+                      <div className="text-xs font-medium text-slate-500">移除</div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {preview.mcp.removed.map((k) => (
+                          <span
+                            key={k}
+                            className="rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-medium text-rose-700"
+                          >
+                            {k}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-2 text-xs text-slate-500">无变化</div>
+                )}
+              </Card>
+
+              <Card padding="sm">
+                <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  Skills
+                </div>
+                <div className="mt-2 text-sm text-slate-700">
+                  +{preview.skills.added.length} / -{preview.skills.removed.length}
+                </div>
+                {preview.skills.added.length || preview.skills.removed.length ? (
+                  <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-xl border border-slate-200 bg-white p-3">
+                      <div className="text-xs font-medium text-slate-500">新增</div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {preview.skills.added.map((k) => (
+                          <span
+                            key={k}
+                            className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700"
+                          >
+                            {k}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-white p-3">
+                      <div className="text-xs font-medium text-slate-500">移除</div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {preview.skills.removed.map((k) => (
+                          <span
+                            key={k}
+                            className="rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-medium text-rose-700"
+                          >
+                            {k}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-2 text-xs text-slate-500">无变化</div>
+                )}
+              </Card>
+            </div>
+          )}
+
+          <FormField label="输入 APPLY 以确认切换">
+            <Input
+              value={switchConfirm}
+              onChange={(e) => setSwitchConfirm(e.currentTarget.value)}
+            />
+          </FormField>
+
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+            <Button
+              variant="secondary"
+              onClick={() => void previewQuery.refetch()}
+              disabled={previewLoading}
+            >
+              刷新对比
+            </Button>
+            <div className="flex items-center gap-2">
+              <Button onClick={() => setSwitchOpen(false)} variant="secondary">
+                取消
+              </Button>
+              <Button
+                onClick={() => void applySwitchTarget()}
+                variant="primary"
+                disabled={
+                  !switchTarget ||
+                  switchTarget.id === activeWorkspaceId ||
+                  switchConfirm.trim().toUpperCase() !== "APPLY" ||
+                  applying
+                }
+              >
+                {applying ? "切换中…" : "确认切换"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Dialog>
+
+      <Dialog
         open={createOpen}
         onOpenChange={(open) => setCreateOpen(open)}
         title={`新建工作区（${cliLongLabel(activeCli)}）`}
-        description="默认从当前工作区克隆（仅 DB 复制，不触发真实同步）。"
+        description="默认空白创建：Prompt/MCP/Skills 均为未启用状态。"
         className="max-w-lg"
       >
         <div className="space-y-4">
@@ -976,7 +938,7 @@ export function WorkspacesPage() {
                   checked={createMode === "clone_active"}
                   onChange={() => setCreateMode("clone_active")}
                 />
-                从当前工作区克隆（推荐）
+                从当前工作区克隆
               </label>
               <label className="flex items-center gap-2 text-sm text-slate-700">
                 <input
@@ -985,7 +947,7 @@ export function WorkspacesPage() {
                   checked={createMode === "blank"}
                   onChange={() => setCreateMode("blank")}
                 />
-                空白创建
+                空白创建（推荐）
               </label>
             </div>
           </FormField>
@@ -1071,51 +1033,6 @@ export function WorkspacesPage() {
               disabled={!deleteTarget}
             >
               确认删除
-            </Button>
-          </div>
-        </div>
-      </Dialog>
-
-      <Dialog
-        open={applyOpen}
-        onOpenChange={(open) => {
-          setApplyOpen(open);
-          if (!open) setApplyConfirm("");
-        }}
-        title="确认应用工作区"
-        description={selectedWorkspace ? `将切换为当前：${selectedWorkspace.name}` : undefined}
-        className="max-w-lg"
-      >
-        <div className="space-y-4">
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            该操作会写入用户 Home 下的 CLI 配置文件/目录（仅影响 AIO
-            托管的内容）。继续前请确认已备份重要配置。
-          </div>
-
-          {selectedWorkspace ? (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-              <div>Prompts：{promptFileHint(selectedWorkspace.cli_key)}</div>
-              <div>MCP：{mcpConfigHint(selectedWorkspace.cli_key)}</div>
-              <div>Skills：{skillsDirHint(selectedWorkspace.cli_key)}</div>
-            </div>
-          ) : null}
-
-          <FormField label="输入 APPLY 以确认">
-            <Input value={applyConfirm} onChange={(e) => setApplyConfirm(e.currentTarget.value)} />
-          </FormField>
-
-          <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
-            <Button onClick={() => setApplyOpen(false)} variant="secondary">
-              取消
-            </Button>
-            <Button
-              onClick={() => void applySelectedWorkspace()}
-              variant="primary"
-              disabled={
-                !selectedWorkspace || applyConfirm.trim().toUpperCase() !== "APPLY" || applying
-              }
-            >
-              {applying ? "应用中…" : "确认应用"}
             </Button>
           </div>
         </div>

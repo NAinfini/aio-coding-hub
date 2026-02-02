@@ -255,10 +255,27 @@ pub fn apply(
     let prev_prompt_manifest = prompt_sync::read_manifest_bytes(app, &cli_key)?;
     let prev_mcp_target = mcp_sync::read_target_bytes(app, &cli_key)?;
     let prev_mcp_manifest = mcp_sync::read_manifest_bytes(app, &cli_key)?;
+    let managed_mcp_server_keys: HashSet<String> = list_enabled_mcp_keys(&conn, from_workspace_id)?
+        .into_iter()
+        .collect();
 
     if let Err(err) = prompts::sync_cli_for_workspace(app, &conn, workspace_id) {
         let _ = prompt_sync::restore_target_bytes(app, &cli_key, prev_prompt_target);
         let _ = prompt_sync::restore_manifest_bytes(app, &cli_key, prev_prompt_manifest);
+        return Err(err);
+    }
+
+    if let Err(err) = mcp::swap_local_mcp_servers_for_workspace_switch(
+        app,
+        &cli_key,
+        &managed_mcp_server_keys,
+        from_workspace_id,
+        workspace_id,
+    ) {
+        let _ = prompt_sync::restore_target_bytes(app, &cli_key, prev_prompt_target);
+        let _ = prompt_sync::restore_manifest_bytes(app, &cli_key, prev_prompt_manifest);
+        let _ = mcp_sync::restore_target_bytes(app, &cli_key, prev_mcp_target);
+        let _ = mcp_sync::restore_manifest_bytes(app, &cli_key, prev_mcp_manifest);
         return Err(err);
     }
 
@@ -283,11 +300,34 @@ pub fn apply(
         return Err(err);
     }
 
+    let local_skills_swap = match skills::swap_local_skills_for_workspace_switch(
+        app,
+        &cli_key,
+        from_workspace_id,
+        workspace_id,
+    ) {
+        Ok(swap) => swap,
+        Err(err) => {
+            let _ = prompt_sync::restore_target_bytes(app, &cli_key, prev_prompt_target);
+            let _ = prompt_sync::restore_manifest_bytes(app, &cli_key, prev_prompt_manifest);
+            let _ = mcp_sync::restore_target_bytes(app, &cli_key, prev_mcp_target);
+            let _ = mcp_sync::restore_manifest_bytes(app, &cli_key, prev_mcp_manifest);
+
+            if let Some(from_id) = from_workspace_id {
+                let _ = skills::sync_cli_for_workspace(app, &conn, from_id);
+            }
+
+            return Err(err);
+        }
+    };
+
     if let Err(err) = workspaces::set_active(db, workspace_id) {
         let _ = prompt_sync::restore_target_bytes(app, &cli_key, prev_prompt_target);
         let _ = prompt_sync::restore_manifest_bytes(app, &cli_key, prev_prompt_manifest);
         let _ = mcp_sync::restore_target_bytes(app, &cli_key, prev_mcp_target);
         let _ = mcp_sync::restore_manifest_bytes(app, &cli_key, prev_mcp_manifest);
+
+        local_skills_swap.rollback();
 
         if let Some(from_id) = from_workspace_id {
             let _ = skills::sync_cli_for_workspace(app, &conn, from_id);

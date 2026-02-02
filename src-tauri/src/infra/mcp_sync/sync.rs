@@ -7,7 +7,6 @@ use super::claude_json::build_claude_config_json;
 use super::codex_toml::build_codex_config_toml;
 use super::fs::{read_optional_file, write_file_atomic_if_changed};
 use super::gemini_json::build_gemini_settings_json;
-use super::legacy::try_migrate_legacy_mcp_sync_dir;
 use super::manifest::{backup_for_enable, read_manifest, write_manifest};
 use super::paths::{mcp_target_path, validate_cli_key};
 use super::McpServerForSync;
@@ -44,29 +43,6 @@ pub fn sync_cli<R: tauri::Runtime>(
     let should_backup = existing.as_ref().map(|m| !m.enabled).unwrap_or(true);
 
     let desired_keys = normalized_keys(servers);
-
-    // If no enabled servers, remove previously managed keys (and keep user config untouched).
-    if desired_keys.is_empty() {
-        if let Some(mut manifest) = existing {
-            if !manifest.managed_keys.is_empty() {
-                let target_path = mcp_target_path(app, cli_key)?;
-                let current = read_optional_file(&target_path)?;
-                if current.is_some() {
-                    let managed_keys = manifest.managed_keys.clone();
-                    let next_bytes = build_next_bytes(cli_key, current, &managed_keys, &[])?;
-                    write_file_atomic_if_changed(&target_path, &next_bytes)?;
-                }
-            }
-
-            manifest.enabled = false;
-            manifest.managed_keys.clear();
-            manifest.updated_at = now_unix_seconds();
-            write_manifest(app, cli_key, &manifest)?;
-        } else {
-            let _ = try_migrate_legacy_mcp_sync_dir(app, cli_key);
-        }
-        return Ok(());
-    }
 
     let mut manifest = match if should_backup {
         backup_for_enable(app, cli_key, existing.clone())

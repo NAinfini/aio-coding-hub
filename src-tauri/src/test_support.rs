@@ -33,10 +33,43 @@ pub fn mcp_restore_target_bytes<R: tauri::Runtime>(
     crate::infra::mcp_sync::restore_target_bytes(app, cli_key, bytes)
 }
 
+pub fn mcp_swap_local_for_workspace_switch<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    cli_key: &str,
+    managed_server_keys: Vec<String>,
+    from_workspace_id: Option<i64>,
+    to_workspace_id: i64,
+) -> Result<(), String> {
+    let set: std::collections::HashSet<String> = managed_server_keys.into_iter().collect();
+    crate::domain::mcp::swap_local_mcp_servers_for_workspace_switch(
+        app,
+        cli_key,
+        &set,
+        from_workspace_id,
+        to_workspace_id,
+    )?;
+    Ok(())
+}
+
 pub fn codex_config_toml_path<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
 ) -> Result<PathBuf, String> {
     crate::infra::codex_paths::codex_config_toml_path(app)
+}
+
+pub fn skills_swap_local_for_workspace_switch<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    cli_key: &str,
+    from_workspace_id: Option<i64>,
+    to_workspace_id: i64,
+) -> Result<(), String> {
+    let _ = crate::domain::skills::swap_local_skills_for_workspace_switch(
+        app,
+        cli_key,
+        from_workspace_id,
+        to_workspace_id,
+    )?;
+    Ok(())
 }
 
 pub fn providers_list_by_cli_json<R: tauri::Runtime>(

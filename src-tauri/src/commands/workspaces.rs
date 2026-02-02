@@ -26,7 +26,7 @@ pub(crate) async fn workspace_create(
 ) -> Result<workspaces::WorkspaceSummary, String> {
     let db = ensure_db_ready(app, db_state.inner()).await?;
     blocking::run("workspace_create", move || {
-        workspaces::create(&db, &cli_key, &name, clone_from_active.unwrap_or(true))
+        workspaces::create(&db, &cli_key, &name, clone_from_active.unwrap_or(false))
     })
     .await
 }

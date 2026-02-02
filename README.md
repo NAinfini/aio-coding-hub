@@ -242,7 +242,7 @@ fix(gateway): handle timeout correctly
 docs: update installation guide
 ```
 
-详见 [CONTRIBUTING.md](CONTRIBUTING.md)（如有）。
+
 
 ---
 
@@ -252,9 +252,6 @@ docs: update installation guide
 
 ---
 
-<div align="center">
-## Stargazers over time
 [![Stargazers over time](https://starchart.cc/dyndynjyxa/aio-coding-hub.svg?variant=adaptive)](https://starchart.cc/dyndynjyxa/aio-coding-hub)
-**如果觉得有用，请给个 ⭐ Star！**
 
-</div>
+

@@ -8,21 +8,26 @@ pub(super) fn validate_cli_key(cli_key: &str) -> Result<(), String> {
     crate::shared::cli_key::validate_cli_key(cli_key)
 }
 
-fn home_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+fn home_dir<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
     app.path()
         .home_dir()
         .map_err(|e| format!("failed to resolve home dir: {e}"))
 }
 
-pub(super) fn ssot_skills_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+pub(super) fn ssot_skills_root<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> Result<PathBuf, String> {
     Ok(app_paths::app_data_dir(app)?.join("skills"))
 }
 
-pub(super) fn repos_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+pub(super) fn repos_root<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
     Ok(app_paths::app_data_dir(app)?.join("skill-repos"))
 }
 
-pub(super) fn cli_skills_root(app: &tauri::AppHandle, cli_key: &str) -> Result<PathBuf, String> {
+pub(super) fn cli_skills_root<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    cli_key: &str,
+) -> Result<PathBuf, String> {
     validate_cli_key(cli_key)?;
     let home = home_dir(app)?;
     match cli_key {
@@ -33,7 +38,9 @@ pub(super) fn cli_skills_root(app: &tauri::AppHandle, cli_key: &str) -> Result<P
     }
 }
 
-pub(super) fn ensure_skills_roots(app: &tauri::AppHandle) -> Result<(), String> {
+pub(super) fn ensure_skills_roots<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> Result<(), String> {
     std::fs::create_dir_all(ssot_skills_root(app)?)
         .map_err(|e| format!("failed to create ssot skills dir: {e}"))?;
     std::fs::create_dir_all(repos_root(app)?)
@@ -41,7 +48,10 @@ pub(super) fn ensure_skills_roots(app: &tauri::AppHandle) -> Result<(), String> 
     Ok(())
 }
 
-pub fn paths_get(app: &tauri::AppHandle, cli_key: &str) -> Result<SkillsPaths, String> {
+pub fn paths_get<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    cli_key: &str,
+) -> Result<SkillsPaths, String> {
     validate_cli_key(cli_key)?;
     let ssot = ssot_skills_root(app)?;
     let repos = repos_root(app)?;

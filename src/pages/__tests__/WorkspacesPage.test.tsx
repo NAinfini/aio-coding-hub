@@ -173,7 +173,13 @@ describe("pages/WorkspacesPage", () => {
 
     // Filter list
     fireEvent.change(screen.getByLabelText("搜索工作区"), { target: { value: "W2" } });
-    expect(screen.getAllByRole("button", { name: "预览" })).toHaveLength(1);
+    const w2Card = screen
+      .getAllByRole("button")
+      .find((el) => el.getAttribute("tabindex") === "0" && el.textContent?.includes("W2")) as
+      | HTMLElement
+      | undefined;
+    if (!w2Card) throw new Error("W2 workspace card not found");
+    expect(within(w2Card).getByRole("button", { name: "切换…" })).toBeInTheDocument();
 
     // Create workspace (duplicate blocked, then create blank)
     fireEvent.click(screen.getByRole("button", { name: "新建" }));
@@ -184,7 +190,7 @@ describe("pages/WorkspacesPage", () => {
     fireEvent.change(nameInput, { target: { value: "W2" } });
     expect(dialog.getByText("名称重复：同一 CLI 下必须唯一")).toBeInTheDocument();
     fireEvent.change(nameInput, { target: { value: "W3" } });
-    fireEvent.click(dialog.getByLabelText("空白创建"));
+    fireEvent.click(dialog.getByLabelText("空白创建（推荐）"));
     fireEvent.click(dialog.getByRole("button", { name: "创建" }));
     await waitFor(() =>
       expect(createMutation.mutateAsync).toHaveBeenCalledWith({
@@ -209,23 +215,15 @@ describe("pages/WorkspacesPage", () => {
       })
     );
 
-    // Preview and apply selected workspace
-    fireEvent.click(screen.getByRole("button", { name: "预览" }));
-    await waitFor(() =>
-      expect(screen.getByRole("tab", { name: "预览&应用" })).toHaveAttribute(
-        "aria-selected",
-        "true"
-      )
-    );
-    expect(screen.getByText("+1 / -0")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "应用为当前" }));
+    // Switch dialog (compare -> confirm switch)
+    fireEvent.click(within(w2Card).getByRole("button", { name: "切换…" }));
     dialog = within(screen.getByRole("dialog"));
+    expect(dialog.getByText("+1 / -0")).toBeInTheDocument();
     await closeDialogByOverlay();
-    fireEvent.click(screen.getByRole("button", { name: "应用为当前" }));
+    fireEvent.click(within(w2Card).getByRole("button", { name: "切换…" }));
     dialog = within(screen.getByRole("dialog"));
     fireEvent.change(dialog.getByRole("textbox"), { target: { value: "APPLY" } });
-    fireEvent.click(dialog.getByRole("button", { name: "确认应用" }));
+    fireEvent.click(dialog.getByRole("button", { name: "确认切换" }));
     await waitFor(() =>
       expect(applyMutation.mutateAsync).toHaveBeenCalledWith({ cliKey: "claude", workspaceId: 2 })
     );
@@ -256,7 +254,7 @@ describe("pages/WorkspacesPage", () => {
     expect(screen.getByText("skills-view")).toBeInTheDocument();
   });
 
-  it("covers preview/apply and CLI hint branches across CLIs", async () => {
+  it("covers switch dialog and preview branches across CLIs", async () => {
     const items = [
       { id: 1, cli_key: "claude", name: "W1", created_at: 1, updated_at: 1 },
       { id: 2, cli_key: "codex", name: "CodexW", created_at: 2, updated_at: 2 },
@@ -330,27 +328,9 @@ describe("pages/WorkspacesPage", () => {
         (el) => el.getAttribute("tabindex") === "0" && el.getAttribute("aria-current") === "true"
       ) as HTMLElement | undefined;
     if (!codexCard) throw new Error("Active workspace card not found");
-    fireEvent.click(within(codexCard).getByRole("button", { name: "预览" }));
+    expect(within(codexCard).queryByRole("button", { name: "切换…" })).not.toBeInTheDocument();
 
-    await waitFor(() =>
-      expect(screen.getByRole("tab", { name: "预览&应用" })).toHaveAttribute(
-        "aria-selected",
-        "true"
-      )
-    );
-
-    // CLI hint branches (codex)
-    expect(screen.getByText("Prompts：~/.codex/AGENTS.md")).toBeInTheDocument();
-    expect(screen.getByText("MCP：~/.codex/config.toml")).toBeInTheDocument();
-    expect(screen.getByText("Skills：~/.codex/skills")).toBeInTheDocument();
-
-    // preview branches (no changes + will_change=false)
-    expect(screen.getByText(/当前：.*未设置/)).toBeInTheDocument();
-    expect(screen.getByText("不变")).toBeInTheDocument();
-    expect(screen.getAllByText("无变化")).toHaveLength(2);
-
-    // active workspace => apply disabled, and mcp tab has no non-active hint
-    expect(screen.getByRole("button", { name: "应用为当前" })).toBeDisabled();
+    // active workspace => mcp tab has no non-active hint
     fireEvent.click(screen.getByRole("tab", { name: "MCP" }));
     expect(
       screen.queryByText("非当前工作区：启用/停用仅写入数据库，不会同步到 CLI。")
@@ -362,29 +342,33 @@ describe("pages/WorkspacesPage", () => {
       | HTMLElement
       | undefined;
     if (!geminiCard) throw new Error("Gemini workspace card not found");
-    fireEvent.click(within(geminiCard).getByRole("button", { name: "预览" }));
-
-    // CLI hint branches (gemini)
-    expect(screen.getByText("Prompts：~/.gemini/GEMINI.md")).toBeInTheDocument();
-    expect(screen.getByText("MCP：~/.gemini/settings.json")).toBeInTheDocument();
-    expect(screen.getByText("Skills：~/.gemini/skills")).toBeInTheDocument();
-
-    expect(screen.getByText(/当前：.*#999/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "应用为当前" })).not.toBeDisabled();
-
-    fireEvent.click(screen.getByRole("button", { name: "应用为当前" }));
+    fireEvent.click(within(geminiCard).getByRole("button", { name: "切换…" }));
     const dialog = within(screen.getByRole("dialog"));
+
+    // no paths shown (requirement: do not display ~/.xxx hints)
+    expect(screen.queryByText("Prompts：~/.codex/AGENTS.md")).not.toBeInTheDocument();
+    expect(screen.queryByText("MCP：~/.codex/config.toml")).not.toBeInTheDocument();
+    expect(screen.queryByText("Skills：~/.codex/skills")).not.toBeInTheDocument();
+    expect(screen.queryByText("Prompts：~/.gemini/GEMINI.md")).not.toBeInTheDocument();
+    expect(screen.queryByText("MCP：~/.gemini/settings.json")).not.toBeInTheDocument();
+    expect(screen.queryByText("Skills：~/.gemini/skills")).not.toBeInTheDocument();
+
+    // preview branches (no changes + will_change=false)
+    expect(dialog.getByText(/当前：.*#999/)).toBeInTheDocument();
+    expect(dialog.getByText("不变")).toBeInTheDocument();
+    expect(dialog.getAllByText("无变化")).toHaveLength(2);
+
     fireEvent.change(dialog.getByRole("textbox"), {
       target: { value: "APPLY" },
       currentTarget: { value: "APPLY" },
     });
-    fireEvent.click(dialog.getByRole("button", { name: "确认应用" }));
+    fireEvent.click(dialog.getByRole("button", { name: "确认切换" }));
     await waitFor(() =>
       expect(applyMutation.mutateAsync).toHaveBeenCalledWith({ cliKey: "claude", workspaceId: 3 })
     );
 
     // applyReport shown, but rollback is hidden when from_workspace_id is null
-    await waitFor(() => expect(screen.getByText(/已应用/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/已切换为当前/)).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: "回滚到上一个" })).not.toBeInTheDocument();
   });
 
@@ -440,14 +424,24 @@ describe("pages/WorkspacesPage", () => {
       </QueryClientProvider>
     );
 
-    await waitFor(() => expect(screen.getByText("W2")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText("W2").length).toBeGreaterThan(0));
 
     // cover workspace card click + keydown handlers
-    const w2Card = screen.getByText("W2").closest('[role="button"]') as HTMLElement;
+    const w2Card = screen
+      .getAllByRole("button")
+      .find((el) => el.getAttribute("tabindex") === "0" && el.textContent?.includes("W2")) as
+      | HTMLElement
+      | undefined;
+    if (!w2Card) throw new Error("W2 workspace card not found");
     fireEvent.click(w2Card);
     expect(screen.getByText("非当前")).toBeInTheDocument();
 
-    const w1Card = screen.getByText("W1").closest('[role="button"]') as HTMLElement;
+    const w1Card = screen
+      .getAllByRole("button")
+      .find((el) => el.getAttribute("tabindex") === "0" && el.textContent?.includes("W1")) as
+      | HTMLElement
+      | undefined;
+    if (!w1Card) throw new Error("W1 workspace card not found");
     fireEvent.keyDown(w1Card, { key: "Enter" });
     await waitFor(() => expect(screen.queryByText("非当前")).not.toBeInTheDocument());
 
@@ -481,32 +475,32 @@ describe("pages/WorkspacesPage", () => {
     // overview quick links (buttons inside overview cards)
     fireEvent.click(screen.getAllByRole("button", { name: "去配置" })[0]!);
     expect(screen.getByText("prompts-view")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("tab", { name: "概览" }));
+    fireEvent.click(screen.getByRole("tab", { name: "总览" }));
 
     fireEvent.click(screen.getAllByRole("button", { name: "去配置" })[1]!);
     expect(screen.getByText("mcp-view")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("tab", { name: "概览" }));
+    fireEvent.click(screen.getByRole("tab", { name: "总览" }));
 
     fireEvent.click(screen.getAllByRole("button", { name: "去配置" })[2]!);
     expect(screen.getByText("skills-view")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("tab", { name: "预览&应用" }));
+    fireEvent.click(screen.getByRole("tab", { name: "总览" }));
 
-    // preview refresh button
-    fireEvent.click(screen.getByRole("button", { name: "刷新预览" }));
+    // switch dialog refresh button
+    fireEvent.click(within(w2Card).getByRole("button", { name: "切换…" }));
+    let dialog = within(screen.getByRole("dialog"));
+    fireEvent.click(dialog.getByRole("button", { name: "刷新对比" }));
     expect(previewRefetch).toHaveBeenCalled();
 
-    // apply dialog cancel button
-    fireEvent.click(screen.getByRole("button", { name: "应用为当前" }));
-    let dialog = within(screen.getByRole("dialog"));
-    expect(dialog.getByText("应用中…")).toBeInTheDocument();
+    // switch dialog cancel button (and pending label)
+    expect(dialog.getByText("切换中…")).toBeInTheDocument();
     fireEvent.click(dialog.getByRole("button", { name: "取消" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 
     // create dialog: toggle create mode and cancel
     fireEvent.click(screen.getByRole("button", { name: "新建" }));
     dialog = within(screen.getByRole("dialog"));
-    fireEvent.click(dialog.getByLabelText("空白创建"));
-    fireEvent.click(dialog.getByLabelText("从当前工作区克隆（推荐）"));
+    fireEvent.click(dialog.getByLabelText("空白创建（推荐）"));
+    fireEvent.click(dialog.getByLabelText("从当前工作区克隆"));
     fireEvent.click(dialog.getByRole("button", { name: "取消" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 

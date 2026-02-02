@@ -26,7 +26,7 @@ export async function workspaceCreate(input: {
   return invokeTauriOrNull<WorkspaceSummary>("workspace_create", {
     cliKey: input.cli_key,
     name: input.name,
-    cloneFromActive: input.clone_from_active ?? true,
+    cloneFromActive: input.clone_from_active ?? false,
   });
 }
 

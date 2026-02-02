@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.17.0](https://github.com/dyndynjyxa/aio-coding-hub/compare/aio-coding-hub-v0.16.0...aio-coding-hub-v0.17.0) (2026-02-02)
+
+
+### Features
+
+* **provider-editor:** enhance ProviderEditorDialog with limit configuration cards ([cc14a00](https://github.com/dyndynjyxa/aio-coding-hub/commit/cc14a009303129793ceec840933155dcfad775d8))
+* **usage:** add cache rate trend functionality to UsagePage ([5535e7d](https://github.com/dyndynjyxa/aio-coding-hub/commit/5535e7d3480237284037ef841d2878bfa6a180f5))
+* **workspaces:** add WorkspacesPage route and enhance CLI manager settings ([2784072](https://github.com/dyndynjyxa/aio-coding-hub/commit/2784072e26748aa21f679c245f74cf3063f4177c))
+* **workspaces:** enhance MCP and Prompts management with workspace support ([791ee6c](https://github.com/dyndynjyxa/aio-coding-hub/commit/791ee6c88b06c16c596b82dcf7956ea5b98dc18d))
+* **workspaces:** improve workspace switching and management functionality ([496c9c3](https://github.com/dyndynjyxa/aio-coding-hub/commit/496c9c35daa23be4d2c44f0653bb11bcb5206e1f))
+
 ## [0.16.0](https://github.com/dyndynjyxa/aio-coding-hub/compare/aio-coding-hub-v0.15.0...aio-coding-hub-v0.16.0) (2026-01-29)
 
 

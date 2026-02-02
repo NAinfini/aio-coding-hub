@@ -266,6 +266,7 @@ export function CliManagerPage() {
         gateway_custom_listen_address: next.gateway_custom_listen_address,
         auto_start: next.auto_start,
         tray_enabled: next.tray_enabled,
+        enable_cli_proxy_startup_recovery: next.enable_cli_proxy_startup_recovery,
         log_retention_days: next.log_retention_days,
         provider_cooldown_seconds: next.provider_cooldown_seconds,
         provider_base_url_ping_cache_ttl_seconds: next.provider_base_url_ping_cache_ttl_seconds,

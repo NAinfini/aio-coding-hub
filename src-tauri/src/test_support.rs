@@ -72,6 +72,21 @@ pub fn skills_swap_local_for_workspace_switch<R: tauri::Runtime>(
     Ok(())
 }
 
+pub fn plugins_swap_local_for_workspace_switch<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    cli_key: &str,
+    from_workspace_id: Option<i64>,
+    to_workspace_id: i64,
+) -> Result<(), String> {
+    let _ = crate::domain::claude_plugins::swap_local_plugins_for_workspace_switch(
+        app,
+        cli_key,
+        from_workspace_id,
+        to_workspace_id,
+    )?;
+    Ok(())
+}
+
 pub fn providers_list_by_cli_json<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     cli_key: &str,
@@ -161,4 +176,21 @@ pub fn providers_reorder_json<R: tauri::Runtime>(
     let db = crate::infra::db::init(app)?;
     let providers = crate::providers::reorder(&db, cli_key, ordered_provider_ids)?;
     serialize_json(providers)
+}
+
+pub fn cli_proxy_set_enabled_json<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    cli_key: &str,
+    enabled: bool,
+    base_origin: &str,
+) -> Result<serde_json::Value, String> {
+    let result = crate::infra::cli_proxy::set_enabled(app, cli_key, enabled, base_origin)?;
+    serialize_json(result)
+}
+
+pub fn cli_proxy_startup_repair_incomplete_enable_json<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> Result<serde_json::Value, String> {
+    let results = crate::infra::cli_proxy::startup_repair_incomplete_enable(app)?;
+    serialize_json(results)
 }

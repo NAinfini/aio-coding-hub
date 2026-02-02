@@ -17,6 +17,7 @@ export type AppSettings = {
   wsl_target_cli: WslTargetCli;
   auto_start: boolean;
   tray_enabled: boolean;
+  enable_cli_proxy_startup_recovery: boolean;
   log_retention_days: number;
   provider_cooldown_seconds: number;
   provider_base_url_ping_cache_ttl_seconds: number;
@@ -50,6 +51,7 @@ export async function settingsSet(input: {
   gateway_custom_listen_address?: string;
   auto_start: boolean;
   tray_enabled: boolean;
+  enable_cli_proxy_startup_recovery?: boolean;
   log_retention_days: number;
   provider_cooldown_seconds: number;
   provider_base_url_ping_cache_ttl_seconds: number;
@@ -91,6 +93,10 @@ export async function settingsSet(input: {
   }
   if (input.gateway_custom_listen_address !== undefined) {
     args.gatewayCustomListenAddress = input.gateway_custom_listen_address;
+  }
+
+  if (input.enable_cli_proxy_startup_recovery !== undefined) {
+    args.enableCliProxyStartupRecovery = input.enable_cli_proxy_startup_recovery;
   }
 
   if (input.intercept_anthropic_warmup_requests !== undefined) {

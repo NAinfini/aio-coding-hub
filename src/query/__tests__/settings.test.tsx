@@ -50,6 +50,7 @@ function makeSettings(overrides?: Partial<AppSettings>): AppSettings {
     wsl_target_cli: { claude: true, codex: true, gemini: true },
     auto_start: false,
     tray_enabled: true,
+    enable_cli_proxy_startup_recovery: true,
     log_retention_days: 30,
     provider_cooldown_seconds: 30,
     provider_base_url_ping_cache_ttl_seconds: 60,

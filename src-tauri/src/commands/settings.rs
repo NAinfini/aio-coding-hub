@@ -17,6 +17,7 @@ pub(crate) async fn settings_set(
     gateway_custom_listen_address: Option<String>,
     auto_start: bool,
     tray_enabled: Option<bool>,
+    enable_cli_proxy_startup_recovery: Option<bool>,
     log_retention_days: u32,
     provider_cooldown_seconds: Option<u32>,
     provider_base_url_ping_cache_ttl_seconds: Option<u32>,
@@ -42,6 +43,8 @@ pub(crate) async fn settings_set(
         let previous = settings::read(&app_for_work).unwrap_or_default();
         let update_releases_url = update_releases_url.unwrap_or(previous.update_releases_url);
         let tray_enabled = tray_enabled.unwrap_or(previous.tray_enabled);
+        let enable_cli_proxy_startup_recovery =
+            enable_cli_proxy_startup_recovery.unwrap_or(previous.enable_cli_proxy_startup_recovery);
         let provider_cooldown_seconds =
             provider_cooldown_seconds.unwrap_or(previous.provider_cooldown_seconds);
         let gateway_listen_mode = gateway_listen_mode.unwrap_or(previous.gateway_listen_mode);
@@ -110,6 +113,7 @@ pub(crate) async fn settings_set(
             wsl_target_cli,
             auto_start: next_auto_start,
             tray_enabled,
+            enable_cli_proxy_startup_recovery,
             log_retention_days,
             provider_cooldown_seconds,
             provider_base_url_ping_cache_ttl_seconds,

@@ -8,7 +8,7 @@ use std::sync::{OnceLock, RwLock};
 use std::time::{Duration, Instant};
 use tauri::Manager;
 
-pub const SCHEMA_VERSION: u32 = 13;
+pub const SCHEMA_VERSION: u32 = 14;
 const SCHEMA_VERSION_DISABLE_UPSTREAM_TIMEOUTS: u32 = 7;
 const SCHEMA_VERSION_ADD_GATEWAY_RECTIFIERS: u32 = 8;
 const SCHEMA_VERSION_ADD_CIRCUIT_BREAKER_NOTICE: u32 = 9;
@@ -16,6 +16,7 @@ const SCHEMA_VERSION_ADD_PROVIDER_BASE_URL_PING_CACHE_TTL: u32 = 10;
 const SCHEMA_VERSION_ADD_CODEX_SESSION_ID_COMPLETION: u32 = 11;
 const SCHEMA_VERSION_ADD_GATEWAY_NETWORK_SETTINGS: u32 = 12;
 const SCHEMA_VERSION_ADD_RESPONSE_FIXER_LIMITS: u32 = 13;
+const SCHEMA_VERSION_ADD_CLI_PROXY_STARTUP_RECOVERY: u32 = 14;
 pub const DEFAULT_GATEWAY_PORT: u16 = 37123;
 pub const MAX_GATEWAY_PORT: u16 = 37199;
 const DEFAULT_LOG_RETENTION_DAYS: u32 = 30;
@@ -33,6 +34,7 @@ const DEFAULT_INTERCEPT_ANTHROPIC_WARMUP_REQUESTS: bool = false;
 const DEFAULT_ENABLE_THINKING_SIGNATURE_RECTIFIER: bool = true;
 const DEFAULT_ENABLE_CODEX_SESSION_ID_COMPLETION: bool = true;
 const DEFAULT_ENABLE_RESPONSE_FIXER: bool = true;
+const DEFAULT_ENABLE_CLI_PROXY_STARTUP_RECOVERY: bool = true;
 const DEFAULT_RESPONSE_FIXER_FIX_ENCODING: bool = true;
 const DEFAULT_RESPONSE_FIXER_FIX_SSE_FORMAT: bool = true;
 const DEFAULT_RESPONSE_FIXER_FIX_TRUNCATED_JSON: bool = true;
@@ -111,6 +113,8 @@ pub struct AppSettings {
     pub wsl_target_cli: WslTargetCli,
     pub auto_start: bool,
     pub tray_enabled: bool,
+    // Startup crash recovery for CLI proxy takeover (default enabled).
+    pub enable_cli_proxy_startup_recovery: bool,
     pub log_retention_days: u32,
     pub provider_cooldown_seconds: u32,
     pub provider_base_url_ping_cache_ttl_seconds: u32,
@@ -149,6 +153,7 @@ impl Default for AppSettings {
             wsl_target_cli: WslTargetCli::default(),
             auto_start: false,
             tray_enabled: true,
+            enable_cli_proxy_startup_recovery: DEFAULT_ENABLE_CLI_PROXY_STARTUP_RECOVERY,
             log_retention_days: DEFAULT_LOG_RETENTION_DAYS,
             provider_cooldown_seconds: DEFAULT_PROVIDER_COOLDOWN_SECONDS,
             provider_base_url_ping_cache_ttl_seconds:
@@ -505,6 +510,33 @@ fn migrate_add_response_fixer_limits(
     changed
 }
 
+fn migrate_add_cli_proxy_startup_recovery(
+    settings: &mut AppSettings,
+    schema_version_present: bool,
+) -> bool {
+    // v14: Add CLI proxy startup recovery toggle (default enabled).
+    if schema_version_present
+        && settings.schema_version >= SCHEMA_VERSION_ADD_CLI_PROXY_STARTUP_RECOVERY
+    {
+        return false;
+    }
+
+    let mut changed = false;
+
+    // If schema_version is missing, force a write to persist schema_version so we don't keep "migrating"
+    // on every startup.
+    if !schema_version_present {
+        changed = true;
+    }
+
+    if settings.schema_version != SCHEMA_VERSION_ADD_CLI_PROXY_STARTUP_RECOVERY {
+        settings.schema_version = SCHEMA_VERSION_ADD_CLI_PROXY_STARTUP_RECOVERY;
+        changed = true;
+    }
+
+    changed
+}
+
 fn settings_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     Ok(app_paths::app_data_dir(app)?.join("settings.json"))
 }
@@ -569,6 +601,8 @@ pub fn read(app: &tauri::AppHandle) -> Result<AppSettings, String> {
                 migrate_add_codex_session_id_completion(&mut settings, schema_version_present);
             repaired |= migrate_add_gateway_network_settings(&mut settings, schema_version_present);
             repaired |= migrate_add_response_fixer_limits(&mut settings, schema_version_present);
+            repaired |=
+                migrate_add_cli_proxy_startup_recovery(&mut settings, schema_version_present);
             repaired |= sanitize_failover_settings(&mut settings);
             repaired |= sanitize_circuit_breaker_settings(&mut settings);
             repaired |= sanitize_provider_cooldown_seconds(&mut settings);
@@ -623,6 +657,7 @@ pub fn read(app: &tauri::AppHandle) -> Result<AppSettings, String> {
     repaired |= migrate_add_codex_session_id_completion(&mut settings, schema_version_present);
     repaired |= migrate_add_gateway_network_settings(&mut settings, schema_version_present);
     repaired |= migrate_add_response_fixer_limits(&mut settings, schema_version_present);
+    repaired |= migrate_add_cli_proxy_startup_recovery(&mut settings, schema_version_present);
     repaired |= sanitize_failover_settings(&mut settings);
     repaired |= sanitize_circuit_breaker_settings(&mut settings);
     repaired |= sanitize_provider_cooldown_seconds(&mut settings);

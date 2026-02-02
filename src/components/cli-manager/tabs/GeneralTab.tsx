@@ -274,6 +274,34 @@ export function CliManagerGeneralTab({
 
         {appSettings ? (
           <>
+            <Card className="md:col-span-2">
+              <div className="mb-4 flex items-start gap-4">
+                <div className="p-2 bg-slate-50 rounded-lg text-slate-600">
+                  <Shield className="h-6 w-6" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-base font-semibold text-slate-900">启动时 CLI 代理自愈</h3>
+                  <p className="mt-1 text-sm text-slate-500">
+                    应用启动后自动修复异常退出导致的 CLI 代理残留，并同步到当前网关端口。
+                  </p>
+                </div>
+                <div className="pt-1">
+                  <Switch
+                    checked={appSettings.enable_cli_proxy_startup_recovery}
+                    onCheckedChange={(checked) =>
+                      void onPersistCommonSettings({
+                        enable_cli_proxy_startup_recovery: checked,
+                      })
+                    }
+                    disabled={commonSettingsSaving || rectifierAvailable !== "available"}
+                  />
+                </div>
+              </div>
+              <div className="text-xs text-slate-500">
+                建议保持开启；若你手动维护 CLI 配置文件且出现冲突，可临时关闭该开关。
+              </div>
+            </Card>
+
             <NetworkSettingsCard
               available={rectifierAvailable === "available"}
               saving={commonSettingsSaving}

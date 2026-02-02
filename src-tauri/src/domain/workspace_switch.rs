@@ -1,5 +1,6 @@
 //! Usage: Workspace (profile) preview/apply orchestration.
 
+use crate::claude_plugins;
 use crate::db;
 use crate::mcp_sync;
 use crate::prompt_sync;
@@ -287,11 +288,35 @@ pub fn apply(
         return Err(err);
     }
 
+    let mut local_plugins_swap = if cli_key == "claude" {
+        match claude_plugins::swap_local_plugins_for_workspace_switch(
+            app,
+            &cli_key,
+            from_workspace_id,
+            workspace_id,
+        ) {
+            Ok(swap) => Some(swap),
+            Err(err) => {
+                let _ = prompt_sync::restore_target_bytes(app, &cli_key, prev_prompt_target);
+                let _ = prompt_sync::restore_manifest_bytes(app, &cli_key, prev_prompt_manifest);
+                let _ = mcp_sync::restore_target_bytes(app, &cli_key, prev_mcp_target);
+                let _ = mcp_sync::restore_manifest_bytes(app, &cli_key, prev_mcp_manifest);
+                return Err(err);
+            }
+        }
+    } else {
+        None
+    };
+
     if let Err(err) = skills::sync_cli_for_workspace(app, &conn, workspace_id) {
         let _ = prompt_sync::restore_target_bytes(app, &cli_key, prev_prompt_target);
         let _ = prompt_sync::restore_manifest_bytes(app, &cli_key, prev_prompt_manifest);
         let _ = mcp_sync::restore_target_bytes(app, &cli_key, prev_mcp_target);
         let _ = mcp_sync::restore_manifest_bytes(app, &cli_key, prev_mcp_manifest);
+
+        if let Some(swap) = local_plugins_swap.take() {
+            swap.rollback();
+        }
 
         if let Some(from_id) = from_workspace_id {
             let _ = skills::sync_cli_for_workspace(app, &conn, from_id);
@@ -313,6 +338,10 @@ pub fn apply(
             let _ = mcp_sync::restore_target_bytes(app, &cli_key, prev_mcp_target);
             let _ = mcp_sync::restore_manifest_bytes(app, &cli_key, prev_mcp_manifest);
 
+            if let Some(swap) = local_plugins_swap.take() {
+                swap.rollback();
+            }
+
             if let Some(from_id) = from_workspace_id {
                 let _ = skills::sync_cli_for_workspace(app, &conn, from_id);
             }
@@ -328,6 +357,10 @@ pub fn apply(
         let _ = mcp_sync::restore_manifest_bytes(app, &cli_key, prev_mcp_manifest);
 
         local_skills_swap.rollback();
+
+        if let Some(swap) = local_plugins_swap.take() {
+            swap.rollback();
+        }
 
         if let Some(from_id) = from_workspace_id {
             let _ = skills::sync_cli_for_workspace(app, &conn, from_id);

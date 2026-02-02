@@ -30,6 +30,7 @@ export type SettingsSetInput = {
   gateway_custom_listen_address?: string;
   auto_start: boolean;
   tray_enabled: boolean;
+  enable_cli_proxy_startup_recovery?: boolean;
   log_retention_days: number;
   provider_cooldown_seconds: number;
   provider_base_url_ping_cache_ttl_seconds: number;

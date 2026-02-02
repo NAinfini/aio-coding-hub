@@ -75,29 +75,32 @@ fn validate_cli_key(cli_key: &str) -> Result<(), String> {
     }
 }
 
-fn home_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+fn home_dir<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
     app.path()
         .home_dir()
         .map_err(|e| format!("failed to resolve home dir: {e}"))
 }
 
-fn claude_settings_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+fn claude_settings_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
     Ok(home_dir(app)?.join(".claude").join("settings.json"))
 }
 
-fn codex_config_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+fn codex_config_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
     codex_paths::codex_config_toml_path(app)
 }
 
-fn codex_auth_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+fn codex_auth_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
     codex_paths::codex_auth_json_path(app)
 }
 
-fn gemini_env_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+fn gemini_env_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
     Ok(home_dir(app)?.join(".gemini").join(".env"))
 }
 
-fn cli_proxy_root_dir(app: &tauri::AppHandle, cli_key: &str) -> Result<PathBuf, String> {
+fn cli_proxy_root_dir<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    cli_key: &str,
+) -> Result<PathBuf, String> {
     Ok(app_paths::app_data_dir(app)?
         .join("cli-proxy")
         .join(cli_key))
@@ -115,8 +118,8 @@ fn cli_proxy_manifest_path(root: &Path) -> PathBuf {
     root.join("manifest.json")
 }
 
-fn read_manifest(
-    app: &tauri::AppHandle,
+fn read_manifest<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
     cli_key: &str,
 ) -> Result<Option<CliProxyManifest>, String> {
     let root = cli_proxy_root_dir(app, cli_key)?;
@@ -138,8 +141,8 @@ fn read_manifest(
     Ok(Some(manifest))
 }
 
-fn write_manifest(
-    app: &tauri::AppHandle,
+fn write_manifest<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
     cli_key: &str,
     manifest: &CliProxyManifest,
 ) -> Result<(), String> {
@@ -154,7 +157,10 @@ fn write_manifest(
     Ok(())
 }
 
-fn target_files(app: &tauri::AppHandle, cli_key: &str) -> Result<Vec<TargetFile>, String> {
+fn target_files<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    cli_key: &str,
+) -> Result<Vec<TargetFile>, String> {
     validate_cli_key(cli_key)?;
 
     match cli_key {
@@ -184,8 +190,8 @@ fn target_files(app: &tauri::AppHandle, cli_key: &str) -> Result<Vec<TargetFile>
     }
 }
 
-fn backup_for_enable(
-    app: &tauri::AppHandle,
+fn backup_for_enable<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
     cli_key: &str,
     base_origin: &str,
     existing: Option<CliProxyManifest>,
@@ -233,8 +239,8 @@ fn backup_for_enable(
     })
 }
 
-fn restore_from_manifest(
-    app: &tauri::AppHandle,
+fn restore_from_manifest<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
     manifest: &CliProxyManifest,
 ) -> Result<(), String> {
     let cli_key = manifest.cli_key.as_str();
@@ -510,7 +516,11 @@ fn env_var_value(input: &str, key: &str) -> Option<String> {
     None
 }
 
-fn is_proxy_config_applied(app: &tauri::AppHandle, cli_key: &str, base_origin: &str) -> bool {
+fn is_proxy_config_applied<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    cli_key: &str,
+    base_origin: &str,
+) -> bool {
     match cli_key {
         "claude" => {
             let path = match claude_settings_path(app) {
@@ -589,8 +599,8 @@ fn is_proxy_config_applied(app: &tauri::AppHandle, cli_key: &str, base_origin: &
     }
 }
 
-fn apply_proxy_config(
-    app: &tauri::AppHandle,
+fn apply_proxy_config<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
     cli_key: &str,
     base_origin: &str,
 ) -> Result<(), String> {
@@ -619,7 +629,9 @@ fn apply_proxy_config(
     Ok(())
 }
 
-pub fn status_all(app: &tauri::AppHandle) -> Result<Vec<CliProxyStatus>, String> {
+pub fn status_all<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> Result<Vec<CliProxyStatus>, String> {
     let mut out = Vec::new();
     for cli_key in crate::shared::cli_key::SUPPORTED_CLI_KEYS {
         let manifest = read_manifest(app, cli_key)?;
@@ -632,7 +644,10 @@ pub fn status_all(app: &tauri::AppHandle) -> Result<Vec<CliProxyStatus>, String>
     Ok(out)
 }
 
-pub fn is_enabled(app: &tauri::AppHandle, cli_key: &str) -> Result<bool, String> {
+pub fn is_enabled<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    cli_key: &str,
+) -> Result<bool, String> {
     validate_cli_key(cli_key)?;
     let Some(manifest) = read_manifest(app, cli_key)? else {
         return Ok(false);
@@ -640,8 +655,8 @@ pub fn is_enabled(app: &tauri::AppHandle, cli_key: &str) -> Result<bool, String>
     Ok(manifest.enabled)
 }
 
-pub fn set_enabled(
-    app: &tauri::AppHandle,
+pub fn set_enabled<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
     cli_key: &str,
     enabled: bool,
     base_origin: &str,
@@ -782,8 +797,58 @@ pub fn set_enabled(
     }
 }
 
-pub fn sync_enabled(
-    app: &tauri::AppHandle,
+pub fn startup_repair_incomplete_enable<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> Result<Vec<CliProxyResult>, String> {
+    let mut out = Vec::new();
+
+    for cli_key in crate::shared::cli_key::SUPPORTED_CLI_KEYS {
+        let Some(mut manifest) = read_manifest(app, cli_key)? else {
+            continue;
+        };
+        if manifest.enabled {
+            continue;
+        }
+
+        let Some(base_origin) = manifest.base_origin.clone() else {
+            continue;
+        };
+
+        if !is_proxy_config_applied(app, cli_key, &base_origin) {
+            continue;
+        }
+
+        let trace_id = new_trace_id("cli-proxy-startup-repair");
+
+        manifest.enabled = true;
+        manifest.updated_at = now_unix_seconds();
+        match write_manifest(app, cli_key, &manifest) {
+            Ok(()) => out.push(CliProxyResult {
+                trace_id,
+                cli_key: cli_key.to_string(),
+                enabled: true,
+                ok: true,
+                error_code: None,
+                message: "启动自愈：已修复异常中断导致的启用状态不一致".to_string(),
+                base_origin: Some(base_origin),
+            }),
+            Err(err) => out.push(CliProxyResult {
+                trace_id,
+                cli_key: cli_key.to_string(),
+                enabled: false,
+                ok: false,
+                error_code: Some("CLI_PROXY_STARTUP_REPAIR_FAILED".to_string()),
+                message: err,
+                base_origin: Some(base_origin),
+            }),
+        }
+    }
+
+    Ok(out)
+}
+
+pub fn sync_enabled<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
     base_origin: &str,
 ) -> Result<Vec<CliProxyResult>, String> {
     if !base_origin.starts_with("http://") && !base_origin.starts_with("https://") {
@@ -847,7 +912,9 @@ pub fn sync_enabled(
     Ok(out)
 }
 
-pub fn restore_enabled_keep_state(app: &tauri::AppHandle) -> Result<Vec<CliProxyResult>, String> {
+pub fn restore_enabled_keep_state<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> Result<Vec<CliProxyResult>, String> {
     let mut out = Vec::new();
     for cli_key in crate::shared::cli_key::SUPPORTED_CLI_KEYS {
         let Some(manifest) = read_manifest(app, cli_key)? else {

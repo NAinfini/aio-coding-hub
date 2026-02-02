@@ -8,8 +8,8 @@ pub mod test_support;
 
 pub(crate) use app::{app_state, notice, resident};
 pub(crate) use domain::{
-    claude_model_validation, claude_model_validation_history, cost, cost_stats, mcp, prompts,
-    providers, skills, sort_modes, usage, usage_stats, workspace_switch, workspaces,
+    claude_model_validation, claude_model_validation_history, claude_plugins, cost, cost_stats,
+    mcp, prompts, providers, skills, sort_modes, usage, usage_stats, workspace_switch, workspaces,
 };
 pub(crate) use gateway::session_manager;
 pub(crate) use infra::{
@@ -113,13 +113,54 @@ pub fn run() {
                     .state::<resident::ResidentState>()
                     .set_tray_enabled(settings.tray_enabled);
 
+                let preferred_port = settings.preferred_port;
+                let enable_cli_proxy_startup_recovery = settings.enable_cli_proxy_startup_recovery;
+
+                if enable_cli_proxy_startup_recovery {
+                    match blocking::run("startup_cli_proxy_repair_incomplete_enable", {
+                        let app_handle = app_handle.clone();
+                        move || cli_proxy::startup_repair_incomplete_enable(&app_handle)
+                    })
+                    .await
+                    {
+                        Ok(results) => {
+                            let mut repaired = Vec::new();
+                            for result in results {
+                                if result.ok {
+                                    repaired.push(result.cli_key);
+                                    continue;
+                                }
+
+                                tracing::warn!(
+                                    cli_key = %result.cli_key,
+                                    trace_id = %result.trace_id,
+                                    error_code = %result.error_code.unwrap_or_default(),
+                                    "启动自愈：修复 cli_proxy 启用状态不一致失败: {}",
+                                    result.message
+                                );
+                            }
+
+                            if !repaired.is_empty() {
+                                tracing::info!(
+                                    repaired = repaired.len(),
+                                    cli_keys = ?repaired,
+                                    "启动自愈：已修复异常中断导致的 cli_proxy 启用状态不一致"
+                                );
+                            }
+                        }
+                        Err(err) => {
+                            tracing::warn!("启动自愈：修复 cli_proxy 启用状态不一致任务失败: {}", err);
+                        }
+                    }
+                }
+
                 let status = match blocking::run("startup_gateway_autostart", {
                     let app_handle = app_handle.clone();
                     let db = db.clone();
                     move || {
                         let state = app_handle.state::<GatewayState>();
                         let mut manager = state.0.lock_or_recover();
-                        manager.start(&app_handle, db, Some(settings.preferred_port))
+                        manager.start(&app_handle, db, Some(preferred_port))
                     }
                 })
                 .await
@@ -127,6 +168,15 @@ pub fn run() {
                     Ok(status) => status,
                     Err(err) => {
                         tracing::error!("网关自动启动失败: {}", err);
+                        if enable_cli_proxy_startup_recovery {
+                            crate::app::cleanup::restore_cli_proxy_keep_state_best_effort(
+                                &app_handle,
+                                "startup_cli_proxy_restore_keep_state",
+                                "启动自愈（网关启动失败）",
+                                true,
+                            )
+                            .await;
+                        }
                         return;
                     }
                 };

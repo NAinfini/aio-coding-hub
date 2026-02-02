@@ -11,6 +11,33 @@ import { cn } from "../../utils/cn";
 import { formatPercent, formatUsdShort } from "../../utils/formatters";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 
+/** Format a unix timestamp (seconds) to a short local date-time string like "1/27 14:00" */
+function formatWindowTs(ts: number): string {
+  const d = new Date(ts * 1000);
+  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+/** Calculate window end timestamp based on window type */
+function getWindowEndTs(startTs: number, windowType: string): number {
+  switch (windowType) {
+    case "5h":
+      return startTs + 5 * 60 * 60;
+    case "24h":
+    case "Daily":
+      return startTs + 24 * 60 * 60;
+    case "Weekly":
+      return startTs + 7 * 24 * 60 * 60;
+    case "Monthly": {
+      // Calculate first day of next month
+      const d = new Date(startTs * 1000);
+      const nextMonth = new Date(d.getFullYear(), d.getMonth() + 1, 1, 0, 0, 0);
+      return Math.floor(nextMonth.getTime() / 1000);
+    }
+    default:
+      return startTs;
+  }
+}
+
 export type HomeProviderLimitPanelProps = {
   rows: ProviderLimitUsageRow[];
   loading: boolean;
@@ -25,6 +52,7 @@ type LimitDisplay = {
   usage: number;
   percent: number;
   warning: boolean;
+  windowStartTs: number | null; // unix seconds, null for "Total"
 };
 
 function getLimitDisplays(row: ProviderLimitUsageRow): LimitDisplay[] {
@@ -38,6 +66,7 @@ function getLimitDisplays(row: ProviderLimitUsageRow): LimitDisplay[] {
       usage: row.usage_5h_usd,
       percent,
       warning: percent >= 0.8,
+      windowStartTs: row.window_5h_start_ts,
     });
   }
 
@@ -50,6 +79,7 @@ function getLimitDisplays(row: ProviderLimitUsageRow): LimitDisplay[] {
       usage: row.usage_daily_usd,
       percent,
       warning: percent >= 0.8,
+      windowStartTs: row.window_daily_start_ts,
     });
   }
 
@@ -61,6 +91,7 @@ function getLimitDisplays(row: ProviderLimitUsageRow): LimitDisplay[] {
       usage: row.usage_weekly_usd,
       percent,
       warning: percent >= 0.8,
+      windowStartTs: row.window_weekly_start_ts,
     });
   }
 
@@ -72,6 +103,7 @@ function getLimitDisplays(row: ProviderLimitUsageRow): LimitDisplay[] {
       usage: row.usage_monthly_usd,
       percent,
       warning: percent >= 0.8,
+      windowStartTs: row.window_monthly_start_ts,
     });
   }
 
@@ -83,6 +115,7 @@ function getLimitDisplays(row: ProviderLimitUsageRow): LimitDisplay[] {
       usage: row.usage_total_usd,
       percent,
       warning: percent >= 0.8,
+      windowStartTs: null, // Total has no window start
     });
   }
 
@@ -105,10 +138,18 @@ function ProgressBar({ percent, warning }: { percent: number; warning: boolean }
 }
 
 function LimitItem({ display }: { display: LimitDisplay }) {
+  const windowLabel =
+    display.windowStartTs != null
+      ? `${formatWindowTs(display.windowStartTs)} → ${formatWindowTs(getWindowEndTs(display.windowStartTs, display.label))}`
+      : null;
+
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center justify-between text-[10px]">
-        <span className="text-slate-500 font-medium">{display.label}</span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-slate-500 font-medium">{display.label}</span>
+          {windowLabel && <span className="text-slate-400 font-mono">{windowLabel}</span>}
+        </div>
         <div className="flex items-center gap-1">
           {display.warning && <AlertTriangle className="h-3 w-3 text-amber-500" />}
           <span className="font-mono text-slate-700">

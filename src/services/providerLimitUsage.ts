@@ -23,6 +23,11 @@ export type ProviderLimitUsageRow = {
   usage_weekly_usd: number;
   usage_monthly_usd: number;
   usage_total_usd: number;
+  // Window start timestamps (unix seconds) for UI display
+  window_5h_start_ts: number;
+  window_daily_start_ts: number;
+  window_weekly_start_ts: number;
+  window_monthly_start_ts: number;
 };
 
 export async function providerLimitUsageV1(cliKey?: CliKey | null) {

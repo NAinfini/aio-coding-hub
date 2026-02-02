@@ -27,6 +27,11 @@ pub struct ProviderLimitUsageRow {
     pub usage_weekly_usd: f64,
     pub usage_monthly_usd: f64,
     pub usage_total_usd: f64,
+    // Window start timestamps (unix seconds) for UI display
+    pub window_5h_start_ts: i64,
+    pub window_daily_start_ts: i64,
+    pub window_weekly_start_ts: i64,
+    pub window_monthly_start_ts: i64,
 }
 
 fn validate_cli_key(cli_key: &str) -> Result<(), String> {
@@ -263,6 +268,10 @@ pub fn list_v1(db: &db::Db, cli_key: Option<&str>) -> Result<Vec<ProviderLimitUs
             usage_weekly_usd: cost_usd_from_femto(usage_weekly_femto),
             usage_monthly_usd: cost_usd_from_femto(usage_monthly_femto),
             usage_total_usd: cost_usd_from_femto(usage_total_femto),
+            window_5h_start_ts: ts_5h,
+            window_daily_start_ts: ts_daily,
+            window_weekly_start_ts: ts_weekly,
+            window_monthly_start_ts: ts_monthly,
         });
     }
 

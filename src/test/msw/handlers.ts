@@ -2,7 +2,11 @@
 
 import { http, HttpResponse } from "msw";
 import { TAURI_ENDPOINT } from "../tauriEndpoint";
-import { buildCliProxySetEnabledResult, getCliProxyStatusAllState } from "./state";
+import {
+  buildCliProxySetEnabledResult,
+  getCliProxyStatusAllState,
+  getEnvConflictsState,
+} from "./state";
 
 const withJson = async <T>(request: Request): Promise<T> => {
   try {
@@ -28,6 +32,10 @@ export const handlers = [
       })
     );
   }),
+
+  http.post(`${TAURI_ENDPOINT}/env_conflicts_check`, () =>
+    HttpResponse.json(getEnvConflictsState())
+  ),
 
   // Catch-all: return `null` for any unimplemented command to keep tests stable by default.
   http.post(`${TAURI_ENDPOINT}/:command`, () => HttpResponse.json(null)),

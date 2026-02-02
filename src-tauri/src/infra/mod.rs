@@ -9,6 +9,7 @@ pub(crate) mod codex_config;
 pub(crate) mod codex_paths;
 pub(crate) mod data_management;
 pub(crate) mod db;
+pub(crate) mod env_conflicts;
 pub(crate) mod mcp_sync;
 pub(crate) mod model_price_aliases;
 pub(crate) mod model_prices;

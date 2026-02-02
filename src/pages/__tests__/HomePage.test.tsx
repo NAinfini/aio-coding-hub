@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import type { ReactElement } from "react";
 import { toast } from "sonner";
+import { setEnvConflictsState } from "../../test/msw/state";
 import { createTestQueryClient } from "../../test/utils/reactQuery";
 import { clearTauriRuntime, setTauriRuntime } from "../../test/utils/tauriRuntime";
 import { HomePage } from "../HomePage";
@@ -54,6 +55,7 @@ vi.mock("../../components/home/HomeOverviewPanel", () => ({
   HomeOverviewPanel: ({
     sortModesLoading,
     onSetCliActiveMode,
+    onSetCliProxyEnabled,
     onRefreshUsageHeatmap,
     onRefreshRequestLogs,
     onSelectLogId,
@@ -74,6 +76,9 @@ vi.mock("../../components/home/HomeOverviewPanel", () => ({
       </button>
       <button type="button" onClick={() => onRefreshRequestLogs()}>
         refresh-logs
+      </button>
+      <button type="button" onClick={() => onSetCliProxyEnabled("codex", true)}>
+        enable-cli-proxy-codex
       </button>
       <button type="button" onClick={() => onSelectLogId(123)}>
         select-log
@@ -159,6 +164,37 @@ function renderWithProviders(client: any, element: ReactElement) {
       <MemoryRouter>{element}</MemoryRouter>
     </QueryClientProvider>
   );
+}
+
+function mockHomePageBaseQueries() {
+  vi.mocked(useGatewayCircuitResetProviderMutation).mockReturnValue({
+    mutateAsync: vi.fn(),
+  } as any);
+  vi.mocked(useGatewayCircuitStatusQuery).mockReturnValue({ data: null } as any);
+  vi.mocked(useProvidersListQuery).mockReturnValue({ data: null } as any);
+
+  vi.mocked(useUsageHourlySeriesQuery).mockReturnValue({
+    data: null,
+    isFetching: false,
+    refetch: vi.fn(),
+  } as any);
+  vi.mocked(useGatewaySessionsListQuery).mockReturnValue({ data: null, isLoading: false } as any);
+  vi.mocked(useRequestLogsListAllQuery).mockReturnValue({
+    data: [],
+    isLoading: false,
+    isFetching: false,
+    refetch: vi.fn(),
+  } as any);
+
+  vi.mocked(useSortModesListQuery).mockReturnValue({ data: [], isLoading: false } as any);
+  vi.mocked(useSortModeActiveListQuery).mockReturnValue({ data: [], isLoading: false } as any);
+  vi.mocked(useSortModeActiveSetMutation).mockReturnValue({ mutateAsync: vi.fn() } as any);
+
+  vi.mocked(useRequestLogDetailQuery).mockReturnValue({ data: null, isFetching: false } as any);
+  vi.mocked(useRequestAttemptLogsByTraceIdQuery).mockReturnValue({
+    data: [],
+    isFetching: false,
+  } as any);
 }
 
 describe("pages/HomePage", () => {
@@ -322,6 +358,56 @@ describe("pages/HomePage", () => {
     expect(requestLogsRefetch).toHaveBeenCalled();
 
     vi.useRealTimers();
+  });
+
+  it("prompts env conflicts before enabling CLI proxy", async () => {
+    setTauriRuntime();
+
+    const client = createTestQueryClient();
+    mockHomePageBaseQueries();
+    setEnvConflictsState([
+      { var_name: "OPENAI_API_KEY", source_type: "system", source_path: "Process Environment" },
+    ]);
+
+    const setCliProxyEnabled = vi.fn();
+    vi.mocked(useCliProxy).mockReturnValue({
+      enabled: { claude: false, codex: false, gemini: false },
+      toggling: { claude: false, codex: false, gemini: false },
+      setCliProxyEnabled,
+    } as any);
+
+    renderWithProviders(client, <HomePage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "enable-cli-proxy-codex" }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(setCliProxyEnabled).not.toHaveBeenCalled();
+    expect(within(dialog).getByText("OPENAI_API_KEY")).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "继续启用" }));
+    expect(setCliProxyEnabled).toHaveBeenCalledWith("codex", true);
+  });
+
+  it("enables CLI proxy directly when no env conflicts are found", async () => {
+    setTauriRuntime();
+
+    const client = createTestQueryClient();
+    mockHomePageBaseQueries();
+    setEnvConflictsState([]);
+
+    const setCliProxyEnabled = vi.fn();
+    vi.mocked(useCliProxy).mockReturnValue({
+      enabled: { claude: false, codex: false, gemini: false },
+      toggling: { claude: false, codex: false, gemini: false },
+      setCliProxyEnabled,
+    } as any);
+
+    renderWithProviders(client, <HomePage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "enable-cli-proxy-codex" }));
+    await waitFor(() => expect(setCliProxyEnabled).toHaveBeenCalledWith("codex", true));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("covers non-tauri runtime branches and the 'more' tab", () => {

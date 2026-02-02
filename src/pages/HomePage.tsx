@@ -37,12 +37,18 @@ import { TabList } from "../ui/TabList";
 import { hasTauriRuntime } from "../services/tauriInvoke";
 import { useTraceStore } from "../services/traceStore";
 import type { CliKey } from "../services/providers";
+import { envConflictsCheck, type EnvConflict } from "../services/envConflicts";
 
 type HomeTabKey = "overview" | "cost" | "more";
 type PendingSortModeSwitch = {
   cliKey: CliKey;
   modeId: number | null;
   activeSessionCount: number;
+};
+
+type PendingCliProxyEnablePrompt = {
+  cliKey: CliKey;
+  conflicts: EnvConflict[];
 };
 
 const HOME_TABS: Array<{ key: HomeTabKey; label: string }> = [
@@ -67,6 +73,9 @@ export function HomePage() {
   const [pendingSortModeSwitch, setPendingSortModeSwitch] = useState<PendingSortModeSwitch | null>(
     null
   );
+  const [pendingCliProxyEnablePrompt, setPendingCliProxyEnablePrompt] =
+    useState<PendingCliProxyEnablePrompt | null>(null);
+  const [checkingCliProxyCliKey, setCheckingCliProxyCliKey] = useState<CliKey | null>(null);
 
   const [selectedLogId, setSelectedLogId] = useState<number | null>(null);
 
@@ -338,6 +347,39 @@ export function HomePage() {
     [activeModeByCli, activeModeToggling, activeSessions, setCliActiveMode, sortModesLoading]
   );
 
+  const requestCliProxyEnabledSwitch = useCallback(
+    (cliKey: CliKey, next: boolean) => {
+      if (next === false) {
+        cliProxy.setCliProxyEnabled(cliKey, false);
+        return;
+      }
+
+      if (checkingCliProxyCliKey === cliKey) return;
+      setCheckingCliProxyCliKey(cliKey);
+
+      void (async () => {
+        try {
+          const conflicts = await envConflictsCheck(cliKey);
+          if (!conflicts || conflicts.length === 0) {
+            cliProxy.setCliProxyEnabled(cliKey, true);
+            return;
+          }
+
+          setPendingCliProxyEnablePrompt({ cliKey, conflicts });
+        } catch (err) {
+          logToConsole("error", "检查环境变量冲突失败，仍尝试开启 CLI 代理", {
+            cli: cliKey,
+            error: String(err),
+          });
+          cliProxy.setCliProxyEnabled(cliKey, true);
+        } finally {
+          setCheckingCliProxyCliKey(null);
+        }
+      })();
+    },
+    [checkingCliProxyCliKey, cliProxy.setCliProxyEnabled]
+  );
+
   const refreshUsageHeatmap = useCallback(() => {
     void usageHeatmapQuery.refetch().then((res) => {
       if (res.error) toast("刷新用量失败：请查看控制台日志");
@@ -410,7 +452,7 @@ export function HomePage() {
             onSetCliActiveMode={requestCliActiveModeSwitch}
             cliProxyEnabled={cliProxy.enabled}
             cliProxyToggling={cliProxy.toggling}
-            onSetCliProxyEnabled={cliProxy.setCliProxyEnabled}
+            onSetCliProxyEnabled={requestCliProxyEnabledSwitch}
             activeSessions={activeSessions}
             activeSessionsLoading={activeSessionsLoading}
             activeSessionsAvailable={activeSessionsAvailable}
@@ -465,6 +507,57 @@ export function HomePage() {
             确认切换
           </Button>
         </div>
+      </Dialog>
+
+      <Dialog
+        open={pendingCliProxyEnablePrompt != null}
+        onOpenChange={(open) => {
+          if (!open) setPendingCliProxyEnablePrompt(null);
+        }}
+        title={
+          pendingCliProxyEnablePrompt
+            ? `检测到 ${CLIS.find((cli) => cli.key === pendingCliProxyEnablePrompt.cliKey)?.name ?? pendingCliProxyEnablePrompt.cliKey} 代理相关环境变量冲突`
+            : "检测到环境变量冲突"
+        }
+        description="继续启用可能会被这些环境变量覆盖（不会显示变量值）。是否继续？"
+      >
+        {pendingCliProxyEnablePrompt ? (
+          <div className="space-y-4">
+            <ul className="space-y-2">
+              {pendingCliProxyEnablePrompt.conflicts.map((row) => (
+                <li
+                  key={`${row.var_name}:${row.source_type}:${row.source_path}`}
+                  className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+                >
+                  <div className="font-mono text-xs text-slate-800">{row.var_name}</div>
+                  <div className="mt-1 text-xs text-slate-500">{row.source_path}</div>
+                </li>
+              ))}
+            </ul>
+
+            <div className="flex items-center justify-end gap-2">
+              <Button
+                variant="secondary"
+                size="md"
+                onClick={() => setPendingCliProxyEnablePrompt(null)}
+              >
+                取消
+              </Button>
+              <Button
+                variant="primary"
+                size="md"
+                onClick={() => {
+                  const pending = pendingCliProxyEnablePrompt;
+                  if (!pending) return;
+                  setPendingCliProxyEnablePrompt(null);
+                  cliProxy.setCliProxyEnabled(pending.cliKey, true);
+                }}
+              >
+                继续启用
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </Dialog>
 
       <RequestLogDetailDialog

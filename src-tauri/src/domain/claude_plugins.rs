@@ -1,7 +1,7 @@
 //! Usage: Stash / restore Claude Code local `plugins` per workspace.
 
 use crate::app_paths;
-use crate::shared::fs::write_file_atomic;
+use crate::shared::fs::write_file_atomic_if_changed;
 use crate::shared::time::now_unix_seconds;
 use std::path::{Path, PathBuf};
 use tauri::Manager;
@@ -120,7 +120,8 @@ fn ensure_clean_plugins_layout(plugins_root: &Path) -> Result<(), String> {
     let mut bytes = serde_json::to_vec_pretty(&serde_json::json!({ "repositories": {} }))
         .map_err(|e| format!("failed to serialize plugins config json: {e}"))?;
     bytes.push(b'\n');
-    write_file_atomic(&config_path, &bytes)
+    let _ = write_file_atomic_if_changed(&config_path, &bytes)?;
+    Ok(())
 }
 
 #[derive(Debug)]

@@ -15,11 +15,27 @@ describe("utils/errors", () => {
     expect(formatUnknownError({ x: 1 })).toContain('"x":1');
   });
 
+  it("formatUnknownError handles circular objects and broken toString", () => {
+    const circular: any = {};
+    circular.self = circular;
+    expect(formatUnknownError(circular)).toBe("[object Object]");
+
+    const broken: any = {
+      toString() {
+        throw new Error("boom");
+      },
+    };
+    broken.self = broken;
+    expect(formatUnknownError(broken)).toBe("未知错误");
+  });
+
   it("parseErrorCodeMessage parses code prefix", () => {
     expect(parseErrorCodeMessage("GW_UPSTREAM_TIMEOUT: hello")).toEqual({
       error_code: "GW_UPSTREAM_TIMEOUT",
       message: "hello",
     });
+    expect(parseErrorCodeMessage("   ")).toEqual({ error_code: null, message: "未知错误" });
+    expect(parseErrorCodeMessage("Error:   ")).toEqual({ error_code: null, message: "未知错误" });
     expect(parseErrorCodeMessage("Error: X:  ")).toEqual({
       error_code: "X",
       message: "X:",

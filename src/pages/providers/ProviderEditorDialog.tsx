@@ -1,6 +1,6 @@
 // Usage: Used by ProvidersView to create/edit a Provider with toast-based validation.
 
-import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
   ChevronDown,
   Clock,
@@ -19,6 +19,11 @@ import {
   type CliKey,
   type ProviderSummary,
 } from "../../services/providers";
+import {
+  createProviderEditorDialogSchema,
+  type ProviderEditorDialogFormInput,
+  type ProviderEditorDialogFormOutput,
+} from "../../schemas/providerEditorDialog";
 import { Button } from "../../ui/Button";
 import { Dialog } from "../../ui/Dialog";
 import { FormField } from "../../ui/FormField";
@@ -28,14 +33,8 @@ import { cn } from "../../utils/cn";
 import { normalizeBaseUrlRows } from "./baseUrl";
 import { BaseUrlEditor } from "./BaseUrlEditor";
 import type { BaseUrlRow, ProviderBaseUrlMode } from "./types";
-import {
-  parseAndValidateCostMultiplier,
-  parseAndValidateLimitUsd,
-  parseAndNormalizeResetTimeHms,
-  validateProviderClaudeModels,
-  validateProviderApiKeyForCreate,
-  validateProviderName,
-} from "./validators";
+import { validateProviderClaudeModels } from "./validators";
+import { useForm } from "react-hook-form";
 
 type BaseUrlModeRadioGroupProps = {
   value: ProviderBaseUrlMode;
@@ -225,22 +224,37 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
     return { id, url, ping: { status: "idle" } };
   };
 
-  const [name, setName] = useState("");
   const [baseUrlMode, setBaseUrlMode] = useState<ProviderBaseUrlMode>("order");
   const [baseUrlRows, setBaseUrlRows] = useState<BaseUrlRow[]>(() => [newBaseUrlRow()]);
   const [pingingAll, setPingingAll] = useState(false);
-  const [apiKey, setApiKey] = useState("");
-  const [costMultiplier, setCostMultiplier] = useState("1.0");
   const [claudeModels, setClaudeModels] = useState<ClaudeModels>({});
-  const [limit5hUsd, setLimit5hUsd] = useState("");
-  const [limitDailyUsd, setLimitDailyUsd] = useState("");
-  const [dailyResetMode, setDailyResetMode] = useState<DailyResetMode>("fixed");
-  const [dailyResetTime, setDailyResetTime] = useState("00:00:00");
-  const [limitWeeklyUsd, setLimitWeeklyUsd] = useState("");
-  const [limitMonthlyUsd, setLimitMonthlyUsd] = useState("");
-  const [limitTotalUsd, setLimitTotalUsd] = useState("");
-  const [enabled, setEnabled] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  const schema = useMemo(() => createProviderEditorDialogSchema({ mode }), [mode]);
+  const form = useForm<ProviderEditorDialogFormInput>({
+    defaultValues: {
+      name: "",
+      api_key: "",
+      cost_multiplier: "1.0",
+      limit_5h_usd: "",
+      limit_daily_usd: "",
+      limit_weekly_usd: "",
+      limit_monthly_usd: "",
+      limit_total_usd: "",
+      daily_reset_mode: "fixed",
+      daily_reset_time: "00:00:00",
+      enabled: true,
+    },
+  });
+
+  const { register, reset, setValue, watch } = form;
+  const enabled = watch("enabled");
+  const dailyResetMode = watch("daily_reset_mode");
+  const limit5hUsd = watch("limit_5h_usd");
+  const limitDailyUsd = watch("limit_daily_usd");
+  const limitWeeklyUsd = watch("limit_weekly_usd");
+  const limitMonthlyUsd = watch("limit_monthly_usd");
+  const limitTotalUsd = watch("limit_total_usd");
 
   const title =
     mode === "create"
@@ -254,107 +268,99 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
     baseUrlRowSeqRef.current = 1;
 
     if (mode === "create") {
-      setName("");
       setBaseUrlMode("order");
       setBaseUrlRows([newBaseUrlRow()]);
       setPingingAll(false);
-      setApiKey("");
-      setCostMultiplier("1.0");
       setClaudeModels({});
-      setLimit5hUsd("");
-      setLimitDailyUsd("");
-      setDailyResetMode("fixed");
-      setDailyResetTime("00:00:00");
-      setLimitWeeklyUsd("");
-      setLimitMonthlyUsd("");
-      setLimitTotalUsd("");
-      setEnabled(true);
+      reset({
+        name: "",
+        api_key: "",
+        cost_multiplier: "1.0",
+        limit_5h_usd: "",
+        limit_daily_usd: "",
+        limit_weekly_usd: "",
+        limit_monthly_usd: "",
+        limit_total_usd: "",
+        daily_reset_mode: "fixed",
+        daily_reset_time: "00:00:00",
+        enabled: true,
+      });
       return;
     }
 
-    setName(props.provider.name);
     setBaseUrlMode(props.provider.base_url_mode);
     setBaseUrlRows(props.provider.base_urls.map((url) => newBaseUrlRow(url)));
     setPingingAll(false);
-    setApiKey("");
-    setEnabled(props.provider.enabled);
-    setCostMultiplier(String(props.provider.cost_multiplier ?? 1.0));
     setClaudeModels(props.provider.claude_models ?? {});
-    setLimit5hUsd(props.provider.limit_5h_usd != null ? String(props.provider.limit_5h_usd) : "");
-    setLimitDailyUsd(
-      props.provider.limit_daily_usd != null ? String(props.provider.limit_daily_usd) : ""
-    );
-    setDailyResetMode(props.provider.daily_reset_mode ?? "fixed");
-    setDailyResetTime(props.provider.daily_reset_time ?? "00:00:00");
-    setLimitWeeklyUsd(
-      props.provider.limit_weekly_usd != null ? String(props.provider.limit_weekly_usd) : ""
-    );
-    setLimitMonthlyUsd(
-      props.provider.limit_monthly_usd != null ? String(props.provider.limit_monthly_usd) : ""
-    );
-    setLimitTotalUsd(
-      props.provider.limit_total_usd != null ? String(props.provider.limit_total_usd) : ""
-    );
-  }, [cliKey, editingProviderId, mode, open]);
+    reset({
+      name: props.provider.name,
+      api_key: "",
+      cost_multiplier: String(props.provider.cost_multiplier ?? 1.0),
+      limit_5h_usd: props.provider.limit_5h_usd != null ? String(props.provider.limit_5h_usd) : "",
+      limit_daily_usd:
+        props.provider.limit_daily_usd != null ? String(props.provider.limit_daily_usd) : "",
+      limit_weekly_usd:
+        props.provider.limit_weekly_usd != null ? String(props.provider.limit_weekly_usd) : "",
+      limit_monthly_usd:
+        props.provider.limit_monthly_usd != null ? String(props.provider.limit_monthly_usd) : "",
+      limit_total_usd:
+        props.provider.limit_total_usd != null ? String(props.provider.limit_total_usd) : "",
+      daily_reset_mode: props.provider.daily_reset_mode ?? "fixed",
+      daily_reset_time: props.provider.daily_reset_time ?? "00:00:00",
+      enabled: props.provider.enabled,
+    });
+  }, [cliKey, editingProviderId, mode, open, reset]);
 
   const setBaseUrlRowsFromUser: Dispatch<SetStateAction<BaseUrlRow[]>> = (action) => {
     setBaseUrlRows(action);
   };
 
-  async function save() {
-    if (saving) return;
+  function toastFirstSchemaIssue(issues: Array<{ path: Array<PropertyKey>; message: string }>) {
+    const orderedFields: Array<keyof ProviderEditorDialogFormInput> = [
+      "name",
+      ...(mode === "create" ? (["api_key"] as const) : []),
+      "cost_multiplier",
+      "limit_5h_usd",
+      "limit_daily_usd",
+      "limit_weekly_usd",
+      "limit_monthly_usd",
+      "limit_total_usd",
+      "daily_reset_time",
+    ];
 
-    const nameError = validateProviderName(name);
-    if (nameError) {
-      toast(nameError);
-      return;
+    const messageByField = new Map<string, string>();
+    for (const issue of issues) {
+      const firstSegment = issue.path[0];
+      if (typeof firstSegment !== "string") continue;
+      if (!messageByField.has(firstSegment)) {
+        messageByField.set(firstSegment, issue.message);
+      }
     }
 
-    if (mode === "create") {
-      const apiKeyError = validateProviderApiKeyForCreate(apiKey);
-      if (apiKeyError) {
-        toast(apiKeyError);
+    for (const field of orderedFields) {
+      const maybeMessage = messageByField.get(field);
+      if (maybeMessage) {
+        toast(maybeMessage);
         return;
       }
     }
 
-    const parsedCost = parseAndValidateCostMultiplier(costMultiplier);
-    if (!parsedCost.ok) {
-      toast(parsedCost.message);
+    const fallback = issues.find((issue) => Boolean(issue.message));
+    if (fallback) {
+      toast(fallback.message);
+    }
+  }
+
+  async function save() {
+    if (saving) return;
+
+    const parsed = schema.safeParse(form.getValues());
+    if (!parsed.success) {
+      toastFirstSchemaIssue(parsed.error.issues);
       return;
     }
 
-    const parsedLimit5h = parseAndValidateLimitUsd(limit5hUsd, "5 小时消费上限");
-    if (!parsedLimit5h.ok) {
-      toast(parsedLimit5h.message);
-      return;
-    }
-    const parsedLimitDaily = parseAndValidateLimitUsd(limitDailyUsd, "每日消费上限");
-    if (!parsedLimitDaily.ok) {
-      toast(parsedLimitDaily.message);
-      return;
-    }
-    const parsedLimitWeekly = parseAndValidateLimitUsd(limitWeeklyUsd, "周消费上限");
-    if (!parsedLimitWeekly.ok) {
-      toast(parsedLimitWeekly.message);
-      return;
-    }
-    const parsedLimitMonthly = parseAndValidateLimitUsd(limitMonthlyUsd, "月消费上限");
-    if (!parsedLimitMonthly.ok) {
-      toast(parsedLimitMonthly.message);
-      return;
-    }
-    const parsedLimitTotal = parseAndValidateLimitUsd(limitTotalUsd, "总消费上限");
-    if (!parsedLimitTotal.ok) {
-      toast(parsedLimitTotal.message);
-      return;
-    }
-
-    const parsedResetTime = parseAndNormalizeResetTimeHms(dailyResetTime);
-    if (!parsedResetTime.ok) {
-      toast(parsedResetTime.message);
-      return;
-    }
+    const values: ProviderEditorDialogFormOutput = parsed.data;
 
     const normalized = normalizeBaseUrlRows(baseUrlRows);
     if (!normalized.ok) {
@@ -375,19 +381,19 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
       const saved = await providerUpsert({
         ...(mode === "edit" ? { provider_id: props.provider.id } : {}),
         cli_key: cliKey,
-        name,
+        name: values.name,
         base_urls: normalized.baseUrls,
         base_url_mode: baseUrlMode,
-        api_key: apiKey,
-        enabled,
-        cost_multiplier: parsedCost.value,
-        limit_5h_usd: parsedLimit5h.value,
-        limit_daily_usd: parsedLimitDaily.value,
-        daily_reset_mode: dailyResetMode,
-        daily_reset_time: parsedResetTime.value,
-        limit_weekly_usd: parsedLimitWeekly.value,
-        limit_monthly_usd: parsedLimitMonthly.value,
-        limit_total_usd: parsedLimitTotal.value,
+        api_key: values.api_key,
+        enabled: values.enabled,
+        cost_multiplier: values.cost_multiplier,
+        limit_5h_usd: values.limit_5h_usd,
+        limit_daily_usd: values.limit_daily_usd,
+        daily_reset_mode: values.daily_reset_mode,
+        daily_reset_time: values.daily_reset_time,
+        limit_weekly_usd: values.limit_weekly_usd,
+        limit_monthly_usd: values.limit_monthly_usd,
+        limit_total_usd: values.limit_total_usd,
         ...(cliKey === "claude" ? { claude_models: claudeModels } : {}),
       });
 
@@ -396,7 +402,7 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
         return;
       }
 
-      setApiKey("");
+      setValue("api_key", "", { shouldDirty: false, shouldValidate: false });
       logToConsole("info", mode === "create" ? "保存 Provider" : "更新 Provider", {
         cli: saved.cli_key,
         provider_id: saved.id,
@@ -452,11 +458,7 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
       <div className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2">
           <FormField label="名称">
-            <Input
-              value={name}
-              onChange={(e) => setName(e.currentTarget.value)}
-              placeholder="default"
-            />
+            <Input placeholder="default" {...register("name")} />
           </FormField>
 
           <FormField label="Base URL 模式">
@@ -488,10 +490,9 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
             <div className="flex items-center gap-2">
               <Input
                 type="password"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.currentTarget.value)}
                 placeholder="sk-…"
                 autoComplete="off"
+                {...register("api_key")}
               />
             </div>
           </FormField>
@@ -501,9 +502,8 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
               type="number"
               min="0.0001"
               step="0.01"
-              value={costMultiplier}
-              onChange={(e) => setCostMultiplier(e.currentTarget.value)}
               placeholder="1.0"
+              {...register("cost_multiplier")}
             />
           </FormField>
         </div>
@@ -537,7 +537,7 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
                   label="5 小时消费上限"
                   hint="留空表示不限制"
                   value={limit5hUsd}
-                  onChange={setLimit5hUsd}
+                  onChange={(value) => setValue("limit_5h_usd", value, { shouldDirty: true })}
                   placeholder="例如: 10"
                   disabled={saving}
                 />
@@ -547,7 +547,7 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
                   label="每日消费上限"
                   hint="留空表示不限制"
                   value={limitDailyUsd}
-                  onChange={setLimitDailyUsd}
+                  onChange={(value) => setValue("limit_daily_usd", value, { shouldDirty: true })}
                   placeholder="例如: 100"
                   disabled={saving}
                 />
@@ -557,7 +557,7 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
                   label="周消费上限"
                   hint="自然周：周一 00:00:00"
                   value={limitWeeklyUsd}
-                  onChange={setLimitWeeklyUsd}
+                  onChange={(value) => setValue("limit_weekly_usd", value, { shouldDirty: true })}
                   placeholder="例如: 500"
                   disabled={saving}
                 />
@@ -567,7 +567,7 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
                   label="月消费上限"
                   hint="自然月：每月 1 号 00:00:00"
                   value={limitMonthlyUsd}
-                  onChange={setLimitMonthlyUsd}
+                  onChange={(value) => setValue("limit_monthly_usd", value, { shouldDirty: true })}
                   placeholder="例如: 2000"
                   disabled={saving}
                 />
@@ -591,7 +591,9 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
                         <p className="mb-2 text-xs text-slate-400">rolling 为过去 24 小时窗口</p>
                         <DailyResetModeRadioGroup
                           value={dailyResetMode}
-                          onChange={setDailyResetMode}
+                          onChange={(value) =>
+                            setValue("daily_reset_mode", value, { shouldDirty: true })
+                          }
                           disabled={saving}
                         />
                       </div>
@@ -605,9 +607,8 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
                         <Input
                           type="time"
                           step="1"
-                          value={dailyResetTime}
-                          onChange={(e) => setDailyResetTime(e.currentTarget.value)}
                           disabled={saving || dailyResetMode !== "fixed"}
+                          {...register("daily_reset_time")}
                         />
                       </div>
                     </div>
@@ -628,7 +629,7 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
                   label="总消费上限"
                   hint="达到后需手动调整/清除"
                   value={limitTotalUsd}
-                  onChange={setLimitTotalUsd}
+                  onChange={(value) => setValue("limit_total_usd", value, { shouldDirty: true })}
                   placeholder="例如: 1000"
                   disabled={saving}
                 />
@@ -727,7 +728,11 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
         <div className="flex items-center justify-between border-t border-slate-100 pt-3">
           <div className="flex items-center gap-2">
             <span className="text-sm text-slate-700">启用</span>
-            <Switch checked={enabled} onCheckedChange={setEnabled} disabled={saving} />
+            <Switch
+              checked={enabled}
+              onCheckedChange={(checked) => setValue("enabled", checked, { shouldDirty: true })}
+              disabled={saving}
+            />
           </div>
           <div className="flex items-center gap-2">
             <Button onClick={() => onOpenChange(false)} variant="secondary" disabled={saving}>

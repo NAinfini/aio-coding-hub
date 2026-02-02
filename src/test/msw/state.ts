@@ -1,6 +1,7 @@
 // Usage: Shared MSW in-memory state for tests that run through `invoke` -> fetch -> MSW handlers.
 
 import type { CliProxyResult, CliProxyStatus } from "../../services/cliProxy";
+import type { EnvConflict } from "../../services/envConflicts";
 import type { CliKey } from "../../services/providers";
 
 const DEFAULT_BASE_ORIGIN = "http://127.0.0.1:37123";
@@ -13,6 +14,7 @@ const DEFAULT_CLI_PROXY_STATUS: CliProxyStatus[] = [
 
 let traceCounter = 0;
 let cliProxyStatusAllState: CliProxyStatus[] = JSON.parse(JSON.stringify(DEFAULT_CLI_PROXY_STATUS));
+let envConflictsState: EnvConflict[] = [];
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
@@ -26,6 +28,7 @@ function nextTraceId(): string {
 export function resetMswState() {
   traceCounter = 0;
   cliProxyStatusAllState = clone(DEFAULT_CLI_PROXY_STATUS);
+  envConflictsState = [];
 }
 
 export function getCliProxyStatusAllState(): CliProxyStatus[] {
@@ -34,6 +37,14 @@ export function getCliProxyStatusAllState(): CliProxyStatus[] {
 
 export function setCliProxyStatusAllState(next: CliProxyStatus[]) {
   cliProxyStatusAllState = clone(next);
+}
+
+export function getEnvConflictsState(): EnvConflict[] {
+  return clone(envConflictsState);
+}
+
+export function setEnvConflictsState(next: EnvConflict[]) {
+  envConflictsState = clone(next);
 }
 
 export function setCliProxyEnabledState(cliKey: CliKey, enabled: boolean): CliProxyStatus[] {

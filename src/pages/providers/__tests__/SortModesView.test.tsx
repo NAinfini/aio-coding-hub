@@ -364,7 +364,8 @@ describe("pages/providers/SortModesView", () => {
 
     await waitFor(() => expect(screen.getByRole("button", { name: "移除" })).toBeInTheDocument());
     const removeButton = screen.getByRole("button", { name: "移除" });
-    const draggingCard = removeButton.closest("div.rounded-2xl");
+    // Card uses rounded-xl on mobile, rounded-2xl on larger screens
+    const draggingCard = removeButton.closest("div[class*='rounded-']");
     expect(draggingCard?.className).toContain("ring-2");
 
     sortableIsDragging = false;

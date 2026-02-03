@@ -212,10 +212,12 @@ export function UsagePage() {
   }, [scope]);
 
   return (
-    <div className="space-y-6">
-      <PageHeader title="用量" />
+    <div className="flex flex-col gap-6 lg:h-[calc(100vh-40px)] lg:overflow-hidden">
+      <div className="shrink-0">
+        <PageHeader title="用量" />
+      </div>
 
-      <Card padding="md" className="space-y-4">
+      <Card padding="md" className="shrink-0 space-y-4">
         <div className="flex items-start gap-3">
           <span className={FILTER_LABEL_CLASS}>CLI：</span>
           <div className={FILTER_OPTIONS_CLASS}>
@@ -325,7 +327,7 @@ export function UsagePage() {
       </Card>
 
       {errorText ? (
-        <Card padding="md" className="border-rose-200 bg-rose-50">
+        <Card padding="md" className="shrink-0 border-rose-200 bg-rose-50">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <div className="text-sm font-semibold text-rose-900">加载失败</div>
@@ -357,15 +359,15 @@ export function UsagePage() {
       ) : null}
 
       {tauriAvailable === false ? (
-        <Card padding="md">
+        <Card padding="md" className="shrink-0">
           <div className="text-sm text-slate-600">
             当前环境未检测到 Tauri Runtime。请通过桌面端运行（`pnpm tauri dev`）后查看用量。
           </div>
         </Card>
       ) : null}
 
-      <Card padding="none">
-        <div className="flex items-center justify-between gap-4 px-6 pb-0 pt-5">
+      <Card padding="none" className="flex min-h-0 flex-1 flex-col lg:overflow-hidden">
+        <div className="flex shrink-0 items-center justify-between gap-4 px-6 pb-0 pt-5">
           <div className="flex items-center gap-3">
             <TabList
               ariaLabel="用量数据视图"
@@ -385,7 +387,7 @@ export function UsagePage() {
           </div>
         </div>
 
-        <div className="mt-4">
+        <div className="mt-4 min-h-0 flex-1 lg:overflow-y-auto scrollbar-overlay">
           {tableTab === "cacheTrend" ? (
             <div className="px-6 pb-6">
               {cacheTrendLoading && cacheTrendRows.length === 0 ? (

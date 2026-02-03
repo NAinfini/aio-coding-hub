@@ -3,6 +3,15 @@ import type { Config } from "tailwindcss";
 export default {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
+    // Extend default screens with xs breakpoint for extra-small devices
+    screens: {
+      xs: "475px",
+      sm: "640px",
+      md: "768px",
+      lg: "1024px",
+      xl: "1280px",
+      "2xl": "1536px",
+    },
     extend: {
       colors: {
         accent: {

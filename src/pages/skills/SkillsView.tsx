@@ -202,16 +202,16 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
 
   return (
     <>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="min-h-[240px]" padding="md">
-          <div className="flex items-start justify-between gap-3">
+      <div className="grid h-full gap-4 lg:grid-cols-2">
+        <Card className="flex min-h-[240px] flex-col lg:min-h-0" padding="md">
+          <div className="flex shrink-0 items-start justify-between gap-3">
             <div className="text-sm font-semibold">通用技能</div>
             <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
               {installed.length}
             </span>
           </div>
 
-          <div className="mt-4 space-y-2">
+          <div className="mt-4 min-h-0 flex-1 space-y-2 lg:overflow-y-auto lg:pr-1 scrollbar-overlay">
             {loading ? (
               <div className="text-sm text-slate-600">加载中…</div>
             ) : installed.length === 0 ? (
@@ -271,15 +271,15 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
           </div>
         </Card>
 
-        <Card className="min-h-[240px]" padding="md">
-          <div className="flex items-start justify-between gap-3">
+        <Card className="flex min-h-[240px] flex-col lg:min-h-0" padding="md">
+          <div className="flex shrink-0 items-start justify-between gap-3">
             <div className="text-sm font-semibold">本机已安装</div>
             <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
               {canOperateLocal ? (localLoading ? "扫描中…" : `${localSkills.length}`) : "—"}
             </span>
           </div>
 
-          <div className="mt-4 space-y-2">
+          <div className="mt-4 min-h-0 flex-1 space-y-2 lg:overflow-y-auto lg:pr-1 scrollbar-overlay">
             {!canOperateLocal ? (
               <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
                 仅当前工作区可扫描/导入本机 Skill（因为会直接读取/写入 {cliKey} 的真实目录）。

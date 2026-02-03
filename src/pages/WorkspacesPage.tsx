@@ -531,10 +531,10 @@ export function WorkspacesPage() {
           </div>
         </Card>
 
-        <div className="flex flex-col gap-4 lg:min-h-0 lg:overflow-hidden">
+        <div className="flex flex-col gap-4 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
           {selectedWorkspace ? (
-            <Card padding="md" className="lg:min-h-0 lg:flex lg:flex-col">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <Card padding="md" className="lg:min-h-0 lg:flex lg:flex-1 lg:flex-col">
+              <div className="shrink-0 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <div className="truncate text-lg font-semibold text-slate-900">
@@ -558,7 +558,14 @@ export function WorkspacesPage() {
                 />
               </div>
 
-              <div className="mt-4 min-h-0 flex-1 lg:overflow-y-auto custom-scrollbar lg:pr-1">
+              <div
+                className={cn(
+                  "mt-4 min-h-0 flex-1",
+                  rightTab === "skills"
+                    ? "lg:overflow-hidden"
+                    : "lg:overflow-y-auto custom-scrollbar lg:pr-1"
+                )}
+              >
                 {rightTab === "overview" ? (
                   <div className="space-y-4">
                     {selectedWorkspace.id === activeWorkspaceId ? (

@@ -23,7 +23,16 @@ const NAV: NavItem[] = [
   { to: "/settings", label: "设置" },
 ];
 
-export function Sidebar() {
+export type SidebarProps = {
+  /** Whether the sidebar is visible (for responsive control) */
+  isOpen?: boolean;
+  /** Callback when navigation item is clicked (for mobile drawer close) */
+  onNavClick?: () => void;
+  /** Additional className for the sidebar container */
+  className?: string;
+};
+
+export function Sidebar({ isOpen = true, onNavClick, className }: SidebarProps) {
   const { gatewayAvailable, gateway, preferredPort } = useGatewayMeta();
   const updateMeta = useUpdateMeta();
   const hasUpdate = !!updateMeta.updateCandidate;
@@ -57,8 +66,25 @@ export function Sidebar() {
     }
   }
 
+  function handleNavClick() {
+    onNavClick?.();
+  }
+
   return (
-    <aside className="sticky top-0 h-screen w-64 shrink-0 border-r border-slate-200 bg-white/70 backdrop-blur">
+    <aside
+      className={cn(
+        "sticky top-0 h-screen shrink-0 border-r border-slate-200 bg-white/70 backdrop-blur",
+        // Responsive width: hidden on mobile, full width on desktop
+        "w-64",
+        // Transition for smooth open/close
+        "transition-transform duration-200 ease-in-out",
+        // On desktop (lg+), always show
+        "lg:translate-x-0",
+        // On smaller screens, control via isOpen prop
+        !isOpen && "max-lg:-translate-x-full max-lg:absolute max-lg:z-40",
+        className
+      )}
+    >
       <div className="flex h-full flex-col">
         <div className="px-4 py-5">
           <div className="flex items-center justify-between">
@@ -113,6 +139,7 @@ export function Sidebar() {
                 )
               }
               end={item.to === "/"}
+              onClick={handleNavClick}
             >
               {({ isActive }) => (
                 <>
@@ -149,3 +176,7 @@ export function Sidebar() {
     </aside>
   );
 }
+
+// Export NAV items for use in MobileNav
+export { NAV };
+export type { NavItem };

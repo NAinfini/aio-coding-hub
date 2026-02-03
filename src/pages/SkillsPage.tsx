@@ -52,25 +52,27 @@ export function SkillsPage() {
   }, [activeCli, workspacesQuery.error]);
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Skill"
-        actions={
-          <>
-            <Button onClick={() => navigate("/skills/market")} variant="primary">
-              Skill 市场
-            </Button>
-            <TabList
-              ariaLabel="CLI 选择"
-              items={CLIS.map((cli) => ({ key: cli.key, label: cli.name }))}
-              value={activeCli}
-              onChange={setActiveCli}
-            />
-          </>
-        }
-      />
+    <div className="flex flex-col gap-6 lg:h-[calc(100vh-40px)] lg:overflow-hidden">
+      <div className="shrink-0">
+        <PageHeader
+          title="Skill"
+          actions={
+            <>
+              <Button onClick={() => navigate("/skills/market")} variant="primary">
+                Skill 市场
+              </Button>
+              <TabList
+                ariaLabel="CLI 选择"
+                items={CLIS.map((cli) => ({ key: cli.key, label: cli.name }))}
+                value={activeCli}
+                onChange={setActiveCli}
+              />
+            </>
+          }
+        />
+      </div>
 
-      <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+      <div className="shrink-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>这是高级入口：默认操作当前 workspace。推荐在「Workspaces」配置中心统一管理。</div>
           <Button variant="secondary" onClick={() => navigate("/workspaces")}>
@@ -79,17 +81,20 @@ export function SkillsPage() {
         </div>
       </div>
 
-      {loading ? (
-        <div className="text-sm text-slate-600">加载中…</div>
-      ) : !tauriRuntime ? (
-        <div className="text-sm text-slate-600">仅在 Tauri Desktop 环境可用</div>
-      ) : !activeWorkspaceId ? (
-        <div className="text-sm text-slate-600">
-          未找到 {currentCli.name} 的当前工作区（workspace）。请先在 Workspaces 页面创建并设为当前。
-        </div>
-      ) : (
-        <SkillsView workspaceId={activeWorkspaceId} cliKey={activeCli} isActiveWorkspace />
-      )}
+      <div className="min-h-0 flex-1 lg:overflow-hidden">
+        {loading ? (
+          <div className="text-sm text-slate-600">加载中…</div>
+        ) : !tauriRuntime ? (
+          <div className="text-sm text-slate-600">仅在 Tauri Desktop 环境可用</div>
+        ) : !activeWorkspaceId ? (
+          <div className="text-sm text-slate-600">
+            未找到 {currentCli.name} 的当前工作区（workspace）。请先在 Workspaces
+            页面创建并设为当前。
+          </div>
+        ) : (
+          <SkillsView workspaceId={activeWorkspaceId} cliKey={activeCli} isActiveWorkspace />
+        )}
+      </div>
     </div>
   );
 }

@@ -36,14 +36,17 @@ export function Dialog({
       <div className="absolute inset-0 flex items-center justify-center p-4">
         <div
           className={cn(
-            "w-full max-w-3xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card",
+            "w-full overflow-hidden border border-slate-200 bg-white shadow-card",
             "flex max-h-[calc(100vh-2rem)] flex-col",
+            // Responsive: rounded corners and max-width
+            "rounded-xl sm:rounded-2xl",
+            "max-w-[calc(100vw-2rem)] sm:max-w-lg md:max-w-xl lg:max-w-3xl",
             className
           )}
           role="dialog"
           aria-modal="true"
         >
-          <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
+          <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3 sm:gap-4 sm:px-5 sm:py-4">
             <div className="min-w-0">
               <div className="truncate text-sm font-semibold">{title}</div>
               {description ? (
@@ -61,7 +64,7 @@ export function Dialog({
             </button>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-5 sm:py-4">{children}</div>
         </div>
       </div>
     </div>,

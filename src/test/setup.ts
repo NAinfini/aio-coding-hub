@@ -13,6 +13,22 @@ if (!globalThis.ResizeObserver) {
   };
 }
 
+// Mock window.matchMedia for responsive hooks
+// Use a plain function (not vi.fn) to avoid being cleared by vi.clearAllMocks()
+Object.defineProperty(window, "matchMedia", {
+  writable: true,
+  value: (query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: () => {}, // deprecated
+    removeListener: () => {}, // deprecated
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  }),
+});
+
 afterEach(() => {
   cleanup();
   resetMswState();

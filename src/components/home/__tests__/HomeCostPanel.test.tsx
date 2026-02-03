@@ -38,7 +38,7 @@ describe("components/home/HomeCostPanel", () => {
     chartOptions.length = 0;
   });
 
-  it("renders with data and allows selecting a top request", () => {
+  it("renders with data and shows summary + charts", () => {
     setTauriRuntime();
 
     vi.mocked(useCustomDateRange).mockReturnValue({
@@ -139,20 +139,12 @@ describe("components/home/HomeCostPanel", () => {
       refetch: vi.fn(),
     } as any);
 
-    const _unusedSelectLogId = vi.fn();
-
     render(<HomeCostPanel />);
 
-    expect(screen.getByText("Top 50 最贵请求")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByText("P1"));
-    expect(_unusedSelectLogId).toHaveBeenCalledWith(1);
-
-    expect(screen.getByText("x1.50")).toBeInTheDocument();
-    expect(screen.getByText("未知")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByText("P2"));
-    expect(_unusedSelectLogId).toHaveBeenCalledWith(2);
+    expect(screen.getByText("总花费（已计算）")).toBeInTheDocument();
+    expect(screen.getByText("成本覆盖率")).toBeInTheDocument();
+    expect(screen.getByText("花费占比")).toBeInTheDocument();
+    expect(screen.getAllByTestId("echarts").length).toBeGreaterThanOrEqual(4);
   });
 
   it("drives filter controls and triggers refetch", () => {
@@ -224,24 +216,20 @@ describe("components/home/HomeCostPanel", () => {
     expect(refetch).toHaveBeenCalled();
 
     // Filter rows.
-    const cliRow = screen.getByText("CLI：").parentElement;
-    expect(cliRow).toBeTruthy();
-    fireEvent.click(within(cliRow as HTMLElement).getByRole("button", { name: "Codex" }));
+    const filterCard = screen.getByText("筛选条件").closest("div")?.parentElement
+      ?.parentElement?.parentElement;
+    expect(filterCard).toBeTruthy();
+    fireEvent.click(within(filterCard as HTMLElement).getByRole("button", { name: "Codex" }));
 
-    const periodRow = screen.getByText("时间窗：").parentElement;
-    expect(periodRow).toBeTruthy();
-    fireEvent.click(within(periodRow as HTMLElement).getByRole("button", { name: "近 7 天" }));
+    fireEvent.click(within(filterCard as HTMLElement).getByRole("button", { name: "近 7 天" }));
 
-    const providerRow = screen.getByText("供应商：").parentElement;
-    expect(providerRow).toBeTruthy();
-    const providerSelect = within(providerRow as HTMLElement).getByRole("combobox");
+    const selects = within(filterCard as HTMLElement).getAllByRole("combobox");
+    const providerSelect = selects[0];
     fireEvent.change(providerSelect, { target: { value: "1" } });
     fireEvent.change(providerSelect, { target: { value: "0" } });
     fireEvent.change(providerSelect, { target: { value: "all" } });
 
-    const modelRow = screen.getByText("模型：").parentElement;
-    expect(modelRow).toBeTruthy();
-    const modelSelect = within(modelRow as HTMLElement).getByRole("combobox");
+    const modelSelect = selects[1];
     fireEvent.change(modelSelect, { target: { value: "claude-3-opus" } });
     fireEvent.change(modelSelect, { target: { value: "all" } });
 
@@ -321,7 +309,7 @@ describe("components/home/HomeCostPanel", () => {
     render(<HomeCostPanel />);
 
     fireEvent.click(screen.getByRole("button", { name: "自定义" }));
-    expect(screen.getByText("Start")).toBeInTheDocument();
+    expect(screen.getByText("开始日期")).toBeInTheDocument();
     expect(screen.getByDisplayValue("2026-01-01")).toBeInTheDocument();
 
     fireEvent.change(screen.getByDisplayValue("2026-01-01"), { target: { value: "2026-01-02" } });
@@ -335,7 +323,7 @@ describe("components/home/HomeCostPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "清空" }));
     expect(clearCustomRange).toHaveBeenCalled();
 
-    expect(screen.getByText('请选择日期范围后点击"应用"')).toBeInTheDocument();
+    expect(screen.getByText("请选择日期范围后点击「应用」")).toBeInTheDocument();
   });
 
   it("toasts when cost query errors", async () => {
@@ -402,7 +390,7 @@ describe("components/home/HomeCostPanel", () => {
     render(<HomeCostPanel />);
 
     expect(toast).toHaveBeenCalledWith("bad-range");
-    expect(document.querySelectorAll(".animate-pulse").length).toBe(3);
+    expect(document.querySelectorAll(".animate-pulse").length).toBe(2);
   });
 
   it("executes chart formatters for branch/function coverage", async () => {

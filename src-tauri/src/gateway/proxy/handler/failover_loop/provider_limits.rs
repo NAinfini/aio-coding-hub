@@ -305,6 +305,38 @@ SELECT
     .map_err(|e| format!("DB_ERROR: failed to compute monthly bounds: {e}"))
 }
 
+/// Resolve the fixed 5h window start for a provider.
+/// Reads stored `window_5h_start_ts`; if NULL or expired, sets it to `now_unix` (the current request time).
+fn resolve_fixed_5h_start(
+    conn: &Connection,
+    provider_id: i64,
+    now_unix: i64,
+) -> Result<i64, String> {
+    let stored: Option<i64> = conn
+        .query_row(
+            "SELECT window_5h_start_ts FROM providers WHERE id = ?1",
+            params![provider_id],
+            |row| row.get(0),
+        )
+        .map_err(|e| format!("DB_ERROR: failed to read window_5h_start_ts: {e}"))?;
+
+    if let Some(start_ts) = stored {
+        let window_end = start_ts.saturating_add(WINDOW_5H_SECS);
+        if now_unix < window_end {
+            return Ok(start_ts);
+        }
+    }
+
+    // Window expired or null -> start a new window from the current request
+    conn.execute(
+        "UPDATE providers SET window_5h_start_ts = ?1 WHERE id = ?2",
+        params![now_unix, provider_id],
+    )
+    .map_err(|e| format!("DB_ERROR: failed to update window_5h_start_ts: {e}"))?;
+
+    Ok(now_unix)
+}
+
 pub(super) fn gate_provider(input: ProviderLimitsInput<'_>) -> bool {
     let ProviderLimitsInput {
         ctx,
@@ -325,9 +357,15 @@ pub(super) fn gate_provider(input: ProviderLimitsInput<'_>) -> bool {
     let now_unix = ctx.created_at;
     let end_unix = now_unix.saturating_add(1);
 
-    let start_5h = provider
-        .limit_5h_usd
-        .map(|_| now_unix.saturating_sub(WINDOW_5H_SECS));
+    // Use fixed window for 5h limit
+    let start_5h = if provider.limit_5h_usd.is_some() {
+        match resolve_fixed_5h_start(&conn, provider.id, now_unix) {
+            Ok(ts) => Some(ts),
+            Err(_) => return true,
+        }
+    } else {
+        None
+    };
 
     let (start_daily_rolling, start_daily_fixed, next_daily_fixed) =
         match (provider.limit_daily_usd, provider.daily_reset_mode) {

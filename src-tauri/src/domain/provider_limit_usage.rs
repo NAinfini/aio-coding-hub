@@ -2,7 +2,7 @@
 
 use crate::db;
 use crate::providers::DailyResetMode;
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
 
 const USD_FEMTO_DENOM: f64 = 1_000_000_000_000_000.0;
@@ -50,14 +50,58 @@ fn cost_usd_from_femto(v: i64) -> f64 {
     (v.max(0) as f64) / USD_FEMTO_DENOM
 }
 
-/// Computes the start timestamp for the 5h window (now - 5 hours)
-fn compute_ts_5h(conn: &Connection) -> Result<i64, String> {
-    conn.query_row(
-        "SELECT CAST(strftime('%s', 'now', '-5 hours') AS INTEGER)",
-        [],
-        |row| row.get::<_, i64>(0),
-    )
-    .map_err(|e| format!("DB_ERROR: failed to compute 5h timestamp: {e}"))
+/// Computes the start timestamp for the 5h window for a specific provider (fixed window mode)
+/// Returns the stored window_5h_start_ts from providers table, or computes from first request if expired/null.
+fn compute_ts_5h(conn: &Connection, provider_id: i64) -> Result<i64, String> {
+    const WINDOW_5H_SECS: i64 = 5 * 60 * 60;
+
+    // Get current time
+    let now_unix = conn
+        .query_row("SELECT CAST(strftime('%s', 'now') AS INTEGER)", [], |row| {
+            row.get::<_, i64>(0)
+        })
+        .map_err(|e| format!("DB_ERROR: failed to get current timestamp: {e}"))?;
+
+    // Read stored window_5h_start_ts
+    let stored_window: Option<i64> = conn
+        .query_row(
+            "SELECT window_5h_start_ts FROM providers WHERE id = ?1",
+            params![provider_id],
+            |row| row.get(0),
+        )
+        .map_err(|e| format!("DB_ERROR: failed to read window_5h_start_ts: {e}"))?;
+
+    // Check if stored window is still valid (not expired)
+    if let Some(start_ts) = stored_window {
+        let window_end = start_ts.saturating_add(WINDOW_5H_SECS);
+        if now_unix < window_end {
+            // Window still valid
+            return Ok(start_ts);
+        }
+    }
+
+    // Window expired or null -> find first request timestamp in recent 5h
+    let recent_threshold = now_unix.saturating_sub(WINDOW_5H_SECS);
+    let first_request_ts: Option<i64> = conn
+        .query_row(
+            r#"
+            SELECT MIN(created_at)
+            FROM request_logs
+            WHERE final_provider_id = ?1
+              AND excluded_from_stats = 0
+              AND status >= 200 AND status < 300
+              AND error_code IS NULL
+              AND created_at >= ?2
+            "#,
+            params![provider_id, recent_threshold],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|e| format!("DB_ERROR: failed to query first request timestamp: {e}"))?
+        .flatten();
+
+    // Return first request timestamp if exists, otherwise use now
+    Ok(first_request_ts.unwrap_or(now_unix))
 }
 
 /// Computes the start timestamp for the daily window based on reset mode
@@ -146,8 +190,7 @@ pub fn list_v1(db: &db::Db, cli_key: Option<&str>) -> Result<Vec<ProviderLimitUs
     let cli_key = normalize_cli_filter(cli_key)?;
     let conn = db.open_connection()?;
 
-    // Pre-compute common time windows
-    let ts_5h = compute_ts_5h(&conn)?;
+    // Pre-compute common time windows (5h is computed per-provider below)
     let ts_weekly = compute_ts_weekly(&conn)?;
     let ts_monthly = compute_ts_monthly(&conn)?;
 
@@ -234,6 +277,9 @@ pub fn list_v1(db: &db::Db, cli_key: Option<&str>) -> Result<Vec<ProviderLimitUs
 
         // Compute daily timestamp based on provider's reset mode
         let ts_daily = compute_ts_daily(&conn, daily_reset_mode, &daily_reset_time)?;
+
+        // Compute 5h window start per provider (fixed window mode)
+        let ts_5h = compute_ts_5h(&conn, provider_id)?;
 
         // Aggregate costs for each time window
         let usage_5h_femto = aggregate_cost_for_provider(&conn, provider_id, Some(ts_5h))?;

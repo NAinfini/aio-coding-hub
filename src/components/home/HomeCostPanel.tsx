@@ -601,7 +601,7 @@ export function HomeCostPanel() {
   return (
     <div className="flex flex-col gap-5 h-full overflow-auto">
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
-        <Card padding="md" className="lg:col-span-7">
+        <Card padding="md" className="lg:col-span-7" data-testid="home-cost-filter-panel">
           <div className="flex flex-col gap-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="flex items-center gap-2">
@@ -679,7 +679,10 @@ export function HomeCostPanel() {
               </div>
 
               {showCustomForm ? (
-                <div className="rounded-lg border border-indigo-100 bg-indigo-50/30 p-4">
+                <div
+                  className="rounded-lg border border-indigo-100 bg-indigo-50/30 p-4"
+                  data-testid="home-cost-custom-range"
+                >
                   <div className="flex flex-col gap-3">
                     <div className="flex items-center gap-2">
                       <Calendar className="h-3.5 w-3.5 text-indigo-500" />

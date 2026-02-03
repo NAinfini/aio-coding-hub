@@ -70,6 +70,9 @@ pub(super) fn ensure_provider_limits(conn: &mut Connection) -> Result<(), String
     if !existing.contains("limit_total_usd") {
         ddl.push("ALTER TABLE providers ADD COLUMN limit_total_usd REAL;");
     }
+    if !existing.contains("window_5h_start_ts") {
+        ddl.push("ALTER TABLE providers ADD COLUMN window_5h_start_ts INTEGER;");
+    }
 
     if !ddl.is_empty() {
         tx.execute_batch(ddl.join("\n").as_str())

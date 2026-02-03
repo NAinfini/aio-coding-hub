@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.18.0](https://github.com/dyndynjyxa/aio-coding-hub/compare/aio-coding-hub-v0.17.0...aio-coding-hub-v0.18.0) (2026-02-03)
+
+
+### Features
+
+* **charts:** migrate from ECharts to Recharts for improved charting capabilities ([b747b61](https://github.com/dyndynjyxa/aio-coding-hub/commit/b747b61a8dd587043a7e8de01a5f9b3d64ead7ae))
+* **cli-manager:** add TOML configuration support for Codex ([826737a](https://github.com/dyndynjyxa/aio-coding-hub/commit/826737a89b74076d5bd90d960e876fb86a12e1cd))
+* **cli:** add CLI proxy startup recovery feature ([eb40a6f](https://github.com/dyndynjyxa/aio-coding-hub/commit/eb40a6f03d9a3b50b501795727a06b7ce9013fc1))
+* **home:** add provider limit usage overview tab ([c224748](https://github.com/dyndynjyxa/aio-coding-hub/commit/c224748c590d1b242df045a7e81667a623d0ec0b))
+* **home:** add provider limit usage overview tab ([6473253](https://github.com/dyndynjyxa/aio-coding-hub/commit/64732536a25e140193242e9829aacb2cce15f05d))
+* **home:** add window start timestamps for provider limit usage ([69a91a2](https://github.com/dyndynjyxa/aio-coding-hub/commit/69a91a21567b6a2c9af2ac879936dd75a6004e37))
+* **home:** enhance HomeCostPanel with data-testid attributes and update tests ([b1d23d2](https://github.com/dyndynjyxa/aio-coding-hub/commit/b1d23d2575afb25d3314911b0c6488a872f56b46))
+* **home:** enhance UI components and improve layout consistency ([70d9655](https://github.com/dyndynjyxa/aio-coding-hub/commit/70d9655cf1a740676e81bcb0a1e204b81abdd1c9))
+* **home:** implement CLI proxy environment conflict checks ([aceff42](https://github.com/dyndynjyxa/aio-coding-hub/commit/aceff428537261c5132b5cb4ebdcb22d16efec82))
+* **home:** implement CLI proxy environment conflict checks ([4c014ca](https://github.com/dyndynjyxa/aio-coding-hub/commit/4c014ca5ab04dab7aa5ca38799d69d1a8eb3cc3e))
+* **responsive:** enhance layout and styling for improved mobile experience ([e22483a](https://github.com/dyndynjyxa/aio-coding-hub/commit/e22483a8da8c35822c6e5b0532aa1461cb68cf95))
+* **settings:** update Claude settings and remove deprecated options ([49e055a](https://github.com/dyndynjyxa/aio-coding-hub/commit/49e055aeb176819cb56a925aecbd51f362008762))
+* **tauri:** update error handling and add thiserror dependency ([10d918a](https://github.com/dyndynjyxa/aio-coding-hub/commit/10d918a0a0a746b4d25c1c236f88c0110ec664c3))
+* **usage:** add summary stat cards with filter layout optimization ([f6c9206](https://github.com/dyndynjyxa/aio-coding-hub/commit/f6c9206ba6e0b424748ba05f0ac749884d5bf0d3))
+
+
+### Bug Fixes
+
+* **home:** update HomeCostPanel with accessibility labels and improve test assertions ([0bda6c1](https://github.com/dyndynjyxa/aio-coding-hub/commit/0bda6c1ce8aec6920b30810882f3a804c62ab732))
+
 ## [0.17.0](https://github.com/dyndynjyxa/aio-coding-hub/compare/aio-coding-hub-v0.16.0...aio-coding-hub-v0.17.0) (2026-02-02)
 
 

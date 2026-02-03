@@ -24,7 +24,9 @@ import {
   formatPercent,
   formatTokensPerSecond,
   formatUsd,
+  formatUsdShort,
 } from "../utils/formatters";
+import { cn } from "../utils/cn";
 
 type ScopeItem = { key: UsageScope; label: string };
 
@@ -37,6 +39,38 @@ const SCOPE_ITEMS: ScopeItem[] = [
 const FILTER_LABEL_CLASS = "w-16 shrink-0 pt-1.5 text-right text-xs font-medium text-slate-600";
 const FILTER_OPTIONS_CLASS = "min-w-0 flex flex-1 flex-wrap items-center gap-2";
 const FILTER_OPTION_BUTTON_CLASS = "w-24 whitespace-nowrap";
+
+function StatCard({
+  title,
+  value,
+  hint,
+  className,
+}: {
+  title: string;
+  value: string;
+  hint?: string;
+  className?: string;
+}) {
+  return (
+    <Card padding="md" className={cn("flex h-full flex-col", className)}>
+      <div className="text-xs font-medium text-slate-500">{title}</div>
+      <div className="mt-1.5 text-xl font-semibold tracking-tight text-slate-900">{value}</div>
+      {hint ? (
+        <div className="mt-auto pt-1.5 text-[11px] leading-4 text-slate-500">{hint}</div>
+      ) : null}
+    </Card>
+  );
+}
+
+function StatCardSkeleton({ className }: { className?: string }) {
+  return (
+    <Card padding="md" className={cn("h-full animate-pulse", className)}>
+      <div className="h-3 w-16 rounded bg-slate-200" />
+      <div className="mt-2 h-6 w-20 rounded bg-slate-200" />
+      <div className="mt-2 h-3 w-28 rounded bg-slate-100" />
+    </Card>
+  );
+}
 
 function TokenBreakdown({
   totalTokens,
@@ -180,6 +214,21 @@ export function UsagePage() {
     [cacheTrendRows]
   );
 
+  // 汇总成本（从 leaderboard rows 累加）
+  const totalCostUsd = useMemo(
+    () => rows.reduce((sum, row) => sum + (row.cost_usd ?? 0), 0),
+    [rows]
+  );
+
+  // 汇总缓存数及命中率
+  const cacheStats = useMemo(() => {
+    if (!summary) return null;
+    const total = summary.cache_read_input_tokens + summary.cache_creation_input_tokens;
+    const denom = summary.input_tokens + summary.cache_read_input_tokens;
+    const hitRate = denom > 0 ? summary.cache_read_input_tokens / denom : NaN;
+    return { total, hitRate };
+  }, [summary]);
+
   function onChangeTableTab(next: UsageTableTab) {
     if (next === tableTab) return;
 
@@ -217,114 +266,165 @@ export function UsagePage() {
         <PageHeader title="用量" />
       </div>
 
-      <Card padding="md" className="shrink-0 space-y-4">
-        <div className="flex items-start gap-3">
-          <span className={FILTER_LABEL_CLASS}>CLI：</span>
-          <div className={FILTER_OPTIONS_CLASS}>
-            {CLI_FILTER_ITEMS.map((item) => (
-              <Button
-                key={item.key}
-                size="sm"
-                variant={cliKey === item.key ? "primary" : "secondary"}
-                onClick={() => setCliKey(item.key)}
-                disabled={loading}
-                className={FILTER_OPTION_BUTTON_CLASS}
-              >
-                {item.label}
-              </Button>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex items-start gap-3">
-          <span className={FILTER_LABEL_CLASS}>维度：</span>
-          <div className={FILTER_OPTIONS_CLASS}>
-            {SCOPE_ITEMS.map((item) => (
-              <Button
-                key={item.key}
-                size="sm"
-                variant={scope === item.key ? "primary" : "secondary"}
-                onClick={() => setScope(item.key)}
-                disabled={loading || tableTab === "cacheTrend"}
-                className={FILTER_OPTION_BUTTON_CLASS}
-              >
-                {item.label}
-              </Button>
-            ))}
-            {tableTab === "cacheTrend" ? (
-              <span className="w-full pt-1 text-xs text-slate-500">
-                缓存走势图仅支持供应商维度（已锁定）
-              </span>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="flex items-start gap-3">
-          <span className={FILTER_LABEL_CLASS}>时间窗：</span>
-          <div className={FILTER_OPTIONS_CLASS}>
-            {PERIOD_ITEMS.map((item) => (
-              <Button
-                key={item.key}
-                size="sm"
-                variant={period === item.key ? "primary" : "secondary"}
-                onClick={() => setPeriod(item.key)}
-                disabled={loading}
-                className={FILTER_OPTION_BUTTON_CLASS}
-              >
-                {item.label}
-              </Button>
-            ))}
-            {period === "custom" ? (
-              <span className="w-full pt-1 text-xs text-slate-500">
-                endDate 包含（按本地日期边界计算）
-              </span>
-            ) : null}
-          </div>
-        </div>
-
-        {showCustomForm ? (
-          <div className="flex items-start gap-3 border-t border-slate-100 pt-4">
-            <div className="w-16 shrink-0" aria-hidden="true" />
-            <div className="min-w-0 flex flex-1 flex-col gap-3 md:flex-row md:items-end">
-              <div className="flex flex-col gap-1.5">
-                <div className="text-xs font-medium text-slate-600">开始日期</div>
-                <input
-                  type="date"
-                  value={customStartDate}
-                  onChange={(e) => setCustomStartDate(e.currentTarget.value)}
-                  aria-label="开始日期"
-                  className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#0052FF] focus:ring-2 focus:ring-[#0052FF]/20"
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <div className="text-xs font-medium text-slate-600">结束日期</div>
-                <input
-                  type="date"
-                  value={customEndDate}
-                  onChange={(e) => setCustomEndDate(e.currentTarget.value)}
-                  aria-label="结束日期"
-                  className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#0052FF] focus:ring-2 focus:ring-[#0052FF]/20"
-                />
-              </div>
-              <div className="flex flex-wrap items-center gap-2 md:pb-0.5">
-                <Button size="sm" variant="primary" onClick={applyCustomRange} disabled={loading}>
-                  应用
+      <div className="shrink-0 grid grid-cols-1 gap-5 lg:grid-cols-12">
+        {/* 左侧：筛选条件 */}
+        <Card padding="md" className="space-y-4 lg:col-span-7">
+          <div className="flex items-start gap-3">
+            <span className={FILTER_LABEL_CLASS}>CLI：</span>
+            <div className={FILTER_OPTIONS_CLASS}>
+              {CLI_FILTER_ITEMS.map((item) => (
+                <Button
+                  key={item.key}
+                  size="sm"
+                  variant={cliKey === item.key ? "primary" : "secondary"}
+                  onClick={() => setCliKey(item.key)}
+                  disabled={loading}
+                  className={FILTER_OPTION_BUTTON_CLASS}
+                >
+                  {item.label}
                 </Button>
-                <Button size="sm" variant="secondary" onClick={clearCustomRange} disabled={loading}>
-                  清空
-                </Button>
-                {customApplied ? (
-                  <span className="text-xs font-medium text-slate-600">
-                    已应用：{customApplied.startDate} → {customApplied.endDate}
-                  </span>
-                ) : (
-                  <span className="text-xs text-slate-500">请选择日期范围后点击"应用"</span>
-                )}
-              </div>
+              ))}
             </div>
           </div>
-        ) : null}
-      </Card>
+
+          <div className="flex items-start gap-3">
+            <span className={FILTER_LABEL_CLASS}>维度：</span>
+            <div className={FILTER_OPTIONS_CLASS}>
+              {SCOPE_ITEMS.map((item) => (
+                <Button
+                  key={item.key}
+                  size="sm"
+                  variant={scope === item.key ? "primary" : "secondary"}
+                  onClick={() => setScope(item.key)}
+                  disabled={loading || tableTab === "cacheTrend"}
+                  className={FILTER_OPTION_BUTTON_CLASS}
+                >
+                  {item.label}
+                </Button>
+              ))}
+              {tableTab === "cacheTrend" ? (
+                <span className="w-full pt-1 text-xs text-slate-500">
+                  缓存走势图仅支持供应商维度（已锁定）
+                </span>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3">
+            <span className={FILTER_LABEL_CLASS}>时间窗：</span>
+            <div className={FILTER_OPTIONS_CLASS}>
+              {PERIOD_ITEMS.map((item) => (
+                <Button
+                  key={item.key}
+                  size="sm"
+                  variant={period === item.key ? "primary" : "secondary"}
+                  onClick={() => setPeriod(item.key)}
+                  disabled={loading}
+                  className={FILTER_OPTION_BUTTON_CLASS}
+                >
+                  {item.label}
+                </Button>
+              ))}
+              {period === "custom" ? (
+                <span className="w-full pt-1 text-xs text-slate-500">
+                  endDate 包含（按本地日期边界计算）
+                </span>
+              ) : null}
+            </div>
+          </div>
+
+          {showCustomForm ? (
+            <div className="flex items-start gap-3 border-t border-slate-100 pt-4">
+              <div className="w-16 shrink-0" aria-hidden="true" />
+              <div className="min-w-0 flex flex-1 flex-col gap-3 md:flex-row md:items-end">
+                <div className="flex flex-col gap-1.5">
+                  <div className="text-xs font-medium text-slate-600">开始日期</div>
+                  <input
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.currentTarget.value)}
+                    aria-label="开始日期"
+                    className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#0052FF] focus:ring-2 focus:ring-[#0052FF]/20"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <div className="text-xs font-medium text-slate-600">结束日期</div>
+                  <input
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.currentTarget.value)}
+                    aria-label="结束日期"
+                    className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#0052FF] focus:ring-2 focus:ring-[#0052FF]/20"
+                  />
+                </div>
+                <div className="flex flex-wrap items-center gap-2 md:pb-0.5">
+                  <Button size="sm" variant="primary" onClick={applyCustomRange} disabled={loading}>
+                    应用
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={clearCustomRange}
+                    disabled={loading}
+                  >
+                    清空
+                  </Button>
+                  {customApplied ? (
+                    <span className="text-xs font-medium text-slate-600">
+                      已应用：{customApplied.startDate} → {customApplied.endDate}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-slate-500">请选择日期范围后点击"应用"</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </Card>
+
+        {/* 右侧：汇总指标卡片 (2x2) */}
+        <div className="lg:col-span-5 grid grid-cols-2 gap-3">
+          {usageLoading && !summary ? (
+            <>
+              <StatCardSkeleton />
+              <StatCardSkeleton />
+              <StatCardSkeleton />
+              <StatCardSkeleton />
+            </>
+          ) : (
+            <>
+              <StatCard
+                title="总请求数"
+                value={formatInteger(summary?.requests_total)}
+                hint={
+                  summary
+                    ? `成功 ${formatInteger(summary.requests_success)} / 失败 ${formatInteger(summary.requests_failed)}`
+                    : undefined
+                }
+              />
+              <StatCard
+                title="总消耗金额"
+                value={formatUsdShort(totalCostUsd > 0 ? totalCostUsd : null)}
+                hint={rows.length > 0 ? `来自 ${rows.length} 个${tableTitle}` : undefined}
+              />
+              <StatCard
+                title="总 Token 数"
+                value={formatInteger(summary?.io_total_tokens)}
+                hint={
+                  summary
+                    ? `输入 ${formatInteger(summary.input_tokens)} / 输出 ${formatInteger(summary.output_tokens)}`
+                    : undefined
+                }
+              />
+              <StatCard
+                title="总缓存数"
+                value={formatInteger(cacheStats?.total)}
+                hint={cacheStats ? `命中率 ${formatPercent(cacheStats.hitRate, 1)}` : undefined}
+              />
+            </>
+          )}
+        </div>
+      </div>
 
       {errorText ? (
         <Card padding="md" className="shrink-0 border-rose-200 bg-rose-50">

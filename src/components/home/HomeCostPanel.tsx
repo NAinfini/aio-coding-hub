@@ -19,7 +19,7 @@ import {
   ScatterChart,
   Scatter,
   ZAxis,
-  Legend,
+  LabelList,
 } from "recharts";
 import { cliShortLabel } from "../../constants/clis";
 import { PERIOD_ITEMS } from "../../constants/periods";
@@ -263,6 +263,7 @@ function DonutChart({
 // Scatter Chart Component
 type ScatterPoint = {
   name: string;
+  shortLabel: string;
   x: number;
   y: number;
   z: number;
@@ -270,7 +271,7 @@ type ScatterPoint = {
   meta: CostScatterCliProviderModelRowV1;
 };
 
-function CostScatterChart({ data, showLegend }: { data: ScatterPoint[]; showLegend: boolean }) {
+function CostScatterChart({ data }: { data: ScatterPoint[] }) {
   const byCliData = useMemo(() => {
     const grouped: Record<CliKey, ScatterPoint[]> = {
       claude: [],
@@ -327,7 +328,7 @@ function CostScatterChart({ data, showLegend }: { data: ScatterPoint[]; showLege
 
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <ScatterChart margin={{ left: 0, right: 80, top: showLegend ? 60 : 8, bottom: 32 }}>
+      <ScatterChart margin={{ left: 0, right: 16, top: 8, bottom: 4 }}>
         <CartesianGrid stroke="rgba(15,23,42,0.08)" strokeDasharray="3 3" />
         <XAxis
           type="number"
@@ -337,12 +338,6 @@ function CostScatterChart({ data, showLegend }: { data: ScatterPoint[]; showLege
           tickLine={false}
           tick={{ ...AXIS_STYLE }}
           tickFormatter={formatUsdShort}
-          label={{
-            value: "总成本(USD)",
-            position: "insideBottom",
-            offset: -5,
-            style: { ...AXIS_STYLE, fontSize: 10 },
-          }}
         />
         <YAxis
           type="number"
@@ -352,22 +347,10 @@ function CostScatterChart({ data, showLegend }: { data: ScatterPoint[]; showLege
           tickLine={false}
           tick={{ ...AXIS_STYLE }}
           tickFormatter={formatDurationMsShort}
-          label={{
-            value: "总耗时",
-            angle: -90,
-            position: "insideLeft",
-            style: { ...AXIS_STYLE, fontSize: 10 },
-          }}
-          width={60}
+          width={56}
         />
-        <ZAxis type="number" dataKey="z" range={[100, 676]} />
+        <ZAxis type="number" dataKey="z" range={[60, 400]} />
         <Tooltip content={<CustomTooltip />} />
-        {showLegend && (
-          <Legend
-            wrapperStyle={{ paddingTop: 8 }}
-            formatter={(value) => <span style={{ fontSize: 10, color: "#64748b" }}>{value}</span>}
-          />
-        )}
         {activeClis.map((cli) => (
           <Scatter
             key={cli}
@@ -376,7 +359,14 @@ function CostScatterChart({ data, showLegend }: { data: ScatterPoint[]; showLege
             fill={SCATTER_COLORS[cli]}
             fillOpacity={0.85}
             animationDuration={CHART_ANIMATION.animationDuration}
-          />
+          >
+            <LabelList
+              dataKey="shortLabel"
+              position="right"
+              offset={6}
+              style={{ fontSize: 9, fill: "#94a3b8", fontWeight: 500 }}
+            />
+          </Scatter>
         ))}
       </ScatterChart>
     </ResponsiveContainer>
@@ -530,7 +520,7 @@ export function HomeCostPanel() {
     return { data: seriesData, total };
   }, [modelRows]);
 
-  const scatterChartData = useMemo<{ data: ScatterPoint[]; showLegend: boolean }>(() => {
+  const scatterChartData = useMemo<{ data: ScatterPoint[]; activeClis: CliKey[] }>(() => {
     const symbolSize = (costForSizing: number) => {
       const size = 10 + Math.log10(1 + Math.max(0, costForSizing)) * 10;
       return Math.max(10, Math.min(26, size));
@@ -550,6 +540,7 @@ export function HomeCostPanel() {
 
       return {
         name: `${cliLabel} · ${providerText} · ${modelText}`,
+        shortLabel: modelText,
         x: row.total_cost_usd,
         y: row.total_duration_ms,
         z: symbolSize(row.total_cost_usd),
@@ -559,9 +550,9 @@ export function HomeCostPanel() {
     });
 
     const uniqueClis = new Set(points.map((p) => p.cli));
-    const showLegend = uniqueClis.size > 1;
+    const activeClis = (["claude", "codex", "gemini"] as CliKey[]).filter((c) => uniqueClis.has(c));
 
-    return { data: points, showLegend };
+    return { data: points, activeClis };
   }, [scatterCliFilter, scatterRows]);
 
   const summaryCards = useMemo(() => {
@@ -597,10 +588,11 @@ export function HomeCostPanel() {
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
         <Card padding="md" className="lg:col-span-7" data-testid="home-cost-filter-panel">
           <div className="flex flex-col gap-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
+            {/* Header */}
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Filter className="h-4 w-4 text-indigo-500" />
-                <div className="text-sm font-semibold text-slate-900">筛选条件</div>
+                <span className="text-sm font-semibold text-slate-900">筛选条件</span>
               </div>
               <button
                 type="button"
@@ -618,13 +610,11 @@ export function HomeCostPanel() {
               </button>
             </div>
 
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-slate-700">CLI</span>
-                  <div className="h-px flex-1 bg-gradient-to-r from-slate-200 to-transparent" />
-                </div>
-                <div className="flex flex-wrap gap-2">
+            {/* Primary Filters: CLI + Period in one row */}
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-slate-500 whitespace-nowrap">CLI</span>
+                <div className="flex items-center gap-1">
                   {CLI_ITEMS.map((item) => (
                     <button
                       key={item.key}
@@ -632,10 +622,10 @@ export function HomeCostPanel() {
                       onClick={() => setCliKey(item.key)}
                       disabled={fetching}
                       className={cn(
-                        "rounded-lg px-4 py-2 text-sm font-medium transition-all",
+                        "rounded-md px-2.5 py-1 text-xs font-medium transition-all",
                         cliKey === item.key
                           ? "bg-indigo-500 text-white shadow-sm"
-                          : "bg-white border border-slate-200 text-slate-700 hover:border-indigo-300 hover:bg-indigo-50/50",
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200",
                         fetching && "opacity-50 cursor-not-allowed"
                       )}
                     >
@@ -645,13 +635,11 @@ export function HomeCostPanel() {
                 </div>
               </div>
 
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-3.5 w-3.5 text-slate-500" />
-                  <span className="text-xs font-semibold text-slate-700">时间窗</span>
-                  <div className="h-px flex-1 bg-gradient-to-r from-slate-200 to-transparent" />
-                </div>
-                <div className="flex flex-wrap gap-2">
+              <div className="h-4 w-px bg-slate-200 hidden sm:block" />
+
+              <div className="flex items-center gap-2">
+                <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                <div className="flex items-center gap-1">
                   {PERIOD_ITEMS.map((item) => (
                     <button
                       key={item.key}
@@ -659,10 +647,10 @@ export function HomeCostPanel() {
                       onClick={() => setPeriod(item.key)}
                       disabled={fetching}
                       className={cn(
-                        "rounded-lg px-4 py-2 text-sm font-medium transition-all",
+                        "rounded-md px-2.5 py-1 text-xs font-medium transition-all",
                         period === item.key
                           ? "bg-indigo-500 text-white shadow-sm"
-                          : "bg-white border border-slate-200 text-slate-700 hover:border-indigo-300 hover:bg-indigo-50/50",
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200",
                         fetching && "opacity-50 cursor-not-allowed"
                       )}
                     >
@@ -671,166 +659,148 @@ export function HomeCostPanel() {
                   ))}
                 </div>
               </div>
+            </div>
 
-              {showCustomForm ? (
-                <div
-                  className="rounded-lg border border-indigo-100 bg-indigo-50/30 p-4"
-                  data-testid="home-cost-custom-range"
-                >
-                  <div className="flex flex-col gap-3">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-3.5 w-3.5 text-indigo-500" />
-                      <span className="text-xs font-semibold text-slate-700">自定义日期范围</span>
-                    </div>
-                    <div className="flex flex-col gap-3 md:flex-row md:items-end">
-                      <div className="flex-1">
-                        <label className="block text-xs font-medium text-slate-600 mb-1.5">
-                          开始日期
-                        </label>
-                        <Input
-                          type="date"
-                          value={customStartDate}
-                          onChange={(e) => setCustomStartDate(e.currentTarget.value)}
-                          className="h-9 border-slate-300"
-                          disabled={fetching}
-                        />
-                      </div>
-                      <div className="flex-1">
-                        <label className="block text-xs font-medium text-slate-600 mb-1.5">
-                          结束日期
-                        </label>
-                        <Input
-                          type="date"
-                          value={customEndDate}
-                          onChange={(e) => setCustomEndDate(e.currentTarget.value)}
-                          className="h-9 border-slate-300"
-                          disabled={fetching}
-                        />
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={applyCustomRange}
-                          disabled={fetching}
-                          className={cn(
-                            "rounded-lg px-4 py-2 text-sm font-medium transition-all",
-                            fetching
-                              ? "bg-slate-100 text-slate-400 cursor-not-allowed"
-                              : "bg-indigo-500 text-white hover:bg-indigo-600 shadow-sm"
-                          )}
-                        >
-                          应用
-                        </button>
-                        <button
-                          type="button"
-                          onClick={clearCustomRange}
-                          disabled={fetching}
-                          className={cn(
-                            "rounded-lg px-4 py-2 text-sm font-medium transition-all",
-                            fetching
-                              ? "bg-slate-100 text-slate-400 cursor-not-allowed"
-                              : "bg-white border border-slate-200 text-slate-700 hover:border-slate-300"
-                          )}
-                        >
-                          清空
-                        </button>
-                      </div>
-                    </div>
-                    {customApplied ? (
-                      <div className="text-xs text-indigo-700 bg-indigo-100/50 rounded-md px-3 py-1.5">
-                        已应用：{customApplied.startDate} → {customApplied.endDate}
-                      </div>
-                    ) : (
-                      <div className="text-xs text-slate-500">请选择日期范围后点击「应用」</div>
+            {/* Custom Date Range */}
+            {showCustomForm && (
+              <div className="rounded-lg bg-slate-50 p-3" data-testid="home-cost-custom-range">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <div className="flex items-center gap-2 flex-1">
+                    <Input
+                      type="date"
+                      value={customStartDate}
+                      onChange={(e) => setCustomStartDate(e.currentTarget.value)}
+                      className="h-8 text-xs border-slate-200 flex-1"
+                      disabled={fetching}
+                    />
+                    <span className="text-slate-400 text-xs">→</span>
+                    <Input
+                      type="date"
+                      value={customEndDate}
+                      onChange={(e) => setCustomEndDate(e.currentTarget.value)}
+                      className="h-8 text-xs border-slate-200 flex-1"
+                      disabled={fetching}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={applyCustomRange}
+                      disabled={fetching}
+                      className={cn(
+                        "rounded-md px-3 py-1.5 text-xs font-medium transition-all",
+                        fetching
+                          ? "bg-slate-200 text-slate-400 cursor-not-allowed"
+                          : "bg-indigo-500 text-white hover:bg-indigo-600"
+                      )}
+                    >
+                      应用
+                    </button>
+                    <button
+                      type="button"
+                      onClick={clearCustomRange}
+                      disabled={fetching}
+                      className={cn(
+                        "rounded-md px-3 py-1.5 text-xs font-medium transition-all",
+                        fetching
+                          ? "bg-slate-200 text-slate-400 cursor-not-allowed"
+                          : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                      )}
+                    >
+                      清空
+                    </button>
+                    {customApplied && (
+                      <span className="text-[10px] text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
+                        {customApplied.startDate} → {customApplied.endDate}
+                      </span>
                     )}
                   </div>
                 </div>
-              ) : null}
+              </div>
+            )}
 
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center gap-2">
-                  <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
-                  <span className="text-xs font-semibold text-slate-700">高级筛选</span>
-                  <div className="h-px flex-1 bg-gradient-to-r from-slate-200 to-transparent" />
+            {/* Advanced Filters */}
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+              <div className="flex items-center gap-2 flex-1">
+                <label className="text-xs font-medium text-slate-500 whitespace-nowrap">
+                  供应商
+                </label>
+                <div className="relative flex-1">
+                  <select
+                    value={providerSelectValue}
+                    onChange={(e) => {
+                      const v = e.currentTarget.value;
+                      if (v === "all") {
+                        setProviderId(null);
+                        return;
+                      }
+                      const n = Number(v);
+                      if (!Number.isFinite(n) || n <= 0) {
+                        setProviderId(null);
+                        return;
+                      }
+                      setProviderId(Math.floor(n));
+                    }}
+                    disabled={fetching || tauriAvailable === false}
+                    title="选择供应商"
+                    className={cn(
+                      "w-full rounded-md border border-slate-200 bg-white pl-3 pr-8 py-1.5 text-xs text-slate-700",
+                      "focus:border-indigo-300 focus:outline-none focus:ring-1 focus:ring-indigo-100",
+                      "disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed",
+                      "appearance-none cursor-pointer"
+                    )}
+                  >
+                    <option value="all">全部</option>
+                    {providerOptions.map((row) => (
+                      <option
+                        key={`${row.cli_key}:${row.provider_id}`}
+                        value={String(row.provider_id)}
+                      >
+                        {cliShortLabel(row.cli_key)} · {row.provider_name} (
+                        {formatUsd(row.cost_usd)})
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
                 </div>
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div className="flex flex-col gap-2">
-                    <label className="text-xs font-medium text-slate-600">供应商</label>
-                    <div className="relative">
-                      <select
-                        value={providerSelectValue}
-                        onChange={(e) => {
-                          const v = e.currentTarget.value;
-                          if (v === "all") {
-                            setProviderId(null);
-                            return;
-                          }
-                          const n = Number(v);
-                          if (!Number.isFinite(n) || n <= 0) {
-                            setProviderId(null);
-                            return;
-                          }
-                          setProviderId(Math.floor(n));
-                        }}
-                        disabled={fetching || tauriAvailable === false}
-                        className={cn(
-                          "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-mono text-slate-700",
-                          "focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-100",
-                          "disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed",
-                          "appearance-none cursor-pointer"
-                        )}
-                      >
-                        <option value="all">全部供应商</option>
-                        {providerOptions.map((row) => (
-                          <option
-                            key={`${row.cli_key}:${row.provider_id}`}
-                            value={String(row.provider_id)}
-                          >
-                            {cliShortLabel(row.cli_key)} · {row.provider_name} (
-                            {formatUsd(row.cost_usd)})
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-                    </div>
-                  </div>
+              </div>
 
-                  <div className="flex flex-col gap-2">
-                    <label className="text-xs font-medium text-slate-600">模型</label>
-                    <div className="relative">
-                      <select
-                        value={modelSelectValue}
-                        onChange={(e) => {
-                          const v = e.currentTarget.value;
-                          setModel(v === "all" ? null : v);
-                        }}
-                        disabled={fetching || tauriAvailable === false}
-                        className={cn(
-                          "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-mono text-slate-700",
-                          "focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-100",
-                          "disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed",
-                          "appearance-none cursor-pointer"
-                        )}
-                      >
-                        <option value="all">全部模型</option>
-                        {modelOptions.map((row) => (
-                          <option key={row.model} value={row.model}>
-                            {row.model} ({formatUsd(row.cost_usd)})
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-                    </div>
-                  </div>
+              <div className="flex items-center gap-2 flex-1">
+                <label className="text-xs font-medium text-slate-500 whitespace-nowrap">模型</label>
+                <div className="relative flex-1">
+                  <select
+                    value={modelSelectValue}
+                    onChange={(e) => {
+                      const v = e.currentTarget.value;
+                      setModel(v === "all" ? null : v);
+                    }}
+                    disabled={fetching || tauriAvailable === false}
+                    title="选择模型"
+                    className={cn(
+                      "w-full rounded-md border border-slate-200 bg-white pl-3 pr-8 py-1.5 text-xs text-slate-700",
+                      "focus:border-indigo-300 focus:outline-none focus:ring-1 focus:ring-indigo-100",
+                      "disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed",
+                      "appearance-none cursor-pointer"
+                    )}
+                  >
+                    <option value="all">全部</option>
+                    {modelOptions.map((row) => (
+                      <option key={row.model} value={row.model}>
+                        {row.model} ({formatUsd(row.cost_usd)})
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
                 </div>
               </div>
             </div>
 
-            {tauriAvailable === false ? (
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                当前环境未检测到 Tauri Runtime。请通过桌面端运行（`pnpm tauri dev`）后查看花费。
+            {/* Tauri Warning */}
+            {tauriAvailable === false && (
+              <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+                当前环境未检测到 Tauri Runtime。请通过桌面端运行后查看花费。
               </div>
-            ) : null}
+            )}
           </div>
         </Card>
 
@@ -862,6 +832,35 @@ export function HomeCostPanel() {
               ))}
             </div>
           )}
+
+          {/* Cost Distribution Donut Charts */}
+          <Card
+            padding="sm"
+            className="flex flex-col min-h-[180px]"
+            data-testid="home-cost-donut-charts"
+          >
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <div className="text-sm font-semibold text-slate-900">花费占比</div>
+            </div>
+            {loading ? (
+              <div className="text-sm text-slate-400">加载中…</div>
+            ) : (
+              <div className="grid grid-cols-2 gap-4 flex-1">
+                <div className="flex flex-col">
+                  <div className="text-xs font-medium text-slate-600 mb-1">供应商</div>
+                  <div className="h-[140px]">
+                    <DonutChart data={providerDonutData.data} total={providerDonutData.total} />
+                  </div>
+                </div>
+                <div className="flex flex-col">
+                  <div className="text-xs font-medium text-slate-600 mb-1">模型</div>
+                  <div className="h-[140px]">
+                    <DonutChart data={modelDonutData.data} total={modelDonutData.total} />
+                  </div>
+                </div>
+              </div>
+            )}
+          </Card>
         </div>
       </div>
 
@@ -891,10 +890,10 @@ export function HomeCostPanel() {
         </Card>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
         <Card
           padding="sm"
-          className="lg:col-span-7 flex flex-col min-h-[280px]"
+          className="lg:col-span-6 flex flex-col min-h-[320px]"
           data-testid="home-cost-trend-chart"
         >
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -913,9 +912,9 @@ export function HomeCostPanel() {
                     onClick={() => setCliKey(item.key)}
                     disabled={fetching}
                     className={cn(
-                      "px-2 py-0.5 text-xs rounded-full transition-colors",
+                      "px-3 py-1 text-xs rounded-lg font-medium transition-all",
                       cliKey === item.key
-                        ? "bg-accent text-white"
+                        ? "bg-indigo-500 text-white shadow-sm"
                         : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                     )}
                   >
@@ -928,7 +927,7 @@ export function HomeCostPanel() {
           {loading ? (
             <div className="text-sm text-slate-400">加载中…</div>
           ) : summary && summary.requests_success > 0 ? (
-            <div className="h-[220px] flex-1">
+            <div className="h-[280px] flex-1">
               <TrendAreaChart data={trendChartData} isHourly={period === "daily"} />
             </div>
           ) : (
@@ -938,73 +937,56 @@ export function HomeCostPanel() {
 
         <Card
           padding="sm"
-          className="lg:col-span-5 flex flex-col min-h-[180px]"
-          data-testid="home-cost-donut-charts"
+          className="lg:col-span-6 flex flex-col min-h-[320px]"
+          data-testid="home-cost-scatter-chart"
         >
-          <div className="mb-2 flex items-center justify-between gap-3">
-            <div className="text-sm font-semibold text-slate-900">花费占比</div>
-            <div className="text-xs text-slate-500">供应商 / 模型</div>
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-slate-900">总成本 × 总耗时</span>
+              {scatterChartData.activeClis.length > 1 && (
+                <div className="flex items-center gap-1.5">
+                  {scatterChartData.activeClis.map((cli) => (
+                    <div key={cli} className="flex items-center gap-1">
+                      <span
+                        className="inline-block h-2 w-2 rounded-full"
+                        style={{ backgroundColor: SCATTER_COLORS[cli] }}
+                      />
+                      <span className="text-[10px] text-slate-500">{cliShortLabel(cli)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-1">
+              {CLI_ITEMS.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => setScatterCliFilter(item.key)}
+                  disabled={fetching}
+                  className={cn(
+                    "px-3 py-1 text-xs rounded-lg font-medium transition-all",
+                    scatterCliFilter === item.key
+                      ? "bg-indigo-500 text-white shadow-sm"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  )}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
           </div>
           {loading ? (
             <div className="text-sm text-slate-400">加载中…</div>
+          ) : scatterRows.length === 0 ? (
+            <div className="text-sm text-slate-600">暂无可展示的数据。</div>
           ) : (
-            <div className="grid grid-cols-2 gap-4 flex-1">
-              <div className="flex flex-col">
-                <div className="text-xs font-medium text-slate-600 mb-1">供应商</div>
-                <div className="h-[160px]">
-                  <DonutChart data={providerDonutData.data} total={providerDonutData.total} />
-                </div>
-              </div>
-              <div className="flex flex-col">
-                <div className="text-xs font-medium text-slate-600 mb-1">模型</div>
-                <div className="h-[160px]">
-                  <DonutChart data={modelDonutData.data} total={modelDonutData.total} />
-                </div>
-              </div>
+            <div className="h-[280px] flex-1 min-h-0">
+              <CostScatterChart data={scatterChartData.data} />
             </div>
           )}
         </Card>
       </div>
-
-      <Card
-        padding="sm"
-        className="flex flex-col min-h-[320px]"
-        data-testid="home-cost-scatter-chart"
-      >
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <div className="text-sm font-semibold text-slate-900">总成本 × 总耗时</div>
-          <div className="flex items-center gap-1">
-            {CLI_ITEMS.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => setScatterCliFilter(item.key)}
-                disabled={fetching}
-                className={cn(
-                  "px-3 py-1 text-xs rounded-lg font-medium transition-all",
-                  scatterCliFilter === item.key
-                    ? "bg-indigo-500 text-white shadow-sm"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                )}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        {loading ? (
-          <div className="text-sm text-slate-400">加载中…</div>
-        ) : scatterRows.length === 0 ? (
-          <div className="text-sm text-slate-600">暂无可展示的数据。</div>
-        ) : (
-          <div className="h-[320px] flex-1 min-h-0">
-            <CostScatterChart
-              data={scatterChartData.data}
-              showLegend={scatterChartData.showLegend}
-            />
-          </div>
-        )}
-      </Card>
     </div>
   );
 }

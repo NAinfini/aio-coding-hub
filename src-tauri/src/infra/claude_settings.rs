@@ -240,7 +240,7 @@ pub fn claude_settings_get(
         .map(|e| env_is_enabled(e, ENV_KEY_CLAUDE_BASH_NO_LOGIN))
         .unwrap_or(false);
     let env_claude_code_attribution_header = env
-        .map(|e| env_is_enabled(e, ENV_KEY_CLAUDE_CODE_ATTRIBUTION_HEADER))
+        .map(|e| e.contains_key(ENV_KEY_CLAUDE_CODE_ATTRIBUTION_HEADER))
         .unwrap_or(false);
     let env_claude_code_blocking_limit_override = env
         .and_then(|e| e.get(ENV_KEY_CLAUDE_CODE_BLOCKING_LIMIT_OVERRIDE))
@@ -508,7 +508,15 @@ fn patch_claude_settings(
                 patch_env_toggle(env, ENV_KEY_CLAUDE_BASH_NO_LOGIN, v);
             }
             if let Some(v) = patch.env_claude_code_attribution_header {
-                patch_env_toggle(env, ENV_KEY_CLAUDE_CODE_ATTRIBUTION_HEADER, v);
+                // Special handling: write "0" when enabled (not "1")
+                if v {
+                    env.insert(
+                        ENV_KEY_CLAUDE_CODE_ATTRIBUTION_HEADER.to_string(),
+                        serde_json::Value::String("0".to_string()),
+                    );
+                } else {
+                    env.remove(ENV_KEY_CLAUDE_CODE_ATTRIBUTION_HEADER);
+                }
             }
             if let Some(v) = patch.env_claude_code_blocking_limit_override {
                 patch_env_u64(env, ENV_KEY_CLAUDE_CODE_BLOCKING_LIMIT_OVERRIDE, v);

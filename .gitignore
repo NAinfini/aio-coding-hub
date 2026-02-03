@@ -35,4 +35,4 @@ check-doc/
 AGENTS.md
 coverage/
 .cursor/
-.trellis
+.trellis/

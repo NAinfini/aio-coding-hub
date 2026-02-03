@@ -666,7 +666,11 @@ export function HomeCostPanel() {
               <div className="rounded-lg bg-slate-50 p-3" data-testid="home-cost-custom-range">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                   <div className="flex items-center gap-2 flex-1">
+                    <label className="sr-only" htmlFor="home-cost-custom-start-date">
+                      开始日期
+                    </label>
                     <Input
+                      id="home-cost-custom-start-date"
                       type="date"
                       value={customStartDate}
                       onChange={(e) => setCustomStartDate(e.currentTarget.value)}
@@ -674,7 +678,11 @@ export function HomeCostPanel() {
                       disabled={fetching}
                     />
                     <span className="text-slate-400 text-xs">→</span>
+                    <label className="sr-only" htmlFor="home-cost-custom-end-date">
+                      结束日期
+                    </label>
                     <Input
+                      id="home-cost-custom-end-date"
                       type="date"
                       value={customEndDate}
                       onChange={(e) => setCustomEndDate(e.currentTarget.value)}

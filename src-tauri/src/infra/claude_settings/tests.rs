@@ -93,7 +93,7 @@ fn patch_env_attribution_header_can_write_one_and_remove_key() {
     assert_eq!(
         env.get("CLAUDE_CODE_ATTRIBUTION_HEADER")
             .and_then(|v| v.as_str()),
-        Some("1")
+        Some("0")
     );
     assert_eq!(env.get("KEEP").and_then(|v| v.as_str()), Some("x"));
 

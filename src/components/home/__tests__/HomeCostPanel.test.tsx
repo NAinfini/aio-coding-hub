@@ -242,7 +242,7 @@ describe("components/home/HomeCostPanel", () => {
     expect(trendHeader).toBeTruthy();
     fireEvent.click(within(trendHeader as HTMLElement).getByRole("button", { name: "Claude" }));
 
-    const scatterHeader = screen.getByText("总成本 × 总耗时").parentElement;
+    const scatterHeader = screen.getByText("总成本 × 总耗时").parentElement?.parentElement;
     expect(scatterHeader).toBeTruthy();
     fireEvent.click(within(scatterHeader as HTMLElement).getByRole("button", { name: "Claude" }));
 
@@ -327,7 +327,7 @@ describe("components/home/HomeCostPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "清空" }));
     expect(clearCustomRange).toHaveBeenCalled();
 
-    expect(screen.getByText("请选择日期范围后点击「应用」")).toBeInTheDocument();
+    expect(screen.getByText("自定义范围：请选择日期后点击「应用」。")).toBeInTheDocument();
   });
 
   it("toasts when cost query errors", async () => {

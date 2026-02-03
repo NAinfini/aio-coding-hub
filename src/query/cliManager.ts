@@ -5,6 +5,8 @@ import {
   cliManagerClaudeSettingsSet,
   cliManagerCodexConfigGet,
   cliManagerCodexConfigSet,
+  cliManagerCodexConfigTomlGet,
+  cliManagerCodexConfigTomlSet,
   cliManagerCodexInfoGet,
   cliManagerGeminiInfoGet,
   type ClaudeCliInfo,
@@ -53,6 +55,15 @@ export function useCliManagerCodexConfigQuery(options?: { enabled?: boolean }) {
   });
 }
 
+export function useCliManagerCodexConfigTomlQuery(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: cliManagerKeys.codexConfigToml(),
+    queryFn: () => cliManagerCodexConfigTomlGet(),
+    enabled: hasTauriRuntime() && (options?.enabled ?? true),
+    placeholderData: keepPreviousData,
+  });
+}
+
 export function useCliManagerGeminiInfoQuery(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: cliManagerKeys.geminiInfo(),
@@ -88,6 +99,22 @@ export function useCliManagerCodexConfigSetMutation() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: cliManagerKeys.codexConfig() });
+    },
+  });
+}
+
+export function useCliManagerCodexConfigTomlSetMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: { toml: string }) => cliManagerCodexConfigTomlSet(input.toml),
+    onSuccess: (next) => {
+      if (!next) return;
+      queryClient.setQueryData<CodexConfigState | null>(cliManagerKeys.codexConfig(), next);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: cliManagerKeys.codexConfig() });
+      queryClient.invalidateQueries({ queryKey: cliManagerKeys.codexConfigToml() });
     },
   });
 }

@@ -57,11 +57,19 @@ describe("components/cli-manager/tabs/CodexTab", () => {
         codexLoading={false}
         codexConfigLoading={false}
         codexConfigSaving={false}
+        codexConfigTomlLoading={false}
+        codexConfigTomlSaving={false}
         codexInfo={createCodexInfo()}
         codexConfig={createCodexConfig()}
+        codexConfigToml={{
+          config_path: "/home/user/.codex/config.toml",
+          exists: true,
+          toml: 'approval_policy = "on-request"\\n',
+        }}
         refreshCodex={refreshCodex}
         openCodexConfigDir={openCodexConfigDir}
         persistCodexConfig={persistCodexConfig}
+        persistCodexConfigToml={vi.fn().mockResolvedValue(true)}
       />
     );
 
@@ -121,11 +129,15 @@ describe("components/cli-manager/tabs/CodexTab", () => {
         codexLoading={false}
         codexConfigLoading={false}
         codexConfigSaving={false}
+        codexConfigTomlLoading={false}
+        codexConfigTomlSaving={false}
         codexInfo={createCodexInfo()}
         codexConfig={null}
+        codexConfigToml={null}
         refreshCodex={vi.fn()}
         openCodexConfigDir={vi.fn()}
         persistCodexConfig={vi.fn()}
+        persistCodexConfigToml={vi.fn().mockResolvedValue(false)}
       />
     );
     expect(screen.getByText("仅在 Tauri Desktop 环境可用")).toBeInTheDocument();

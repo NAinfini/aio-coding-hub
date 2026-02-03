@@ -142,6 +142,23 @@ export type CodexConfigPatch = Partial<{
   features_collaboration_modes: boolean;
 }>;
 
+export type CodexConfigTomlState = {
+  config_path: string;
+  exists: boolean;
+  toml: string;
+};
+
+export type CodexConfigTomlValidationError = {
+  message: string;
+  line: number | null;
+  column: number | null;
+};
+
+export type CodexConfigTomlValidationResult = {
+  ok: boolean;
+  error: CodexConfigTomlValidationError | null;
+};
+
 export async function cliManagerClaudeInfoGet() {
   return invokeTauriOrNull<ClaudeCliInfo>("cli_manager_claude_info_get");
 }
@@ -156,6 +173,23 @@ export async function cliManagerCodexConfigGet() {
 
 export async function cliManagerCodexConfigSet(patch: CodexConfigPatch) {
   return invokeTauriOrNull<CodexConfigState>("cli_manager_codex_config_set", { patch });
+}
+
+export async function cliManagerCodexConfigTomlGet() {
+  return invokeTauriOrNull<CodexConfigTomlState>("cli_manager_codex_config_toml_get");
+}
+
+export async function cliManagerCodexConfigTomlValidate(toml: string) {
+  return invokeTauriOrNull<CodexConfigTomlValidationResult>(
+    "cli_manager_codex_config_toml_validate",
+    {
+      toml,
+    }
+  );
+}
+
+export async function cliManagerCodexConfigTomlSet(toml: string) {
+  return invokeTauriOrNull<CodexConfigState>("cli_manager_codex_config_toml_set", { toml });
 }
 
 export async function cliManagerGeminiInfoGet() {

@@ -153,6 +153,7 @@ export const cliManagerKeys = {
   claudeSettings: () => [...cliManagerAllKey, "claude", "settings"] as const,
   codexInfo: () => [...cliManagerAllKey, "codex", "info"] as const,
   codexConfig: () => [...cliManagerAllKey, "codex", "config"] as const,
+  codexConfigToml: () => [...cliManagerAllKey, "codex", "configToml"] as const,
   geminiInfo: () => [...cliManagerAllKey, "gemini", "info"] as const,
 };
 

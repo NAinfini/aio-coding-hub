@@ -1,8 +1,20 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import type {
-  CodexConfigPatch,
-  CodexConfigState,
-  SimpleCliInfo,
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import {
+  cliManagerCodexConfigTomlValidate,
+  type CodexConfigPatch,
+  type CodexConfigState,
+  type CodexConfigTomlState,
+  type CodexConfigTomlValidationResult,
+  type SimpleCliInfo,
 } from "../../../services/cliManager";
 import { cn } from "../../../utils/cn";
 import { Button } from "../../../ui/Button";
@@ -22,6 +34,10 @@ import {
   Settings,
 } from "lucide-react";
 
+const LazyCodeEditor = lazy(() =>
+  import("../../../ui/CodeEditor").then((m) => ({ default: m.CodeEditor }))
+);
+
 export type CliManagerAvailability = "checking" | "available" | "unavailable";
 
 export type CliManagerCodexTabProps = {
@@ -29,11 +45,15 @@ export type CliManagerCodexTabProps = {
   codexLoading: boolean;
   codexConfigLoading: boolean;
   codexConfigSaving: boolean;
+  codexConfigTomlLoading: boolean;
+  codexConfigTomlSaving: boolean;
   codexInfo: SimpleCliInfo | null;
   codexConfig: CodexConfigState | null;
+  codexConfigToml: CodexConfigTomlState | null;
   refreshCodex: () => Promise<void> | void;
   openCodexConfigDir: () => Promise<void> | void;
   persistCodexConfig: (patch: CodexConfigPatch) => Promise<void> | void;
+  persistCodexConfigToml: (toml: string) => Promise<boolean> | boolean;
 };
 
 function SettingItem({
@@ -76,15 +96,51 @@ export function CliManagerCodexTab({
   codexLoading,
   codexConfigLoading,
   codexConfigSaving,
+  codexConfigTomlLoading,
+  codexConfigTomlSaving,
   codexInfo,
   codexConfig,
+  codexConfigToml,
   refreshCodex,
   openCodexConfigDir,
   persistCodexConfig,
+  persistCodexConfigToml,
 }: CliManagerCodexTabProps) {
   const [modelText, setModelText] = useState("");
   const [sandboxModeText, setSandboxModeText] = useState("");
   const [webSearchText, setWebSearchText] = useState("");
+
+  const [tomlAdvancedOpen, setTomlAdvancedOpen] = useState(false);
+  const [tomlEditEnabled, setTomlEditEnabled] = useState(false);
+  const [tomlDraft, setTomlDraft] = useState("");
+  const [tomlDirty, setTomlDirty] = useState(false);
+  const [tomlValidating, setTomlValidating] = useState(false);
+  const [tomlValidation, setTomlValidation] = useState<CodexConfigTomlValidationResult | null>(
+    null
+  );
+
+  const validateSeqRef = useRef(0);
+  const validateTimerRef = useRef<number | null>(null);
+
+  const validateToml = useCallback(
+    async (toml: string): Promise<CodexConfigTomlValidationResult | null> => {
+      const seq = validateSeqRef.current + 1;
+      validateSeqRef.current = seq;
+      setTomlValidating(true);
+      try {
+        const result = await cliManagerCodexConfigTomlValidate(toml);
+        if (seq !== validateSeqRef.current) return null;
+        if (!result) return null;
+        setTomlValidation(result);
+        return result;
+      } finally {
+        if (seq === validateSeqRef.current) {
+          setTomlValidating(false);
+        }
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     if (!codexConfig) return;
@@ -95,6 +151,7 @@ export function CliManagerCodexTab({
 
   const saving = codexConfigSaving;
   const loading = codexLoading || codexConfigLoading;
+  const tomlBusy = codexConfigTomlLoading || codexConfigTomlSaving;
 
   useEffect(() => {
     if (!codexConfig) return;
@@ -111,6 +168,46 @@ export function CliManagerCodexTab({
   const effectiveSandboxMode = useMemo(() => {
     return enumOrDefault(sandboxModeText.trim() || null, defaults.sandbox_mode);
   }, [sandboxModeText, defaults.sandbox_mode]);
+
+  useEffect(() => {
+    if (!codexConfigToml) return;
+    if (tomlDirty) return;
+    setTomlDraft(codexConfigToml.toml ?? "");
+  }, [codexConfigToml, tomlDirty]);
+
+  useEffect(() => {
+    if (!tomlAdvancedOpen) return;
+    if (!tomlEditEnabled) return;
+    if (!tomlDirty) return;
+
+    if (validateTimerRef.current) {
+      window.clearTimeout(validateTimerRef.current);
+    }
+
+    validateTimerRef.current = window.setTimeout(() => {
+      void validateToml(tomlDraft);
+    }, 500);
+
+    return () => {
+      if (validateTimerRef.current) {
+        window.clearTimeout(validateTimerRef.current);
+        validateTimerRef.current = null;
+      }
+    };
+  }, [tomlDraft, tomlDirty, tomlAdvancedOpen, tomlEditEnabled, validateToml]);
+
+  async function saveTomlDraft() {
+    if (tomlBusy) return;
+    const result = await validateToml(tomlDraft);
+    if (!result) return;
+    if (!result.ok) return;
+
+    const ok = await persistCodexConfigToml(tomlDraft);
+    if (!ok) return;
+
+    setTomlEditEnabled(false);
+    setTomlDirty(false);
+  }
 
   return (
     <div className="space-y-6">
@@ -534,6 +631,149 @@ export function CliManagerCodexTab({
                   />
                 </SettingItem>
               </div>
+            </div>
+
+            <div className="rounded-lg border border-slate-200 bg-white p-5">
+              <details
+                className="group"
+                onToggle={(e) => setTomlAdvancedOpen((e.currentTarget as HTMLDetailsElement).open)}
+              >
+                <summary className="cursor-pointer select-none text-sm font-semibold text-slate-900 flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Settings className="h-4 w-4 text-slate-400" />
+                    高级配置（config.toml）
+                  </span>
+                  <span className="text-xs font-normal text-slate-500">
+                    仅在需要编辑原始 TOML 时使用
+                  </span>
+                </summary>
+
+                {tomlAdvancedOpen ? (
+                  <div className="mt-4 space-y-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <div className="text-xs text-slate-500">路径</div>
+                        <div className="mt-1 font-mono text-xs text-slate-700 truncate">
+                          {codexConfig?.config_path ?? codexConfigToml?.config_path ?? "—"}
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setTomlDraft(codexConfigToml?.toml ?? "");
+                            setTomlDirty(false);
+                            setTomlValidation(null);
+                          }}
+                          disabled={tomlBusy || tomlEditEnabled}
+                        >
+                          重新加载
+                        </Button>
+
+                        {!tomlEditEnabled ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => {
+                              setTomlEditEnabled(true);
+                              setTomlDraft(codexConfigToml?.toml ?? "");
+                              setTomlDirty(false);
+                              setTomlValidation(null);
+                              void validateToml(codexConfigToml?.toml ?? "");
+                            }}
+                            disabled={tomlBusy}
+                          >
+                            编辑
+                          </Button>
+                        ) : (
+                          <>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setTomlEditEnabled(false);
+                                setTomlDraft(codexConfigToml?.toml ?? "");
+                                setTomlDirty(false);
+                                setTomlValidation(null);
+                              }}
+                              disabled={tomlBusy}
+                            >
+                              取消
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => void saveTomlDraft()}
+                              disabled={
+                                tomlBusy ||
+                                tomlValidating ||
+                                !tomlDirty ||
+                                (tomlValidation ? !tomlValidation.ok : false)
+                              }
+                            >
+                              {tomlValidating ? "校验中…" : "保存"}
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {codexConfigTomlLoading ? (
+                      <div className="text-sm text-slate-500 py-6 text-center">加载中…</div>
+                    ) : (
+                      <Suspense
+                        fallback={
+                          <div className="text-sm text-slate-500 py-6 text-center">加载编辑器…</div>
+                        }
+                      >
+                        <LazyCodeEditor
+                          value={tomlDraft}
+                          onChange={
+                            tomlEditEnabled
+                              ? (next) => {
+                                  setTomlDraft(next);
+                                  setTomlDirty(true);
+                                }
+                              : undefined
+                          }
+                          readOnly={!tomlEditEnabled || tomlBusy}
+                          language="toml"
+                          minHeight="260px"
+                          placeholder='例如：approval_policy = "on-request"'
+                        />
+                      </Suspense>
+                    )}
+
+                    {tomlValidation?.ok === false && tomlValidation.error ? (
+                      <div className="rounded-lg bg-rose-50 p-3 text-xs text-rose-700 flex items-start gap-2">
+                        <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                        <div className="min-w-0">
+                          <div className="font-semibold">TOML 校验失败</div>
+                          <div className="mt-1 break-words">
+                            {tomlValidation.error.message}
+                            {tomlValidation.error.line ? (
+                              <span className="ml-2 font-mono text-rose-600">
+                                (line {tomlValidation.error.line}
+                                {tomlValidation.error.column
+                                  ? `, column ${tomlValidation.error.column}`
+                                  : ""}
+                                )
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-slate-500">
+                        保存前会进行后端 TOML 校验；校验失败不会写入文件。
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </details>
             </div>
           </div>
         )}

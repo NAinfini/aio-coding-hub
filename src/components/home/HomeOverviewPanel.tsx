@@ -24,7 +24,7 @@ type SessionsTabKey = "sessions" | "providerLimit";
 
 const SESSIONS_TABS: Array<{ key: SessionsTabKey; label: string }> = [
   { key: "sessions", label: "活跃 Session" },
-  { key: "providerLimit", label: "供应商花费" },
+  { key: "providerLimit", label: "供应商限额" },
 ];
 
 export type HomeOverviewPanelProps = {
@@ -129,7 +129,7 @@ export function HomeOverviewPanel({
           <Card padding="sm" className="flex flex-col flex-1 min-h-0">
             <div className="flex items-center justify-between gap-2 shrink-0">
               <TabList
-                ariaLabel="Session/供应商花费切换"
+                ariaLabel="Session/供应商限额切换"
                 items={SESSIONS_TABS}
                 value={sessionsTab}
                 onChange={setSessionsTab}

@@ -26,6 +26,8 @@ import {
   useCliManagerClaudeSettingsSetMutation,
   useCliManagerCodexConfigQuery,
   useCliManagerCodexConfigSetMutation,
+  useCliManagerCodexConfigTomlQuery,
+  useCliManagerCodexConfigTomlSetMutation,
   useCliManagerCodexInfoQuery,
   useCliManagerGeminiInfoQuery,
 } from "../query/cliManager";
@@ -129,15 +131,20 @@ export function CliManagerPage() {
 
   const codexInfoQuery = useCliManagerCodexInfoQuery({ enabled: tab === "codex" });
   const codexConfigQuery = useCliManagerCodexConfigQuery({ enabled: tab === "codex" });
+  const codexConfigTomlQuery = useCliManagerCodexConfigTomlQuery({ enabled: tab === "codex" });
   const codexConfigSetMutation = useCliManagerCodexConfigSetMutation();
+  const codexConfigTomlSetMutation = useCliManagerCodexConfigTomlSetMutation();
 
   const codexInfo = codexInfoQuery.data ?? null;
   const codexConfig = codexConfigQuery.data ?? null;
+  const codexConfigToml = codexConfigTomlQuery.data ?? null;
   const codexAvailable: "checking" | "available" | "unavailable" =
     codexInfoQuery.isFetching && !codexInfo ? "checking" : codexInfo ? "available" : "unavailable";
   const codexLoading = codexInfoQuery.isFetching;
   const codexConfigLoading = codexConfigQuery.isFetching;
   const codexConfigSaving = codexConfigSetMutation.isPending;
+  const codexConfigTomlLoading = codexConfigTomlQuery.isFetching;
+  const codexConfigTomlSaving = codexConfigTomlSetMutation.isPending;
 
   const geminiInfoQuery = useCliManagerGeminiInfoQuery({ enabled: tab === "gemini" });
   const geminiInfo = geminiInfoQuery.data ?? null;
@@ -319,7 +326,11 @@ export function CliManagerPage() {
   }
 
   async function refreshCodex() {
-    await Promise.all([codexConfigQuery.refetch(), codexInfoQuery.refetch()]);
+    await Promise.all([
+      codexConfigQuery.refetch(),
+      codexConfigTomlQuery.refetch(),
+      codexInfoQuery.refetch(),
+    ]);
   }
 
   async function refreshGeminiInfo() {
@@ -345,6 +356,29 @@ export function CliManagerPage() {
         patch,
       });
       toast(formatted.toast);
+    }
+  }
+
+  async function persistCodexConfigToml(toml: string): Promise<boolean> {
+    if (codexConfigTomlSaving) return false;
+    if (codexAvailable !== "available") return false;
+
+    try {
+      const updated = await codexConfigTomlSetMutation.mutateAsync({ toml });
+      if (!updated) {
+        toast("仅在 Tauri Desktop 环境可用");
+        return false;
+      }
+      toast("已保存 config.toml");
+      return true;
+    } catch (err) {
+      const formatted = formatActionFailureToast("保存 config.toml", err);
+      logToConsole("error", "保存 Codex config.toml 失败", {
+        error: formatted.raw,
+        error_code: formatted.error_code ?? undefined,
+      });
+      toast(formatted.toast);
+      return false;
     }
   }
 
@@ -462,11 +496,15 @@ export function CliManagerPage() {
               codexLoading={codexLoading}
               codexConfigLoading={codexConfigLoading}
               codexConfigSaving={codexConfigSaving}
+              codexConfigTomlLoading={codexConfigTomlLoading}
+              codexConfigTomlSaving={codexConfigTomlSaving}
               codexInfo={codexInfo}
               codexConfig={codexConfig}
+              codexConfigToml={codexConfigToml}
               refreshCodex={refreshCodex}
               openCodexConfigDir={openCodexConfigDir}
               persistCodexConfig={persistCodexConfig}
+              persistCodexConfigToml={persistCodexConfigToml}
             />
           </Suspense>
         ) : null}

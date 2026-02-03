@@ -70,6 +70,8 @@ describe("cli-manager tabs (coverage)", () => {
         codexLoading={false}
         codexConfigLoading={false}
         codexConfigSaving={false}
+        codexConfigTomlLoading={false}
+        codexConfigTomlSaving={false}
         codexInfo={{
           found: true,
           executable_path: "/usr/bin/codex",
@@ -100,9 +102,15 @@ describe("cli-manager tabs (coverage)", () => {
           features_collab: true,
           features_collaboration_modes: true,
         }}
+        codexConfigToml={{
+          config_path: "/tmp/.codex/config.toml",
+          exists: true,
+          toml: 'approval_policy = "never"\\n',
+        }}
         refreshCodex={vi.fn()}
         openCodexConfigDir={vi.fn()}
         persistCodexConfig={vi.fn()}
+        persistCodexConfigToml={vi.fn().mockResolvedValue(true)}
       />
     );
 

@@ -261,6 +261,34 @@ type = \"stdio\"\n"
 }
 
 #[test]
+fn validate_raw_allows_empty() {
+    let out = validate_codex_config_toml_raw("");
+    assert!(out.ok, "{out:?}");
+    assert!(out.error.is_none(), "{out:?}");
+}
+
+#[test]
+fn validate_raw_rejects_invalid_toml_with_location_when_available() {
+    let out = validate_codex_config_toml_raw("approval_policy =");
+    assert!(!out.ok, "{out:?}");
+    let err = out.error.expect("error");
+    assert!(!err.message.trim().is_empty(), "{err:?}");
+    assert!(
+        err.line.is_some() || err.column.is_some(),
+        "expected line/column when available: {err:?}"
+    );
+}
+
+#[test]
+fn validate_raw_rejects_invalid_enum_values() {
+    let out = validate_codex_config_toml_raw("approval_policy = \"nope\"");
+    assert!(!out.ok, "{out:?}");
+    let err = out.error.expect("error");
+    assert!(err.message.contains("approval_policy"), "{err:?}");
+    assert!(err.message.contains("allowed:"), "{err:?}");
+}
+
+#[test]
 fn parse_reads_sandbox_mode_from_sandbox_table() {
     let input = r#"[sandbox]
 mode = "read-only"

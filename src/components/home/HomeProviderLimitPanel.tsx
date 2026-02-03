@@ -1,5 +1,5 @@
 // Usage:
-// - Rendered in `HomeOverviewPanel` when the "供应商花费" tab is selected.
+// - Rendered in `HomeOverviewPanel` when the "供应商限额" tab is selected.
 // - Displays providers with configured limits and their current usage.
 // - Use `HomeProviderLimitPanelContent` for inline rendering without Card wrapper.
 
@@ -277,7 +277,7 @@ export function HomeProviderLimitPanel({
   return (
     <Card padding="sm" className="flex flex-col h-full">
       <div className="flex items-center justify-between gap-2 shrink-0">
-        <div className="text-sm font-semibold">供应商花费</div>
+        <div className="text-sm font-semibold">供应商限额</div>
         <div className="flex items-center gap-2">
           <span className="text-xs text-slate-400">{rows.length} 个供应商</span>
           <button

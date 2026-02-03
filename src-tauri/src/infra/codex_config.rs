@@ -55,6 +55,26 @@ pub struct CodexConfigPatch {
     pub features_collaboration_modes: Option<bool>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct CodexConfigTomlState {
+    pub config_path: String,
+    pub exists: bool,
+    pub toml: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CodexConfigTomlValidationError {
+    pub message: String,
+    pub line: Option<u32>,
+    pub column: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CodexConfigTomlValidationResult {
+    pub ok: bool,
+    pub error: Option<CodexConfigTomlValidationError>,
+}
+
 fn is_symlink(path: &Path) -> crate::shared::error::AppResult<bool> {
     std::fs::symlink_metadata(path)
         .map(|m| m.file_type().is_symlink())
@@ -946,8 +966,8 @@ fn make_state_from_bytes(
     Ok(state)
 }
 
-pub fn codex_config_get(
-    app: &tauri::AppHandle,
+pub fn codex_config_get<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
 ) -> crate::shared::error::AppResult<CodexConfigState> {
     let path = codex_paths::codex_config_toml_path(app)?;
     let dir = path.parent().unwrap_or(Path::new("")).to_path_buf();
@@ -969,6 +989,217 @@ pub fn codex_config_get(
         can_open_config_dir,
         bytes,
     )
+}
+
+fn toml_span_start_to_line_column(input: &str, span_start: usize) -> Option<(u32, u32)> {
+    let mut idx = span_start.min(input.len());
+    while idx > 0 && !input.is_char_boundary(idx) {
+        idx = idx.saturating_sub(1);
+    }
+
+    let prefix = &input[..idx];
+    let line = prefix.bytes().filter(|b| *b == b'\n').count() + 1;
+    let column = prefix
+        .rsplit('\n')
+        .next()
+        .map(|line| line.chars().count() + 1)
+        .unwrap_or(1);
+
+    Some((u32::try_from(line).ok()?, u32::try_from(column).ok()?))
+}
+
+fn validate_root_string_enum(
+    table: &toml::value::Table,
+    key: &str,
+    allowed: &[&str],
+) -> Option<CodexConfigTomlValidationError> {
+    let value = table.get(key)?;
+    let raw = match value.as_str() {
+        Some(v) => v,
+        None => {
+            return Some(CodexConfigTomlValidationError {
+                message: format!("invalid {key}: expected string"),
+                line: None,
+                column: None,
+            });
+        }
+    };
+
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    if is_allowed_value(trimmed, allowed) {
+        return None;
+    }
+
+    Some(CodexConfigTomlValidationError {
+        message: format!("invalid {key}={trimmed} (allowed: {})", allowed.join(", ")),
+        line: None,
+        column: None,
+    })
+}
+
+fn validate_codex_config_toml_raw(input: &str) -> CodexConfigTomlValidationResult {
+    if input.trim().is_empty() {
+        return CodexConfigTomlValidationResult {
+            ok: true,
+            error: None,
+        };
+    }
+
+    match toml::from_str::<toml::Value>(input) {
+        Ok(value) => {
+            let table = match value.as_table() {
+                Some(t) => t,
+                None => {
+                    return CodexConfigTomlValidationResult {
+                        ok: false,
+                        error: Some(CodexConfigTomlValidationError {
+                            message: "invalid TOML: expected root table".to_string(),
+                            line: None,
+                            column: None,
+                        }),
+                    };
+                }
+            };
+
+            if let Some(err) = validate_root_string_enum(
+                table,
+                "approval_policy",
+                &["untrusted", "on-failure", "on-request", "never"],
+            ) {
+                return CodexConfigTomlValidationResult {
+                    ok: false,
+                    error: Some(err),
+                };
+            }
+
+            if let Some(err) = validate_root_string_enum(
+                table,
+                "sandbox_mode",
+                &["read-only", "workspace-write", "danger-full-access"],
+            ) {
+                return CodexConfigTomlValidationResult {
+                    ok: false,
+                    error: Some(err),
+                };
+            }
+
+            if let Some(err) = validate_root_string_enum(
+                table,
+                "model_reasoning_effort",
+                &["minimal", "low", "medium", "high", "xhigh"],
+            ) {
+                return CodexConfigTomlValidationResult {
+                    ok: false,
+                    error: Some(err),
+                };
+            }
+
+            if let Some(err) =
+                validate_root_string_enum(table, "web_search", &["cached", "live", "disabled"])
+            {
+                return CodexConfigTomlValidationResult {
+                    ok: false,
+                    error: Some(err),
+                };
+            }
+
+            CodexConfigTomlValidationResult {
+                ok: true,
+                error: None,
+            }
+        }
+        Err(err) => {
+            let (line, column) = err
+                .span()
+                .and_then(|span| toml_span_start_to_line_column(input, span.start))
+                .map(|(line, column)| (Some(line), Some(column)))
+                .unwrap_or((None, None));
+
+            CodexConfigTomlValidationResult {
+                ok: false,
+                error: Some(CodexConfigTomlValidationError {
+                    message: {
+                        let msg = err.message().trim();
+                        if msg.is_empty() {
+                            err.to_string()
+                        } else {
+                            msg.to_string()
+                        }
+                    },
+                    line,
+                    column,
+                }),
+            }
+        }
+    }
+}
+
+pub fn codex_config_toml_get_raw<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> crate::shared::error::AppResult<CodexConfigTomlState> {
+    let path = codex_paths::codex_config_toml_path(app)?;
+    let bytes = read_optional_file(&path)?;
+    let exists = bytes.is_some();
+
+    let toml = match bytes {
+        Some(bytes) => String::from_utf8(bytes)
+            .map_err(|_| "SEC_INVALID_INPUT: codex config.toml must be valid UTF-8".to_string())?,
+        None => String::new(),
+    };
+
+    Ok(CodexConfigTomlState {
+        config_path: path.to_string_lossy().to_string(),
+        exists,
+        toml,
+    })
+}
+
+pub fn codex_config_toml_validate_raw(
+    toml: String,
+) -> crate::shared::error::AppResult<CodexConfigTomlValidationResult> {
+    Ok(validate_codex_config_toml_raw(&toml))
+}
+
+pub fn codex_config_toml_set_raw<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    mut toml: String,
+) -> crate::shared::error::AppResult<CodexConfigState> {
+    let validation = validate_codex_config_toml_raw(&toml);
+    if !validation.ok {
+        let err = validation.error.unwrap_or(CodexConfigTomlValidationError {
+            message: "invalid TOML".to_string(),
+            line: None,
+            column: None,
+        });
+
+        let mut msg = format!("SEC_INVALID_INPUT: invalid config.toml: {}", err.message);
+        match (err.line, err.column) {
+            (Some(line), Some(column)) => msg.push_str(&format!(" (line {line}, column {column})")),
+            (Some(line), None) => msg.push_str(&format!(" (line {line})")),
+            _ => {}
+        }
+        return Err(msg.into());
+    }
+
+    if !toml.ends_with('\n') {
+        toml.push('\n');
+    }
+
+    let path = codex_paths::codex_config_toml_path(app)?;
+    if path.exists() && is_symlink(&path)? {
+        return Err(format!(
+            "SEC_INVALID_INPUT: refusing to modify symlink path={}",
+            path.display()
+        )
+        .into());
+    }
+
+    let _ = write_file_atomic_if_changed(&path, toml.as_bytes())?;
+    codex_config_get(app)
 }
 
 #[cfg(windows)]

@@ -21,6 +21,8 @@ import {
   useCliManagerClaudeSettingsSetMutation,
   useCliManagerCodexConfigQuery,
   useCliManagerCodexConfigSetMutation,
+  useCliManagerCodexConfigTomlQuery,
+  useCliManagerCodexConfigTomlSetMutation,
   useCliManagerCodexInfoQuery,
   useCliManagerGeminiInfoQuery,
 } from "../../query/cliManager";
@@ -134,6 +136,8 @@ vi.mock("../../query/cliManager", async () => {
     useCliManagerCodexInfoQuery: vi.fn(),
     useCliManagerCodexConfigQuery: vi.fn(),
     useCliManagerCodexConfigSetMutation: vi.fn(),
+    useCliManagerCodexConfigTomlQuery: vi.fn(),
+    useCliManagerCodexConfigTomlSetMutation: vi.fn(),
     useCliManagerGeminiInfoQuery: vi.fn(),
   };
 });
@@ -237,6 +241,15 @@ describe("pages/CliManagerPage", () => {
       refetch: vi.fn(),
     } as any);
     vi.mocked(useCliManagerCodexConfigSetMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
+    vi.mocked(useCliManagerCodexConfigTomlQuery).mockReturnValue({
+      data: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useCliManagerCodexConfigTomlSetMutation).mockReturnValue({
       isPending: false,
       mutateAsync: vi.fn(),
     } as any);
@@ -356,6 +369,17 @@ describe("pages/CliManagerPage", () => {
       .mockRejectedValueOnce(new Error("CODEX_NO_PERM: denied"));
     vi.mocked(useCliManagerCodexConfigSetMutation).mockReturnValue(codexSetMutation as any);
 
+    const codexConfigTomlRefetch = vi.fn().mockResolvedValue({ data: {} });
+    vi.mocked(useCliManagerCodexConfigTomlQuery).mockReturnValue({
+      data: { config_path: "/codex/config.toml", exists: true, toml: "" },
+      isFetching: false,
+      refetch: codexConfigTomlRefetch,
+    } as any);
+    vi.mocked(useCliManagerCodexConfigTomlSetMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
+
     const geminiInfoRefetch = vi.fn().mockResolvedValue({ data: {} });
     vi.mocked(useCliManagerGeminiInfoQuery).mockReturnValue({
       data: { found: true },
@@ -465,6 +489,15 @@ describe("pages/CliManagerPage", () => {
     } as any);
     const codexSetMutation = { isPending: true, mutateAsync: vi.fn() };
     vi.mocked(useCliManagerCodexConfigSetMutation).mockReturnValue(codexSetMutation as any);
+    vi.mocked(useCliManagerCodexConfigTomlQuery).mockReturnValue({
+      data: { config_path: "/codex/config.toml", exists: true, toml: "" },
+      isFetching: false,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useCliManagerCodexConfigTomlSetMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
 
     vi.mocked(useCliManagerGeminiInfoQuery).mockReturnValue({
       data: { found: true },
@@ -542,6 +575,15 @@ describe("pages/CliManagerPage", () => {
       refetch: vi.fn(),
     } as any);
     vi.mocked(useCliManagerCodexConfigSetMutation).mockReturnValue(codexSetMutation as any);
+    vi.mocked(useCliManagerCodexConfigTomlQuery).mockReturnValue({
+      data: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useCliManagerCodexConfigTomlSetMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
 
     vi.mocked(useCliManagerGeminiInfoQuery).mockReturnValue({
       data: null,
@@ -631,6 +673,15 @@ describe("pages/CliManagerPage", () => {
     const codexSetMutation = { isPending: false, mutateAsync: vi.fn() };
     codexSetMutation.mutateAsync.mockRejectedValueOnce(new Error("boom"));
     vi.mocked(useCliManagerCodexConfigSetMutation).mockReturnValue(codexSetMutation as any);
+    vi.mocked(useCliManagerCodexConfigTomlQuery).mockReturnValue({
+      data: { config_path: "/codex/config.toml", exists: true, toml: "" },
+      isFetching: false,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useCliManagerCodexConfigTomlSetMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
 
     vi.mocked(useCliManagerGeminiInfoQuery).mockReturnValue({
       data: { found: true },

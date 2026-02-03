@@ -66,6 +66,13 @@ pub fn codex_config_toml_path<R: tauri::Runtime>(
     crate::infra::codex_paths::codex_config_toml_path(app)
 }
 
+pub fn codex_config_toml_raw_set<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    toml: String,
+) -> crate::shared::error::AppResult<()> {
+    crate::infra::codex_config::codex_config_toml_set_raw(app, toml).map(|_| ())
+}
+
 pub fn skills_swap_local_for_workspace_switch<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     cli_key: &str,

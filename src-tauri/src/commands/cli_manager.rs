@@ -48,6 +48,40 @@ pub(crate) async fn cli_manager_codex_config_set(
 }
 
 #[tauri::command]
+pub(crate) async fn cli_manager_codex_config_toml_get(
+    app: tauri::AppHandle,
+) -> Result<codex_config::CodexConfigTomlState, String> {
+    blocking::run("cli_manager_codex_config_toml_get", move || {
+        codex_config::codex_config_toml_get_raw(&app)
+    })
+    .await
+    .map_err(Into::into)
+}
+
+#[tauri::command]
+pub(crate) async fn cli_manager_codex_config_toml_validate(
+    toml: String,
+) -> Result<codex_config::CodexConfigTomlValidationResult, String> {
+    blocking::run("cli_manager_codex_config_toml_validate", move || {
+        codex_config::codex_config_toml_validate_raw(toml)
+    })
+    .await
+    .map_err(Into::into)
+}
+
+#[tauri::command]
+pub(crate) async fn cli_manager_codex_config_toml_set(
+    app: tauri::AppHandle,
+    toml: String,
+) -> Result<codex_config::CodexConfigState, String> {
+    blocking::run("cli_manager_codex_config_toml_set", move || {
+        codex_config::codex_config_toml_set_raw(&app, toml)
+    })
+    .await
+    .map_err(Into::into)
+}
+
+#[tauri::command]
 pub(crate) async fn cli_manager_gemini_info_get(
     app: tauri::AppHandle,
 ) -> Result<cli_manager::SimpleCliInfo, String> {

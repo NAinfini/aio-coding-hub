@@ -35,6 +35,81 @@ vi.mock("../../hooks/useUpdateMeta", async () => {
 });
 
 describe("components/UpdateDialog", () => {
+  it("displays release notes when body is present", () => {
+    vi.mocked(useUpdateMeta).mockReturnValue({
+      about: { run_mode: "desktop", app_version: "0.0.0" },
+      updateCandidate: {
+        version: "1.0.0",
+        currentVersion: "0.0.0",
+        date: null,
+        rid: "rid",
+        body: "New features:\n- Feature A\n- Feature B\n\nBug fixes:\n- Fix C",
+      },
+      checkingUpdate: false,
+      dialogOpen: true,
+      installingUpdate: false,
+      installError: null,
+      installTotalBytes: null,
+      installDownloadedBytes: 0,
+    } as any);
+
+    render(<UpdateDialog />);
+
+    expect(screen.getByText("更新说明")).toBeInTheDocument();
+    const releaseNotesElement = screen.getByLabelText("Release notes");
+    expect(releaseNotesElement).toBeInTheDocument();
+    expect(releaseNotesElement.textContent).toBe(
+      "New features:\n- Feature A\n- Feature B\n\nBug fixes:\n- Fix C"
+    );
+  });
+
+  it("does not display release notes section when body is empty", () => {
+    vi.mocked(useUpdateMeta).mockReturnValue({
+      about: { run_mode: "desktop", app_version: "0.0.0" },
+      updateCandidate: {
+        version: "1.0.0",
+        currentVersion: "0.0.0",
+        date: null,
+        rid: "rid",
+        body: "",
+      },
+      checkingUpdate: false,
+      dialogOpen: true,
+      installingUpdate: false,
+      installError: null,
+      installTotalBytes: null,
+      installDownloadedBytes: 0,
+    } as any);
+
+    render(<UpdateDialog />);
+
+    expect(screen.queryByText("更新说明")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Release notes")).not.toBeInTheDocument();
+  });
+
+  it("does not display release notes section when body is undefined", () => {
+    vi.mocked(useUpdateMeta).mockReturnValue({
+      about: { run_mode: "desktop", app_version: "0.0.0" },
+      updateCandidate: {
+        version: "1.0.0",
+        currentVersion: "0.0.0",
+        date: null,
+        rid: "rid",
+      },
+      checkingUpdate: false,
+      dialogOpen: true,
+      installingUpdate: false,
+      installError: null,
+      installTotalBytes: null,
+      installDownloadedBytes: 0,
+    } as any);
+
+    render(<UpdateDialog />);
+
+    expect(screen.queryByText("更新说明")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Release notes")).not.toBeInTheDocument();
+  });
+
   it("toasts when download/install is unavailable in non-portable mode", async () => {
     vi.mocked(useUpdateMeta).mockReturnValue({
       about: { run_mode: "desktop", app_version: "0.0.0" },

@@ -3,6 +3,7 @@
 mod migrations;
 
 use crate::app_paths;
+use crate::shared::error::AppResult;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::Connection;
@@ -20,10 +21,11 @@ pub(crate) struct Db {
 impl Db {
     pub(crate) fn open_connection(
         &self,
-    ) -> Result<r2d2::PooledConnection<SqliteConnectionManager>, String> {
+    ) -> AppResult<r2d2::PooledConnection<SqliteConnectionManager>> {
         self.pool
             .get()
             .map_err(|e| format!("DB_ERROR: failed to get connection from pool: {e}"))
+            .map_err(Into::into)
     }
 }
 
@@ -42,11 +44,11 @@ pub(crate) fn sql_placeholders(count: usize) -> String {
     out
 }
 
-pub fn db_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
+pub fn db_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> AppResult<PathBuf> {
     Ok(app_paths::app_data_dir(app)?.join(DB_FILE_NAME))
 }
 
-pub fn init<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<Db, String> {
+pub fn init<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> AppResult<Db> {
     let path = db_path(app)?;
     let path_hint = path.to_string_lossy();
 
@@ -55,10 +57,11 @@ pub fn init<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<Db, String> 
         configure_connection(conn)
     });
 
-    let pool = Pool::new(manager).map_err(|e| format!("failed to create db pool: {e}"))?;
+    let pool =
+        Pool::new(manager).map_err(|e| format!("DB_ERROR: failed to create db pool: {e}"))?;
     let mut conn = pool
         .get()
-        .map_err(|e| format!("failed to get startup connection: {e}"))?;
+        .map_err(|e| format!("DB_ERROR: failed to get startup connection: {e}"))?;
 
     migrations::apply_migrations(&mut conn)
         .map_err(|e| format!("sqlite migration failed at {path_hint}: {e}"))?;

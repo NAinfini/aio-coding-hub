@@ -111,7 +111,8 @@ fn parse_period_v1(input: &str) -> Result<CostPeriodV1, String> {
 }
 
 fn validate_cli_key(cli_key: &str) -> Result<(), String> {
-    crate::shared::cli_key::validate_cli_key(cli_key)
+    crate::shared::cli_key::validate_cli_key(cli_key)?;
+    Ok(())
 }
 
 fn normalize_cli_filter(cli_key: Option<&str>) -> Result<Option<&str>, String> {
@@ -204,7 +205,7 @@ pub fn summary_v1(
     cli_key: Option<&str>,
     provider_id: Option<i64>,
     model: Option<&str>,
-) -> Result<CostSummaryV1, String> {
+) -> crate::shared::error::AppResult<CostSummaryV1> {
     let conn = db.open_connection()?;
 
     let period = parse_period_v1(period)?;
@@ -245,39 +246,42 @@ AND (?5 IS NULL OR {model_key_expr} = ?5)
         model_key_expr = SQL_MODEL_KEY_EXPR
     );
 
-    conn.query_row(
-        &sql,
-        params![start_ts, end_ts, cli_key, provider_id, model],
-        |row| {
-            let requests_total: i64 = row.get("requests_total")?;
-            let requests_success: i64 = row.get::<_, Option<i64>>("requests_success")?.unwrap_or(0);
-            let requests_failed: i64 = row.get::<_, Option<i64>>("requests_failed")?.unwrap_or(0);
-            let cost_covered_success: i64 = row
-                .get::<_, Option<i64>>("cost_covered_success")?
-                .unwrap_or(0);
-            let total_cost_usd_femto: i64 = row
-                .get::<_, Option<i64>>("total_cost_usd_femto")?
-                .unwrap_or(0)
-                .max(0);
+    Ok(conn
+        .query_row(
+            &sql,
+            params![start_ts, end_ts, cli_key, provider_id, model],
+            |row| {
+                let requests_total: i64 = row.get("requests_total")?;
+                let requests_success: i64 =
+                    row.get::<_, Option<i64>>("requests_success")?.unwrap_or(0);
+                let requests_failed: i64 =
+                    row.get::<_, Option<i64>>("requests_failed")?.unwrap_or(0);
+                let cost_covered_success: i64 = row
+                    .get::<_, Option<i64>>("cost_covered_success")?
+                    .unwrap_or(0);
+                let total_cost_usd_femto: i64 = row
+                    .get::<_, Option<i64>>("total_cost_usd_femto")?
+                    .unwrap_or(0)
+                    .max(0);
 
-            let total_cost_usd = cost_usd_from_femto(total_cost_usd_femto);
-            let avg_cost_usd_per_covered_success = if cost_covered_success > 0 {
-                Some(total_cost_usd / (cost_covered_success as f64))
-            } else {
-                None
-            };
+                let total_cost_usd = cost_usd_from_femto(total_cost_usd_femto);
+                let avg_cost_usd_per_covered_success = if cost_covered_success > 0 {
+                    Some(total_cost_usd / (cost_covered_success as f64))
+                } else {
+                    None
+                };
 
-            Ok(CostSummaryV1 {
-                requests_total: requests_total.max(0),
-                requests_success: requests_success.max(0),
-                requests_failed: requests_failed.max(0),
-                cost_covered_success: cost_covered_success.max(0),
-                total_cost_usd,
-                avg_cost_usd_per_covered_success,
-            })
-        },
-    )
-    .map_err(|e| format!("DB_ERROR: failed to query cost summary: {e}"))
+                Ok(CostSummaryV1 {
+                    requests_total: requests_total.max(0),
+                    requests_success: requests_success.max(0),
+                    requests_failed: requests_failed.max(0),
+                    cost_covered_success: cost_covered_success.max(0),
+                    total_cost_usd,
+                    avg_cost_usd_per_covered_success,
+                })
+            },
+        )
+        .map_err(|e| format!("DB_ERROR: failed to query cost summary: {e}"))?)
 }
 
 pub fn trend_v1(
@@ -288,7 +292,7 @@ pub fn trend_v1(
     cli_key: Option<&str>,
     provider_id: Option<i64>,
     model: Option<&str>,
-) -> Result<Vec<CostTrendRowV1>, String> {
+) -> crate::shared::error::AppResult<Vec<CostTrendRowV1>> {
     let conn = db.open_connection()?;
 
     let period = parse_period_v1(period)?;
@@ -382,7 +386,7 @@ pub fn breakdown_provider_v1(
     provider_id: Option<i64>,
     model: Option<&str>,
     limit: usize,
-) -> Result<Vec<CostProviderBreakdownRowV1>, String> {
+) -> crate::shared::error::AppResult<Vec<CostProviderBreakdownRowV1>> {
     let conn = db.open_connection()?;
 
     let period = parse_period_v1(period)?;
@@ -467,7 +471,7 @@ pub fn breakdown_model_v1(
     provider_id: Option<i64>,
     model: Option<&str>,
     limit: usize,
-) -> Result<Vec<CostModelBreakdownRowV1>, String> {
+) -> crate::shared::error::AppResult<Vec<CostModelBreakdownRowV1>> {
     let conn = db.open_connection()?;
 
     let period = parse_period_v1(period)?;
@@ -545,7 +549,7 @@ pub fn scatter_cli_provider_model_v1(
     provider_id: Option<i64>,
     model: Option<&str>,
     limit: usize,
-) -> Result<Vec<CostScatterCliProviderModelRowV1>, String> {
+) -> crate::shared::error::AppResult<Vec<CostScatterCliProviderModelRowV1>> {
     let conn = db.open_connection()?;
 
     let period = parse_period_v1(period)?;
@@ -632,7 +636,7 @@ pub fn top_requests_v1(
     provider_id: Option<i64>,
     model: Option<&str>,
     limit: usize,
-) -> Result<Vec<CostTopRequestRowV1>, String> {
+) -> crate::shared::error::AppResult<Vec<CostTopRequestRowV1>> {
     let conn = db.open_connection()?;
 
     let period = parse_period_v1(period)?;
@@ -741,7 +745,7 @@ pub fn backfill_missing_v1(
     provider_id: Option<i64>,
     model: Option<&str>,
     max_rows: usize,
-) -> Result<CostBackfillReportV1, String> {
+) -> crate::shared::error::AppResult<CostBackfillReportV1> {
     let mut conn = db.open_connection()?;
 
     let period = parse_period_v1(period)?;

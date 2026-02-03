@@ -38,7 +38,7 @@ WHERE id = ?1
     .ok_or_else(|| "DB_NOT_FOUND: skill repo not found".to_string())
 }
 
-pub fn repos_list(db: &db::Db) -> Result<Vec<SkillRepoSummary>, String> {
+pub fn repos_list(db: &db::Db) -> crate::shared::error::AppResult<Vec<SkillRepoSummary>> {
     let conn = db.open_connection()?;
     let mut stmt = conn
         .prepare(
@@ -90,10 +90,10 @@ pub fn repo_upsert(
     git_url: &str,
     branch: &str,
     enabled: bool,
-) -> Result<SkillRepoSummary, String> {
+) -> crate::shared::error::AppResult<SkillRepoSummary> {
     let git_url = git_url.trim();
     if git_url.is_empty() {
-        return Err("SEC_INVALID_INPUT: git_url is required".to_string());
+        return Err("SEC_INVALID_INPUT: git_url is required".to_string().into());
     }
     let branch = normalize_repo_branch(branch);
 
@@ -169,7 +169,7 @@ WHERE id = ?5
                 )
                 .map_err(|e| format!("DB_ERROR: failed to update skill repo: {e}"))?;
 
-                return get_repo_by_id(&conn, target_id);
+                return Ok(get_repo_by_id(&conn, target_id)?);
             }
 
             conn.execute(
@@ -187,7 +187,7 @@ INSERT INTO skill_repos(
             .map_err(|e| format!("DB_ERROR: failed to insert skill repo: {e}"))?;
 
             let id = conn.last_insert_rowid();
-            get_repo_by_id(&conn, id)
+            Ok(get_repo_by_id(&conn, id)?)
         }
         Some(id) => {
             conn.execute(
@@ -203,18 +203,18 @@ WHERE id = ?5
                 params![git_url, branch, enabled_to_int(enabled), now, id],
             )
             .map_err(|e| format!("DB_ERROR: failed to update skill repo: {e}"))?;
-            get_repo_by_id(&conn, id)
+            Ok(get_repo_by_id(&conn, id)?)
         }
     }
 }
 
-pub fn repo_delete(db: &db::Db, repo_id: i64) -> Result<(), String> {
+pub fn repo_delete(db: &db::Db, repo_id: i64) -> crate::shared::error::AppResult<()> {
     let conn = db.open_connection()?;
     let changed = conn
         .execute("DELETE FROM skill_repos WHERE id = ?1", params![repo_id])
         .map_err(|e| format!("DB_ERROR: failed to delete skill repo: {e}"))?;
     if changed == 0 {
-        return Err("DB_NOT_FOUND: skill repo not found".to_string());
+        return Err("DB_NOT_FOUND: skill repo not found".to_string().into());
     }
     Ok(())
 }

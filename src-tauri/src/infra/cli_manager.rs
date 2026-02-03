@@ -472,7 +472,7 @@ fn cli_probe(app: &tauri::AppHandle, cmd: &str) -> Result<CliProbeResult, String
     })
 }
 
-pub fn claude_info_get(app: &tauri::AppHandle) -> Result<ClaudeCliInfo, String> {
+pub fn claude_info_get(app: &tauri::AppHandle) -> crate::shared::error::AppResult<ClaudeCliInfo> {
     let config_dir = claude_config_dir(app)?;
     let settings_path = claude_settings_path(app)?;
     let (mcp_timeout_ms, disable_error_reporting) = read_claude_env(&settings_path)?;
@@ -493,7 +493,7 @@ pub fn claude_info_get(app: &tauri::AppHandle) -> Result<ClaudeCliInfo, String> 
     })
 }
 
-pub fn codex_info_get(app: &tauri::AppHandle) -> Result<SimpleCliInfo, String> {
+pub fn codex_info_get(app: &tauri::AppHandle) -> crate::shared::error::AppResult<SimpleCliInfo> {
     let probe = cli_probe(app, "codex")?;
     Ok(SimpleCliInfo {
         found: probe.found,
@@ -505,7 +505,7 @@ pub fn codex_info_get(app: &tauri::AppHandle) -> Result<SimpleCliInfo, String> {
     })
 }
 
-pub fn gemini_info_get(app: &tauri::AppHandle) -> Result<SimpleCliInfo, String> {
+pub fn gemini_info_get(app: &tauri::AppHandle) -> crate::shared::error::AppResult<SimpleCliInfo> {
     let probe = cli_probe(app, "gemini")?;
     Ok(SimpleCliInfo {
         found: probe.found,
@@ -521,7 +521,7 @@ pub fn claude_env_set(
     app: &tauri::AppHandle,
     mcp_timeout_ms: Option<u64>,
     disable_error_reporting: bool,
-) -> Result<ClaudeEnvState, String> {
+) -> crate::shared::error::AppResult<ClaudeEnvState> {
     write_claude_env(app, mcp_timeout_ms, disable_error_reporting)?;
     let config_dir = claude_config_dir(app)?;
     let settings_path = claude_settings_path(app)?;

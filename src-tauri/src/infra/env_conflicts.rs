@@ -15,7 +15,8 @@ pub struct EnvConflict {
 }
 
 fn validate_cli_key(cli_key: &str) -> Result<(), String> {
-    crate::shared::cli_key::validate_cli_key(cli_key)
+    crate::shared::cli_key::validate_cli_key(cli_key)?;
+    Ok(())
 }
 
 fn keywords_for_cli(cli_key: &str) -> Vec<&'static str> {

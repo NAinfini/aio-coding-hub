@@ -14,11 +14,12 @@ pub struct ClaudeModelValidationRunRow {
     pub result_json: String,
 }
 
-fn ensure_provider_is_claude(conn: &rusqlite::Connection, provider_id: i64) -> Result<(), String> {
+fn ensure_provider_is_claude(
+    conn: &rusqlite::Connection,
+    provider_id: i64,
+) -> crate::shared::error::AppResult<()> {
     if provider_id <= 0 {
-        return Err(format!(
-            "SEC_INVALID_INPUT: invalid provider_id={provider_id}"
-        ));
+        return Err(format!("SEC_INVALID_INPUT: invalid provider_id={provider_id}").into());
     }
 
     let cli_key: Option<String> = conn
@@ -31,13 +32,14 @@ fn ensure_provider_is_claude(conn: &rusqlite::Connection, provider_id: i64) -> R
         .map_err(|e| format!("DB_ERROR: failed to query provider cli_key: {e}"))?;
 
     let Some(cli_key) = cli_key else {
-        return Err("DB_NOT_FOUND: provider not found".to_string());
+        return Err("DB_NOT_FOUND: provider not found".to_string().into());
     };
 
     if cli_key != "claude" {
         return Err(format!(
             "SEC_INVALID_INPUT: only cli_key=claude is supported (provider_id={provider_id})"
-        ));
+        )
+        .into());
     }
 
     Ok(())
@@ -49,13 +51,17 @@ pub fn insert_run_and_prune(
     request_json: &str,
     result_json: &str,
     keep: Option<usize>,
-) -> Result<i64, String> {
+) -> crate::shared::error::AppResult<i64> {
     let keep = keep.unwrap_or(DEFAULT_KEEP_PER_PROVIDER).clamp(1, 500);
     if request_json.trim().is_empty() {
-        return Err("SEC_INVALID_INPUT: request_json is required".to_string());
+        return Err("SEC_INVALID_INPUT: request_json is required"
+            .to_string()
+            .into());
     }
     if result_json.trim().is_empty() {
-        return Err("SEC_INVALID_INPUT: result_json is required".to_string());
+        return Err("SEC_INVALID_INPUT: result_json is required"
+            .to_string()
+            .into());
     }
 
     let mut conn = db.open_connection()?;
@@ -107,7 +113,7 @@ pub fn list_runs(
     db: &db::Db,
     provider_id: i64,
     limit: Option<usize>,
-) -> Result<Vec<ClaudeModelValidationRunRow>, String> {
+) -> crate::shared::error::AppResult<Vec<ClaudeModelValidationRunRow>> {
     let limit = limit.unwrap_or(DEFAULT_KEEP_PER_PROVIDER).clamp(1, 500);
     let fetch_limit = limit;
 
@@ -152,7 +158,7 @@ LIMIT ?2
     Ok(items)
 }
 
-pub fn clear_provider(db: &db::Db, provider_id: i64) -> Result<bool, String> {
+pub fn clear_provider(db: &db::Db, provider_id: i64) -> crate::shared::error::AppResult<bool> {
     let conn = db.open_connection()?;
     ensure_provider_is_claude(&conn, provider_id)?;
 

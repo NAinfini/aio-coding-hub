@@ -34,7 +34,8 @@ pub(super) fn validate_server_key(server_key: &str) -> Result<(), String> {
 }
 
 pub(super) fn validate_cli_key(cli_key: &str) -> Result<(), String> {
-    crate::shared::cli_key::validate_cli_key(cli_key)
+    crate::shared::cli_key::validate_cli_key(cli_key)?;
+    Ok(())
 }
 
 pub(super) fn suggest_key(name: &str) -> String {

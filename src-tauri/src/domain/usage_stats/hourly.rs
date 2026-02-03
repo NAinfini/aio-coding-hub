@@ -3,7 +3,10 @@ use rusqlite::params;
 
 use super::{compute_start_ts_last_n_days, UsageHourlyRow};
 
-pub fn hourly_series(db: &db::Db, days: u32) -> Result<Vec<UsageHourlyRow>, String> {
+pub fn hourly_series(
+    db: &db::Db,
+    days: u32,
+) -> crate::shared::error::AppResult<Vec<UsageHourlyRow>> {
     let conn = db.open_connection()?;
     let days = days.clamp(1, 60);
     let start_ts = compute_start_ts_last_n_days(&conn, days)?;

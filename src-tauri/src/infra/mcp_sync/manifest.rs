@@ -35,7 +35,7 @@ pub fn read_manifest_bytes<R: tauri::Runtime>(
 ) -> Result<Option<Vec<u8>>, String> {
     let root = mcp_sync_root_dir(app, cli_key)?;
     let path = mcp_sync_manifest_path(&root);
-    read_optional_file(&path)
+    Ok(read_optional_file(&path)?)
 }
 
 pub fn restore_manifest_bytes<R: tauri::Runtime>(
@@ -46,7 +46,7 @@ pub fn restore_manifest_bytes<R: tauri::Runtime>(
     let root = mcp_sync_root_dir(app, cli_key)?;
     let path = mcp_sync_manifest_path(&root);
     match bytes {
-        Some(content) => write_file_atomic(&path, &content),
+        Some(content) => Ok(write_file_atomic(&path, &content)?),
         None => {
             if path.exists() {
                 std::fs::remove_file(&path)

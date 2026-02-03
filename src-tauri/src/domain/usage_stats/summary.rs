@@ -159,13 +159,17 @@ pub(super) fn summary_query(
     .map_err(|e| format!("DB_ERROR: failed to query usage summary: {e}"))
 }
 
-pub fn summary(db: &db::Db, range: &str, cli_key: Option<&str>) -> Result<UsageSummary, String> {
+pub fn summary(
+    db: &db::Db,
+    range: &str,
+    cli_key: Option<&str>,
+) -> crate::shared::error::AppResult<UsageSummary> {
     let conn = db.open_connection()?;
     let range = parse_range(range)?;
     let start_ts = compute_start_ts(&conn, range)?;
     let cli_key = normalize_cli_filter(cli_key)?;
 
-    summary_query(&conn, start_ts, None, cli_key)
+    Ok(summary_query(&conn, start_ts, None, cli_key)?)
 }
 
 pub fn summary_v2(
@@ -174,10 +178,10 @@ pub fn summary_v2(
     start_ts: Option<i64>,
     end_ts: Option<i64>,
     cli_key: Option<&str>,
-) -> Result<UsageSummary, String> {
+) -> crate::shared::error::AppResult<UsageSummary> {
     let conn = db.open_connection()?;
     let period = parse_period_v2(period)?;
     let (start_ts, end_ts) = compute_bounds_v2(&conn, period, start_ts, end_ts)?;
     let cli_key = normalize_cli_filter(cli_key)?;
-    summary_query(&conn, start_ts, end_ts, cli_key)
+    Ok(summary_query(&conn, start_ts, end_ts, cli_key)?)
 }

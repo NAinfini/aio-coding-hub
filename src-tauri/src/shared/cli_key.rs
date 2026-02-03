@@ -6,11 +6,11 @@ pub(crate) fn is_supported_cli_key(cli_key: &str) -> bool {
     SUPPORTED_CLI_KEYS.contains(&cli_key)
 }
 
-pub(crate) fn validate_cli_key(cli_key: &str) -> Result<(), String> {
+pub(crate) fn validate_cli_key(cli_key: &str) -> crate::shared::error::AppResult<()> {
     if is_supported_cli_key(cli_key) {
         Ok(())
     } else {
-        Err(format!("SEC_INVALID_INPUT: unknown cli_key={cli_key}"))
+        Err(format!("SEC_INVALID_INPUT: unknown cli_key={cli_key}").into())
     }
 }
 
@@ -34,7 +34,7 @@ mod tests {
     #[test]
     fn validate_cli_key_returns_sec_invalid_input_error() {
         assert_eq!(
-            validate_cli_key("opencode").unwrap_err(),
+            validate_cli_key("opencode").unwrap_err().to_string(),
             "SEC_INVALID_INPUT: unknown cli_key=opencode"
         );
     }

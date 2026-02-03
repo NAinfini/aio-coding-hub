@@ -2,7 +2,10 @@
 
 use std::path::Path;
 
-pub(crate) fn copy_dir_recursive_if_missing(src: &Path, dst: &Path) -> Result<(), String> {
+pub(crate) fn copy_dir_recursive_if_missing(
+    src: &Path,
+    dst: &Path,
+) -> crate::shared::error::AppResult<()> {
     std::fs::create_dir_all(dst).map_err(|e| format!("failed to create {}: {e}", dst.display()))?;
 
     let entries =
@@ -35,7 +38,10 @@ pub(crate) fn copy_dir_recursive_if_missing(src: &Path, dst: &Path) -> Result<()
     Ok(())
 }
 
-pub(crate) fn copy_file_if_missing(src: &Path, dst: &Path) -> Result<bool, String> {
+pub(crate) fn copy_file_if_missing(
+    src: &Path,
+    dst: &Path,
+) -> crate::shared::error::AppResult<bool> {
     if dst.exists() {
         return Ok(false);
     }
@@ -50,16 +56,16 @@ pub(crate) fn copy_file_if_missing(src: &Path, dst: &Path) -> Result<bool, Strin
     Ok(true)
 }
 
-pub(crate) fn read_optional_file(path: &Path) -> Result<Option<Vec<u8>>, String> {
+pub(crate) fn read_optional_file(path: &Path) -> crate::shared::error::AppResult<Option<Vec<u8>>> {
     if !path.exists() {
         return Ok(None);
     }
-    std::fs::read(path)
+    Ok(std::fs::read(path)
         .map(Some)
-        .map_err(|e| format!("failed to read {}: {e}", path.display()))
+        .map_err(|e| format!("failed to read {}: {e}", path.display()))?)
 }
 
-pub(crate) fn write_file_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
+pub(crate) fn write_file_atomic(path: &Path, bytes: &[u8]) -> crate::shared::error::AppResult<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)
             .map_err(|e| format!("failed to create dir {}: {e}", parent.display()))?;
@@ -82,7 +88,10 @@ pub(crate) fn write_file_atomic(path: &Path, bytes: &[u8]) -> Result<(), String>
     Ok(())
 }
 
-pub(crate) fn write_file_atomic_if_changed(path: &Path, bytes: &[u8]) -> Result<bool, String> {
+pub(crate) fn write_file_atomic_if_changed(
+    path: &Path,
+    bytes: &[u8],
+) -> crate::shared::error::AppResult<bool> {
     if let Ok(existing) = std::fs::read(path) {
         if existing == bytes {
             return Ok(false);

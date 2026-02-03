@@ -457,7 +457,7 @@ pub(in crate::gateway) async fn proxy_impl(
                 sort_mode_id,
             ) {
                 Ok(v) => v,
-                Err(err) => return respond_invalid_cli_key(err),
+                Err(err) => return respond_invalid_cli_key(err.to_string()),
             };
             (sort_mode_id, providers)
         }
@@ -465,7 +465,7 @@ pub(in crate::gateway) async fn proxy_impl(
             let selection =
                 match providers::list_enabled_for_gateway_using_active_mode(&state.db, &cli_key) {
                     Ok(v) => v,
-                    Err(err) => return respond_invalid_cli_key(err),
+                    Err(err) => return respond_invalid_cli_key(err.to_string()),
                 };
             (selection.sort_mode_id, selection.providers)
         }

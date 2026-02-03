@@ -100,7 +100,9 @@ pub fn run() {
                 // Port conflicts are handled by the gateway's bind-first-available strategy.
                 let settings = match blocking::run("startup_read_settings", {
                     let app_handle = app_handle.clone();
-                    move || Ok(settings::read(&app_handle).unwrap_or_default())
+                    move || -> crate::shared::error::AppResult<settings::AppSettings> {
+                        Ok(settings::read(&app_handle).unwrap_or_default())
+                    }
                 })
                 .await
                 {

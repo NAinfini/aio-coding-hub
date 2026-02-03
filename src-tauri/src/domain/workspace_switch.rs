@@ -182,7 +182,10 @@ fn diff(from_enabled: &[String], to_enabled: &[String]) -> (Vec<String>, Vec<Str
     (added, removed)
 }
 
-pub fn preview(db: &db::Db, workspace_id: i64) -> Result<WorkspacePreview, String> {
+pub fn preview(
+    db: &db::Db,
+    workspace_id: i64,
+) -> crate::shared::error::AppResult<WorkspacePreview> {
     let conn = db.open_connection()?;
 
     let cli_key = workspaces::get_cli_key_by_id(&conn, workspace_id)?;
@@ -237,7 +240,7 @@ pub fn apply(
     app: &tauri::AppHandle,
     db: &db::Db,
     workspace_id: i64,
-) -> Result<WorkspaceApplyReport, String> {
+) -> crate::shared::error::AppResult<WorkspaceApplyReport> {
     let conn = db.open_connection()?;
 
     let cli_key = workspaces::get_cli_key_by_id(&conn, workspace_id)?;
@@ -277,7 +280,7 @@ pub fn apply(
         let _ = prompt_sync::restore_manifest_bytes(app, &cli_key, prev_prompt_manifest);
         let _ = mcp_sync::restore_target_bytes(app, &cli_key, prev_mcp_target);
         let _ = mcp_sync::restore_manifest_bytes(app, &cli_key, prev_mcp_manifest);
-        return Err(err);
+        return Err(err.into());
     }
 
     if let Err(err) = mcp::sync_cli_for_workspace(app, &conn, workspace_id) {
@@ -285,7 +288,7 @@ pub fn apply(
         let _ = prompt_sync::restore_manifest_bytes(app, &cli_key, prev_prompt_manifest);
         let _ = mcp_sync::restore_target_bytes(app, &cli_key, prev_mcp_target);
         let _ = mcp_sync::restore_manifest_bytes(app, &cli_key, prev_mcp_manifest);
-        return Err(err);
+        return Err(err.into());
     }
 
     let mut local_plugins_swap = if cli_key == "claude" {
@@ -301,7 +304,7 @@ pub fn apply(
                 let _ = prompt_sync::restore_manifest_bytes(app, &cli_key, prev_prompt_manifest);
                 let _ = mcp_sync::restore_target_bytes(app, &cli_key, prev_mcp_target);
                 let _ = mcp_sync::restore_manifest_bytes(app, &cli_key, prev_mcp_manifest);
-                return Err(err);
+                return Err(err.into());
             }
         }
     } else {
@@ -322,7 +325,7 @@ pub fn apply(
             let _ = skills::sync_cli_for_workspace(app, &conn, from_id);
         }
 
-        return Err(err);
+        return Err(err.into());
     }
 
     let local_skills_swap = match skills::swap_local_skills_for_workspace_switch(
@@ -346,7 +349,7 @@ pub fn apply(
                 let _ = skills::sync_cli_for_workspace(app, &conn, from_id);
             }
 
-            return Err(err);
+            return Err(err.into());
         }
     };
 

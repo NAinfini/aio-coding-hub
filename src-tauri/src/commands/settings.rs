@@ -5,7 +5,9 @@ use tauri::Manager;
 
 #[tauri::command]
 pub(crate) async fn settings_get(app: tauri::AppHandle) -> Result<settings::AppSettings, String> {
-    blocking::run("settings_get", move || settings::read(&app)).await
+    blocking::run("settings_get", move || settings::read(&app))
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -39,108 +41,113 @@ pub(crate) async fn settings_set(
     wsl_target_cli: Option<settings::WslTargetCli>,
 ) -> Result<settings::AppSettings, String> {
     let app_for_work = app.clone();
-    let next_settings = blocking::run("settings_set", move || {
-        let previous = settings::read(&app_for_work).unwrap_or_default();
-        let update_releases_url = update_releases_url.unwrap_or(previous.update_releases_url);
-        let tray_enabled = tray_enabled.unwrap_or(previous.tray_enabled);
-        let enable_cli_proxy_startup_recovery =
-            enable_cli_proxy_startup_recovery.unwrap_or(previous.enable_cli_proxy_startup_recovery);
-        let provider_cooldown_seconds =
-            provider_cooldown_seconds.unwrap_or(previous.provider_cooldown_seconds);
-        let gateway_listen_mode = gateway_listen_mode.unwrap_or(previous.gateway_listen_mode);
-        let gateway_custom_listen_address = gateway_custom_listen_address
-            .unwrap_or(previous.gateway_custom_listen_address)
-            .trim()
-            .to_string();
-        let wsl_auto_config = wsl_auto_config.unwrap_or(previous.wsl_auto_config);
-        let wsl_target_cli = wsl_target_cli.unwrap_or(previous.wsl_target_cli);
-        let provider_base_url_ping_cache_ttl_seconds = provider_base_url_ping_cache_ttl_seconds
-            .unwrap_or(previous.provider_base_url_ping_cache_ttl_seconds);
-        let upstream_first_byte_timeout_seconds = upstream_first_byte_timeout_seconds
-            .unwrap_or(previous.upstream_first_byte_timeout_seconds);
-        let upstream_stream_idle_timeout_seconds = upstream_stream_idle_timeout_seconds
-            .unwrap_or(previous.upstream_stream_idle_timeout_seconds);
-        let upstream_request_timeout_non_streaming_seconds =
-            upstream_request_timeout_non_streaming_seconds
-                .unwrap_or(previous.upstream_request_timeout_non_streaming_seconds);
-        let intercept_anthropic_warmup_requests = intercept_anthropic_warmup_requests
-            .unwrap_or(previous.intercept_anthropic_warmup_requests);
-        let enable_thinking_signature_rectifier = enable_thinking_signature_rectifier
-            .unwrap_or(previous.enable_thinking_signature_rectifier);
-        let enable_response_fixer = enable_response_fixer.unwrap_or(previous.enable_response_fixer);
-        let response_fixer_fix_encoding =
-            response_fixer_fix_encoding.unwrap_or(previous.response_fixer_fix_encoding);
-        let response_fixer_fix_sse_format =
-            response_fixer_fix_sse_format.unwrap_or(previous.response_fixer_fix_sse_format);
-        let response_fixer_fix_truncated_json =
-            response_fixer_fix_truncated_json.unwrap_or(previous.response_fixer_fix_truncated_json);
-        let circuit_breaker_failure_threshold =
-            circuit_breaker_failure_threshold.unwrap_or(previous.circuit_breaker_failure_threshold);
-        let circuit_breaker_open_duration_minutes = circuit_breaker_open_duration_minutes
-            .unwrap_or(previous.circuit_breaker_open_duration_minutes);
-        let mut next_auto_start = auto_start;
+    let next_settings = blocking::run(
+        "settings_set",
+        move || -> crate::shared::error::AppResult<settings::AppSettings> {
+            let previous = settings::read(&app_for_work).unwrap_or_default();
+            let update_releases_url = update_releases_url.unwrap_or(previous.update_releases_url);
+            let tray_enabled = tray_enabled.unwrap_or(previous.tray_enabled);
+            let enable_cli_proxy_startup_recovery = enable_cli_proxy_startup_recovery
+                .unwrap_or(previous.enable_cli_proxy_startup_recovery);
+            let provider_cooldown_seconds =
+                provider_cooldown_seconds.unwrap_or(previous.provider_cooldown_seconds);
+            let gateway_listen_mode = gateway_listen_mode.unwrap_or(previous.gateway_listen_mode);
+            let gateway_custom_listen_address = gateway_custom_listen_address
+                .unwrap_or(previous.gateway_custom_listen_address)
+                .trim()
+                .to_string();
+            let wsl_auto_config = wsl_auto_config.unwrap_or(previous.wsl_auto_config);
+            let wsl_target_cli = wsl_target_cli.unwrap_or(previous.wsl_target_cli);
+            let provider_base_url_ping_cache_ttl_seconds = provider_base_url_ping_cache_ttl_seconds
+                .unwrap_or(previous.provider_base_url_ping_cache_ttl_seconds);
+            let upstream_first_byte_timeout_seconds = upstream_first_byte_timeout_seconds
+                .unwrap_or(previous.upstream_first_byte_timeout_seconds);
+            let upstream_stream_idle_timeout_seconds = upstream_stream_idle_timeout_seconds
+                .unwrap_or(previous.upstream_stream_idle_timeout_seconds);
+            let upstream_request_timeout_non_streaming_seconds =
+                upstream_request_timeout_non_streaming_seconds
+                    .unwrap_or(previous.upstream_request_timeout_non_streaming_seconds);
+            let intercept_anthropic_warmup_requests = intercept_anthropic_warmup_requests
+                .unwrap_or(previous.intercept_anthropic_warmup_requests);
+            let enable_thinking_signature_rectifier = enable_thinking_signature_rectifier
+                .unwrap_or(previous.enable_thinking_signature_rectifier);
+            let enable_response_fixer =
+                enable_response_fixer.unwrap_or(previous.enable_response_fixer);
+            let response_fixer_fix_encoding =
+                response_fixer_fix_encoding.unwrap_or(previous.response_fixer_fix_encoding);
+            let response_fixer_fix_sse_format =
+                response_fixer_fix_sse_format.unwrap_or(previous.response_fixer_fix_sse_format);
+            let response_fixer_fix_truncated_json = response_fixer_fix_truncated_json
+                .unwrap_or(previous.response_fixer_fix_truncated_json);
+            let circuit_breaker_failure_threshold = circuit_breaker_failure_threshold
+                .unwrap_or(previous.circuit_breaker_failure_threshold);
+            let circuit_breaker_open_duration_minutes = circuit_breaker_open_duration_minutes
+                .unwrap_or(previous.circuit_breaker_open_duration_minutes);
+            let mut next_auto_start = auto_start;
 
-        #[cfg(desktop)]
-        {
-            if auto_start != previous.auto_start {
-                use tauri_plugin_autostart::ManagerExt;
+            #[cfg(desktop)]
+            {
+                if auto_start != previous.auto_start {
+                    use tauri_plugin_autostart::ManagerExt;
 
-                let result = if auto_start {
-                    app_for_work
-                        .autolaunch()
-                        .enable()
-                        .map_err(|e| format!("failed to enable autostart: {e}"))
-                } else {
-                    app_for_work
-                        .autolaunch()
-                        .disable()
-                        .map_err(|e| format!("failed to disable autostart: {e}"))
-                };
+                    let result = if auto_start {
+                        app_for_work
+                            .autolaunch()
+                            .enable()
+                            .map_err(|e| format!("failed to enable autostart: {e}"))
+                    } else {
+                        app_for_work
+                            .autolaunch()
+                            .disable()
+                            .map_err(|e| format!("failed to disable autostart: {e}"))
+                    };
 
-                if let Err(err) = result {
-                    tracing::warn!("自启动同步失败: {}", err);
-                    next_auto_start = previous.auto_start;
+                    if let Err(err) = result {
+                        tracing::warn!("自启动同步失败: {}", err);
+                        next_auto_start = previous.auto_start;
+                    }
                 }
             }
-        }
 
-        let settings = settings::AppSettings {
-            schema_version: settings::SCHEMA_VERSION,
-            preferred_port,
-            gateway_listen_mode,
-            gateway_custom_listen_address,
-            wsl_auto_config,
-            wsl_target_cli,
-            auto_start: next_auto_start,
-            tray_enabled,
-            enable_cli_proxy_startup_recovery,
-            log_retention_days,
-            provider_cooldown_seconds,
-            provider_base_url_ping_cache_ttl_seconds,
-            upstream_first_byte_timeout_seconds,
-            upstream_stream_idle_timeout_seconds,
-            upstream_request_timeout_non_streaming_seconds,
-            update_releases_url,
-            failover_max_attempts_per_provider,
-            failover_max_providers_to_try,
-            circuit_breaker_failure_threshold,
-            circuit_breaker_open_duration_minutes,
-            enable_circuit_breaker_notice: previous.enable_circuit_breaker_notice,
-            intercept_anthropic_warmup_requests,
-            enable_thinking_signature_rectifier,
-            enable_codex_session_id_completion: previous.enable_codex_session_id_completion,
-            enable_response_fixer,
-            response_fixer_fix_encoding,
-            response_fixer_fix_sse_format,
-            response_fixer_fix_truncated_json,
-            response_fixer_max_json_depth: previous.response_fixer_max_json_depth,
-            response_fixer_max_fix_size: previous.response_fixer_max_fix_size,
-        };
+            let settings = settings::AppSettings {
+                schema_version: settings::SCHEMA_VERSION,
+                preferred_port,
+                gateway_listen_mode,
+                gateway_custom_listen_address,
+                wsl_auto_config,
+                wsl_target_cli,
+                auto_start: next_auto_start,
+                tray_enabled,
+                enable_cli_proxy_startup_recovery,
+                log_retention_days,
+                provider_cooldown_seconds,
+                provider_base_url_ping_cache_ttl_seconds,
+                upstream_first_byte_timeout_seconds,
+                upstream_stream_idle_timeout_seconds,
+                upstream_request_timeout_non_streaming_seconds,
+                update_releases_url,
+                failover_max_attempts_per_provider,
+                failover_max_providers_to_try,
+                circuit_breaker_failure_threshold,
+                circuit_breaker_open_duration_minutes,
+                enable_circuit_breaker_notice: previous.enable_circuit_breaker_notice,
+                intercept_anthropic_warmup_requests,
+                enable_thinking_signature_rectifier,
+                enable_codex_session_id_completion: previous.enable_codex_session_id_completion,
+                enable_response_fixer,
+                response_fixer_fix_encoding,
+                response_fixer_fix_sse_format,
+                response_fixer_fix_truncated_json,
+                response_fixer_max_json_depth: previous.response_fixer_max_json_depth,
+                response_fixer_max_fix_size: previous.response_fixer_max_fix_size,
+            };
 
-        let next_settings = settings::write(&app_for_work, &settings)?;
-        Ok(next_settings)
-    })
-    .await?;
+            let next_settings = settings::write(&app_for_work, &settings)?;
+            Ok(next_settings)
+        },
+    )
+    .await
+    .map_err(|e| e.to_string())?;
 
     app.state::<resident::ResidentState>()
         .set_tray_enabled(next_settings.tray_enabled);
@@ -177,6 +184,7 @@ pub(crate) async fn settings_gateway_rectifier_set(
         settings::write(&app_for_work, &settings)
     })
     .await
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -192,6 +200,7 @@ pub(crate) async fn settings_circuit_breaker_notice_set(
         settings::write(&app_for_work, &settings)
     })
     .await
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -207,4 +216,5 @@ pub(crate) async fn settings_codex_session_id_completion_set(
         settings::write(&app_for_work, &settings)
     })
     .await
+    .map_err(|e| e.to_string())
 }

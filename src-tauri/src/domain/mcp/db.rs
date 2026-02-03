@@ -152,7 +152,10 @@ WHERE s.id = ?2
     .ok_or_else(|| "DB_NOT_FOUND: mcp server not found".to_string())
 }
 
-pub fn list_for_workspace(db: &db::Db, workspace_id: i64) -> Result<Vec<McpServerSummary>, String> {
+pub fn list_for_workspace(
+    db: &db::Db,
+    workspace_id: i64,
+) -> crate::shared::error::AppResult<Vec<McpServerSummary>> {
     let conn = db.open_connection()?;
     let _ = workspaces::get_cli_key_by_id(&conn, workspace_id)?;
 
@@ -206,10 +209,10 @@ pub fn upsert(
     cwd: Option<&str>,
     url: Option<&str>,
     headers: BTreeMap<String, String>,
-) -> Result<McpServerSummary, String> {
+) -> crate::shared::error::AppResult<McpServerSummary> {
     let name = name.trim();
     if name.is_empty() {
-        return Err("SEC_INVALID_INPUT: name is required".to_string());
+        return Err("SEC_INVALID_INPUT: name is required".to_string().into());
     }
 
     let provided_key = server_key.trim();
@@ -222,10 +225,12 @@ pub fn upsert(
     let cwd = cwd.map(str::trim).filter(|v| !v.is_empty());
 
     if transport == "stdio" && command.is_none() {
-        return Err("SEC_INVALID_INPUT: stdio command is required".to_string());
+        return Err("SEC_INVALID_INPUT: stdio command is required"
+            .to_string()
+            .into());
     }
     if transport == "http" && url.is_none() {
-        return Err("SEC_INVALID_INPUT: http url is required".to_string());
+        return Err("SEC_INVALID_INPUT: http url is required".to_string().into());
     }
 
     let args: Vec<String> = args
@@ -265,13 +270,14 @@ pub fn upsert(
                 .map_err(|e| format!("DB_ERROR: failed to query mcp server: {e}"))?;
 
             let Some(existing_key) = existing_key else {
-                return Err("DB_NOT_FOUND: mcp server not found".to_string());
+                return Err("DB_NOT_FOUND: mcp server not found".to_string().into());
             };
 
             if !provided_key.is_empty() && existing_key != provided_key {
                 return Err(
                     "SEC_INVALID_INPUT: server_key cannot be changed for existing server"
-                        .to_string(),
+                        .to_string()
+                        .into(),
                 );
             }
 
@@ -364,15 +370,15 @@ WHERE id = ?11
 
     if let Err(err) = sync_all_cli(app, &tx) {
         snapshots.restore_all(app);
-        return Err(err);
+        return Err(err.into());
     }
 
     if let Err(err) = tx.commit() {
         snapshots.restore_all(app);
-        return Err(format!("DB_ERROR: failed to commit: {err}"));
+        return Err(format!("DB_ERROR: failed to commit: {err}").into());
     }
 
-    get_by_id(&conn, id)
+    Ok(get_by_id(&conn, id)?)
 }
 
 pub fn set_enabled(
@@ -381,7 +387,7 @@ pub fn set_enabled(
     workspace_id: i64,
     server_id: i64,
     enabled: bool,
-) -> Result<McpServerSummary, String> {
+) -> crate::shared::error::AppResult<McpServerSummary> {
     let mut conn = db.open_connection()?;
     let now = now_unix_seconds();
     let tx = conn
@@ -422,7 +428,7 @@ ON CONFLICT(workspace_id, server_id) DO UPDATE SET
             if let Some(backup) = backup {
                 backup.restore(app, &cli_key);
             }
-            return Err(err);
+            return Err(err.into());
         }
     }
 
@@ -430,13 +436,17 @@ ON CONFLICT(workspace_id, server_id) DO UPDATE SET
         if let Some(backup) = backup {
             backup.restore(app, &cli_key);
         }
-        return Err(format!("DB_ERROR: failed to commit: {err}"));
+        return Err(format!("DB_ERROR: failed to commit: {err}").into());
     }
 
-    get_by_id_for_workspace(&conn, workspace_id, server_id)
+    Ok(get_by_id_for_workspace(&conn, workspace_id, server_id)?)
 }
 
-pub fn delete(app: &tauri::AppHandle, db: &db::Db, server_id: i64) -> Result<(), String> {
+pub fn delete(
+    app: &tauri::AppHandle,
+    db: &db::Db,
+    server_id: i64,
+) -> crate::shared::error::AppResult<()> {
     let mut conn = db.open_connection()?;
     let tx = conn
         .transaction()
@@ -448,17 +458,17 @@ pub fn delete(app: &tauri::AppHandle, db: &db::Db, server_id: i64) -> Result<(),
         .execute("DELETE FROM mcp_servers WHERE id = ?1", params![server_id])
         .map_err(|e| format!("DB_ERROR: failed to delete mcp server: {e}"))?;
     if changed == 0 {
-        return Err("DB_NOT_FOUND: mcp server not found".to_string());
+        return Err("DB_NOT_FOUND: mcp server not found".to_string().into());
     }
 
     if let Err(err) = sync_all_cli(app, &tx) {
         snapshots.restore_all(app);
-        return Err(err);
+        return Err(err.into());
     }
 
     if let Err(err) = tx.commit() {
         snapshots.restore_all(app);
-        return Err(format!("DB_ERROR: failed to commit: {err}"));
+        return Err(format!("DB_ERROR: failed to commit: {err}").into());
     }
 
     Ok(())

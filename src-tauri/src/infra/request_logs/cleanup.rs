@@ -4,9 +4,9 @@ use crate::db;
 use crate::shared::time::now_unix_seconds;
 use rusqlite::params;
 
-pub fn cleanup_expired(db: &db::Db, retention_days: u32) -> Result<u64, String> {
+pub fn cleanup_expired(db: &db::Db, retention_days: u32) -> crate::shared::error::AppResult<u64> {
     if retention_days == 0 {
-        return Err("SEC_INVALID_INPUT: log_retention_days must be >= 1".to_string());
+        return Err("SEC_INVALID_INPUT: log_retention_days must be >= 1".into());
     }
 
     let now = now_unix_seconds();

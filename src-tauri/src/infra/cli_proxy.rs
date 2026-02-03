@@ -86,11 +86,11 @@ fn claude_settings_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<
 }
 
 fn codex_config_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
-    codex_paths::codex_config_toml_path(app)
+    Ok(codex_paths::codex_config_toml_path(app)?)
 }
 
 fn codex_auth_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
-    codex_paths::codex_auth_json_path(app)
+    Ok(codex_paths::codex_auth_json_path(app)?)
 }
 
 fn gemini_env_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {

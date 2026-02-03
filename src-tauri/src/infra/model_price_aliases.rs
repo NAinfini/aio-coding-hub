@@ -46,50 +46,59 @@ impl Default for ModelPriceAliasesV1 {
 }
 
 fn validate_cli_key(cli_key: &str) -> Result<(), String> {
-    crate::shared::cli_key::validate_cli_key(cli_key)
+    crate::shared::cli_key::validate_cli_key(cli_key).map_err(|e| e.to_string())
 }
 
-fn model_prices_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+fn model_prices_dir(app: &tauri::AppHandle) -> crate::shared::error::AppResult<PathBuf> {
     let dir = app_paths::app_data_dir(app)?.join(MODEL_PRICE_DIR_NAME);
     std::fs::create_dir_all(&dir).map_err(|e| format!("failed to create model-prices dir: {e}"))?;
     Ok(dir)
 }
 
-fn aliases_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+fn aliases_path(app: &tauri::AppHandle) -> crate::shared::error::AppResult<PathBuf> {
     Ok(model_prices_dir(app)?.join(ALIASES_FILE_NAME))
 }
 
-fn sanitize_nonempty_trimmed(input: &str, field: &'static str) -> Result<String, String> {
+fn sanitize_nonempty_trimmed(
+    input: &str,
+    field: &'static str,
+) -> crate::shared::error::AppResult<String> {
     let value = input.trim();
     if value.is_empty() {
-        return Err(format!("SEC_INVALID_INPUT: {field} is required"));
+        return Err(format!("SEC_INVALID_INPUT: {field} is required").into());
     }
     if value.len() > MAX_MODEL_LEN {
-        return Err(format!(
-            "SEC_INVALID_INPUT: {field} is too long (max {MAX_MODEL_LEN})"
-        ));
+        return Err(format!("SEC_INVALID_INPUT: {field} is too long (max {MAX_MODEL_LEN})").into());
     }
     Ok(value.to_string())
 }
 
-fn validate_wildcard_pattern(pattern: &str) -> Result<(), String> {
+fn validate_wildcard_pattern(pattern: &str) -> crate::shared::error::AppResult<()> {
     let count = pattern.chars().filter(|c| *c == '*').count();
     if count != 1 {
-        return Err("SEC_INVALID_INPUT: wildcard pattern must contain exactly one '*'".to_string());
+        return Err(
+            "SEC_INVALID_INPUT: wildcard pattern must contain exactly one '*'"
+                .to_string()
+                .into(),
+        );
     }
     Ok(())
 }
 
-fn validate_rule(mut rule: ModelPriceAliasRuleV1) -> Result<ModelPriceAliasRuleV1, String> {
+fn validate_rule(
+    mut rule: ModelPriceAliasRuleV1,
+) -> crate::shared::error::AppResult<ModelPriceAliasRuleV1> {
     let cli_key = rule.cli_key.trim().to_ascii_lowercase();
-    validate_cli_key(&cli_key)?;
+    crate::shared::cli_key::validate_cli_key(&cli_key)?;
     rule.cli_key = cli_key;
 
     rule.pattern = sanitize_nonempty_trimmed(&rule.pattern, "pattern")?;
     rule.target_model = sanitize_nonempty_trimmed(&rule.target_model, "target_model")?;
 
     if rule.target_model.contains('*') {
-        return Err("SEC_INVALID_INPUT: target_model must not contain '*'".to_string());
+        return Err("SEC_INVALID_INPUT: target_model must not contain '*'"
+            .to_string()
+            .into());
     }
 
     match rule.match_type {
@@ -97,7 +106,8 @@ fn validate_rule(mut rule: ModelPriceAliasRuleV1) -> Result<ModelPriceAliasRuleV
             if rule.pattern.contains('*') {
                 return Err(
                     "SEC_INVALID_INPUT: pattern must not contain '*' for exact/prefix rules"
-                        .to_string(),
+                        .to_string()
+                        .into(),
                 );
             }
         }
@@ -107,12 +117,15 @@ fn validate_rule(mut rule: ModelPriceAliasRuleV1) -> Result<ModelPriceAliasRuleV
     Ok(rule)
 }
 
-fn validate_aliases(mut aliases: ModelPriceAliasesV1) -> Result<ModelPriceAliasesV1, String> {
+fn validate_aliases(
+    mut aliases: ModelPriceAliasesV1,
+) -> crate::shared::error::AppResult<ModelPriceAliasesV1> {
     if aliases.version != ALIASES_SCHEMA_VERSION_V1 {
         return Err(format!(
             "SEC_INVALID_INPUT: unsupported aliases version {}",
             aliases.version
-        ));
+        )
+        .into());
     }
 
     let mut out: Vec<ModelPriceAliasRuleV1> = Vec::with_capacity(aliases.rules.len());
@@ -123,7 +136,7 @@ fn validate_aliases(mut aliases: ModelPriceAliasesV1) -> Result<ModelPriceAliase
     Ok(aliases)
 }
 
-fn write_json_atomically(path: &Path, json_bytes: Vec<u8>) -> Result<(), String> {
+fn write_json_atomically(path: &Path, json_bytes: Vec<u8>) -> crate::shared::error::AppResult<()> {
     let tmp_path = path.with_extension("json.tmp");
     let backup_path = path.with_extension("json.bak");
 
@@ -141,7 +154,7 @@ fn write_json_atomically(path: &Path, json_bytes: Vec<u8>) -> Result<(), String>
 
     if let Err(e) = std::fs::rename(&tmp_path, path) {
         let _ = std::fs::rename(&backup_path, path);
-        return Err(format!("failed to finalize aliases file: {e}"));
+        return Err(format!("failed to finalize aliases file: {e}").into());
     }
 
     if backup_path.exists() {
@@ -161,7 +174,7 @@ pub fn read_fail_open(app: &tauri::AppHandle) -> ModelPriceAliasesV1 {
     }
 }
 
-pub fn read(app: &tauri::AppHandle) -> Result<ModelPriceAliasesV1, String> {
+pub fn read(app: &tauri::AppHandle) -> crate::shared::error::AppResult<ModelPriceAliasesV1> {
     let path = aliases_path(app)?;
     if !path.exists() {
         return Ok(ModelPriceAliasesV1::default());
@@ -177,7 +190,7 @@ pub fn read(app: &tauri::AppHandle) -> Result<ModelPriceAliasesV1, String> {
 pub fn write(
     app: &tauri::AppHandle,
     aliases: ModelPriceAliasesV1,
-) -> Result<ModelPriceAliasesV1, String> {
+) -> crate::shared::error::AppResult<ModelPriceAliasesV1> {
     let aliases = validate_aliases(aliases)?;
     let path = aliases_path(app)?;
     let bytes = serde_json::to_vec_pretty(&aliases)

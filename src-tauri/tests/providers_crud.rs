@@ -150,6 +150,7 @@ fn providers_crud_roundtrip() {
     let err =
         aio_coding_hub_lib::test_support::providers_reorder_json(&handle, "claude", vec![id2, id2])
             .expect_err("duplicate reorder should fail");
+    let err = err.to_string();
     assert!(
         err.contains("duplicate provider_id"),
         "unexpected error: {err}"

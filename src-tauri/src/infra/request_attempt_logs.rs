@@ -101,7 +101,8 @@ pub struct RequestAttemptLog {
 }
 
 fn validate_cli_key(cli_key: &str) -> Result<(), String> {
-    crate::shared::cli_key::validate_cli_key(cli_key)
+    crate::shared::cli_key::validate_cli_key(cli_key)?;
+    Ok(())
 }
 
 pub fn start_buffered_writer(
@@ -190,7 +191,9 @@ fn insert_batch_once(db: &db::Db, items: &[RequestAttemptLogInsert]) -> Result<(
         return Ok(());
     }
 
-    let mut conn = db.open_connection().map_err(DbWriteError::other)?;
+    let mut conn = db
+        .open_connection()
+        .map_err(|e| DbWriteError::other(e.to_string()))?;
     let tx = conn
         .transaction()
         .map_err(|e| DbWriteError::from_rusqlite("failed to start transaction", e))?;
@@ -258,9 +261,9 @@ ON CONFLICT(trace_id, attempt_index) DO UPDATE SET
     Ok(())
 }
 
-pub fn cleanup_expired(db: &db::Db, retention_days: u32) -> Result<u64, String> {
+pub fn cleanup_expired(db: &db::Db, retention_days: u32) -> crate::shared::error::AppResult<u64> {
     if retention_days == 0 {
-        return Err("SEC_INVALID_INPUT: log_retention_days must be >= 1".to_string());
+        return Err("SEC_INVALID_INPUT: log_retention_days must be >= 1".into());
     }
 
     let now = now_unix_seconds();
@@ -301,10 +304,10 @@ pub fn list_by_trace_id(
     db: &db::Db,
     trace_id: &str,
     limit: usize,
-) -> Result<Vec<RequestAttemptLog>, String> {
+) -> crate::shared::error::AppResult<Vec<RequestAttemptLog>> {
     let trace_id = trace_id.trim();
     if trace_id.is_empty() {
-        return Err("SEC_INVALID_INPUT: trace_id is required".to_string());
+        return Err("SEC_INVALID_INPUT: trace_id is required".into());
     }
 
     let limit = limit.clamp(1, 200);

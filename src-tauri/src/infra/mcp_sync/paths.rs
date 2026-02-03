@@ -6,7 +6,8 @@ use std::path::{Path, PathBuf};
 use tauri::Manager;
 
 pub(super) fn validate_cli_key(cli_key: &str) -> Result<(), String> {
-    crate::shared::cli_key::validate_cli_key(cli_key)
+    crate::shared::cli_key::validate_cli_key(cli_key)?;
+    Ok(())
 }
 
 pub(super) fn home_dir<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
@@ -26,7 +27,7 @@ pub(super) fn mcp_target_path<R: tauri::Runtime>(
         // cc-switch: Claude MCP uses ~/.claude.json
         "claude" => Ok(home.join(".claude.json")),
         // cc-switch: Codex MCP uses $CODEX_HOME/config.toml (default: ~/.codex/config.toml)
-        "codex" => codex_paths::codex_config_toml_path(app),
+        "codex" => Ok(codex_paths::codex_config_toml_path(app)?),
         // cc-switch: Gemini MCP uses ~/.gemini/settings.json
         "gemini" => Ok(home.join(".gemini").join("settings.json")),
         _ => Err(format!("SEC_INVALID_INPUT: unknown cli_key={cli_key}")),

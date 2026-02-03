@@ -33,7 +33,8 @@ pub struct DefaultPromptSyncReport {
 }
 
 fn validate_cli_key(cli_key: &str) -> Result<(), String> {
-    crate::shared::cli_key::validate_cli_key(cli_key)
+    crate::shared::cli_key::validate_cli_key(cli_key)?;
+    Ok(())
 }
 
 fn row_to_summary(row: &rusqlite::Row<'_>) -> Result<PromptSummary, rusqlite::Error> {
@@ -81,7 +82,10 @@ WHERE p.id = ?1
     .ok_or_else(|| "DB_NOT_FOUND: prompt not found".to_string())
 }
 
-pub fn list_by_workspace(db: &db::Db, workspace_id: i64) -> Result<Vec<PromptSummary>, String> {
+pub fn list_by_workspace(
+    db: &db::Db,
+    workspace_id: i64,
+) -> crate::shared::error::AppResult<Vec<PromptSummary>> {
     let conn = db.open_connection()?;
     let _ = workspaces::get_cli_key_by_id(&conn, workspace_id)?;
 
@@ -164,7 +168,7 @@ fn count_prompts_by_workspace(conn: &Connection, workspace_id: i64) -> Result<i6
 pub fn default_sync_from_files(
     app: &tauri::AppHandle,
     db: &db::Db,
-) -> Result<DefaultPromptSyncReport, String> {
+) -> crate::shared::error::AppResult<DefaultPromptSyncReport> {
     let conn = db.open_connection()?;
     let now = now_unix_seconds();
 
@@ -328,15 +332,19 @@ pub fn upsert(
     name: &str,
     content: &str,
     enabled: bool,
-) -> Result<PromptSummary, String> {
+) -> crate::shared::error::AppResult<PromptSummary> {
     let name = name.trim();
     if name.is_empty() {
-        return Err("SEC_INVALID_INPUT: prompt name is required".to_string());
+        return Err("SEC_INVALID_INPUT: prompt name is required"
+            .to_string()
+            .into());
     }
 
     let content = content.trim();
     if content.is_empty() {
-        return Err("SEC_INVALID_INPUT: prompt content is required".to_string());
+        return Err("SEC_INVALID_INPUT: prompt content is required"
+            .to_string()
+            .into());
     }
 
     let mut conn = db.open_connection()?;
@@ -402,15 +410,17 @@ INSERT INTO prompts(
                     let _ = prompt_sync::restore_target_bytes(app, &cli_key, prev_target_bytes);
                     let _ = prompt_sync::restore_manifest_bytes(app, &cli_key, prev_manifest_bytes);
                 }
-                return Err(format!("DB_ERROR: failed to commit: {err}"));
+                return Err(format!("DB_ERROR: failed to commit: {err}").into());
             }
 
-            get_by_id(&conn, id)
+            Ok(get_by_id(&conn, id)?)
         }
         Some(id) => {
             let before = get_by_id(&conn, id)?;
             if before.workspace_id != workspace_id {
-                return Err("SEC_INVALID_INPUT: workspace_id mismatch".to_string());
+                return Err("SEC_INVALID_INPUT: workspace_id mismatch"
+                    .to_string()
+                    .into());
             }
 
             let tx = conn
@@ -477,10 +487,10 @@ WHERE id = ?5
                     let _ = prompt_sync::restore_target_bytes(app, &cli_key, prev_target_bytes);
                     let _ = prompt_sync::restore_manifest_bytes(app, &cli_key, prev_manifest_bytes);
                 }
-                return Err(format!("DB_ERROR: failed to commit: {err}"));
+                return Err(format!("DB_ERROR: failed to commit: {err}").into());
             }
 
-            get_by_id(&conn, id)
+            Ok(get_by_id(&conn, id)?)
         }
     }
 }
@@ -490,7 +500,7 @@ pub fn set_enabled(
     db: &db::Db,
     prompt_id: i64,
     enabled: bool,
-) -> Result<PromptSummary, String> {
+) -> crate::shared::error::AppResult<PromptSummary> {
     let mut conn = db.open_connection()?;
     let before = get_by_id(&conn, prompt_id)?;
     let cli_key = before.cli_key.as_str();
@@ -522,7 +532,7 @@ pub fn set_enabled(
             .map_err(|e| format!("DB_ERROR: failed to enable prompt: {e}"))?;
 
         if changed == 0 {
-            return Err("DB_NOT_FOUND: prompt not found".to_string());
+            return Err("DB_NOT_FOUND: prompt not found".to_string().into());
         }
     } else {
         let changed = tx
@@ -533,7 +543,7 @@ pub fn set_enabled(
             .map_err(|e| format!("DB_ERROR: failed to disable prompt: {e}"))?;
 
         if changed == 0 {
-            return Err("DB_NOT_FOUND: prompt not found".to_string());
+            return Err("DB_NOT_FOUND: prompt not found".to_string().into());
         }
     }
 
@@ -563,13 +573,17 @@ pub fn set_enabled(
             let _ = prompt_sync::restore_target_bytes(app, cli_key, prev_target_bytes);
             let _ = prompt_sync::restore_manifest_bytes(app, cli_key, prev_manifest_bytes);
         }
-        return Err(format!("DB_ERROR: failed to commit: {err}"));
+        return Err(format!("DB_ERROR: failed to commit: {err}").into());
     }
 
-    get_by_id(&conn, prompt_id)
+    Ok(get_by_id(&conn, prompt_id)?)
 }
 
-pub fn delete(app: &tauri::AppHandle, db: &db::Db, prompt_id: i64) -> Result<(), String> {
+pub fn delete(
+    app: &tauri::AppHandle,
+    db: &db::Db,
+    prompt_id: i64,
+) -> crate::shared::error::AppResult<()> {
     let mut conn = db.open_connection()?;
     let before = get_by_id(&conn, prompt_id)?;
 
@@ -600,7 +614,7 @@ pub fn delete(app: &tauri::AppHandle, db: &db::Db, prompt_id: i64) -> Result<(),
         .map_err(|e| format!("DB_ERROR: failed to delete prompt: {e}"))?;
 
     if changed == 0 {
-        return Err("DB_NOT_FOUND: prompt not found".to_string());
+        return Err("DB_NOT_FOUND: prompt not found".to_string().into());
     }
 
     if let Err(err) = tx.commit() {
@@ -608,7 +622,7 @@ pub fn delete(app: &tauri::AppHandle, db: &db::Db, prompt_id: i64) -> Result<(),
             let _ = prompt_sync::restore_target_bytes(app, cli_key, prev_target_bytes);
             let _ = prompt_sync::restore_manifest_bytes(app, cli_key, prev_manifest_bytes);
         }
-        return Err(format!("DB_ERROR: failed to commit: {err}"));
+        return Err(format!("DB_ERROR: failed to commit: {err}").into());
     }
 
     Ok(())
@@ -618,7 +632,7 @@ pub fn sync_cli_for_workspace(
     app: &tauri::AppHandle,
     conn: &Connection,
     workspace_id: i64,
-) -> Result<(), String> {
+) -> crate::shared::error::AppResult<()> {
     let cli_key = workspaces::get_cli_key_by_id(conn, workspace_id)?;
     validate_cli_key(&cli_key)?;
 

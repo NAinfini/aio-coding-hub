@@ -1,6 +1,7 @@
 //! Usage: Persisted application settings (schema + read/write helpers).
 
 use crate::app_paths;
+use crate::shared::error::AppResult;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -537,11 +538,11 @@ fn migrate_add_cli_proxy_startup_recovery(
     changed
 }
 
-fn settings_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+fn settings_path(app: &tauri::AppHandle) -> AppResult<PathBuf> {
     Ok(app_paths::app_data_dir(app)?.join("settings.json"))
 }
 
-fn legacy_settings_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+fn legacy_settings_path(app: &tauri::AppHandle) -> AppResult<PathBuf> {
     let config_dir = app
         .path()
         .config_dir()
@@ -550,7 +551,7 @@ fn legacy_settings_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     Ok(config_dir.join(LEGACY_IDENTIFIER).join("settings.json"))
 }
 
-fn parse_settings_json(content: &str) -> Result<(AppSettings, bool), String> {
+fn parse_settings_json(content: &str) -> AppResult<(AppSettings, bool)> {
     let raw: serde_json::Value =
         serde_json::from_str(content).map_err(|e| format!("failed to parse settings.json: {e}"))?;
     let schema_version_present = raw.get("schema_version").is_some();
@@ -559,7 +560,7 @@ fn parse_settings_json(content: &str) -> Result<(AppSettings, bool), String> {
     Ok((settings, schema_version_present))
 }
 
-pub fn read(app: &tauri::AppHandle) -> Result<AppSettings, String> {
+pub fn read(app: &tauri::AppHandle) -> AppResult<AppSettings> {
     let cache = SETTINGS_CACHE.get_or_init(|| RwLock::new(None));
 
     if let Ok(guard) = cache.read() {
@@ -581,12 +582,17 @@ pub fn read(app: &tauri::AppHandle) -> Result<AppSettings, String> {
 
             if settings.preferred_port < 1024 {
                 return Err(
-                    "invalid settings.json: preferred_port must be between 1024 and 65535"
-                        .to_string(),
+                    "SEC_INVALID_INPUT: invalid settings.json: preferred_port must be between 1024 and 65535"
+                        .to_string()
+                        .into(),
                 );
             }
             if settings.log_retention_days == 0 {
-                return Err("invalid settings.json: log_retention_days must be >= 1".to_string());
+                return Err(
+                    "SEC_INVALID_INPUT: invalid settings.json: log_retention_days must be >= 1"
+                        .to_string()
+                        .into(),
+                );
             }
 
             // Best-effort migration: copy legacy settings into the new dotdir (do not delete legacy file).
@@ -642,11 +648,17 @@ pub fn read(app: &tauri::AppHandle) -> Result<AppSettings, String> {
 
     if settings.preferred_port < 1024 {
         return Err(
-            "invalid settings.json: preferred_port must be between 1024 and 65535".to_string(),
+            "SEC_INVALID_INPUT: invalid settings.json: preferred_port must be between 1024 and 65535"
+                .to_string()
+                .into(),
         );
     }
     if settings.log_retention_days == 0 {
-        return Err("invalid settings.json: log_retention_days must be >= 1".to_string());
+        return Err(
+            "SEC_INVALID_INPUT: invalid settings.json: log_retention_days must be >= 1"
+                .to_string()
+                .into(),
+        );
     }
 
     let mut repaired = false;
@@ -695,76 +707,87 @@ pub fn log_retention_days_fail_open(app: &tauri::AppHandle) -> u32 {
     }
 }
 
-pub fn write(app: &tauri::AppHandle, settings: &AppSettings) -> Result<AppSettings, String> {
+pub fn write(app: &tauri::AppHandle, settings: &AppSettings) -> AppResult<AppSettings> {
     if settings.preferred_port < 1024 {
-        return Err("preferred_port must be between 1024 and 65535".to_string());
+        return Err("SEC_INVALID_INPUT: preferred_port must be between 1024 and 65535".into());
     }
     if settings.log_retention_days == 0 {
-        return Err("log_retention_days must be >= 1".to_string());
+        return Err("SEC_INVALID_INPUT: log_retention_days must be >= 1".into());
     }
     if settings.provider_cooldown_seconds > MAX_PROVIDER_COOLDOWN_SECONDS {
         return Err(format!(
-            "provider_cooldown_seconds must be <= {MAX_PROVIDER_COOLDOWN_SECONDS}"
-        ));
+            "SEC_INVALID_INPUT: provider_cooldown_seconds must be <= {MAX_PROVIDER_COOLDOWN_SECONDS}"
+        )
+        .into());
     }
     if settings.provider_base_url_ping_cache_ttl_seconds == 0 {
-        return Err("provider_base_url_ping_cache_ttl_seconds must be >= 1".to_string());
+        return Err(
+            "SEC_INVALID_INPUT: provider_base_url_ping_cache_ttl_seconds must be >= 1".into(),
+        );
     }
     if settings.provider_base_url_ping_cache_ttl_seconds
         > MAX_PROVIDER_BASE_URL_PING_CACHE_TTL_SECONDS
     {
         return Err(format!(
-            "provider_base_url_ping_cache_ttl_seconds must be <= {MAX_PROVIDER_BASE_URL_PING_CACHE_TTL_SECONDS}"
-        ));
+            "SEC_INVALID_INPUT: provider_base_url_ping_cache_ttl_seconds must be <= {MAX_PROVIDER_BASE_URL_PING_CACHE_TTL_SECONDS}"
+        )
+        .into());
     }
     if settings.upstream_first_byte_timeout_seconds > MAX_UPSTREAM_FIRST_BYTE_TIMEOUT_SECONDS {
         return Err(format!(
-            "upstream_first_byte_timeout_seconds must be <= {MAX_UPSTREAM_FIRST_BYTE_TIMEOUT_SECONDS}"
-        ));
+            "SEC_INVALID_INPUT: upstream_first_byte_timeout_seconds must be <= {MAX_UPSTREAM_FIRST_BYTE_TIMEOUT_SECONDS}"
+        )
+        .into());
     }
     if settings.upstream_stream_idle_timeout_seconds > MAX_UPSTREAM_STREAM_IDLE_TIMEOUT_SECONDS {
         return Err(format!(
-            "upstream_stream_idle_timeout_seconds must be <= {MAX_UPSTREAM_STREAM_IDLE_TIMEOUT_SECONDS}"
-        ));
+            "SEC_INVALID_INPUT: upstream_stream_idle_timeout_seconds must be <= {MAX_UPSTREAM_STREAM_IDLE_TIMEOUT_SECONDS}"
+        )
+        .into());
     }
     if settings.upstream_request_timeout_non_streaming_seconds
         > MAX_UPSTREAM_REQUEST_TIMEOUT_NON_STREAMING_SECONDS
     {
         return Err(format!(
-            "upstream_request_timeout_non_streaming_seconds must be <= {MAX_UPSTREAM_REQUEST_TIMEOUT_NON_STREAMING_SECONDS}"
-        ));
+            "SEC_INVALID_INPUT: upstream_request_timeout_non_streaming_seconds must be <= {MAX_UPSTREAM_REQUEST_TIMEOUT_NON_STREAMING_SECONDS}"
+        )
+        .into());
     }
     if settings.response_fixer_max_json_depth == 0 {
-        return Err("response_fixer_max_json_depth must be >= 1".to_string());
+        return Err("SEC_INVALID_INPUT: response_fixer_max_json_depth must be >= 1".into());
     }
     if settings.response_fixer_max_json_depth > MAX_RESPONSE_FIXER_MAX_JSON_DEPTH {
         return Err(format!(
-            "response_fixer_max_json_depth must be <= {MAX_RESPONSE_FIXER_MAX_JSON_DEPTH}"
-        ));
+            "SEC_INVALID_INPUT: response_fixer_max_json_depth must be <= {MAX_RESPONSE_FIXER_MAX_JSON_DEPTH}"
+        )
+        .into());
     }
     if settings.response_fixer_max_fix_size == 0 {
-        return Err("response_fixer_max_fix_size must be >= 1".to_string());
+        return Err("SEC_INVALID_INPUT: response_fixer_max_fix_size must be >= 1".into());
     }
     if settings.response_fixer_max_fix_size > MAX_RESPONSE_FIXER_MAX_FIX_SIZE {
         return Err(format!(
-            "response_fixer_max_fix_size must be <= {MAX_RESPONSE_FIXER_MAX_FIX_SIZE}"
-        ));
+            "SEC_INVALID_INPUT: response_fixer_max_fix_size must be <= {MAX_RESPONSE_FIXER_MAX_FIX_SIZE}"
+        )
+        .into());
     }
     if settings.failover_max_attempts_per_provider == 0 {
-        return Err("failover_max_attempts_per_provider must be >= 1".to_string());
+        return Err("SEC_INVALID_INPUT: failover_max_attempts_per_provider must be >= 1".into());
     }
     if settings.failover_max_providers_to_try == 0 {
-        return Err("failover_max_providers_to_try must be >= 1".to_string());
+        return Err("SEC_INVALID_INPUT: failover_max_providers_to_try must be >= 1".into());
     }
     if settings.failover_max_attempts_per_provider > MAX_FAILOVER_MAX_ATTEMPTS_PER_PROVIDER {
         return Err(format!(
             "failover_max_attempts_per_provider must be <= {MAX_FAILOVER_MAX_ATTEMPTS_PER_PROVIDER}"
-        ));
+        )
+        .into());
     }
     if settings.failover_max_providers_to_try > MAX_FAILOVER_MAX_PROVIDERS_TO_TRY {
         return Err(format!(
             "failover_max_providers_to_try must be <= {MAX_FAILOVER_MAX_PROVIDERS_TO_TRY}"
-        ));
+        )
+        .into());
     }
     if settings
         .failover_max_attempts_per_provider
@@ -773,24 +796,31 @@ pub fn write(app: &tauri::AppHandle, settings: &AppSettings) -> Result<AppSettin
     {
         return Err(format!(
             "failover limits too high: failover_max_attempts_per_provider * failover_max_providers_to_try must be <= {MAX_FAILOVER_TOTAL_ATTEMPTS}"
-        ));
+        )
+        .into());
     }
 
     if settings.circuit_breaker_failure_threshold == 0 {
-        return Err("circuit_breaker_failure_threshold must be >= 1".to_string());
+        return Err("circuit_breaker_failure_threshold must be >= 1"
+            .to_string()
+            .into());
     }
     if settings.circuit_breaker_open_duration_minutes == 0 {
-        return Err("circuit_breaker_open_duration_minutes must be >= 1".to_string());
+        return Err("circuit_breaker_open_duration_minutes must be >= 1"
+            .to_string()
+            .into());
     }
     if settings.circuit_breaker_failure_threshold > MAX_CIRCUIT_BREAKER_FAILURE_THRESHOLD {
         return Err(format!(
             "circuit_breaker_failure_threshold must be <= {MAX_CIRCUIT_BREAKER_FAILURE_THRESHOLD}"
-        ));
+        )
+        .into());
     }
     if settings.circuit_breaker_open_duration_minutes > MAX_CIRCUIT_BREAKER_OPEN_DURATION_MINUTES {
         return Err(format!(
             "circuit_breaker_open_duration_minutes must be <= {MAX_CIRCUIT_BREAKER_OPEN_DURATION_MINUTES}"
-        ));
+        )
+        .into());
     }
 
     let path = settings_path(app)?;
@@ -814,7 +844,7 @@ pub fn write(app: &tauri::AppHandle, settings: &AppSettings) -> Result<AppSettin
 
     if let Err(e) = std::fs::rename(&tmp_path, &path) {
         let _ = std::fs::rename(&backup_path, &path);
-        return Err(format!("failed to finalize settings: {e}"));
+        return Err(format!("failed to finalize settings: {e}").into());
     }
 
     if backup_path.exists() {

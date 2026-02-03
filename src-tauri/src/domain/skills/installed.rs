@@ -23,7 +23,7 @@ fn row_to_installed(row: &rusqlite::Row<'_>) -> Result<InstalledSkillSummary, ru
 pub fn installed_list_for_workspace(
     db: &db::Db,
     workspace_id: i64,
-) -> Result<Vec<InstalledSkillSummary>, String> {
+) -> crate::shared::error::AppResult<Vec<InstalledSkillSummary>> {
     let conn = db.open_connection()?;
     let _ = workspaces::get_cli_key_by_id(&conn, workspace_id)?;
     let mut stmt = conn

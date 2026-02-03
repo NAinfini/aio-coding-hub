@@ -16,7 +16,9 @@ pub(crate) fn format_host_port(host: &str, port: u16) -> String {
     }
 }
 
-pub(crate) fn parse_custom_listen_address(input: &str) -> Result<ParsedListenAddress, String> {
+pub(crate) fn parse_custom_listen_address(
+    input: &str,
+) -> crate::shared::error::AppResult<ParsedListenAddress> {
     let raw = input.trim();
     if raw.is_empty() {
         return Ok(ParsedListenAddress {
@@ -25,16 +27,22 @@ pub(crate) fn parse_custom_listen_address(input: &str) -> Result<ParsedListenAdd
         });
     }
     if raw.contains("://") || raw.contains('/') {
-        return Err("custom listen address must be host or host:port".to_string());
+        return Err(
+            "SEC_INVALID_INPUT: custom listen address must be host or host:port"
+                .to_string()
+                .into(),
+        );
     }
 
     if let Some(rest) = raw.strip_prefix('[') {
-        let idx = rest
-            .find(']')
-            .ok_or_else(|| "invalid IPv6 address: missing closing ']'".to_string())?;
+        let idx = rest.find(']').ok_or_else(|| {
+            "SEC_INVALID_INPUT: invalid IPv6 address: missing closing ']'".to_string()
+        })?;
         let host = rest[..idx].trim();
         if host.is_empty() {
-            return Err("custom listen address missing host".to_string());
+            return Err("SEC_INVALID_INPUT: custom listen address missing host"
+                .to_string()
+                .into());
         }
         let tail = rest[idx + 1..].trim();
         if tail.is_empty() {
@@ -45,13 +53,17 @@ pub(crate) fn parse_custom_listen_address(input: &str) -> Result<ParsedListenAdd
         }
         let port_raw = tail
             .strip_prefix(':')
-            .ok_or_else(|| "custom listen address must be [ipv6]:port".to_string())?
+            .ok_or_else(|| {
+                "SEC_INVALID_INPUT: custom listen address must be [ipv6]:port".to_string()
+            })?
             .trim();
         let port: u16 = port_raw
             .parse()
-            .map_err(|_| "invalid custom listen port".to_string())?;
+            .map_err(|_| "SEC_INVALID_INPUT: invalid custom listen port".to_string())?;
         if port < 1024 {
-            return Err("custom listen port must be >= 1024".to_string());
+            return Err("SEC_INVALID_INPUT: custom listen port must be >= 1024"
+                .to_string()
+                .into());
         }
         return Ok(ParsedListenAddress {
             host: host.to_string(),
@@ -69,14 +81,18 @@ pub(crate) fn parse_custom_listen_address(input: &str) -> Result<ParsedListenAdd
     if parts.len() == 2 {
         let host = parts[0].trim();
         if host.is_empty() {
-            return Err("custom listen address missing host".to_string());
+            return Err("SEC_INVALID_INPUT: custom listen address missing host"
+                .to_string()
+                .into());
         }
         let port_raw = parts[1].trim();
         let port: u16 = port_raw
             .parse()
-            .map_err(|_| "invalid custom listen port".to_string())?;
+            .map_err(|_| "SEC_INVALID_INPUT: invalid custom listen port".to_string())?;
         if port < 1024 {
-            return Err("custom listen port must be >= 1024".to_string());
+            return Err("SEC_INVALID_INPUT: custom listen port must be >= 1024"
+                .to_string()
+                .into());
         }
         return Ok(ParsedListenAddress {
             host: host.to_string(),
@@ -84,5 +100,7 @@ pub(crate) fn parse_custom_listen_address(input: &str) -> Result<ParsedListenAdd
         });
     }
 
-    Err("IPv6 must use [addr]:port".to_string())
+    Err("SEC_INVALID_INPUT: IPv6 must use [addr]:port"
+        .to_string()
+        .into())
 }

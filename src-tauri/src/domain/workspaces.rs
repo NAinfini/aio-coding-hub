@@ -21,7 +21,7 @@ pub struct WorkspacesListResult {
     pub items: Vec<WorkspaceSummary>,
 }
 
-fn validate_cli_key(cli_key: &str) -> Result<(), String> {
+fn validate_cli_key(cli_key: &str) -> crate::shared::error::AppResult<()> {
     crate::shared::cli_key::validate_cli_key(cli_key)
 }
 
@@ -55,7 +55,10 @@ WHERE id = ?1
     .ok_or_else(|| "DB_NOT_FOUND: workspace not found".to_string())
 }
 
-pub fn get_cli_key_by_id(conn: &Connection, workspace_id: i64) -> Result<String, String> {
+pub fn get_cli_key_by_id(
+    conn: &Connection,
+    workspace_id: i64,
+) -> crate::shared::error::AppResult<String> {
     conn.query_row(
         "SELECT cli_key FROM workspaces WHERE id = ?1",
         params![workspace_id],
@@ -63,30 +66,41 @@ pub fn get_cli_key_by_id(conn: &Connection, workspace_id: i64) -> Result<String,
     )
     .optional()
     .map_err(|e| format!("DB_ERROR: failed to query workspace cli_key: {e}"))?
-    .ok_or_else(|| "DB_NOT_FOUND: workspace not found".to_string())
+    .ok_or_else(|| "DB_NOT_FOUND: workspace not found".to_string().into())
 }
 
-pub fn active_id_by_cli(conn: &Connection, cli_key: &str) -> Result<Option<i64>, String> {
+pub fn active_id_by_cli(
+    conn: &Connection,
+    cli_key: &str,
+) -> crate::shared::error::AppResult<Option<i64>> {
     let cli_key = cli_key.trim();
     validate_cli_key(cli_key)?;
 
-    conn.query_row(
-        "SELECT workspace_id FROM workspace_active WHERE cli_key = ?1",
-        params![cli_key],
-        |row| row.get::<_, Option<i64>>(0),
-    )
-    .optional()
-    .map_err(|e| format!("DB_ERROR: failed to query workspace_active: {e}"))
-    .map(|row| row.flatten())
+    let id = conn
+        .query_row(
+            "SELECT workspace_id FROM workspace_active WHERE cli_key = ?1",
+            params![cli_key],
+            |row| row.get::<_, Option<i64>>(0),
+        )
+        .optional()
+        .map_err(|e| format!("DB_ERROR: failed to query workspace_active: {e}"))?;
+
+    Ok(id.flatten())
 }
 
-pub fn is_active_workspace(conn: &Connection, workspace_id: i64) -> Result<bool, String> {
+pub fn is_active_workspace(
+    conn: &Connection,
+    workspace_id: i64,
+) -> crate::shared::error::AppResult<bool> {
     let cli_key = get_cli_key_by_id(conn, workspace_id)?;
     let active_id = active_id_by_cli(conn, &cli_key)?;
     Ok(active_id == Some(workspace_id))
 }
 
-pub fn list_by_cli(db: &db::Db, cli_key: &str) -> Result<WorkspacesListResult, String> {
+pub fn list_by_cli(
+    db: &db::Db,
+    cli_key: &str,
+) -> crate::shared::error::AppResult<WorkspacesListResult> {
     let cli_key = cli_key.trim();
     validate_cli_key(cli_key)?;
 
@@ -126,13 +140,15 @@ pub fn create(
     cli_key: &str,
     name: &str,
     clone_from_active: bool,
-) -> Result<WorkspaceSummary, String> {
+) -> crate::shared::error::AppResult<WorkspaceSummary> {
     let cli_key = cli_key.trim();
     validate_cli_key(cli_key)?;
 
     let name = name.trim();
     if name.is_empty() {
-        return Err("SEC_INVALID_INPUT: workspace name is required".to_string());
+        return Err("SEC_INVALID_INPUT: workspace name is required"
+            .to_string()
+            .into());
     }
 
     let normalized_name = normalize_name(name);
@@ -250,16 +266,22 @@ INSERT INTO prompts(
     }
 
     if let Err(err) = tx.commit() {
-        return Err(format!("DB_ERROR: failed to commit: {err}"));
+        return Err(format!("DB_ERROR: failed to commit: {err}").into());
     }
 
-    get_by_id(&conn, id)
+    Ok(get_by_id(&conn, id)?)
 }
 
-pub fn rename(db: &db::Db, workspace_id: i64, name: &str) -> Result<WorkspaceSummary, String> {
+pub fn rename(
+    db: &db::Db,
+    workspace_id: i64,
+    name: &str,
+) -> crate::shared::error::AppResult<WorkspaceSummary> {
     let name = name.trim();
     if name.is_empty() {
-        return Err("SEC_INVALID_INPUT: workspace name is required".to_string());
+        return Err("SEC_INVALID_INPUT: workspace name is required"
+            .to_string()
+            .into());
     }
 
     let normalized_name = normalize_name(name);
@@ -291,10 +313,10 @@ WHERE id = ?4
         other => format!("DB_ERROR: failed to rename workspace: {other}"),
     })?;
 
-    get_by_id(&conn, workspace_id)
+    Ok(get_by_id(&conn, workspace_id)?)
 }
 
-pub fn delete(db: &db::Db, workspace_id: i64) -> Result<bool, String> {
+pub fn delete(db: &db::Db, workspace_id: i64) -> crate::shared::error::AppResult<bool> {
     let mut conn = db.open_connection()?;
     let before = get_by_id(&conn, workspace_id)?;
 
@@ -304,7 +326,11 @@ pub fn delete(db: &db::Db, workspace_id: i64) -> Result<bool, String> {
 
     let active_id = active_id_by_cli(&tx, &before.cli_key)?;
     if active_id == Some(workspace_id) {
-        return Err("SEC_INVALID_INPUT: cannot delete active workspace; switch first".to_string());
+        return Err(
+            "SEC_INVALID_INPUT: cannot delete active workspace; switch first"
+                .to_string()
+                .into(),
+        );
     }
 
     let changed = tx
@@ -314,17 +340,17 @@ pub fn delete(db: &db::Db, workspace_id: i64) -> Result<bool, String> {
         )
         .map_err(|e| format!("DB_ERROR: failed to delete workspace: {e}"))?;
     if changed == 0 {
-        return Err("DB_NOT_FOUND: workspace not found".to_string());
+        return Err("DB_NOT_FOUND: workspace not found".to_string().into());
     }
 
     if let Err(err) = tx.commit() {
-        return Err(format!("DB_ERROR: failed to commit: {err}"));
+        return Err(format!("DB_ERROR: failed to commit: {err}").into());
     }
 
     Ok(true)
 }
 
-pub fn set_active(db: &db::Db, workspace_id: i64) -> Result<(), String> {
+pub fn set_active(db: &db::Db, workspace_id: i64) -> crate::shared::error::AppResult<()> {
     let conn = db.open_connection()?;
     let cli_key = get_cli_key_by_id(&conn, workspace_id)?;
     validate_cli_key(&cli_key)?;

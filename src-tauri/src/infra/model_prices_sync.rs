@@ -352,7 +352,10 @@ fn load_existing_price_map(
     Ok(map)
 }
 
-fn upsert_rows(db: &db::Db, mut rows: Vec<ModelPriceRow>) -> Result<ModelPricesSyncReport, String> {
+fn upsert_rows(
+    db: &db::Db,
+    mut rows: Vec<ModelPriceRow>,
+) -> crate::shared::error::AppResult<ModelPricesSyncReport> {
     // De-dup by (cli_key, model) to avoid conflicting writes if basellm contains duplicates.
     // Keep the first occurrence deterministically by stable sort + dedup.
     rows.sort_by(|a, b| {
@@ -468,14 +471,16 @@ pub async fn sync_basellm(
     app: &tauri::AppHandle,
     db: db::Db,
     force: bool,
-) -> Result<ModelPricesSyncReport, String> {
+) -> crate::shared::error::AppResult<ModelPricesSyncReport> {
     let app_handle = app.clone();
     let cache = if force {
         BasellmCacheMeta::default()
     } else {
         blocking::run("basellm_read_cache", {
             let app_handle = app_handle.clone();
-            move || Ok(read_basellm_cache(&app_handle))
+            move || -> crate::shared::error::AppResult<BasellmCacheMeta> {
+                Ok(read_basellm_cache(&app_handle))
+            }
         })
         .await?
     };
@@ -508,10 +513,7 @@ pub async fn sync_basellm(
     }
 
     if !resp.status().is_success() {
-        return Err(format!(
-            "SYNC_ERROR: basellm returned http status {}",
-            resp.status()
-        ));
+        return Err(format!("SYNC_ERROR: basellm returned http status {}", resp.status()).into());
     }
 
     let new_cache = headers_to_cache(resp.headers());
@@ -520,23 +522,30 @@ pub async fn sync_basellm(
         .await
         .map_err(|e| format!("SYNC_ERROR: failed to read basellm response: {e}"))?;
 
-    let rows = blocking::run("basellm_parse_rows", move || {
-        let root: Value = serde_json::from_str(&body)
-            .map_err(|e| format!("SYNC_ERROR: basellm json parse failed: {e}"))?;
-        parse_basellm_all_json(&root)
-    })
+    let rows = blocking::run(
+        "basellm_parse_rows",
+        move || -> crate::shared::error::AppResult<Vec<ModelPriceRow>> {
+            let root: Value = serde_json::from_str(&body)
+                .map_err(|e| format!("SYNC_ERROR: basellm json parse failed: {e}"))?;
+            Ok(parse_basellm_all_json(&root)?)
+        },
+    )
     .await?;
 
     let report = blocking::run("basellm_upsert_rows", {
         let db = db.clone();
-        move || upsert_rows(&db, rows)
+        move || -> crate::shared::error::AppResult<ModelPricesSyncReport> { upsert_rows(&db, rows) }
     })
     .await?;
 
     // Best-effort: cache write should not fail the whole sync after DB is updated.
-    if let Err(err) = blocking::run("basellm_write_cache", move || {
-        write_basellm_cache(&app_handle, &new_cache)
-    })
+    if let Err(err) = blocking::run(
+        "basellm_write_cache",
+        move || -> crate::shared::error::AppResult<()> {
+            write_basellm_cache(&app_handle, &new_cache)?;
+            Ok(())
+        },
+    )
     .await
     {
         tracing::warn!("basellm 缓存写入失败: {}", err);

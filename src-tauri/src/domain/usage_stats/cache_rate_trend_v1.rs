@@ -249,10 +249,12 @@ pub fn provider_cache_rate_trend_v1(
     end_ts: Option<i64>,
     cli_key: Option<&str>,
     limit: Option<usize>,
-) -> Result<Vec<UsageProviderCacheRateTrendRowV1>, String> {
+) -> crate::shared::error::AppResult<Vec<UsageProviderCacheRateTrendRowV1>> {
     let conn = db.open_connection()?;
     let period = parse_period_v2(period)?;
     let (start_ts, end_ts) = compute_bounds_v2(&conn, period, start_ts, end_ts)?;
     let cli_key = normalize_cli_filter(cli_key)?;
-    provider_cache_rate_trend_v1_with_conn(&conn, period, start_ts, end_ts, cli_key, limit)
+    Ok(provider_cache_rate_trend_v1_with_conn(
+        &conn, period, start_ts, end_ts, cli_key, limit,
+    )?)
 }

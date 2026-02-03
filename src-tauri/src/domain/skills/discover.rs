@@ -11,7 +11,7 @@ pub fn discover_available(
     app: &tauri::AppHandle,
     db: &db::Db,
     refresh: bool,
-) -> Result<Vec<AvailableSkillSummary>, String> {
+) -> crate::shared::error::AppResult<Vec<AvailableSkillSummary>> {
     fn subdir_score(source_subdir: &str) -> i32 {
         let subdir = source_subdir.trim_matches('/').to_ascii_lowercase();
         let mut score = 0;

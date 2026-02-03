@@ -2,35 +2,44 @@
 
 use std::path::PathBuf;
 
-fn serialize_json(value: impl serde::Serialize) -> Result<serde_json::Value, String> {
-    serde_json::to_value(value).map_err(|e| format!("SYSTEM_ERROR: failed to serialize json: {e}"))
+fn serialize_json(
+    value: impl serde::Serialize,
+) -> crate::shared::error::AppResult<serde_json::Value> {
+    Ok(serde_json::to_value(value)
+        .map_err(|e| format!("SYSTEM_ERROR: failed to serialize json: {e}"))?)
 }
 
-pub fn app_data_dir<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
+pub fn app_data_dir<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> crate::shared::error::AppResult<PathBuf> {
     crate::infra::app_paths::app_data_dir(app)
 }
 
-pub fn db_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
+pub fn db_path<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> crate::shared::error::AppResult<PathBuf> {
     crate::infra::db::db_path(app)
 }
 
-pub fn init_db<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<(), String> {
+pub fn init_db<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> crate::shared::error::AppResult<()> {
     crate::infra::db::init(app).map(|_| ())
 }
 
 pub fn mcp_read_target_bytes<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     cli_key: &str,
-) -> Result<Option<Vec<u8>>, String> {
-    crate::infra::mcp_sync::read_target_bytes(app, cli_key)
+) -> crate::shared::error::AppResult<Option<Vec<u8>>> {
+    crate::infra::mcp_sync::read_target_bytes(app, cli_key).map_err(Into::into)
 }
 
 pub fn mcp_restore_target_bytes<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     cli_key: &str,
     bytes: Option<Vec<u8>>,
-) -> Result<(), String> {
-    crate::infra::mcp_sync::restore_target_bytes(app, cli_key, bytes)
+) -> crate::shared::error::AppResult<()> {
+    crate::infra::mcp_sync::restore_target_bytes(app, cli_key, bytes).map_err(Into::into)
 }
 
 pub fn mcp_swap_local_for_workspace_switch<R: tauri::Runtime>(
@@ -39,7 +48,7 @@ pub fn mcp_swap_local_for_workspace_switch<R: tauri::Runtime>(
     managed_server_keys: Vec<String>,
     from_workspace_id: Option<i64>,
     to_workspace_id: i64,
-) -> Result<(), String> {
+) -> crate::shared::error::AppResult<()> {
     let set: std::collections::HashSet<String> = managed_server_keys.into_iter().collect();
     crate::domain::mcp::swap_local_mcp_servers_for_workspace_switch(
         app,
@@ -53,7 +62,7 @@ pub fn mcp_swap_local_for_workspace_switch<R: tauri::Runtime>(
 
 pub fn codex_config_toml_path<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
-) -> Result<PathBuf, String> {
+) -> crate::shared::error::AppResult<PathBuf> {
     crate::infra::codex_paths::codex_config_toml_path(app)
 }
 
@@ -62,7 +71,7 @@ pub fn skills_swap_local_for_workspace_switch<R: tauri::Runtime>(
     cli_key: &str,
     from_workspace_id: Option<i64>,
     to_workspace_id: i64,
-) -> Result<(), String> {
+) -> crate::shared::error::AppResult<()> {
     let _ = crate::domain::skills::swap_local_skills_for_workspace_switch(
         app,
         cli_key,
@@ -77,7 +86,7 @@ pub fn plugins_swap_local_for_workspace_switch<R: tauri::Runtime>(
     cli_key: &str,
     from_workspace_id: Option<i64>,
     to_workspace_id: i64,
-) -> Result<(), String> {
+) -> crate::shared::error::AppResult<()> {
     let _ = crate::domain::claude_plugins::swap_local_plugins_for_workspace_switch(
         app,
         cli_key,
@@ -90,7 +99,7 @@ pub fn plugins_swap_local_for_workspace_switch<R: tauri::Runtime>(
 pub fn providers_list_by_cli_json<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     cli_key: &str,
-) -> Result<serde_json::Value, String> {
+) -> crate::shared::error::AppResult<serde_json::Value> {
     let db = crate::infra::db::init(app)?;
     let providers = crate::providers::list_by_cli(&db, cli_key)?;
     serialize_json(providers)
@@ -116,7 +125,7 @@ pub fn provider_upsert_json<R: tauri::Runtime>(
     limit_weekly_usd: Option<f64>,
     limit_monthly_usd: Option<f64>,
     limit_total_usd: Option<f64>,
-) -> Result<serde_json::Value, String> {
+) -> crate::shared::error::AppResult<serde_json::Value> {
     let db = crate::infra::db::init(app)?;
     let claude_models = match claude_models {
         None => None,
@@ -153,7 +162,7 @@ pub fn provider_set_enabled_json<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     provider_id: i64,
     enabled: bool,
-) -> Result<serde_json::Value, String> {
+) -> crate::shared::error::AppResult<serde_json::Value> {
     let db = crate::infra::db::init(app)?;
     let provider = crate::providers::set_enabled(&db, provider_id, enabled)?;
     serialize_json(provider)
@@ -162,7 +171,7 @@ pub fn provider_set_enabled_json<R: tauri::Runtime>(
 pub fn provider_delete<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     provider_id: i64,
-) -> Result<bool, String> {
+) -> crate::shared::error::AppResult<bool> {
     let db = crate::infra::db::init(app)?;
     crate::providers::delete(&db, provider_id)?;
     Ok(true)
@@ -172,7 +181,7 @@ pub fn providers_reorder_json<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     cli_key: &str,
     ordered_provider_ids: Vec<i64>,
-) -> Result<serde_json::Value, String> {
+) -> crate::shared::error::AppResult<serde_json::Value> {
     let db = crate::infra::db::init(app)?;
     let providers = crate::providers::reorder(&db, cli_key, ordered_provider_ids)?;
     serialize_json(providers)
@@ -183,14 +192,14 @@ pub fn cli_proxy_set_enabled_json<R: tauri::Runtime>(
     cli_key: &str,
     enabled: bool,
     base_origin: &str,
-) -> Result<serde_json::Value, String> {
+) -> crate::shared::error::AppResult<serde_json::Value> {
     let result = crate::infra::cli_proxy::set_enabled(app, cli_key, enabled, base_origin)?;
     serialize_json(result)
 }
 
 pub fn cli_proxy_startup_repair_incomplete_enable_json<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
-) -> Result<serde_json::Value, String> {
+) -> crate::shared::error::AppResult<serde_json::Value> {
     let results = crate::infra::cli_proxy::startup_repair_incomplete_enable(app)?;
     serialize_json(results)
 }

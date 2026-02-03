@@ -22,7 +22,8 @@ pub struct SortModeActiveRow {
 }
 
 fn validate_cli_key(cli_key: &str) -> Result<(), String> {
-    crate::shared::cli_key::validate_cli_key(cli_key)
+    crate::shared::cli_key::validate_cli_key(cli_key)?;
+    Ok(())
 }
 
 fn validate_mode_name(name: &str) -> Result<String, String> {
@@ -97,7 +98,7 @@ WHERE cli_key = ?1
     .ok_or_else(|| "DB_NOT_FOUND: sort_mode_active not found".to_string())
 }
 
-pub fn list_modes(db: &db::Db) -> Result<Vec<SortModeSummary>, String> {
+pub fn list_modes(db: &db::Db) -> crate::shared::error::AppResult<Vec<SortModeSummary>> {
     let conn = db.open_connection()?;
     let mut stmt = conn
         .prepare(
@@ -124,7 +125,7 @@ ORDER BY id ASC
     Ok(items)
 }
 
-pub fn create_mode(db: &db::Db, name: &str) -> Result<SortModeSummary, String> {
+pub fn create_mode(db: &db::Db, name: &str) -> crate::shared::error::AppResult<SortModeSummary> {
     let name = validate_mode_name(name)?;
     let conn = db.open_connection()?;
     let now = now_unix_seconds();
@@ -163,9 +164,14 @@ WHERE id = ?1
         row_to_mode_summary,
     )
     .map_err(|e| format!("DB_ERROR: failed to query inserted sort_mode: {e}"))
+    .map_err(Into::into)
 }
 
-pub fn rename_mode(db: &db::Db, mode_id: i64, name: &str) -> Result<SortModeSummary, String> {
+pub fn rename_mode(
+    db: &db::Db,
+    mode_id: i64,
+    name: &str,
+) -> crate::shared::error::AppResult<SortModeSummary> {
     let name = validate_mode_name(name)?;
     let conn = db.open_connection()?;
     ensure_mode_exists(&conn, mode_id)?;
@@ -198,9 +204,10 @@ WHERE id = ?1
         row_to_mode_summary,
     )
     .map_err(|e| format!("DB_ERROR: failed to query sort_mode: {e}"))
+    .map_err(Into::into)
 }
 
-pub fn delete_mode(db: &db::Db, mode_id: i64) -> Result<(), String> {
+pub fn delete_mode(db: &db::Db, mode_id: i64) -> crate::shared::error::AppResult<()> {
     let conn = db.open_connection()?;
     ensure_mode_exists(&conn, mode_id)?;
 
@@ -208,12 +215,12 @@ pub fn delete_mode(db: &db::Db, mode_id: i64) -> Result<(), String> {
         .execute("DELETE FROM sort_modes WHERE id = ?1", params![mode_id])
         .map_err(|e| format!("DB_ERROR: failed to delete sort_mode: {e}"))?;
     if changed == 0 {
-        return Err("DB_NOT_FOUND: sort_mode not found".to_string());
+        return Err("DB_NOT_FOUND: sort_mode not found".to_string().into());
     }
     Ok(())
 }
 
-pub fn list_active(db: &db::Db) -> Result<Vec<SortModeActiveRow>, String> {
+pub fn list_active(db: &db::Db) -> crate::shared::error::AppResult<Vec<SortModeActiveRow>> {
     let conn = db.open_connection()?;
     let mut stmt = conn
         .prepare(
@@ -249,7 +256,7 @@ pub fn set_active(
     db: &db::Db,
     cli_key: &str,
     mode_id: Option<i64>,
-) -> Result<SortModeActiveRow, String> {
+) -> crate::shared::error::AppResult<SortModeActiveRow> {
     let cli_key = cli_key.trim();
     validate_cli_key(cli_key)?;
 
@@ -274,10 +281,14 @@ ON CONFLICT(cli_key) DO UPDATE SET
     )
     .map_err(|e| format!("DB_ERROR: failed to upsert sort_mode_active: {e}"))?;
 
-    read_active_row(&conn, cli_key)
+    Ok(read_active_row(&conn, cli_key)?)
 }
 
-pub fn list_mode_providers(db: &db::Db, mode_id: i64, cli_key: &str) -> Result<Vec<i64>, String> {
+pub fn list_mode_providers(
+    db: &db::Db,
+    mode_id: i64,
+    cli_key: &str,
+) -> crate::shared::error::AppResult<Vec<i64>> {
     let cli_key = cli_key.trim();
     validate_cli_key(cli_key)?;
     let conn = db.open_connection()?;
@@ -361,7 +372,7 @@ pub fn set_mode_providers_order(
     mode_id: i64,
     cli_key: &str,
     ordered_provider_ids: Vec<i64>,
-) -> Result<Vec<i64>, String> {
+) -> crate::shared::error::AppResult<Vec<i64>> {
     let cli_key = cli_key.trim();
     validate_cli_key(cli_key)?;
 

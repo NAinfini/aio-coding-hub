@@ -176,10 +176,10 @@ fn parse_code_switch_r(root: &serde_json::Value) -> Result<Vec<McpImportServer>,
     Ok(out)
 }
 
-pub fn parse_json(json_text: &str) -> Result<McpParseResult, String> {
+pub fn parse_json(json_text: &str) -> crate::shared::error::AppResult<McpParseResult> {
     let json_text = json_text.trim();
     if json_text.is_empty() {
-        return Err("SEC_INVALID_INPUT: JSON is required".to_string());
+        return Err("SEC_INVALID_INPUT: JSON is required".to_string().into());
     }
 
     let root: serde_json::Value = serde_json::from_str(json_text)
@@ -262,7 +262,9 @@ pub fn parse_json(json_text: &str) -> Result<McpParseResult, String> {
         }
         out
     } else {
-        return Err("SEC_INVALID_INPUT: unsupported JSON shape".to_string());
+        return Err("SEC_INVALID_INPUT: unsupported JSON shape"
+            .to_string()
+            .into());
     };
 
     Ok(McpParseResult { servers })
@@ -273,9 +275,9 @@ pub fn import_servers(
     db: &db::Db,
     workspace_id: i64,
     servers: Vec<McpImportServer>,
-) -> Result<McpImportReport, String> {
+) -> crate::shared::error::AppResult<McpImportReport> {
     if servers.is_empty() {
-        return Err("SEC_INVALID_INPUT: servers is required".to_string());
+        return Err("SEC_INVALID_INPUT: servers is required".to_string().into());
     }
 
     let mut conn = db.open_connection()?;
@@ -296,7 +298,7 @@ pub fn import_servers(
     for server in servers {
         let norm = normalize_name(&server.name);
         if norm.is_empty() {
-            return Err("SEC_INVALID_INPUT: name is required".to_string());
+            return Err("SEC_INVALID_INPUT: name is required".to_string().into());
         }
         if let Some(idx) = index_by_name.get(&norm).copied() {
             deduped[idx] = server;
@@ -336,12 +338,12 @@ ON CONFLICT(workspace_id, server_id) DO UPDATE SET
 
     if let Err(err) = sync_all_cli(app, &tx) {
         snapshots.restore_all(app);
-        return Err(err);
+        return Err(err.into());
     }
 
     if let Err(err) = tx.commit() {
         snapshots.restore_all(app);
-        return Err(format!("DB_ERROR: failed to commit: {err}"));
+        return Err(format!("DB_ERROR: failed to commit: {err}").into());
     }
 
     Ok(McpImportReport { inserted, updated })

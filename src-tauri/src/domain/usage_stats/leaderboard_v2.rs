@@ -516,11 +516,13 @@ pub fn leaderboard_v2(
     end_ts: Option<i64>,
     cli_key: Option<&str>,
     limit: usize,
-) -> Result<Vec<UsageLeaderboardRow>, String> {
+) -> crate::shared::error::AppResult<Vec<UsageLeaderboardRow>> {
     let conn = db.open_connection()?;
     let scope = parse_scope_v2(scope)?;
     let period = parse_period_v2(period)?;
     let (start_ts, end_ts) = compute_bounds_v2(&conn, period, start_ts, end_ts)?;
     let cli_key = normalize_cli_filter(cli_key)?;
-    leaderboard_v2_with_conn(&conn, scope, start_ts, end_ts, cli_key, limit)
+    Ok(leaderboard_v2_with_conn(
+        &conn, scope, start_ts, end_ts, cli_key, limit,
+    )?)
 }

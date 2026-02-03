@@ -267,7 +267,9 @@ fn insert_batch_once(
 
     let now_unix = now_unix_seconds();
     let price_aliases = model_price_aliases::read_fail_open(app);
-    let mut conn = db.open_connection().map_err(DbWriteError::other)?;
+    let mut conn = db
+        .open_connection()
+        .map_err(|e| DbWriteError::other(e.to_string()))?;
     let tx = conn
         .transaction()
         .map_err(|e| DbWriteError::from_rusqlite("failed to start transaction", e))?;
@@ -480,7 +482,7 @@ fn insert_batch_once(
 pub fn aggregate_by_session_ids(
     db: &db::Db,
     session_ids: &[String],
-) -> Result<HashMap<(String, String), SessionStatsAggregate>, String> {
+) -> crate::shared::error::AppResult<HashMap<(String, String), SessionStatsAggregate>> {
     let ids: Vec<String> = session_ids
         .iter()
         .map(|s| s.trim())

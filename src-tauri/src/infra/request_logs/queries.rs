@@ -64,7 +64,8 @@ const REQUEST_LOG_DETAIL_FIELDS: &str = "
 ";
 
 pub(super) fn validate_cli_key(cli_key: &str) -> Result<(), String> {
-    crate::shared::cli_key::validate_cli_key(cli_key)
+    crate::shared::cli_key::validate_cli_key(cli_key)?;
+    Ok(())
 }
 
 #[derive(Debug, Deserialize)]
@@ -209,7 +210,7 @@ pub fn list_recent(
     db: &db::Db,
     cli_key: &str,
     limit: usize,
-) -> Result<Vec<RequestLogSummary>, String> {
+) -> crate::shared::error::AppResult<Vec<RequestLogSummary>> {
     validate_cli_key(cli_key)?;
     let conn = db.open_connection()?;
 
@@ -229,7 +230,10 @@ pub fn list_recent(
     Ok(items)
 }
 
-pub fn list_recent_all(db: &db::Db, limit: usize) -> Result<Vec<RequestLogSummary>, String> {
+pub fn list_recent_all(
+    db: &db::Db,
+    limit: usize,
+) -> crate::shared::error::AppResult<Vec<RequestLogSummary>> {
     let conn = db.open_connection()?;
 
     let sql = format!(
@@ -256,7 +260,7 @@ pub fn list_after_id(
     cli_key: &str,
     after_id: i64,
     limit: usize,
-) -> Result<Vec<RequestLogSummary>, String> {
+) -> crate::shared::error::AppResult<Vec<RequestLogSummary>> {
     validate_cli_key(cli_key)?;
     let conn = db.open_connection()?;
 
@@ -284,7 +288,7 @@ pub fn list_after_id_all(
     db: &db::Db,
     after_id: i64,
     limit: usize,
-) -> Result<Vec<RequestLogSummary>, String> {
+) -> crate::shared::error::AppResult<Vec<RequestLogSummary>> {
     let conn = db.open_connection()?;
 
     let after_id = after_id.max(0);
@@ -307,7 +311,7 @@ pub fn list_after_id_all(
     Ok(items)
 }
 
-pub fn get_by_id(db: &db::Db, log_id: i64) -> Result<RequestLogDetail, String> {
+pub fn get_by_id(db: &db::Db, log_id: i64) -> crate::shared::error::AppResult<RequestLogDetail> {
     let conn = db.open_connection()?;
     let sql = format!(
         "SELECT{}FROM request_logs WHERE id = ?1",
@@ -347,12 +351,15 @@ pub fn get_by_id(db: &db::Db, log_id: i64) -> Result<RequestLogDetail, String> {
     })
     .optional()
     .map_err(|e| format!("DB_ERROR: failed to query request_log: {e}"))?
-    .ok_or_else(|| "DB_NOT_FOUND: request_log not found".to_string())
+    .ok_or_else(|| "DB_NOT_FOUND: request_log not found".to_string().into())
 }
 
-pub fn get_by_trace_id(db: &db::Db, trace_id: &str) -> Result<Option<RequestLogDetail>, String> {
+pub fn get_by_trace_id(
+    db: &db::Db,
+    trace_id: &str,
+) -> crate::shared::error::AppResult<Option<RequestLogDetail>> {
     if trace_id.trim().is_empty() {
-        return Err("SEC_INVALID_INPUT: trace_id is required".to_string());
+        return Err("SEC_INVALID_INPUT: trace_id is required".to_string().into());
     }
 
     let conn = db.open_connection()?;
@@ -394,4 +401,5 @@ pub fn get_by_trace_id(db: &db::Db, trace_id: &str) -> Result<Option<RequestLogD
     })
     .optional()
     .map_err(|e| format!("DB_ERROR: failed to query request_log: {e}"))
+    .map_err(Into::into)
 }

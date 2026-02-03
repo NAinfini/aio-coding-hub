@@ -9,9 +9,12 @@ pub(crate) async fn provider_limit_usage_v1(
     db_state: tauri::State<'_, DbInitState>,
     cli_key: Option<String>,
 ) -> Result<Vec<provider_limit_usage::ProviderLimitUsageRow>, String> {
-    let db = ensure_db_ready(app, db_state.inner()).await?;
+    let db = ensure_db_ready(app, db_state.inner())
+        .await
+        .map_err(|e| e.to_string())?;
     blocking::run("provider_limit_usage_v1", move || {
         provider_limit_usage::list_v1(&db, cli_key.as_deref())
     })
     .await
+    .map_err(|e| e.to_string())
 }

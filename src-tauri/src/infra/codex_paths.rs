@@ -37,7 +37,9 @@ fn resolve_under_home(home: &Path, raw: &str) -> PathBuf {
     home.join(candidate)
 }
 
-pub fn codex_home_dir<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
+pub fn codex_home_dir<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> crate::shared::error::AppResult<PathBuf> {
     let home = home_dir(app)?;
     let raw = std::env::var(ENV_CODEX_HOME)
         .ok()
@@ -52,22 +54,24 @@ pub fn codex_home_dir<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<Pa
 
 pub fn codex_config_toml_path<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
-) -> Result<PathBuf, String> {
+) -> crate::shared::error::AppResult<PathBuf> {
     Ok(codex_home_dir(app)?.join("config.toml"))
 }
 
 pub fn codex_auth_json_path<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
-) -> Result<PathBuf, String> {
+) -> crate::shared::error::AppResult<PathBuf> {
     Ok(codex_home_dir(app)?.join("auth.json"))
 }
 
 pub fn codex_agents_md_path<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
-) -> Result<PathBuf, String> {
+) -> crate::shared::error::AppResult<PathBuf> {
     Ok(codex_home_dir(app)?.join("AGENTS.md"))
 }
 
-pub fn codex_skills_dir<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
+pub fn codex_skills_dir<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> crate::shared::error::AppResult<PathBuf> {
     Ok(codex_home_dir(app)?.join("skills"))
 }

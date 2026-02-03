@@ -63,7 +63,7 @@ fn writer_loop(db: db::Db, mut rx: mpsc::Receiver<circuit_breaker::CircuitPersis
 fn insert_batch(
     db: &db::Db,
     items: &[circuit_breaker::CircuitPersistedState],
-) -> Result<(), String> {
+) -> crate::shared::error::AppResult<()> {
     if items.is_empty() {
         return Ok(());
     }
@@ -125,7 +125,7 @@ ON CONFLICT(provider_id) DO UPDATE SET
 
 pub fn load_all(
     db: &db::Db,
-) -> Result<HashMap<i64, circuit_breaker::CircuitPersistedState>, String> {
+) -> crate::shared::error::AppResult<HashMap<i64, circuit_breaker::CircuitPersistedState>> {
     let conn = db.open_connection()?;
     let mut stmt = conn
         .prepare(
@@ -165,19 +165,26 @@ FROM provider_circuit_breakers
     Ok(items)
 }
 
-pub fn delete_by_provider_id(db: &db::Db, provider_id: i64) -> Result<usize, String> {
+pub fn delete_by_provider_id(
+    db: &db::Db,
+    provider_id: i64,
+) -> crate::shared::error::AppResult<usize> {
     if provider_id <= 0 {
         return Ok(0);
     }
     let conn = db.open_connection()?;
-    conn.execute(
-        "DELETE FROM provider_circuit_breakers WHERE provider_id = ?1",
-        params![provider_id],
-    )
-    .map_err(|e| format!("DB_ERROR: failed to delete circuit breaker state: {e}"))
+    Ok(conn
+        .execute(
+            "DELETE FROM provider_circuit_breakers WHERE provider_id = ?1",
+            params![provider_id],
+        )
+        .map_err(|e| format!("DB_ERROR: failed to delete circuit breaker state: {e}"))?)
 }
 
-pub fn delete_by_provider_ids(db: &db::Db, provider_ids: &[i64]) -> Result<usize, String> {
+pub fn delete_by_provider_ids(
+    db: &db::Db,
+    provider_ids: &[i64],
+) -> crate::shared::error::AppResult<usize> {
     let ids: Vec<i64> = provider_ids.iter().copied().filter(|id| *id > 0).collect();
 
     if ids.is_empty() {
@@ -189,6 +196,7 @@ pub fn delete_by_provider_ids(db: &db::Db, provider_ids: &[i64]) -> Result<usize
         format!("DELETE FROM provider_circuit_breakers WHERE provider_id IN ({placeholders})");
 
     let conn = db.open_connection()?;
-    conn.execute(&sql, params_from_iter(ids.iter()))
-        .map_err(|e| format!("DB_ERROR: failed to delete circuit breaker states: {e}"))
+    Ok(conn
+        .execute(&sql, params_from_iter(ids.iter()))
+        .map_err(|e| format!("DB_ERROR: failed to delete circuit breaker states: {e}"))?)
 }

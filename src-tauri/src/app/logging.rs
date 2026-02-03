@@ -95,7 +95,7 @@ fn default_env_filter() -> tracing_subscriber::EnvFilter {
 }
 
 fn ensure_log_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    let base = app_paths::app_data_dir(app)?;
+    let base = app_paths::app_data_dir(app).map_err(|e| e.to_string())?;
     let dir = base.join(LOG_SUBDIR);
     std::fs::create_dir_all(&dir)
         .map_err(|e| format!("failed to create log dir {}: {e}", dir.display()))?;

@@ -30,7 +30,7 @@ impl ResidentState {
 }
 
 #[cfg(not(desktop))]
-pub fn setup_tray(_app: &tauri::AppHandle) -> Result<(), String> {
+pub fn setup_tray(_app: &tauri::AppHandle) -> crate::shared::error::AppResult<()> {
     Ok(())
 }
 
@@ -48,7 +48,7 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::Manager;
 
 #[cfg(desktop)]
-pub fn setup_tray(app: &tauri::AppHandle) -> Result<(), String> {
+pub fn setup_tray(app: &tauri::AppHandle) -> crate::shared::error::AppResult<()> {
     let toggle_item = MenuItem::with_id(app, TRAY_MENU_TOGGLE_ID, "显示/隐藏", true, None::<&str>)
         .map_err(|e| format!("failed to create tray toggle menu item: {e}"))?;
     let quit_item = MenuItem::with_id(app, TRAY_MENU_QUIT_ID, "退出", true, None::<&str>)

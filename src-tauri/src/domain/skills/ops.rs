@@ -58,7 +58,7 @@ pub fn install(
     branch: &str,
     source_subdir: &str,
     enabled: bool,
-) -> Result<InstalledSkillSummary, String> {
+) -> crate::shared::error::AppResult<InstalledSkillSummary> {
     ensure_skills_roots(app)?;
     validate_relative_subdir(source_subdir)?;
 
@@ -83,18 +83,22 @@ LIMIT 1
         .optional()
         .map_err(|e| format!("DB_ERROR: failed to query skill by source: {e}"))?;
     if existing_id.is_some() {
-        return Err("SKILL_ALREADY_INSTALLED: skill already installed".to_string());
+        return Err("SKILL_ALREADY_INSTALLED: skill already installed"
+            .to_string()
+            .into());
     }
 
     let repo_dir = ensure_repo_cache(app, git_url, branch, true)?;
     let src_dir = repo_dir.join(source_subdir.trim());
     if !src_dir.exists() {
-        return Err(format!("SKILL_SOURCE_NOT_FOUND: {}", src_dir.display()));
+        return Err(format!("SKILL_SOURCE_NOT_FOUND: {}", src_dir.display()).into());
     }
 
     let skill_md = src_dir.join("SKILL.md");
     if !skill_md.exists() {
-        return Err("SEC_INVALID_INPUT: SKILL.md not found in source_subdir".to_string());
+        return Err("SEC_INVALID_INPUT: SKILL.md not found in source_subdir"
+            .to_string()
+            .into());
     }
 
     let (name, description) = parse_skill_md(&skill_md)?;
@@ -108,7 +112,7 @@ LIMIT 1
     let ssot_root = ssot_skills_root(app)?;
     let ssot_dir = ssot_root.join(&skill_key);
     if ssot_dir.exists() {
-        return Err("SKILL_CONFLICT: ssot dir already exists".to_string());
+        return Err("SKILL_CONFLICT: ssot dir already exists".to_string().into());
     }
 
     tx.execute(
@@ -158,7 +162,7 @@ ON CONFLICT(workspace_id, skill_id) DO UPDATE SET
     if let Err(err) = copy_dir_recursive(&src_dir, &ssot_dir) {
         let _ = std::fs::remove_dir_all(&ssot_dir);
         let _ = tx.execute("DELETE FROM skills WHERE id = ?1", params![skill_id]);
-        return Err(err);
+        return Err(err.into());
     }
 
     // FS: sync to CLI only when enabled in the active workspace.
@@ -167,17 +171,21 @@ ON CONFLICT(workspace_id, skill_id) DO UPDATE SET
             let _ = remove_from_cli(app, &cli_key, &skill_key);
             let _ = std::fs::remove_dir_all(&ssot_dir);
             let _ = tx.execute("DELETE FROM skills WHERE id = ?1", params![skill_id]);
-            return Err(err);
+            return Err(err.into());
         }
     }
 
     if let Err(err) = tx.commit() {
         let _ = remove_from_cli(app, &cli_key, &skill_key);
         let _ = std::fs::remove_dir_all(&ssot_dir);
-        return Err(format!("DB_ERROR: failed to commit: {err}"));
+        return Err(format!("DB_ERROR: failed to commit: {err}").into());
     }
 
-    get_skill_by_id_for_workspace(&conn, workspace_id, skill_id)
+    Ok(get_skill_by_id_for_workspace(
+        &conn,
+        workspace_id,
+        skill_id,
+    )?)
 }
 
 pub fn set_enabled(
@@ -186,7 +194,7 @@ pub fn set_enabled(
     workspace_id: i64,
     skill_id: i64,
     enabled: bool,
-) -> Result<InstalledSkillSummary, String> {
+) -> crate::shared::error::AppResult<InstalledSkillSummary> {
     let mut conn = db.open_connection()?;
     let cli_key = workspaces::get_cli_key_by_id(&conn, workspace_id)?;
     validate_cli_key(&cli_key)?;
@@ -205,13 +213,19 @@ pub fn set_enabled(
         .is_some();
 
     if was_enabled == enabled {
-        return get_skill_by_id_for_workspace(&conn, workspace_id, skill_id);
+        return Ok(get_skill_by_id_for_workspace(
+            &conn,
+            workspace_id,
+            skill_id,
+        )?);
     }
 
     let ssot_root = ssot_skills_root(app)?;
     let ssot_dir = ssot_root.join(&current.skill_key);
     if !ssot_dir.exists() {
-        return Err("SKILL_SSOT_MISSING: ssot skill dir not found".to_string());
+        return Err("SKILL_SSOT_MISSING: ssot skill dir not found"
+            .to_string()
+            .into());
     }
 
     if should_sync {
@@ -253,13 +267,21 @@ ON CONFLICT(workspace_id, skill_id) DO UPDATE SET
                 let _ = sync_to_cli(app, &cli_key, &current.skill_key, &ssot_dir);
             }
         }
-        return Err(format!("DB_ERROR: failed to commit: {err}"));
+        return Err(format!("DB_ERROR: failed to commit: {err}").into());
     }
 
-    get_skill_by_id_for_workspace(&conn, workspace_id, skill_id)
+    Ok(get_skill_by_id_for_workspace(
+        &conn,
+        workspace_id,
+        skill_id,
+    )?)
 }
 
-pub fn uninstall(app: &tauri::AppHandle, db: &db::Db, skill_id: i64) -> Result<(), String> {
+pub fn uninstall(
+    app: &tauri::AppHandle,
+    db: &db::Db,
+    skill_id: i64,
+) -> crate::shared::error::AppResult<()> {
     let conn = db.open_connection()?;
     let skill = get_skill_by_id(&conn, skill_id)?;
 
@@ -272,10 +294,7 @@ pub fn uninstall(app: &tauri::AppHandle, db: &db::Db, skill_id: i64) -> Result<(
     for (_cli, root) in &cli_roots {
         let target = root.join(&skill.skill_key);
         if target.exists() && !is_managed_dir(&target) {
-            return Err(format!(
-                "SKILL_REMOVE_BLOCKED_UNMANAGED: {}",
-                target.display()
-            ));
+            return Err(format!("SKILL_REMOVE_BLOCKED_UNMANAGED: {}", target.display()).into());
         }
     }
 
@@ -293,7 +312,7 @@ pub fn uninstall(app: &tauri::AppHandle, db: &db::Db, skill_id: i64) -> Result<(
         .execute("DELETE FROM skills WHERE id = ?1", params![skill_id])
         .map_err(|e| format!("DB_ERROR: failed to delete skill: {e}"))?;
     if changed == 0 {
-        return Err("DB_NOT_FOUND: skill not found".to_string());
+        return Err("DB_NOT_FOUND: skill not found".to_string().into());
     }
     Ok(())
 }

@@ -7,19 +7,25 @@ use tauri::Manager;
 
 #[tauri::command]
 pub(crate) async fn wsl_detect() -> wsl::WslDetection {
-    blocking::run("wsl_detect", move || Ok(wsl::detect()))
-        .await
-        .unwrap_or(wsl::WslDetection {
-            detected: false,
-            distros: Vec::new(),
-        })
+    blocking::run(
+        "wsl_detect",
+        move || -> crate::shared::error::AppResult<wsl::WslDetection> { Ok(wsl::detect()) },
+    )
+    .await
+    .unwrap_or(wsl::WslDetection {
+        detected: false,
+        distros: Vec::new(),
+    })
 }
 
 #[tauri::command]
 pub(crate) async fn wsl_host_address_get() -> Option<String> {
-    blocking::run("wsl_host_address_get", move || {
-        Ok(wsl::host_ipv4_best_effort())
-    })
+    blocking::run(
+        "wsl_host_address_get",
+        move || -> crate::shared::error::AppResult<Option<String>> {
+            Ok(wsl::host_ipv4_best_effort())
+        },
+    )
     .await
     .unwrap_or(None)
 }
@@ -28,21 +34,24 @@ pub(crate) async fn wsl_host_address_get() -> Option<String> {
 pub(crate) async fn wsl_config_status_get(
     distros: Option<Vec<String>>,
 ) -> Vec<wsl::WslDistroConfigStatus> {
-    blocking::run("wsl_config_status_get", move || {
-        let distros = match distros {
-            Some(v) if v.is_empty() => return Ok(Vec::new()),
-            Some(v) if !v.is_empty() => v,
-            _ => {
-                let detection = wsl::detect();
-                if !detection.detected || detection.distros.is_empty() {
-                    return Ok(Vec::new());
+    blocking::run(
+        "wsl_config_status_get",
+        move || -> crate::shared::error::AppResult<Vec<wsl::WslDistroConfigStatus>> {
+            let distros = match distros {
+                Some(v) if v.is_empty() => return Ok(Vec::new()),
+                Some(v) if !v.is_empty() => v,
+                _ => {
+                    let detection = wsl::detect();
+                    if !detection.detected || detection.distros.is_empty() {
+                        return Ok(Vec::new());
+                    }
+                    detection.distros
                 }
-                detection.distros
-            }
-        };
+            };
 
-        Ok(wsl::get_config_status(&distros))
-    })
+            Ok(wsl::get_config_status(&distros))
+        },
+    )
     .await
     .unwrap_or_default()
 }
@@ -61,13 +70,18 @@ pub(crate) async fn wsl_configure_clients(
         });
     }
 
-    let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
+    let db = ensure_db_ready(app.clone(), db_state.inner())
+        .await
+        .map_err(|e| e.to_string())?;
 
     let cfg = blocking::run("wsl_configure_clients_read_settings", {
         let app = app.clone();
-        move || Ok(settings::read(&app).unwrap_or_default())
+        move || -> crate::shared::error::AppResult<settings::AppSettings> {
+            Ok(settings::read(&app).unwrap_or_default())
+        }
     })
-    .await?;
+    .await
+    .map_err(|e| e.to_string())?;
 
     if cfg.gateway_listen_mode == settings::GatewayListenMode::Localhost {
         return Ok(wsl::WslConfigureReport {
@@ -96,7 +110,8 @@ pub(crate) async fn wsl_configure_clients(
             manager.start(&app, db, Some(preferred_port))
         }
     })
-    .await?;
+    .await
+    .map_err(|e| e.to_string())?;
 
     let port = status
         .port
@@ -130,10 +145,14 @@ pub(crate) async fn wsl_configure_clients(
 
     let proxy_origin = format!("http://{}", gateway::listen::format_host_port(&host, port));
     let distros = detection.distros;
-    let report = blocking::run("wsl_configure_clients", move || {
-        Ok(wsl::configure_clients(&distros, &targets, &proxy_origin))
-    })
-    .await?;
+    let report = blocking::run(
+        "wsl_configure_clients",
+        move || -> crate::shared::error::AppResult<wsl::WslConfigureReport> {
+            Ok(wsl::configure_clients(&distros, &targets, &proxy_origin))
+        },
+    )
+    .await
+    .map_err(|e| e.to_string())?;
 
     Ok(report)
 }

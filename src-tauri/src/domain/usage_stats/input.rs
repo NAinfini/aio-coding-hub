@@ -55,7 +55,8 @@ pub(super) fn parse_period_v2(input: &str) -> Result<UsagePeriodV2, String> {
 }
 
 fn validate_cli_key(cli_key: &str) -> Result<(), String> {
-    crate::shared::cli_key::validate_cli_key(cli_key)
+    crate::shared::cli_key::validate_cli_key(cli_key)?;
+    Ok(())
 }
 
 pub(super) fn normalize_cli_filter(cli_key: Option<&str>) -> Result<Option<&str>, String> {

@@ -93,21 +93,27 @@ pub(super) async fn validate_provider_model(
     provider_id: i64,
     base_url: &str,
     request_json: &str,
-) -> Result<ClaudeModelValidationResult, String> {
+) -> crate::shared::error::AppResult<ClaudeModelValidationResult> {
     let started = Instant::now();
 
     let provider = provider::load_provider(db.clone(), provider_id).await?;
     if provider.cli_key != "claude" {
-        return Err("SEC_INVALID_INPUT: only cli_key=claude is supported".to_string());
+        return Err("SEC_INVALID_INPUT: only cli_key=claude is supported"
+            .to_string()
+            .into());
     }
 
     let base_url = base_url.trim();
     if base_url.is_empty() {
-        return Err("SEC_INVALID_INPUT: base_url is required".to_string());
+        return Err("SEC_INVALID_INPUT: base_url is required".to_string().into());
     }
 
     if !provider.base_urls.iter().any(|u| u == base_url) {
-        return Err("SEC_INVALID_INPUT: base_url must be one of provider.base_urls".to_string());
+        return Err(
+            "SEC_INVALID_INPUT: base_url must be one of provider.base_urls"
+                .to_string()
+                .into(),
+        );
     }
 
     let parsed = request::parse_request_json(request_json)?;
@@ -730,16 +736,19 @@ pub(super) async fn validate_provider_model(
     let provider_id_for_history = provider.id;
     let request_json_text = sanitized_request_text;
     let result_json = serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string());
-    let _ = blocking::run("claude_validation_history_insert", move || {
-        claude_model_validation_history::insert_run_and_prune(
-            &db_for_history,
-            provider_id_for_history,
-            &request_json_text,
-            &result_json,
-            Some(50),
-        )?;
-        Ok(())
-    })
+    let _ = blocking::run(
+        "claude_validation_history_insert",
+        move || -> crate::shared::error::AppResult<()> {
+            claude_model_validation_history::insert_run_and_prune(
+                &db_for_history,
+                provider_id_for_history,
+                &request_json_text,
+                &result_json,
+                Some(50),
+            )?;
+            Ok(())
+        },
+    )
     .await;
 
     Ok(result)

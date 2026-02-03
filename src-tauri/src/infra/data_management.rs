@@ -54,7 +54,7 @@ fn db_related_paths(db_path: &Path) -> (PathBuf, PathBuf) {
     (wal_path, shm_path)
 }
 
-pub fn db_disk_usage_get(app: &tauri::AppHandle) -> Result<DbDiskUsage, String> {
+pub fn db_disk_usage_get(app: &tauri::AppHandle) -> crate::shared::error::AppResult<DbDiskUsage> {
     let db_path = db::db_path(app)?;
     let (wal_path, shm_path) = db_related_paths(&db_path);
 
@@ -70,7 +70,9 @@ pub fn db_disk_usage_get(app: &tauri::AppHandle) -> Result<DbDiskUsage, String> 
     })
 }
 
-pub fn request_logs_clear_all(db: &db::Db) -> Result<ClearRequestLogsResult, String> {
+pub fn request_logs_clear_all(
+    db: &db::Db,
+) -> crate::shared::error::AppResult<ClearRequestLogsResult> {
     let mut conn = db.open_connection()?;
 
     let tx = conn
@@ -99,7 +101,7 @@ pub fn request_logs_clear_all(db: &db::Db) -> Result<ClearRequestLogsResult, Str
     })
 }
 
-pub fn app_data_reset(app: &tauri::AppHandle) -> Result<bool, String> {
+pub fn app_data_reset(app: &tauri::AppHandle) -> crate::shared::error::AppResult<bool> {
     // Ensure the app data dir exists.
     let dir = app_paths::app_data_dir(app)?;
 

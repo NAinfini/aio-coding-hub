@@ -203,7 +203,9 @@ fn env_is_enabled(env: &serde_json::Map<String, serde_json::Value>, key: &str) -
     env.get(key).and_then(env_bool_value).unwrap_or(false)
 }
 
-pub fn claude_settings_get(app: &tauri::AppHandle) -> Result<ClaudeSettingsState, String> {
+pub fn claude_settings_get(
+    app: &tauri::AppHandle,
+) -> crate::shared::error::AppResult<ClaudeSettingsState> {
     let config_dir = claude_config_dir(app)?;
     let settings_path = claude_settings_path(app)?;
     let exists = settings_path.exists();
@@ -544,13 +546,14 @@ fn patch_claude_settings(
 pub fn claude_settings_set(
     app: &tauri::AppHandle,
     patch: ClaudeSettingsPatch,
-) -> Result<ClaudeSettingsState, String> {
+) -> crate::shared::error::AppResult<ClaudeSettingsState> {
     let path = claude_settings_path(app)?;
     if path.exists() && is_symlink(&path)? {
         return Err(format!(
             "SEC_INVALID_INPUT: refusing to modify symlink path={}",
             path.display()
-        ));
+        )
+        .into());
     }
 
     let current = read_optional_file(&path)?;

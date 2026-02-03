@@ -16,7 +16,8 @@ pub struct ModelPriceSummary {
 }
 
 fn validate_cli_key(cli_key: &str) -> Result<(), String> {
-    crate::shared::cli_key::validate_cli_key(cli_key)
+    crate::shared::cli_key::validate_cli_key(cli_key)?;
+    Ok(())
 }
 
 fn row_to_summary(row: &rusqlite::Row<'_>) -> Result<ModelPriceSummary, rusqlite::Error> {
@@ -30,7 +31,10 @@ fn row_to_summary(row: &rusqlite::Row<'_>) -> Result<ModelPriceSummary, rusqlite
     })
 }
 
-pub fn list_by_cli(db: &db::Db, cli_key: &str) -> Result<Vec<ModelPriceSummary>, String> {
+pub fn list_by_cli(
+    db: &db::Db,
+    cli_key: &str,
+) -> crate::shared::error::AppResult<Vec<ModelPriceSummary>> {
     validate_cli_key(cli_key)?;
     let conn = db.open_connection()?;
 
@@ -67,21 +71,25 @@ pub fn upsert(
     cli_key: &str,
     model: &str,
     price_json: &str,
-) -> Result<ModelPriceSummary, String> {
+) -> crate::shared::error::AppResult<ModelPriceSummary> {
     validate_cli_key(cli_key)?;
 
     let model = model.trim();
     if model.is_empty() {
-        return Err("SEC_INVALID_INPUT: model is required".to_string());
+        return Err("SEC_INVALID_INPUT: model is required".to_string().into());
     }
 
     let normalized_price = match serde_json::from_str::<serde_json::Value>(price_json) {
         Ok(v) => serde_json::to_string(&v).unwrap_or_else(|_| "{}".to_string()),
-        Err(_) => return Err("SEC_INVALID_INPUT: price_json must be valid JSON".to_string()),
+        Err(_) => {
+            return Err("SEC_INVALID_INPUT: price_json must be valid JSON"
+                .to_string()
+                .into())
+        }
     };
 
     if normalized_price == "{}" {
-        return Err("SEC_INVALID_INPUT: price_json is empty".to_string());
+        return Err("SEC_INVALID_INPUT: price_json is empty".to_string().into());
     }
 
     let conn = db.open_connection()?;
@@ -116,5 +124,5 @@ WHERE cli_key = ?1 AND model = ?2
     )
     .optional()
     .map_err(|e| format!("DB_ERROR: failed to query model_price: {e}"))?
-    .ok_or_else(|| "DB_NOT_FOUND: model_price not found".to_string())
+    .ok_or_else(|| "DB_NOT_FOUND: model_price not found".to_string().into())
 }

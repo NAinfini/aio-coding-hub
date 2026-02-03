@@ -57,7 +57,10 @@ pub fn build(level: NoticeLevel, title: Option<String>, body: String) -> NoticeE
     }
 }
 
-pub fn emit(app: &tauri::AppHandle, payload: NoticeEventPayload) -> Result<(), String> {
+pub fn emit(
+    app: &tauri::AppHandle,
+    payload: NoticeEventPayload,
+) -> crate::shared::error::AppResult<()> {
     app.emit(NOTICE_EVENT_NAME, payload)
         .map_err(|e| format!("NOTICE_EMIT: {e}"))?;
     Ok(())

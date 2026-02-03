@@ -10,7 +10,9 @@ use tauri::Manager;
 pub(crate) async fn cli_proxy_status_all(
     app: tauri::AppHandle,
 ) -> Result<Vec<cli_proxy::CliProxyStatus>, String> {
-    blocking::run("cli_proxy_status_all", move || cli_proxy::status_all(&app)).await
+    blocking::run("cli_proxy_status_all", move || cli_proxy::status_all(&app))
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -21,12 +23,14 @@ pub(crate) async fn cli_proxy_set_enabled(
     enabled: bool,
 ) -> Result<cli_proxy::CliProxyResult, String> {
     let base_origin = if enabled {
-        let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
+        let db = ensure_db_ready(app.clone(), db_state.inner())
+            .await
+            .map_err(|e| e.to_string())?;
 
         blocking::run("cli_proxy_set_enabled_ensure_gateway", {
             let app = app.clone();
             let db = db.clone();
-            move || {
+            move || -> crate::shared::error::AppResult<String> {
                 let state = app.state::<GatewayState>();
                 let mut manager = state.0.lock_or_recover();
                 let status = if manager.status().running {
@@ -46,22 +50,25 @@ pub(crate) async fn cli_proxy_set_enabled(
                 }))
             }
         })
-        .await?
+        .await
+        .map_err(|e| e.to_string())?
     } else {
         blocking::run("cli_proxy_set_enabled_read_settings", {
             let app = app.clone();
-            move || {
+            move || -> crate::shared::error::AppResult<String> {
                 let settings = settings::read(&app).unwrap_or_default();
                 Ok(format!("http://127.0.0.1:{}", settings.preferred_port))
             }
         })
-        .await?
+        .await
+        .map_err(|e| e.to_string())?
     };
 
     blocking::run("cli_proxy_set_enabled_apply", move || {
         cli_proxy::set_enabled(&app, &cli_key, enabled, &base_origin)
     })
     .await
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -73,4 +80,5 @@ pub(crate) async fn cli_proxy_sync_enabled(
         cli_proxy::sync_enabled(&app, &base_origin)
     })
     .await
+    .map_err(|e| e.to_string())
 }

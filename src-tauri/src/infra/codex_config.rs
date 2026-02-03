@@ -941,7 +941,9 @@ fn make_state_from_bytes(
     Ok(state)
 }
 
-pub fn codex_config_get(app: &tauri::AppHandle) -> Result<CodexConfigState, String> {
+pub fn codex_config_get(
+    app: &tauri::AppHandle,
+) -> crate::shared::error::AppResult<CodexConfigState> {
     let path = codex_paths::codex_config_toml_path(app)?;
     let dir = path.parent().unwrap_or(Path::new("")).to_path_buf();
     let bytes = read_optional_file(&path)?;
@@ -962,6 +964,7 @@ pub fn codex_config_get(app: &tauri::AppHandle) -> Result<CodexConfigState, Stri
         can_open_config_dir,
         bytes,
     )
+    .map_err(Into::into)
 }
 
 #[cfg(windows)]
@@ -1137,13 +1140,14 @@ fn patch_config_toml(current: Option<Vec<u8>>, patch: CodexConfigPatch) -> Resul
 pub fn codex_config_set(
     app: &tauri::AppHandle,
     patch: CodexConfigPatch,
-) -> Result<CodexConfigState, String> {
+) -> crate::shared::error::AppResult<CodexConfigState> {
     let path = codex_paths::codex_config_toml_path(app)?;
     if path.exists() && is_symlink(&path)? {
         return Err(format!(
             "SEC_INVALID_INPUT: refusing to modify symlink path={}",
             path.display()
-        ));
+        )
+        .into());
     }
 
     let current = read_optional_file(&path)?;

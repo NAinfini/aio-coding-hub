@@ -35,7 +35,8 @@ pub struct ProviderLimitUsageRow {
 }
 
 fn validate_cli_key(cli_key: &str) -> Result<(), String> {
-    crate::shared::cli_key::validate_cli_key(cli_key)
+    crate::shared::cli_key::validate_cli_key(cli_key)?;
+    Ok(())
 }
 
 fn normalize_cli_filter(cli_key: Option<&str>) -> Result<Option<&str>, String> {
@@ -186,7 +187,10 @@ fn aggregate_cost_for_provider(
     .map_err(|e| format!("DB_ERROR: failed to aggregate cost: {e}"))
 }
 
-pub fn list_v1(db: &db::Db, cli_key: Option<&str>) -> Result<Vec<ProviderLimitUsageRow>, String> {
+pub fn list_v1(
+    db: &db::Db,
+    cli_key: Option<&str>,
+) -> crate::shared::error::AppResult<Vec<ProviderLimitUsageRow>> {
     let cli_key = normalize_cli_filter(cli_key)?;
     let conn = db.open_connection()?;
 

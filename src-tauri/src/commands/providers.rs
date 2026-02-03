@@ -9,11 +9,14 @@ pub(crate) async fn providers_list(
     db_state: tauri::State<'_, DbInitState>,
     cli_key: String,
 ) -> Result<Vec<providers::ProviderSummary>, String> {
-    let db = ensure_db_ready(app, db_state.inner()).await?;
+    let db = ensure_db_ready(app, db_state.inner())
+        .await
+        .map_err(|e| e.to_string())?;
     blocking::run("providers_list", move || {
         providers::list_by_cli(&db, &cli_key)
     })
     .await
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -39,7 +42,9 @@ pub(crate) async fn provider_upsert(
     limit_monthly_usd: Option<f64>,
     limit_total_usd: Option<f64>,
 ) -> Result<providers::ProviderSummary, String> {
-    let db = ensure_db_ready(app, db_state.inner()).await?;
+    let db = ensure_db_ready(app, db_state.inner())
+        .await
+        .map_err(|e| e.to_string())?;
     blocking::run("provider_upsert", move || {
         providers::upsert(
             &db,
@@ -63,6 +68,7 @@ pub(crate) async fn provider_upsert(
         )
     })
     .await
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -72,11 +78,14 @@ pub(crate) async fn provider_set_enabled(
     provider_id: i64,
     enabled: bool,
 ) -> Result<providers::ProviderSummary, String> {
-    let db = ensure_db_ready(app, db_state.inner()).await?;
+    let db = ensure_db_ready(app, db_state.inner())
+        .await
+        .map_err(|e| e.to_string())?;
     blocking::run("provider_set_enabled", move || {
         providers::set_enabled(&db, provider_id, enabled)
     })
     .await
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -85,12 +94,18 @@ pub(crate) async fn provider_delete(
     db_state: tauri::State<'_, DbInitState>,
     provider_id: i64,
 ) -> Result<bool, String> {
-    let db = ensure_db_ready(app, db_state.inner()).await?;
-    blocking::run("provider_delete", move || {
-        providers::delete(&db, provider_id)?;
-        Ok(true)
-    })
+    let db = ensure_db_ready(app, db_state.inner())
+        .await
+        .map_err(|e| e.to_string())?;
+    blocking::run(
+        "provider_delete",
+        move || -> crate::shared::error::AppResult<bool> {
+            providers::delete(&db, provider_id)?;
+            Ok(true)
+        },
+    )
     .await
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -100,11 +115,14 @@ pub(crate) async fn providers_reorder(
     cli_key: String,
     ordered_provider_ids: Vec<i64>,
 ) -> Result<Vec<providers::ProviderSummary>, String> {
-    let db = ensure_db_ready(app, db_state.inner()).await?;
+    let db = ensure_db_ready(app, db_state.inner())
+        .await
+        .map_err(|e| e.to_string())?;
     blocking::run("providers_reorder", move || {
         providers::reorder(&db, &cli_key, ordered_provider_ids)
     })
     .await
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

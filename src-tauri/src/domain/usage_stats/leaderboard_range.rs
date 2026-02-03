@@ -195,7 +195,7 @@ pub fn leaderboard_provider(
     range: &str,
     cli_key: Option<&str>,
     limit: usize,
-) -> Result<Vec<UsageProviderRow>, String> {
+) -> crate::shared::error::AppResult<Vec<UsageProviderRow>> {
     let conn = db.open_connection()?;
     let (start_ts, cli_key) = resolve_range_filters(&conn, range, cli_key)?;
 
@@ -352,7 +352,7 @@ pub fn leaderboard_day(
     range: &str,
     cli_key: Option<&str>,
     limit: usize,
-) -> Result<Vec<UsageDayRow>, String> {
+) -> crate::shared::error::AppResult<Vec<UsageDayRow>> {
     let conn = db.open_connection()?;
     let (start_ts, cli_key) = resolve_range_filters(&conn, range, cli_key)?;
 

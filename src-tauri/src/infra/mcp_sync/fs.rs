@@ -12,7 +12,7 @@ pub fn read_target_bytes<R: tauri::Runtime>(
     cli_key: &str,
 ) -> Result<Option<Vec<u8>>, String> {
     let path = paths::mcp_target_path(app, cli_key)?;
-    read_optional_file(&path)
+    Ok(read_optional_file(&path)?)
 }
 
 pub fn restore_target_bytes<R: tauri::Runtime>(
@@ -22,7 +22,7 @@ pub fn restore_target_bytes<R: tauri::Runtime>(
 ) -> Result<(), String> {
     let path = paths::mcp_target_path(app, cli_key)?;
     match bytes {
-        Some(content) => write_file_atomic(&path, &content),
+        Some(content) => Ok(write_file_atomic(&path, &content)?),
         None => {
             if path.exists() {
                 std::fs::remove_file(&path)

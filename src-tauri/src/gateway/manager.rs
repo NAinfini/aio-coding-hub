@@ -85,7 +85,7 @@ fn bind_host_port(bind_host: &str, port: u16) -> Option<std::net::TcpListener> {
 fn bind_first_available(
     bind_host: &str,
     preferred: Option<u16>,
-) -> Result<(u16, std::net::TcpListener), String> {
+) -> crate::shared::error::AppResult<(u16, std::net::TcpListener)> {
     for port in port_candidates(preferred) {
         if let Some(std_listener) = bind_host_port(bind_host, port) {
             return Ok((port, std_listener));
@@ -96,7 +96,8 @@ fn bind_first_available(
         "no available port in range {}..{} for host {bind_host}",
         settings::DEFAULT_GATEWAY_PORT,
         settings::MAX_GATEWAY_PORT
-    ))
+    )
+    .into())
 }
 
 impl GatewayManager {
@@ -140,7 +141,7 @@ impl GatewayManager {
         app: &tauri::AppHandle,
         db: db::Db,
         preferred_port: Option<u16>,
-    ) -> Result<GatewayStatus, String> {
+    ) -> crate::shared::error::AppResult<GatewayStatus> {
         if self.running.is_some() {
             return Ok(self.status());
         }
@@ -312,7 +313,7 @@ impl GatewayManager {
         app: &tauri::AppHandle,
         db: &db::Db,
         cli_key: &str,
-    ) -> Result<Vec<GatewayProviderCircuitStatus>, String> {
+    ) -> crate::shared::error::AppResult<Vec<GatewayProviderCircuitStatus>> {
         let provider_ids: Vec<i64> = providers::list_by_cli(db, cli_key)?
             .into_iter()
             .map(|p| p.id)
@@ -384,9 +385,15 @@ impl GatewayManager {
             .collect())
     }
 
-    pub fn circuit_reset_provider(&self, db: &db::Db, provider_id: i64) -> Result<(), String> {
+    pub fn circuit_reset_provider(
+        &self,
+        db: &db::Db,
+        provider_id: i64,
+    ) -> crate::shared::error::AppResult<()> {
         if provider_id <= 0 {
-            return Err("SEC_INVALID_INPUT: provider_id must be > 0".to_string());
+            return Err("SEC_INVALID_INPUT: provider_id must be > 0"
+                .to_string()
+                .into());
         }
 
         if let Some(r) = &self.running {
@@ -398,7 +405,11 @@ impl GatewayManager {
         Ok(())
     }
 
-    pub fn circuit_reset_cli(&self, db: &db::Db, cli_key: &str) -> Result<usize, String> {
+    pub fn circuit_reset_cli(
+        &self,
+        db: &db::Db,
+        cli_key: &str,
+    ) -> crate::shared::error::AppResult<usize> {
         let provider_ids: Vec<i64> = providers::list_by_cli(db, cli_key)?
             .into_iter()
             .map(|p| p.id)

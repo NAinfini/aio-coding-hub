@@ -270,7 +270,8 @@ pub(crate) struct GatewayProvidersSelection {
 }
 
 fn validate_cli_key(cli_key: &str) -> Result<(), String> {
-    crate::shared::cli_key::validate_cli_key(cli_key)
+    crate::shared::cli_key::validate_cli_key(cli_key)?;
+    Ok(())
 }
 
 fn normalize_base_urls(base_urls: Vec<String>) -> Result<Vec<String>, String> {
@@ -409,7 +410,10 @@ WHERE id = ?1
     .ok_or_else(|| "DB_NOT_FOUND: provider not found".to_string())
 }
 
-pub fn names_by_id(db: &db::Db, provider_ids: &[i64]) -> Result<HashMap<i64, String>, String> {
+pub fn names_by_id(
+    db: &db::Db,
+    provider_ids: &[i64],
+) -> crate::shared::error::AppResult<HashMap<i64, String>> {
     let ids: Vec<i64> = provider_ids
         .iter()
         .copied()
@@ -452,7 +456,10 @@ pub fn names_by_id(db: &db::Db, provider_ids: &[i64]) -> Result<HashMap<i64, Str
     Ok(out)
 }
 
-pub fn list_by_cli(db: &db::Db, cli_key: &str) -> Result<Vec<ProviderSummary>, String> {
+pub fn list_by_cli(
+    db: &db::Db,
+    cli_key: &str,
+) -> crate::shared::error::AppResult<Vec<ProviderSummary>> {
     validate_cli_key(cli_key)?;
     let conn = db.open_connection()?;
 
@@ -649,7 +656,7 @@ ORDER BY sort_order ASC, id DESC
 pub(crate) fn list_enabled_for_gateway_using_active_mode(
     db: &db::Db,
     cli_key: &str,
-) -> Result<GatewayProvidersSelection, String> {
+) -> crate::shared::error::AppResult<GatewayProvidersSelection> {
     validate_cli_key(cli_key)?;
     let conn = db.open_connection()?;
 
@@ -682,13 +689,15 @@ pub(crate) fn list_enabled_for_gateway_in_mode(
     db: &db::Db,
     cli_key: &str,
     sort_mode_id: Option<i64>,
-) -> Result<Vec<ProviderForGateway>, String> {
+) -> crate::shared::error::AppResult<Vec<ProviderForGateway>> {
     validate_cli_key(cli_key)?;
     let conn = db.open_connection()?;
 
     match sort_mode_id {
-        Some(mode_id) => list_enabled_for_gateway_in_sort_mode(&conn, cli_key, mode_id),
-        None => list_enabled_for_gateway_default(&conn, cli_key),
+        Some(mode_id) => Ok(list_enabled_for_gateway_in_sort_mode(
+            &conn, cli_key, mode_id,
+        )?),
+        None => Ok(list_enabled_for_gateway_default(&conn, cli_key)?),
     }
 }
 
@@ -721,13 +730,15 @@ pub fn upsert(
     limit_weekly_usd: Option<f64>,
     limit_monthly_usd: Option<f64>,
     limit_total_usd: Option<f64>,
-) -> Result<ProviderSummary, String> {
+) -> crate::shared::error::AppResult<ProviderSummary> {
     let cli_key = cli_key.trim();
     validate_cli_key(cli_key)?;
 
     let name = name.trim();
     if name.is_empty() {
-        return Err("SEC_INVALID_INPUT: provider name is required".to_string());
+        return Err("SEC_INVALID_INPUT: provider name is required"
+            .to_string()
+            .into());
     }
 
     let base_urls = normalize_base_urls(base_urls)?;
@@ -741,12 +752,18 @@ pub fn upsert(
     let api_key = api_key.map(str::trim).filter(|v| !v.is_empty());
 
     if !cost_multiplier.is_finite() || cost_multiplier <= 0.0 || cost_multiplier > 1000.0 {
-        return Err("SEC_INVALID_INPUT: cost_multiplier must be within (0, 1000]".to_string());
+        return Err(
+            "SEC_INVALID_INPUT: cost_multiplier must be within (0, 1000]"
+                .to_string()
+                .into(),
+        );
     }
 
     if let Some(priority) = priority {
         if !(0..=1000).contains(&priority) {
-            return Err("SEC_INVALID_INPUT: priority must be within [0, 1000]".to_string());
+            return Err("SEC_INVALID_INPUT: priority must be within [0, 1000]"
+                .to_string()
+                .into());
         }
     }
 
@@ -845,7 +862,7 @@ INSERT INTO providers(
             })?;
 
             let id = conn.last_insert_rowid();
-            get_by_id(&conn, id)
+            Ok(get_by_id(&conn, id)?)
         }
         Some(id) => {
             let tx = conn
@@ -870,11 +887,11 @@ INSERT INTO providers(
                 existing_daily_reset_time_raw,
             )) = existing
             else {
-                return Err("DB_NOT_FOUND: provider not found".to_string());
+                return Err("DB_NOT_FOUND: provider not found".to_string().into());
             };
 
             if existing_cli_key != cli_key {
-                return Err("SEC_INVALID_INPUT: cli_key mismatch".to_string());
+                return Err("SEC_INVALID_INPUT: cli_key mismatch".to_string().into());
             }
 
             let next_api_key = api_key.unwrap_or(existing_api_key.as_str());
@@ -981,7 +998,7 @@ WHERE id = ?18
             tx.commit()
                 .map_err(|e| format!("DB_ERROR: failed to commit: {e}"))?;
 
-            get_by_id(&conn, id)
+            Ok(get_by_id(&conn, id)?)
         }
     }
 }
@@ -990,7 +1007,7 @@ pub fn set_enabled(
     db: &db::Db,
     provider_id: i64,
     enabled: bool,
-) -> Result<ProviderSummary, String> {
+) -> crate::shared::error::AppResult<ProviderSummary> {
     let conn = db.open_connection()?;
     let now = now_unix_seconds();
     let changed = conn
@@ -1001,20 +1018,20 @@ pub fn set_enabled(
         .map_err(|e| format!("DB_ERROR: failed to update provider: {e}"))?;
 
     if changed == 0 {
-        return Err("DB_NOT_FOUND: provider not found".to_string());
+        return Err("DB_NOT_FOUND: provider not found".to_string().into());
     }
 
-    get_by_id(&conn, provider_id)
+    Ok(get_by_id(&conn, provider_id)?)
 }
 
-pub fn delete(db: &db::Db, provider_id: i64) -> Result<(), String> {
+pub fn delete(db: &db::Db, provider_id: i64) -> crate::shared::error::AppResult<()> {
     let conn = db.open_connection()?;
     let changed = conn
         .execute("DELETE FROM providers WHERE id = ?1", params![provider_id])
         .map_err(|e| format!("DB_ERROR: failed to delete provider: {e}"))?;
 
     if changed == 0 {
-        return Err("DB_NOT_FOUND: provider not found".to_string());
+        return Err("DB_NOT_FOUND: provider not found".to_string().into());
     }
 
     Ok(())
@@ -1024,13 +1041,13 @@ pub fn reorder(
     db: &db::Db,
     cli_key: &str,
     ordered_provider_ids: Vec<i64>,
-) -> Result<Vec<ProviderSummary>, String> {
+) -> crate::shared::error::AppResult<Vec<ProviderSummary>> {
     validate_cli_key(cli_key)?;
 
     let mut seen = HashSet::new();
     for id in &ordered_provider_ids {
         if !seen.insert(*id) {
-            return Err(format!("SEC_INVALID_INPUT: duplicate provider_id={id}"));
+            return Err(format!("SEC_INVALID_INPUT: duplicate provider_id={id}").into());
         }
     }
 
@@ -1058,7 +1075,8 @@ pub fn reorder(
         if !existing_set.contains(id) {
             return Err(format!(
                 "SEC_INVALID_INPUT: provider_id does not belong to cli_key={cli_key}: {id}"
-            ));
+            )
+            .into());
         }
     }
 

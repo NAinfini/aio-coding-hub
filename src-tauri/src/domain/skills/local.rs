@@ -14,13 +14,17 @@ pub fn local_list(
     app: &tauri::AppHandle,
     db: &db::Db,
     workspace_id: i64,
-) -> Result<Vec<LocalSkillSummary>, String> {
+) -> crate::shared::error::AppResult<Vec<LocalSkillSummary>> {
     let conn = db.open_connection()?;
     let cli_key = workspaces::get_cli_key_by_id(&conn, workspace_id)?;
     validate_cli_key(&cli_key)?;
 
     if !workspaces::is_active_workspace(&conn, workspace_id)? {
-        return Err("SKILL_LOCAL_REQUIRES_ACTIVE_WORKSPACE: local skills only available for active workspace".to_string());
+        return Err(
+            "SKILL_LOCAL_REQUIRES_ACTIVE_WORKSPACE: local skills only available for active workspace"
+                .to_string()
+                .into(),
+        );
     }
 
     let root = cli_skills_root(app, &cli_key)?;
@@ -80,7 +84,7 @@ pub fn import_local(
     db: &db::Db,
     workspace_id: i64,
     dir_name: &str,
-) -> Result<InstalledSkillSummary, String> {
+) -> crate::shared::error::AppResult<InstalledSkillSummary> {
     ensure_skills_roots(app)?;
 
     let dir_name = validate_dir_name(dir_name)?;
@@ -89,24 +93,36 @@ pub fn import_local(
     let cli_key = workspaces::get_cli_key_by_id(&conn, workspace_id)?;
     validate_cli_key(&cli_key)?;
     if !workspaces::is_active_workspace(&conn, workspace_id)? {
-        return Err("SKILL_IMPORT_LOCAL_REQUIRES_ACTIVE_WORKSPACE: switch to the target workspace before importing".to_string());
+        return Err(
+            "SKILL_IMPORT_LOCAL_REQUIRES_ACTIVE_WORKSPACE: switch to the target workspace before importing"
+                .to_string()
+                .into(),
+        );
     }
 
     let cli_root = cli_skills_root(app, &cli_key)?;
     let local_dir = cli_root.join(&dir_name);
     if !local_dir.exists() {
-        return Err(format!("SKILL_LOCAL_NOT_FOUND: {}", local_dir.display()));
+        return Err(format!("SKILL_LOCAL_NOT_FOUND: {}", local_dir.display()).into());
     }
     if !local_dir.is_dir() {
-        return Err("SEC_INVALID_INPUT: local skill path is not a directory".to_string());
+        return Err("SEC_INVALID_INPUT: local skill path is not a directory"
+            .to_string()
+            .into());
     }
     if is_managed_dir(&local_dir) {
-        return Err("SKILL_ALREADY_MANAGED: skill already managed by aio-coding-hub".to_string());
+        return Err(
+            "SKILL_ALREADY_MANAGED: skill already managed by aio-coding-hub"
+                .to_string()
+                .into(),
+        );
     }
 
     let skill_md = local_dir.join("SKILL.md");
     if !skill_md.exists() {
-        return Err("SEC_INVALID_INPUT: SKILL.md not found in local skill dir".to_string());
+        return Err("SEC_INVALID_INPUT: SKILL.md not found in local skill dir"
+            .to_string()
+            .into());
     }
 
     let (name, description) = match parse_skill_md(&skill_md) {
@@ -116,13 +132,17 @@ pub fn import_local(
     let normalized_name = normalize_name(&name);
 
     if skill_key_exists(&conn, &dir_name)? {
-        return Err("SKILL_IMPORT_CONFLICT: same skill_key already exists".to_string());
+        return Err("SKILL_IMPORT_CONFLICT: same skill_key already exists"
+            .to_string()
+            .into());
     }
 
     let now = now_unix_seconds();
     let ssot_dir = ssot_skills_root(app)?.join(&dir_name);
     if ssot_dir.exists() {
-        return Err("SKILL_IMPORT_CONFLICT: ssot dir already exists".to_string());
+        return Err("SKILL_IMPORT_CONFLICT: ssot dir already exists"
+            .to_string()
+            .into());
     }
 
     let tx = conn
@@ -173,20 +193,20 @@ ON CONFLICT(workspace_id, skill_id) DO UPDATE SET
     if let Err(err) = copy_dir_recursive(&local_dir, &ssot_dir) {
         let _ = std::fs::remove_dir_all(&ssot_dir);
         let _ = tx.execute("DELETE FROM skills WHERE id = ?1", params![skill_id]);
-        return Err(err);
+        return Err(err.into());
     }
 
     if let Err(err) = write_marker(&local_dir) {
         let _ = std::fs::remove_dir_all(&ssot_dir);
         let _ = tx.execute("DELETE FROM skills WHERE id = ?1", params![skill_id]);
-        return Err(err);
+        return Err(err.into());
     }
 
     if let Err(err) = tx.commit() {
         let _ = std::fs::remove_dir_all(&ssot_dir);
         remove_marker(&local_dir);
-        return Err(format!("DB_ERROR: failed to commit: {err}"));
+        return Err(format!("DB_ERROR: failed to commit: {err}").into());
     }
 
-    get_skill_by_id(&conn, skill_id)
+    Ok(get_skill_by_id(&conn, skill_id)?)
 }

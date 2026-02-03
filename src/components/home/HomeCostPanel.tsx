@@ -4,6 +4,23 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  PieChart,
+  Pie,
+  Cell,
+  Label,
+  ScatterChart,
+  Scatter,
+  ZAxis,
+  Legend,
+} from "recharts";
 import { cliShortLabel } from "../../constants/clis";
 import { PERIOD_ITEMS } from "../../constants/periods";
 import { useCustomDateRange } from "../../hooks/useCustomDateRange";
@@ -23,7 +40,14 @@ import {
   formatUsd,
   formatUsdShort,
 } from "../../utils/formatters";
-import { EChartsCanvas } from "../charts/EChartsCanvas";
+import { pickTopSlices, toDateLabel } from "../../utils/chartHelpers";
+import {
+  CHART_COLORS,
+  AXIS_STYLE,
+  GRID_LINE_STYLE,
+  TOOLTIP_STYLE,
+  CHART_ANIMATION,
+} from "../charts/chartTheme";
 import { Calendar, Filter, RefreshCw, ChevronDown } from "lucide-react";
 
 type CliFilter = "all" | CliKey;
@@ -36,6 +60,25 @@ const CLI_ITEMS: CliItem[] = [
   { key: "codex", label: "Codex" },
   { key: "gemini", label: "Gemini" },
 ];
+
+// Pie chart color palette
+const PIE_COLORS = [
+  "#0052FF",
+  "#7C3AED",
+  "#16A34A",
+  "#F97316",
+  "#DC2626",
+  "#0EA5E9",
+  "#9333EA",
+  "#64748b",
+];
+
+// Scatter chart colors by CLI
+const SCATTER_COLORS: Record<CliKey, string> = {
+  claude: CHART_COLORS.primary,
+  codex: CHART_COLORS.secondary,
+  gemini: CHART_COLORS.success,
+};
 
 function buildDayKeysBetweenUnixSeconds(startTs: number, endTs: number) {
   const startMs = startTs * 1000;
@@ -76,14 +119,16 @@ function StatCard({
   value,
   hint,
   className,
+  "data-testid": testId,
 }: {
   title: string;
   value: string;
   hint?: string;
   className?: string;
+  "data-testid"?: string;
 }) {
   return (
-    <Card padding="md" className={cn("flex h-full flex-col", className)}>
+    <Card padding="md" className={cn("flex h-full flex-col", className)} data-testid={testId}>
       <div className="text-xs font-medium text-slate-500">{title}</div>
       <div className="mt-2 text-lg font-semibold tracking-tight text-slate-900 xl:text-xl">
         {value}
@@ -103,17 +148,239 @@ function StatCardSkeleton({ className }: { className?: string }) {
   );
 }
 
-function toMmDd(dayKey: string) {
-  const mmdd = dayKey.slice(5);
-  return mmdd.replace("-", "/");
+// Trend Line Chart Component
+function TrendAreaChart({
+  data,
+  isHourly,
+}: {
+  data: Array<{ label: string; cost: number }>;
+  isHourly: boolean;
+}) {
+  const xAxisTicks = useMemo(() => {
+    const interval = isHourly ? 4 : 3;
+    return data.filter((_, i) => i % interval === 0).map((d) => d.label);
+  }, [data, isHourly]);
+
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <AreaChart data={data} margin={{ left: 0, right: 16, top: 8, bottom: 0 }}>
+        <defs>
+          <linearGradient id="costAreaGradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={CHART_COLORS.primary} stopOpacity={0.25} />
+            <stop offset="100%" stopColor={CHART_COLORS.primary} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid
+          vertical={false}
+          stroke={GRID_LINE_STYLE.stroke}
+          strokeDasharray={GRID_LINE_STYLE.strokeDasharray}
+        />
+        <XAxis
+          dataKey="label"
+          axisLine={{ stroke: "rgba(15,23,42,0.12)" }}
+          tickLine={false}
+          tick={{ ...AXIS_STYLE }}
+          ticks={xAxisTicks}
+          interval="preserveStartEnd"
+        />
+        <YAxis
+          axisLine={false}
+          tickLine={false}
+          tick={{ ...AXIS_STYLE }}
+          tickFormatter={formatUsdShort}
+          width={50}
+        />
+        <Tooltip
+          contentStyle={TOOLTIP_STYLE}
+          labelStyle={{ fontWeight: 600, marginBottom: 4 }}
+          formatter={(value: number) => [formatUsd(value), "Cost"]}
+          cursor={{ stroke: "rgba(0,82,255,0.15)", strokeWidth: 1 }}
+        />
+        <Area
+          type="monotone"
+          dataKey="cost"
+          stroke={CHART_COLORS.primary}
+          strokeWidth={3}
+          fill="url(#costAreaGradient)"
+          animationDuration={CHART_ANIMATION.animationDuration}
+        />
+      </AreaChart>
+    </ResponsiveContainer>
+  );
 }
 
-function pickTopSlices<T extends { cost_usd: number }>(rows: T[], topN: number) {
-  const sorted = rows.slice().sort((a, b) => b.cost_usd - a.cost_usd);
-  const head = sorted.slice(0, Math.max(1, Math.floor(topN)));
-  const tail = sorted.slice(head.length);
-  const tailSum = tail.reduce((acc, cur) => acc + (Number(cur.cost_usd) || 0), 0);
-  return { head, tailSum };
+// Donut Chart Component
+function DonutChart({
+  data,
+  total,
+}: {
+  data: Array<{ name: string; value: number }>;
+  total: number;
+}) {
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <PieChart>
+        <Pie
+          data={data}
+          cx="50%"
+          cy="50%"
+          innerRadius="50%"
+          outerRadius="75%"
+          paddingAngle={2}
+          dataKey="value"
+          animationDuration={CHART_ANIMATION.animationDuration}
+        >
+          {data.map((_, index) => (
+            <Cell
+              key={`cell-${index}`}
+              fill={PIE_COLORS[index % PIE_COLORS.length]}
+              stroke="#fff"
+              strokeWidth={2}
+            />
+          ))}
+          <Label
+            value={formatUsdShort(total)}
+            position="center"
+            style={{
+              fontSize: 14,
+              fontWeight: 600,
+              fill: "#334155",
+            }}
+          />
+        </Pie>
+        <Tooltip
+          contentStyle={TOOLTIP_STYLE}
+          formatter={(value: number, name: string) => [
+            `${formatUsd(value)} (${((value / total) * 100).toFixed(1)}%)`,
+            name,
+          ]}
+        />
+      </PieChart>
+    </ResponsiveContainer>
+  );
+}
+
+// Scatter Chart Component
+type ScatterPoint = {
+  name: string;
+  x: number;
+  y: number;
+  z: number;
+  cli: CliKey;
+  meta: CostScatterCliProviderModelRowV1;
+};
+
+function CostScatterChart({ data, showLegend }: { data: ScatterPoint[]; showLegend: boolean }) {
+  const byCliData = useMemo(() => {
+    const grouped: Record<CliKey, ScatterPoint[]> = {
+      claude: [],
+      codex: [],
+      gemini: [],
+    };
+    for (const point of data) {
+      grouped[point.cli]?.push(point);
+    }
+    return grouped;
+  }, [data]);
+
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (!active || !payload || payload.length === 0) return null;
+
+    const point = payload[0]?.payload as ScatterPoint | undefined;
+    if (!point) return null;
+
+    const meta = point.meta;
+    const cliLabel = cliShortLabel(meta.cli_key);
+    const providerRaw = meta.provider_name?.trim() ? meta.provider_name.trim() : "Unknown";
+    const modelRaw = meta.model?.trim() ? meta.model.trim() : "Unknown";
+    const providerText = providerRaw === "Unknown" ? "未知" : providerRaw;
+    const modelText = modelRaw === "Unknown" ? "未知" : modelRaw;
+    const requests = Number.isFinite(meta.requests_success)
+      ? Math.max(0, meta.requests_success)
+      : 0;
+    const avgCostUsd = requests > 0 ? meta.total_cost_usd / requests : null;
+    const avgDurationMs = requests > 0 ? meta.total_duration_ms / requests : null;
+
+    return (
+      <div style={{ ...TOOLTIP_STYLE, minWidth: 200 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
+          {cliLabel} · {providerText} · {modelText}
+        </div>
+        <div style={{ fontSize: 11, color: "#64748b" }}>
+          总成本：{formatUsd(meta.total_cost_usd)}
+        </div>
+        <div style={{ fontSize: 11, color: "#64748b" }}>
+          总耗时：{formatDurationMs(meta.total_duration_ms)}
+        </div>
+        <div style={{ fontSize: 11, color: "#64748b" }}>请求数：{formatInteger(requests)}</div>
+        <div style={{ fontSize: 11, color: "#94a3b8" }}>
+          {avgCostUsd == null
+            ? "均值：—"
+            : `均值：${formatUsd(avgCostUsd)} / ${formatDurationMs(avgDurationMs ?? 0)}`}
+        </div>
+      </div>
+    );
+  };
+
+  const cliOrder: CliKey[] = ["claude", "codex", "gemini"];
+  const activeClis = cliOrder.filter((cli) => byCliData[cli].length > 0);
+
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <ScatterChart margin={{ left: 0, right: 80, top: showLegend ? 60 : 8, bottom: 32 }}>
+        <CartesianGrid stroke="rgba(15,23,42,0.08)" strokeDasharray="3 3" />
+        <XAxis
+          type="number"
+          dataKey="x"
+          name="Cost"
+          axisLine={{ stroke: "rgba(15,23,42,0.12)" }}
+          tickLine={false}
+          tick={{ ...AXIS_STYLE }}
+          tickFormatter={formatUsdShort}
+          label={{
+            value: "总成本(USD)",
+            position: "insideBottom",
+            offset: -5,
+            style: { ...AXIS_STYLE, fontSize: 10 },
+          }}
+        />
+        <YAxis
+          type="number"
+          dataKey="y"
+          name="Duration"
+          axisLine={false}
+          tickLine={false}
+          tick={{ ...AXIS_STYLE }}
+          tickFormatter={formatDurationMsShort}
+          label={{
+            value: "总耗时",
+            angle: -90,
+            position: "insideLeft",
+            style: { ...AXIS_STYLE, fontSize: 10 },
+          }}
+          width={60}
+        />
+        <ZAxis type="number" dataKey="z" range={[100, 676]} />
+        <Tooltip content={<CustomTooltip />} />
+        {showLegend && (
+          <Legend
+            wrapperStyle={{ paddingTop: 8 }}
+            formatter={(value) => <span style={{ fontSize: 10, color: "#64748b" }}>{value}</span>}
+          />
+        )}
+        {activeClis.map((cli) => (
+          <Scatter
+            key={cli}
+            name={cliShortLabel(cli)}
+            data={byCliData[cli]}
+            fill={SCATTER_COLORS[cli]}
+            fillOpacity={0.85}
+            animationDuration={CHART_ANIMATION.animationDuration}
+          />
+        ))}
+      </ScatterChart>
+    </ResponsiveContainer>
+  );
 }
 
 export function HomeCostPanel() {
@@ -212,9 +479,8 @@ export function HomeCostPanel() {
     return uniq;
   }, [customApplied, period, trendRows]);
 
-  const trendOption = useMemo(() => {
+  const trendChartData = useMemo(() => {
     const isHourly = period === "daily";
-    const color = "#0052FF";
 
     if (isHourly) {
       const byHour = new Map<number, number>();
@@ -222,127 +488,23 @@ export function HomeCostPanel() {
         if (row.hour == null) continue;
         byHour.set(row.hour, Number(row.cost_usd) || 0);
       }
-      const hours = Array.from({ length: 24 }).map((_, h) => h);
-      const x = hours.map((h) => String(h).padStart(2, "0"));
-      const y = hours.map((h) => byHour.get(h) ?? 0);
-
-      return {
-        animation: false,
-        grid: { left: 0, right: 16, top: 8, bottom: 24, containLabel: true },
-        tooltip: {
-          trigger: "axis",
-          confine: true,
-          axisPointer: { type: "line" },
-          valueFormatter: (v: unknown) => formatUsd(Number(v)),
-        },
-        xAxis: {
-          type: "category",
-          data: x,
-          boundaryGap: false,
-          axisLabel: { color: "#64748b", fontSize: 10, interval: 3 },
-          axisLine: { lineStyle: { color: "rgba(15,23,42,0.12)" } },
-          axisTick: { show: false },
-        },
-        yAxis: {
-          type: "value",
-          min: 0,
-          axisLabel: {
-            color: "#64748b",
-            fontSize: 10,
-            formatter: (value: number) => formatUsdShort(value),
-          },
-          axisTick: { show: false },
-          axisLine: { show: false },
-          splitLine: { lineStyle: { color: "rgba(0,82,255,0.10)", type: "dashed" } },
-        },
-        series: [
-          {
-            name: "cost_usd",
-            type: "line",
-            data: y,
-            showSymbol: false,
-            smooth: true,
-            lineStyle: { color, width: 3 },
-            areaStyle: {
-              color: {
-                type: "linear",
-                x: 0,
-                y: 0,
-                x2: 0,
-                y2: 1,
-                colorStops: [
-                  { offset: 0, color: "rgba(0,82,255,0.25)" },
-                  { offset: 1, color: "rgba(0,82,255,0.0)" },
-                ],
-              },
-            },
-          },
-        ],
-      };
+      return Array.from({ length: 24 }).map((_, h) => ({
+        label: String(h).padStart(2, "0"),
+        cost: byHour.get(h) ?? 0,
+      }));
     }
 
     const byDay = new Map<string, number>();
     for (const row of trendRows) {
       byDay.set(row.day, Number(row.cost_usd) || 0);
     }
-    const x = trendDayKeys.map(toMmDd);
-    const y = trendDayKeys.map((d) => byDay.get(d) ?? 0);
-
-    return {
-      animation: false,
-      grid: { left: 0, right: 16, top: 8, bottom: 24, containLabel: true },
-      tooltip: {
-        trigger: "axis",
-        axisPointer: { type: "line" },
-        valueFormatter: (v: unknown) => formatUsd(Number(v)),
-      },
-      xAxis: {
-        type: "category",
-        data: x,
-        boundaryGap: false,
-        axisLabel: { color: "#64748b", fontSize: 10, interval: 2 },
-        axisLine: { lineStyle: { color: "rgba(15,23,42,0.12)" } },
-        axisTick: { show: false },
-      },
-      yAxis: {
-        type: "value",
-        min: 0,
-        axisLabel: {
-          color: "#64748b",
-          fontSize: 10,
-          formatter: (value: number) => formatUsd(value),
-        },
-        axisTick: { show: false },
-        axisLine: { show: false },
-        splitLine: { lineStyle: { color: "rgba(0,82,255,0.10)", type: "dashed" } },
-      },
-      series: [
-        {
-          name: "cost_usd",
-          type: "line",
-          data: y,
-          showSymbol: false,
-          smooth: true,
-          lineStyle: { color, width: 3 },
-          areaStyle: {
-            color: {
-              type: "linear",
-              x: 0,
-              y: 0,
-              x2: 0,
-              y2: 1,
-              colorStops: [
-                { offset: 0, color: "rgba(0,82,255,0.25)" },
-                { offset: 1, color: "rgba(0,82,255,0.0)" },
-              ],
-            },
-          },
-        },
-      ],
-    };
+    return trendDayKeys.map((d) => ({
+      label: toDateLabel(d),
+      cost: byDay.get(d) ?? 0,
+    }));
   }, [period, trendDayKeys, trendRows]);
 
-  const providerDonutOption = useMemo(() => {
+  const providerDonutData = useMemo(() => {
     const filtered = providerRows.filter((row) => row.cost_usd > 0);
     const { head, tailSum } = pickTopSlices(filtered, 7);
     const seriesData = head.map((row) => ({
@@ -352,41 +514,10 @@ export function HomeCostPanel() {
     if (tailSum > 0) seriesData.push({ name: "其他", value: tailSum });
 
     const total = seriesData.reduce((sum, d) => sum + d.value, 0);
-
-    return {
-      animation: false,
-      tooltip: {
-        trigger: "item",
-        confine: true,
-        formatter: (params: any) => {
-          const name = params?.name ?? "";
-          const value = params?.value ?? 0;
-          const percent = params?.percent ?? 0;
-          return `${name}<br/>${formatUsd(value)} (${percent.toFixed(1)}%)`;
-        },
-      },
-      series: [
-        {
-          type: "pie",
-          radius: ["50%", "75%"],
-          avoidLabelOverlap: true,
-          itemStyle: { borderColor: "#fff", borderWidth: 2 },
-          label: {
-            show: true,
-            position: "center",
-            fontSize: 14,
-            fontWeight: 600,
-            color: "#334155",
-            formatter: () => formatUsdShort(total),
-          },
-          labelLine: { show: false },
-          data: seriesData,
-        },
-      ],
-    };
+    return { data: seriesData, total };
   }, [providerRows]);
 
-  const modelDonutOption = useMemo(() => {
+  const modelDonutData = useMemo(() => {
     const filtered = modelRows.filter((row) => row.cost_usd > 0);
     const { head, tailSum } = pickTopSlices(filtered, 7);
     const seriesData = head.map((row) => ({
@@ -396,180 +527,41 @@ export function HomeCostPanel() {
     if (tailSum > 0) seriesData.push({ name: "其他", value: tailSum });
 
     const total = seriesData.reduce((sum, d) => sum + d.value, 0);
-
-    return {
-      animation: false,
-      tooltip: {
-        trigger: "item",
-        confine: true,
-        formatter: (params: any) => {
-          const name = params?.name ?? "";
-          const value = params?.value ?? 0;
-          const percent = params?.percent ?? 0;
-          return `${name}<br/>${formatUsd(value)} (${percent.toFixed(1)}%)`;
-        },
-      },
-      series: [
-        {
-          type: "pie",
-          radius: ["50%", "75%"],
-          avoidLabelOverlap: true,
-          itemStyle: { borderColor: "#fff", borderWidth: 2 },
-          label: {
-            show: true,
-            position: "center",
-            fontSize: 14,
-            fontWeight: 600,
-            color: "#334155",
-            formatter: () => formatUsdShort(total),
-          },
-          labelLine: { show: false },
-          data: seriesData,
-        },
-      ],
-    };
+    return { data: seriesData, total };
   }, [modelRows]);
 
-  const scatterOption = useMemo(() => {
-    type ScatterPoint = {
-      name: string;
-      value: [number, number];
-      meta: CostScatterCliProviderModelRowV1;
-    };
-
-    const symbolSize = (value: [number, number]) => {
-      const costForSizing = value?.[0] ?? 0;
+  const scatterChartData = useMemo<{ data: ScatterPoint[]; showLegend: boolean }>(() => {
+    const symbolSize = (costForSizing: number) => {
       const size = 10 + Math.log10(1 + Math.max(0, costForSizing)) * 10;
       return Math.max(10, Math.min(26, size));
     };
-
-    const buildSeries = (name: string, data: ScatterPoint[]) => ({
-      name,
-      type: "scatter" as const,
-      data,
-      symbolSize,
-      itemStyle: { opacity: 0.85 },
-      emphasis: { focus: "series" as const },
-      label: {
-        show: true,
-        position: "right" as const,
-        fontSize: 9,
-        color: "#64748b",
-        formatter: (params: any) => {
-          const meta = params?.data?.meta;
-          if (!meta) return "";
-          const providerRaw = meta.provider_name?.trim() || "Unknown";
-          const modelRaw = meta.model?.trim() || "Unknown";
-          const providerText = providerRaw === "Unknown" ? "未知" : providerRaw;
-          const modelText = modelRaw === "Unknown" ? "未知" : modelRaw;
-          return `${providerText}\n${modelText}`;
-        },
-      },
-      labelLayout: {
-        hideOverlap: true,
-      },
-    });
 
     const filteredRows =
       scatterCliFilter === "all"
         ? scatterRows
         : scatterRows.filter((row) => row.cli_key === scatterCliFilter);
 
-    const byCli = new Map<CliKey, ScatterPoint[]>();
-    for (const row of filteredRows) {
+    const points: ScatterPoint[] = filteredRows.map((row) => {
       const providerRaw = row.provider_name?.trim() ? row.provider_name.trim() : "Unknown";
       const modelRaw = row.model?.trim() ? row.model.trim() : "Unknown";
       const providerText = providerRaw === "Unknown" ? "未知" : providerRaw;
       const modelText = modelRaw === "Unknown" ? "未知" : modelRaw;
       const cliLabel = cliShortLabel(row.cli_key);
-      const name = `${cliLabel} · ${providerText} · ${modelText}`;
-      const point: ScatterPoint = {
-        name,
-        value: [row.total_cost_usd, row.total_duration_ms],
+
+      return {
+        name: `${cliLabel} · ${providerText} · ${modelText}`,
+        x: row.total_cost_usd,
+        y: row.total_duration_ms,
+        z: symbolSize(row.total_cost_usd),
+        cli: row.cli_key,
         meta: row,
       };
-      const bucket = byCli.get(row.cli_key) ?? [];
-      bucket.push(point);
-      byCli.set(row.cli_key, bucket);
-    }
+    });
 
-    const cliOrder: CliKey[] = ["claude", "codex", "gemini"];
-    const series = cliOrder
-      .map((cli) => ({ cli, points: byCli.get(cli) ?? [] }))
-      .filter((item) => item.points.length > 0)
-      .map((item) => buildSeries(cliShortLabel(item.cli), item.points));
+    const uniqueClis = new Set(points.map((p) => p.cli));
+    const showLegend = uniqueClis.size > 1;
 
-    const showLegend = series.length > 1;
-    const gridTop = showLegend ? 60 : 8;
-
-    return {
-      animation: false,
-      ...(showLegend
-        ? {
-            legend: {
-              type: "plain",
-              top: 4,
-              left: 0,
-              itemWidth: 10,
-              itemHeight: 10,
-              itemGap: 16,
-              textStyle: { color: "#64748b", fontSize: 10 },
-            },
-          }
-        : {}),
-      grid: { left: 0, right: 80, top: gridTop, bottom: 32, containLabel: true },
-      tooltip: {
-        trigger: "item",
-        confine: true,
-        formatter: (params: any) => {
-          const meta: CostScatterCliProviderModelRowV1 | undefined = params?.data?.meta;
-          if (!meta) return "";
-          const cliLabel = cliShortLabel(meta.cli_key);
-          const providerRaw = meta.provider_name?.trim() ? meta.provider_name.trim() : "Unknown";
-          const modelRaw = meta.model?.trim() ? meta.model.trim() : "Unknown";
-          const providerText = providerRaw === "Unknown" ? "未知" : providerRaw;
-          const modelText = modelRaw === "Unknown" ? "未知" : modelRaw;
-          const requests = Number.isFinite(meta.requests_success)
-            ? Math.max(0, meta.requests_success)
-            : 0;
-          const avgCostUsd = requests > 0 ? meta.total_cost_usd / requests : null;
-          const avgDurationMs = requests > 0 ? meta.total_duration_ms / requests : null;
-          return [
-            `<div style="font-size:12px;font-weight:600;margin-bottom:4px;">${cliLabel} · ${providerText} · ${modelText}</div>`,
-            `<div style="font-size:11px;color:#64748b;">总成本：${formatUsd(meta.total_cost_usd)}</div>`,
-            `<div style="font-size:11px;color:#64748b;">总耗时：${formatDurationMs(meta.total_duration_ms)}</div>`,
-            `<div style="font-size:11px;color:#64748b;">请求数：${formatInteger(requests)}</div>`,
-            avgCostUsd == null
-              ? `<div style="font-size:11px;color:#94a3b8;">均值：—</div>`
-              : `<div style="font-size:11px;color:#94a3b8;">均值：${formatUsd(avgCostUsd)} / ${formatDurationMs(avgDurationMs ?? 0)}</div>`,
-          ].join("");
-        },
-      },
-      xAxis: {
-        type: "value",
-        name: "总成本(USD)",
-        axisLabel: {
-          color: "#64748b",
-          fontSize: 10,
-          formatter: (value: number) => formatUsdShort(value),
-        },
-        axisPointer: {
-          label: { formatter: (p: any) => formatUsd(Number(p?.value)) },
-        },
-        splitLine: { lineStyle: { color: "rgba(15,23,42,0.08)", type: "dashed" } },
-      },
-      yAxis: {
-        type: "value",
-        name: "总耗时",
-        axisLabel: {
-          color: "#64748b",
-          fontSize: 10,
-          formatter: (value: number) => formatDurationMsShort(value),
-        },
-        splitLine: { lineStyle: { color: "rgba(15,23,42,0.08)", type: "dashed" } },
-      },
-      series,
-    };
+    return { data: points, showLegend };
   }, [scatterCliFilter, scatterRows]);
 
   const summaryCards = useMemo(() => {
@@ -584,6 +576,7 @@ export function HomeCostPanel() {
         title: "总花费（已计算）",
         value: formatUsd(summary.total_cost_usd),
         hint: successHint,
+        testId: "home-cost-total-cost",
       },
       {
         title: "成本覆盖率",
@@ -591,6 +584,7 @@ export function HomeCostPanel() {
         hint: `${formatInteger(summary.cost_covered_success)} / ${formatInteger(
           summary.requests_success
         )} 成功请求有成本`,
+        testId: "home-cost-coverage",
       },
     ];
   }, [coverage, summary]);
@@ -858,7 +852,13 @@ export function HomeCostPanel() {
           ) : (
             <div className="grid grid-cols-2 gap-3">
               {summaryCards.map((card) => (
-                <StatCard key={card.title} title={card.title} value={card.value} hint={card.hint} />
+                <StatCard
+                  key={card.title}
+                  title={card.title}
+                  value={card.value}
+                  hint={card.hint}
+                  data-testid={card.testId}
+                />
               ))}
             </div>
           )}
@@ -892,7 +892,11 @@ export function HomeCostPanel() {
       ) : null}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        <Card padding="sm" className="lg:col-span-7 flex flex-col min-h-[280px]">
+        <Card
+          padding="sm"
+          className="lg:col-span-7 flex flex-col min-h-[280px]"
+          data-testid="home-cost-trend-chart"
+        >
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-baseline gap-2">
               <span className="text-sm font-semibold text-slate-900">总花费趋势</span>
@@ -924,15 +928,19 @@ export function HomeCostPanel() {
           {loading ? (
             <div className="text-sm text-slate-400">加载中…</div>
           ) : summary && summary.requests_success > 0 ? (
-            <div className="min-h-0 flex-1">
-              <EChartsCanvas option={trendOption as any} className="h-full" />
+            <div className="h-[220px] flex-1">
+              <TrendAreaChart data={trendChartData} isHourly={period === "daily"} />
             </div>
           ) : (
             <div className="text-sm text-slate-600">暂无可展示的数据。</div>
           )}
         </Card>
 
-        <Card padding="sm" className="lg:col-span-5 flex flex-col min-h-[180px]">
+        <Card
+          padding="sm"
+          className="lg:col-span-5 flex flex-col min-h-[180px]"
+          data-testid="home-cost-donut-charts"
+        >
           <div className="mb-2 flex items-center justify-between gap-3">
             <div className="text-sm font-semibold text-slate-900">花费占比</div>
             <div className="text-xs text-slate-500">供应商 / 模型</div>
@@ -940,17 +948,17 @@ export function HomeCostPanel() {
           {loading ? (
             <div className="text-sm text-slate-400">加载中…</div>
           ) : (
-            <div className="grid grid-cols-2 gap-4 min-h-0 flex-1">
+            <div className="grid grid-cols-2 gap-4 flex-1">
               <div className="flex flex-col">
                 <div className="text-xs font-medium text-slate-600 mb-1">供应商</div>
-                <div className="min-h-[140px] flex-1">
-                  <EChartsCanvas option={providerDonutOption as any} className="h-full" />
+                <div className="h-[160px]">
+                  <DonutChart data={providerDonutData.data} total={providerDonutData.total} />
                 </div>
               </div>
               <div className="flex flex-col">
                 <div className="text-xs font-medium text-slate-600 mb-1">模型</div>
-                <div className="min-h-[140px] flex-1">
-                  <EChartsCanvas option={modelDonutOption as any} className="h-full" />
+                <div className="h-[160px]">
+                  <DonutChart data={modelDonutData.data} total={modelDonutData.total} />
                 </div>
               </div>
             </div>
@@ -958,7 +966,11 @@ export function HomeCostPanel() {
         </Card>
       </div>
 
-      <Card padding="sm" className="flex flex-col min-h-[320px]">
+      <Card
+        padding="sm"
+        className="flex flex-col min-h-[320px]"
+        data-testid="home-cost-scatter-chart"
+      >
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <div className="text-sm font-semibold text-slate-900">总成本 × 总耗时</div>
           <div className="flex items-center gap-1">
@@ -986,7 +998,10 @@ export function HomeCostPanel() {
           <div className="text-sm text-slate-600">暂无可展示的数据。</div>
         ) : (
           <div className="h-[320px] flex-1 min-h-0">
-            <EChartsCanvas option={scatterOption as any} className="h-full" />
+            <CostScatterChart
+              data={scatterChartData.data}
+              showLegend={scatterChartData.showLegend}
+            />
           </div>
         )}
       </Card>

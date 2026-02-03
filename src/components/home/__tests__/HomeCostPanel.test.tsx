@@ -8,14 +8,18 @@ import { HomeCostPanel } from "../HomeCostPanel";
 
 vi.mock("sonner", () => ({ toast: vi.fn() }));
 
-const chartOptions: any[] = [];
-
-vi.mock("../../charts/EChartsCanvas", () => ({
-  EChartsCanvas: ({ option }: any) => {
-    chartOptions.push(option);
-    return <div data-testid="echarts" />;
-  },
-}));
+// Mock recharts ResponsiveContainer to avoid resize observer issues in tests
+vi.mock("recharts", async () => {
+  const actual = await vi.importActual<typeof import("recharts")>("recharts");
+  return {
+    ...actual,
+    ResponsiveContainer: ({ children }: { children: React.ReactNode }) => (
+      <div data-testid="recharts-responsive-container" style={{ width: 400, height: 300 }}>
+        {children}
+      </div>
+    ),
+  };
+});
 
 vi.mock("../../../hooks/useCustomDateRange", async () => {
   const actual = await vi.importActual<typeof import("../../../hooks/useCustomDateRange")>(
@@ -35,7 +39,6 @@ vi.mock("../../../query/cost", async () => {
 describe("components/home/HomeCostPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    chartOptions.length = 0;
   });
 
   it("renders with data and shows summary + charts", () => {
@@ -144,7 +147,8 @@ describe("components/home/HomeCostPanel", () => {
     expect(screen.getByText("总花费（已计算）")).toBeInTheDocument();
     expect(screen.getByText("成本覆盖率")).toBeInTheDocument();
     expect(screen.getByText("花费占比")).toBeInTheDocument();
-    expect(screen.getAllByTestId("echarts").length).toBeGreaterThanOrEqual(4);
+    // Check that recharts containers are rendered (we mock ResponsiveContainer)
+    expect(screen.getAllByTestId("recharts-responsive-container").length).toBeGreaterThanOrEqual(3);
   });
 
   it("drives filter controls and triggers refetch", () => {
@@ -393,7 +397,7 @@ describe("components/home/HomeCostPanel", () => {
     expect(document.querySelectorAll(".animate-pulse").length).toBe(2);
   });
 
-  it("executes chart formatters for branch/function coverage", async () => {
+  it("renders charts with various data scenarios", async () => {
     setTauriRuntime();
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-01-03T00:00:00Z"));
@@ -404,6 +408,8 @@ describe("components/home/HomeCostPanel", () => {
           ? {
               startTs: Math.floor(new Date("2026-01-01T00:00:00Z").getTime() / 1000),
               endTs: Math.floor(new Date("2026-01-03T00:00:00Z").getTime() / 1000) + 1,
+              startDate: "2026-01-01",
+              endDate: "2026-01-03",
             }
           : null;
       return {
@@ -506,72 +512,10 @@ describe("components/home/HomeCostPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "本月" }));
     fireEvent.click(screen.getByRole("button", { name: "自定义" }));
 
-    const hourlyLineOption = chartOptions.find(
-      (o) => o?.series?.[0]?.type === "line" && o?.xAxis?.axisLabel?.interval === 3
-    );
-    expect(hourlyLineOption).toBeTruthy();
-    hourlyLineOption.tooltip.valueFormatter(1.23);
-    hourlyLineOption.yAxis.axisLabel.formatter(12.3);
-
-    const dailyLineOption = chartOptions.find(
-      (o) => o?.series?.[0]?.type === "line" && o?.xAxis?.axisLabel?.interval === 2
-    );
-    expect(dailyLineOption).toBeTruthy();
-    dailyLineOption.tooltip.valueFormatter(1.23);
-    dailyLineOption.yAxis.axisLabel.formatter(12.3);
-
-    const pieOptions = chartOptions.filter((o) => o?.series?.[0]?.type === "pie");
-    expect(pieOptions.length).toBeGreaterThan(0);
-    for (const opt of pieOptions) {
-      opt.tooltip.formatter({ name: "X", value: 1.2, percent: 50 });
-      opt.series[0].label.formatter();
-    }
-
-    const scatterOption = chartOptions.find((o) => o?.series?.[0]?.type === "scatter");
-    expect(scatterOption).toBeTruthy();
-    scatterOption.series[0].symbolSize([0, 0]);
-    scatterOption.series[0].label.formatter({ data: {} });
-    scatterOption.series[0].label.formatter({ data: { meta: { provider_name: "", model: "" } } });
-    scatterOption.tooltip.formatter({ data: {} });
-    scatterOption.tooltip.formatter({
-      data: {
-        meta: {
-          cli_key: "claude",
-          provider_name: "P1",
-          model: "M1",
-          requests_success: 0,
-          total_cost_usd: 1,
-          total_duration_ms: 1,
-        },
-      },
-    });
-    scatterOption.tooltip.formatter({
-      data: {
-        meta: {
-          cli_key: "claude",
-          provider_name: "P1",
-          model: "M1",
-          requests_success: 2,
-          total_cost_usd: 10,
-          total_duration_ms: 1000,
-        },
-      },
-    });
-    scatterOption.tooltip.formatter({
-      data: {
-        meta: {
-          cli_key: "claude",
-          provider_name: "  ",
-          model: "",
-          requests_success: Infinity,
-          total_cost_usd: 10,
-          total_duration_ms: 1000,
-        },
-      },
-    });
-    scatterOption.xAxis.axisLabel.formatter(1.23);
-    scatterOption.xAxis.axisPointer.label.formatter({ value: 1 });
-    scatterOption.yAxis.axisLabel.formatter(1000);
+    // Verify charts are rendered
+    expect(screen.getByTestId("home-cost-trend-chart")).toBeInTheDocument();
+    expect(screen.getByTestId("home-cost-donut-charts")).toBeInTheDocument();
+    expect(screen.getByTestId("home-cost-scatter-chart")).toBeInTheDocument();
 
     vi.useRealTimers();
   });

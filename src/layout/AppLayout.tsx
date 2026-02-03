@@ -8,7 +8,7 @@ export function AppLayout() {
       <div className="flex min-h-screen">
         <Sidebar />
 
-        <div className="min-w-0 flex-1 bg-slate-50">
+        <div className="min-w-0 flex-1 bg-grid-pattern">
           <main className="px-6 py-5">
             <Outlet />
           </main>

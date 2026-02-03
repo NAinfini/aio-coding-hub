@@ -1,61 +1,29 @@
-import { useEffect, useMemo, useRef } from "react";
-import type { ECharts, EChartsOption } from "echarts";
+import { useMemo } from "react";
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+} from "recharts";
 import type { UsageHourlyRow } from "../services/usage";
 import { cn } from "../utils/cn";
 import { buildRecentDayKeys } from "../utils/dateKeys";
+import { formatTokensMillions, computeNiceYAxis, toDateLabel } from "../utils/chartHelpers";
+import {
+  CHART_COLORS,
+  AXIS_STYLE,
+  GRID_LINE_STYLE,
+  TOOLTIP_STYLE,
+  CHART_ANIMATION,
+} from "./charts/chartTheme";
 
-function formatTokensMillions(value: number) {
-  if (!Number.isFinite(value) || value === 0) return "0";
-  const millions = value / 1_000_000;
-  if (millions >= 1) {
-    return `${millions.toFixed(1)}M`;
-  }
-  if (value >= 1000) {
-    return `${(value / 1000).toFixed(1)}K`;
-  }
-  return String(Math.round(value));
-}
-
-/**
- * 计算"漂亮"的 Y 轴上限，使刻度间隔固定且易读
- * 返回 { max, interval } 以确保 Y 轴刻度均匀分布
- */
-function computeNiceYAxis(maxValue: number, tickCount = 5): { max: number; interval: number } {
-  if (maxValue <= 0) {
-    return { max: 1_000_000, interval: 200_000 };
-  }
-
-  // 计算粗略的间隔
-  const roughInterval = maxValue / tickCount;
-
-  // 计算数量级
-  const magnitude = Math.pow(10, Math.floor(Math.log10(roughInterval)));
-
-  // 选择一个"漂亮"的间隔倍数：1, 2, 2.5, 5, 10
-  const normalized = roughInterval / magnitude;
-  let niceMultiplier: number;
-  if (normalized <= 1) {
-    niceMultiplier = 1;
-  } else if (normalized <= 2) {
-    niceMultiplier = 2;
-  } else if (normalized <= 2.5) {
-    niceMultiplier = 2.5;
-  } else if (normalized <= 5) {
-    niceMultiplier = 5;
-  } else {
-    niceMultiplier = 10;
-  }
-
-  const niceInterval = niceMultiplier * magnitude;
-  const niceMax = Math.ceil(maxValue / niceInterval) * niceInterval;
-
-  return { max: niceMax, interval: niceInterval };
-}
-
-function toDateLabel(dayKey: string) {
-  const mmdd = dayKey.slice(5);
-  return mmdd.replace("-", "/");
-}
+type ChartDataPoint = {
+  label: string;
+  tokens: number;
+};
 
 export function UsageTokensChart({
   rows,
@@ -66,10 +34,6 @@ export function UsageTokensChart({
   days?: number;
   className?: string;
 }) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const chartRef = useRef<ECharts | null>(null);
-  const optionRef = useRef<EChartsOption | null>(null);
-
   const dayKeys = useMemo(() => buildRecentDayKeys(days), [days]);
 
   const tokensByDay = useMemo(() => {
@@ -84,117 +48,79 @@ export function UsageTokensChart({
     return map;
   }, [rows]);
 
-  const seriesData = useMemo(() => {
-    return dayKeys.map((day) => tokensByDay.get(day) ?? 0);
+  const chartData = useMemo<ChartDataPoint[]>(() => {
+    return dayKeys.map((day) => ({
+      label: toDateLabel(day),
+      tokens: tokensByDay.get(day) ?? 0,
+    }));
   }, [dayKeys, tokensByDay]);
 
-  const option = useMemo(() => {
-    const xLabels = dayKeys.map(toDateLabel);
-    const maxY = Math.max(0, ...seriesData);
-    const { max: yMax, interval: yInterval } = computeNiceYAxis(maxY, 5);
-    const lineColor = "#0052FF";
-    const gridLine = "rgba(0,82,255,0.15)";
+  const yAxisConfig = useMemo(() => {
+    const maxY = Math.max(0, ...chartData.map((d) => d.tokens));
+    return computeNiceYAxis(maxY, 5);
+  }, [chartData]);
 
-    const opt: EChartsOption = {
-      animation: false,
-      grid: { left: 0, right: 16, top: 8, bottom: 24, containLabel: true },
-      tooltip: {
-        trigger: "axis",
-        axisPointer: { type: "line" },
-        valueFormatter: (value) => formatTokensMillions(Number(value)),
-      },
-      xAxis: {
-        type: "category",
-        data: xLabels,
-        boundaryGap: false,
-        axisLabel: { color: "#64748b", fontSize: 10, interval: 2 },
-        axisLine: { lineStyle: { color: "rgba(15,23,42,0.12)" } },
-        axisTick: { show: false },
-      },
-      yAxis: {
-        type: "value",
-        min: 0,
-        max: yMax,
-        interval: yInterval,
-        axisLabel: {
-          color: "#64748b",
-          fontSize: 10,
-          formatter: (value: number) => formatTokensMillions(value),
-        },
-        axisTick: { show: false },
-        axisLine: { show: false },
-        splitLine: { lineStyle: { color: gridLine, type: "dashed" } },
-      },
-      series: [
-        {
-          name: "total_tokens",
-          type: "line",
-          data: seriesData,
-          showSymbol: false,
-          smooth: true,
-          lineStyle: { color: lineColor, width: 3 },
-          areaStyle: {
-            color: {
-              type: "linear",
-              x: 0,
-              y: 0,
-              x2: 0,
-              y2: 1,
-              colorStops: [
-                { offset: 0, color: "rgba(0,82,255,0.25)" },
-                { offset: 1, color: "rgba(0,82,255,0.0)" },
-              ],
-            },
-          },
-          emphasis: { focus: "series" },
-        },
-      ],
-    };
-
-    return opt;
-  }, [dayKeys, seriesData]);
-
-  useEffect(() => {
-    optionRef.current = option;
-    const chart = chartRef.current;
-    if (chart) {
-      chart.setOption(option, { notMerge: true, lazyUpdate: true });
+  const tickValues = useMemo(() => {
+    const ticks: number[] = [];
+    for (let v = 0; v <= yAxisConfig.max; v += yAxisConfig.interval) {
+      ticks.push(v);
     }
-  }, [option]);
+    return ticks;
+  }, [yAxisConfig]);
 
-  useEffect(() => {
-    let disposed = false;
-    let observer: ResizeObserver | null = null;
-    let chart: ECharts | null = null;
+  // Generate ticks for x-axis (every 3rd item for readability)
+  const xAxisTicks = useMemo(() => {
+    return chartData.filter((_, i) => i % 3 === 0).map((d) => d.label);
+  }, [chartData]);
 
-    const load = async () => {
-      const el = containerRef.current;
-      if (!el) return;
-
-      const echarts = await import("echarts");
-      if (disposed) return;
-
-      chart = echarts.init(el, undefined, { renderer: "canvas" });
-      chartRef.current = chart;
-      if (optionRef.current) {
-        chart.setOption(optionRef.current, { notMerge: true, lazyUpdate: true });
-      }
-
-      observer = new ResizeObserver(() => {
-        chart?.resize();
-      });
-      observer.observe(el);
-    };
-
-    void load().catch(() => {});
-
-    return () => {
-      disposed = true;
-      observer?.disconnect();
-      chartRef.current = null;
-      chart?.dispose();
-    };
-  }, []);
-
-  return <div ref={containerRef} className={cn("h-full w-full", className)} />;
+  return (
+    <div className={cn("h-full w-full", className)}>
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={chartData} margin={{ left: 0, right: 16, top: 8, bottom: 0 }}>
+          <defs>
+            <linearGradient id="tokenAreaGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={CHART_COLORS.primary} stopOpacity={0.25} />
+              <stop offset="100%" stopColor={CHART_COLORS.primary} stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid
+            vertical={false}
+            stroke={GRID_LINE_STYLE.stroke}
+            strokeDasharray={GRID_LINE_STYLE.strokeDasharray}
+          />
+          <XAxis
+            dataKey="label"
+            axisLine={{ stroke: "rgba(15,23,42,0.12)" }}
+            tickLine={false}
+            tick={{ ...AXIS_STYLE }}
+            ticks={xAxisTicks}
+            interval="preserveStartEnd"
+          />
+          <YAxis
+            domain={[0, yAxisConfig.max]}
+            ticks={tickValues}
+            axisLine={false}
+            tickLine={false}
+            tick={{ ...AXIS_STYLE }}
+            tickFormatter={formatTokensMillions}
+            width={45}
+          />
+          <Tooltip
+            contentStyle={TOOLTIP_STYLE}
+            labelStyle={{ fontWeight: 600, marginBottom: 4 }}
+            formatter={(value: number) => [formatTokensMillions(value), "Tokens"]}
+            cursor={{ stroke: "rgba(0,82,255,0.15)", strokeWidth: 1 }}
+          />
+          <Area
+            type="monotone"
+            dataKey="tokens"
+            stroke={CHART_COLORS.primary}
+            strokeWidth={3}
+            fill="url(#tokenAreaGradient)"
+            animationDuration={CHART_ANIMATION.animationDuration}
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
 }

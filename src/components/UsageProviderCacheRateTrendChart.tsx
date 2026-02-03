@@ -1,12 +1,44 @@
 import { useMemo } from "react";
-import type { EChartsOption } from "echarts";
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Legend,
+  ReferenceArea,
+  ReferenceLine,
+} from "recharts";
 import type { CustomDateRangeApplied } from "../hooks/useCustomDateRange";
 import type { UsagePeriod, UsageProviderCacheRateTrendRowV1 } from "../services/usage";
 import { cn } from "../utils/cn";
 import { buildRecentDayKeys, dayKeyFromLocalDate } from "../utils/dateKeys";
 import { parseYyyyMmDd } from "../utils/localDate";
 import { formatInteger, formatPercent } from "../utils/formatters";
-import { EChartsCanvas } from "./charts/EChartsCanvas";
+import {
+  pickPaletteColor,
+  AXIS_STYLE,
+  GRID_LINE_STYLE,
+  TOOLTIP_STYLE,
+  LEGEND_STYLE,
+  CHART_ANIMATION,
+  THRESHOLD_COLORS,
+} from "./charts/chartTheme";
+
+const WARN_THRESHOLD = 0.6;
+
+type ChartDataPoint = {
+  label: string;
+  [provider: string]: string | number | PointMeta | undefined;
+};
+
+type PointMeta = {
+  denomTokens: number;
+  cacheReadTokens: number;
+  requestsSuccess: number;
+};
 
 function toMmDd(dayKey: string) {
   const mmdd = dayKey.slice(5);
@@ -49,46 +81,17 @@ function buildMonthKeysFromData(rows: UsageProviderCacheRateTrendRowV1[]): strin
   const set = new Set<string>();
   for (const row of rows) {
     if (!row.day) continue;
-    // AllTime 聚合会返回 YYYY-MM
     if (/^\d{4}-\d{2}$/.test(row.day)) set.add(row.day);
   }
   return Array.from(set).sort();
 }
 
-type PointMeta = {
-  denomTokens: number;
-  cacheReadTokens: number;
-  requestsSuccess: number;
+type ProviderSeries = {
+  key: string;
+  name: string;
+  color: string;
+  totalDenomTokens: number;
 };
-
-const WARN_THRESHOLD = 0.6;
-
-function pickPaletteColor(index: number): string {
-  const palette = [
-    "#0052FF",
-    "#7C3AED",
-    "#16A34A",
-    "#F97316",
-    "#DC2626",
-    "#0EA5E9",
-    "#9333EA",
-    "#059669",
-    "#EA580C",
-    "#B91C1C",
-  ];
-  if (index < palette.length) return palette[index] ?? "#0052FF";
-
-  const hue = (index * 137.508) % 360;
-  return `hsl(${hue} 70% 45%)`;
-}
-
-function escapeHtml(input: string): string {
-  return input
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
 
 export function UsageProviderCacheRateTrendChart({
   rows,
@@ -101,7 +104,7 @@ export function UsageProviderCacheRateTrendChart({
   customApplied: CustomDateRangeApplied | null;
   className?: string;
 }) {
-  const option = useMemo(() => {
+  const { xLabels, chartData, providers, warnRanges, yAxisRange } = useMemo(() => {
     const isHourly = period === "daily";
     const isAllTime = period === "allTime";
 
@@ -160,53 +163,54 @@ export function UsageProviderCacheRateTrendChart({
       byProvider.set(key, provider);
     }
 
-    const providers = Array.from(byProvider.entries())
+    const providers: ProviderSeries[] = Array.from(byProvider.entries())
       .map(([key, value]) => ({ key, ...value }))
-      .sort((a, b) => b.totalDenomTokens - a.totalDenomTokens);
+      .sort((a, b) => b.totalDenomTokens - a.totalDenomTokens)
+      .map((provider, idx) => ({
+        key: provider.key,
+        name: provider.name,
+        color: pickPaletteColor(idx),
+        totalDenomTokens: provider.totalDenomTokens,
+      }));
 
-    const warnAtX = Array.from({ length: xKeys.length }).fill(false) as boolean[];
+    const warnAtX: boolean[] = Array.from({ length: xKeys.length }, () => false);
     let globalMin = Number.POSITIVE_INFINITY;
     let globalMax = Number.NEGATIVE_INFINITY;
 
-    const series = providers.map((provider, idx) => {
-      const color = pickPaletteColor(idx);
+    const chartData: ChartDataPoint[] = xLabels.map((label, xIndex) => {
+      const xKey = xKeys[xIndex]!;
+      const point: ChartDataPoint = { label };
 
-      const data = xKeys.map((xKey, xIndex) => {
-        const row = provider.points.get(xKey);
-        if (!row) return null;
+      providers.forEach((provider) => {
+        const providerData = byProvider.get(provider.key);
+        const row = providerData?.points.get(xKey);
+        if (!row) return;
 
         const denom = Number(row.denom_tokens) || 0;
         const read = Number(row.cache_read_input_tokens) || 0;
         const ok = Number(row.requests_success) || 0;
-        if (!Number.isFinite(denom) || denom <= 0) return null;
+        if (!Number.isFinite(denom) || denom <= 0) return;
 
         const rateRaw = read / denom;
-        if (!Number.isFinite(rateRaw)) return null;
+        if (!Number.isFinite(rateRaw)) return;
 
         const value = Math.max(0, Math.min(1, rateRaw));
         globalMin = Math.min(globalMin, value);
         globalMax = Math.max(globalMax, value);
         if (value < WARN_THRESHOLD) warnAtX[xIndex] = true;
 
-        return {
-          value,
+        point[provider.key] = value;
+        point[`${provider.key}_meta`] = {
           denomTokens: denom,
           cacheReadTokens: read,
           requestsSuccess: ok,
         };
       });
 
-      return {
-        name: provider.name,
-        type: "line",
-        data,
-        showSymbol: false,
-        smooth: true,
-        lineStyle: { color, width: providers.length > 25 ? 1.5 : 2 },
-        emphasis: { focus: "series" },
-      };
+      return point;
     });
 
+    // Compute Y-axis range
     const yAxisRange = (() => {
       if (!Number.isFinite(globalMin) || !Number.isFinite(globalMax)) {
         return { min: 0, max: 1, interval: 0.1 };
@@ -225,12 +229,9 @@ export function UsageProviderCacheRateTrendChart({
       }
 
       const nextSpan = max - min;
-      const interval = (() => {
-        // Use fixed, "percent-friendly" steps (divides 1.0) to avoid uneven last tick spacing.
-        const steps = [0.01, 0.02, 0.05, 0.1];
-        const maxTicks = 10;
-        return steps.find((step) => Math.ceil(nextSpan / step) <= maxTicks) ?? 0.1;
-      })();
+      const steps = [0.01, 0.02, 0.05, 0.1];
+      const maxTicks = 10;
+      const interval = steps.find((step) => Math.ceil(nextSpan / step) <= maxTicks) ?? 0.1;
 
       min = Math.floor(min / interval) * interval;
       max = Math.ceil(max / interval) * interval;
@@ -249,171 +250,211 @@ export function UsageProviderCacheRateTrendChart({
       };
     })();
 
-    const warnRanges = (() => {
-      if (xLabels.length === 0) return [];
-
-      const ranges: Array<[number, number]> = [];
-      let start: number | null = null;
-      for (let i = 0; i < warnAtX.length; i += 1) {
-        if (warnAtX[i]) {
-          if (start == null) start = i;
-          continue;
-        }
-        if (start != null) {
-          ranges.push([start, i - 1]);
-          start = null;
-        }
+    // Compute warning ranges
+    const warnRanges: Array<{ x1: string; x2: string }> = [];
+    let start: number | null = null;
+    for (let i = 0; i < warnAtX.length; i += 1) {
+      if (warnAtX[i]) {
+        if (start == null) start = i;
+        continue;
       }
-      if (start != null) ranges.push([start, warnAtX.length - 1]);
+      if (start != null) {
+        warnRanges.push({ x1: xLabels[start]!, x2: xLabels[i - 1]! });
+        start = null;
+      }
+    }
+    if (start != null) {
+      warnRanges.push({ x1: xLabels[start]!, x2: xLabels[warnAtX.length - 1]! });
+    }
 
-      return ranges
-        .filter(([from, to]) => xLabels[from] != null && xLabels[to] != null)
-        .map(([from, to]) => [{ xAxis: xLabels[from]! }, { xAxis: xLabels[to]! }]);
-    })();
-
-    const warnOverlaySeries = {
-      name: "__warn_threshold_60__",
-      type: "line",
-      data: xLabels.map(() => WARN_THRESHOLD),
-      symbol: "none",
-      showSymbol: false,
-      silent: true,
-      lineStyle: { color: "rgba(220,38,38,0.70)", width: 1, type: "dashed" },
-      tooltip: { show: false },
-      emphasis: { disabled: true },
-      ...(warnRanges.length > 0
-        ? {
-            markArea: {
-              silent: true,
-              itemStyle: { color: "rgba(220,38,38,0.06)" },
-              data: warnRanges,
-            },
-          }
-        : null),
-    };
-
-    const allSeries = [warnOverlaySeries, ...series];
-
-    const opt: EChartsOption = {
-      animation: false,
-      color: providers.map((_, idx) => pickPaletteColor(idx)),
-      grid: { left: 0, right: 16, top: 56, bottom: 24, containLabel: true },
-      legend: {
-        type: "scroll",
-        top: 8,
-        left: 0,
-        right: 16,
-        data: providers.map((provider) => provider.name),
-        textStyle: { color: "#475569", fontSize: 11 },
-      },
-      tooltip: {
-        trigger: "axis",
-        confine: true,
-        axisPointer: { type: "line" },
-        formatter: (params) => {
-          const list = Array.isArray(params) ? params : [params];
-          const first = list[0] as any;
-          const axis = String(first?.axisValueLabel ?? first?.axisValue ?? first?.name ?? "");
-
-          const lines: string[] = [];
-          lines.push(`<div style=\"margin-bottom:6px;font-weight:600;\">${axis}</div>`);
-
-          const items = list
-            .map((item) => {
-              const d = (item as any)?.data as (PointMeta & { value: number }) | null;
-              const v = d?.value;
-              if (v == null || !Number.isFinite(v)) return null;
-
-              const name = String((item as any)?.seriesName ?? "");
-              const color = String((item as any)?.color ?? "#0052FF");
-
-              return {
-                name,
-                color,
-                value: v,
-                denomTokens: Number(d?.denomTokens) || 0,
-                cacheReadTokens: Number(d?.cacheReadTokens) || 0,
-                requestsSuccess: Number(d?.requestsSuccess) || 0,
-              };
-            })
-            .filter((v): v is NonNullable<typeof v> => v != null);
-
-          const warnItems = items
-            .filter((item) => item.value < WARN_THRESHOLD)
-            .sort((a, b) => a.value - b.value);
-          const okItems = items
-            .filter((item) => item.value >= WARN_THRESHOLD)
-            .sort((a, b) => b.denomTokens - a.denomTokens);
-
-          const MAX_ITEMS = 12;
-          const renderItems = warnItems.length > 0 ? warnItems : okItems;
-          const sliced = renderItems.slice(0, MAX_ITEMS);
-          const hidden = renderItems.length - sliced.length;
-
-          if (warnItems.length > 0) {
-            lines.push(
-              `<div style=\"margin-bottom:6px;color:#b91c1c;\">预警（<60%）: ${warnItems.length}</div>`
-            );
-          } else {
-            lines.push(
-              `<div style=\"margin-bottom:6px;color:#64748b;\">供应商: ${items.length}</div>`
-            );
-          }
-
-          for (const item of sliced) {
-            const name = escapeHtml(item.name);
-            const color = escapeHtml(item.color);
-            const isWarn = item.value < WARN_THRESHOLD;
-            const valueColor = isWarn ? "#b91c1c" : "#0f172a";
-
-            lines.push(
-              `<div style=\"display:flex;align-items:center;gap:8px;\">\n` +
-                `  <span style=\"display:inline-block;width:8px;height:8px;border-radius:999px;background:${color};\"></span>\n` +
-                `  <span style=\"flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;\">${name}</span>\n` +
-                `  <span style=\"font-variant-numeric:tabular-nums;color:${valueColor};\">${formatPercent(item.value, 2)}</span>\n` +
-                `</div>` +
-                `<div style=\"margin:2px 0 8px 16px;color:#64748b;font-size:11px;\">\n` +
-                `  denom ${formatInteger(item.denomTokens)} · read ${formatInteger(item.cacheReadTokens)} · ok ${formatInteger(item.requestsSuccess)}\n` +
-                `</div>`
-            );
-          }
-
-          if (hidden > 0) {
-            lines.push(
-              `<div style=\"margin-top:4px;color:#64748b;\">… +${hidden}（可通过 legend 过滤）</div>`
-            );
-          }
-
-          return lines.join("");
-        },
-      },
-      xAxis: {
-        type: "category",
-        data: xLabels,
-        boundaryGap: false,
-        axisLabel: { color: "#64748b", fontSize: 10, interval: isHourly ? 1 : 2 },
-        axisLine: { lineStyle: { color: "rgba(15,23,42,0.12)" } },
-        axisTick: { show: false },
-      },
-      yAxis: {
-        type: "value",
-        min: yAxisRange.min,
-        max: yAxisRange.max,
-        interval: yAxisRange.interval,
-        axisLabel: {
-          color: "#64748b",
-          fontSize: 10,
-          formatter: (v: number) => formatPercent(v, 0),
-        },
-        axisTick: { show: false },
-        axisLine: { show: false },
-        splitLine: { lineStyle: { color: "rgba(0,82,255,0.10)", type: "dashed" } },
-      },
-      series: allSeries as any,
-    };
-
-    return opt;
+    return { xKeys, xLabels, chartData, providers, warnRanges, yAxisRange };
   }, [customApplied, period, rows]);
 
-  return <EChartsCanvas option={option} className={cn("h-full w-full", className)} />;
+  const yAxisTicks = useMemo(() => {
+    const ticks: number[] = [];
+    for (let v = yAxisRange.min; v <= yAxisRange.max; v += yAxisRange.interval) {
+      ticks.push(Math.round(v * 100) / 100);
+    }
+    return ticks;
+  }, [yAxisRange]);
+
+  const xAxisTicks = useMemo(() => {
+    const isHourly = period === "daily";
+    const interval = isHourly ? 2 : 3;
+    return xLabels.filter((_, i) => i % interval === 0);
+  }, [xLabels, period]);
+
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (!active || !payload || payload.length === 0) return null;
+
+    const items = payload
+      .map((entry: any) => {
+        const providerKey = entry.dataKey;
+        const meta = entry.payload[`${providerKey}_meta`] as PointMeta | undefined;
+        const value = entry.value;
+        if (value == null || !Number.isFinite(value) || !meta) return null;
+
+        return {
+          name: entry.name,
+          color: entry.color,
+          value,
+          ...meta,
+        };
+      })
+      .filter((v: any) => v != null);
+
+    const warnItems = items
+      .filter((item: any) => item.value < WARN_THRESHOLD)
+      .sort((a: any, b: any) => a.value - b.value);
+    const okItems = items
+      .filter((item: any) => item.value >= WARN_THRESHOLD)
+      .sort((a: any, b: any) => b.denomTokens - a.denomTokens);
+
+    const MAX_ITEMS = 12;
+    const renderItems = warnItems.length > 0 ? warnItems : okItems;
+    const sliced = renderItems.slice(0, MAX_ITEMS);
+    const hidden = renderItems.length - sliced.length;
+
+    return (
+      <div
+        style={{
+          backgroundColor: TOOLTIP_STYLE.backgroundColor,
+          border: TOOLTIP_STYLE.border,
+          borderRadius: TOOLTIP_STYLE.borderRadius,
+          boxShadow: TOOLTIP_STYLE.boxShadow,
+          padding: TOOLTIP_STYLE.padding,
+          minWidth: 200,
+        }}
+      >
+        <div style={{ marginBottom: 6, fontWeight: 600 }}>{label}</div>
+        {warnItems.length > 0 ? (
+          <div style={{ marginBottom: 6, color: "#b91c1c" }}>
+            预警（&lt;60%）: {warnItems.length}
+          </div>
+        ) : (
+          <div style={{ marginBottom: 6, color: "#64748b" }}>供应商: {items.length}</div>
+        )}
+        {sliced.map((item: any, idx: number) => {
+          const isWarn = item.value < WARN_THRESHOLD;
+          const valueColor = isWarn ? "#b91c1c" : "#0f172a";
+
+          return (
+            <div key={idx}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span
+                  style={{
+                    display: "inline-block",
+                    width: 8,
+                    height: 8,
+                    borderRadius: 999,
+                    background: item.color,
+                  }}
+                />
+                <span
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {item.name}
+                </span>
+                <span
+                  style={{
+                    fontVariantNumeric: "tabular-nums",
+                    color: valueColor,
+                  }}
+                >
+                  {formatPercent(item.value, 2)}
+                </span>
+              </div>
+              <div
+                style={{
+                  margin: "2px 0 8px 16px",
+                  color: "#64748b",
+                  fontSize: 11,
+                }}
+              >
+                denom {formatInteger(item.denomTokens)} · read {formatInteger(item.cacheReadTokens)}{" "}
+                · ok {formatInteger(item.requestsSuccess)}
+              </div>
+            </div>
+          );
+        })}
+        {hidden > 0 && (
+          <div style={{ marginTop: 4, color: "#64748b" }}>… +{hidden}（可通过 legend 过滤）</div>
+        )}
+      </div>
+    );
+  };
+
+  const lineWidth = providers.length > 25 ? 1.5 : 2;
+
+  return (
+    <div className={cn("h-full w-full", className)}>
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={chartData} margin={{ left: 0, right: 16, top: 56, bottom: 0 }}>
+          <CartesianGrid
+            vertical={false}
+            stroke={GRID_LINE_STYLE.stroke}
+            strokeDasharray={GRID_LINE_STYLE.strokeDasharray}
+          />
+          <XAxis
+            dataKey="label"
+            axisLine={{ stroke: "rgba(15,23,42,0.12)" }}
+            tickLine={false}
+            tick={{ ...AXIS_STYLE }}
+            ticks={xAxisTicks}
+            interval="preserveStartEnd"
+          />
+          <YAxis
+            domain={[yAxisRange.min, yAxisRange.max]}
+            ticks={yAxisTicks}
+            axisLine={false}
+            tickLine={false}
+            tick={{ ...AXIS_STYLE }}
+            tickFormatter={(v: number) => formatPercent(v, 0)}
+            width={45}
+          />
+          <Tooltip content={<CustomTooltip />} />
+          <Legend
+            wrapperStyle={{
+              paddingTop: 8,
+              fontSize: LEGEND_STYLE.fontSize,
+              color: LEGEND_STYLE.color,
+            }}
+          />
+          <ReferenceLine
+            y={WARN_THRESHOLD}
+            stroke={THRESHOLD_COLORS.warningLine}
+            strokeDasharray="3 3"
+            strokeWidth={1}
+          />
+          {warnRanges.map((range, idx) => (
+            <ReferenceArea
+              key={idx}
+              x1={range.x1}
+              x2={range.x2}
+              fill={THRESHOLD_COLORS.warning}
+              fillOpacity={1}
+            />
+          ))}
+          {providers.map((provider) => (
+            <Line
+              key={provider.key}
+              type="monotone"
+              dataKey={provider.key}
+              name={provider.name}
+              stroke={provider.color}
+              strokeWidth={lineWidth}
+              dot={false}
+              animationDuration={CHART_ANIMATION.animationDuration}
+            />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
 }

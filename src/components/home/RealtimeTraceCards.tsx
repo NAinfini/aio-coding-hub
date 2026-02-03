@@ -227,10 +227,10 @@ export function RealtimeTraceCards({
           >
             <div
               className={cn(
-                "relative transition-all duration-200 rounded-lg border shadow-sm",
+                "relative rounded-lg border",
                 isInProgress
-                  ? "bg-gradient-to-r from-indigo-50/80 to-white border-indigo-200"
-                  : "bg-gradient-to-r from-emerald-50/60 to-white border-emerald-200"
+                  ? "bg-gradient-to-r from-indigo-50/60 to-white border-indigo-200/80 animate-[glow-pulse_2.5s_ease-in-out_infinite]"
+                  : "bg-gradient-to-r from-emerald-50/60 to-white border-emerald-200 shadow-sm"
               )}
             >
               {/* Left accent bar */}
@@ -240,11 +240,6 @@ export function RealtimeTraceCards({
                   isInProgress ? "bg-indigo-500" : "bg-emerald-500"
                 )}
               />
-              {isInProgress && (
-                <div className="absolute inset-x-0 top-0 h-0.5 overflow-hidden rounded-t-lg bg-indigo-100">
-                  <div className="h-full w-1/3 animate-[loading_1s_ease-in-out_infinite] bg-indigo-500/60" />
-                </div>
-              )}
 
               <div className="flex flex-col gap-1.5 px-3 py-2.5">
                 {/* Row 1: Status + CLI + Model + Time + Badges */}

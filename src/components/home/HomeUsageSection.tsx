@@ -33,12 +33,12 @@ export function HomeUsageSection({
         )}
       </Card>
 
-      <Card className="flex flex-col md:col-span-5" padding="sm">
+      <Card className="flex flex-col md:col-span-5 min-h-[200px]" padding="sm">
         <div className="text-sm font-medium text-slate-600 mb-2">用量统计</div>
         {usageHeatmapLoading && usageHeatmapRows.length === 0 ? (
           <div className="text-sm text-slate-400">加载中…</div>
         ) : (
-          <div className="min-h-0 flex-1">
+          <div className="h-[160px] flex-1">
             <UsageTokensChart rows={usageHeatmapRows} days={15} className="h-full" />
           </div>
         )}

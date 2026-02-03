@@ -7,12 +7,6 @@ const ROOT_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   plugins: [react()],
-  resolve: {
-    // ECharts relies on Canvas APIs that are not available in jsdom. Alias to a lightweight mock.
-    alias: {
-      echarts: path.resolve(ROOT_DIR, "src/test/mocks/echarts.ts"),
-    },
-  },
   test: {
     environment: "jsdom",
     setupFiles: ["src/test/setup.ts"],

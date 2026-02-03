@@ -13,7 +13,7 @@ fn stash_bucket_name(workspace_id: Option<i64>) -> String {
 fn stash_root<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     cli_key: &str,
-) -> Result<PathBuf, String> {
+) -> crate::shared::error::AppResult<PathBuf> {
     Ok(app_paths::app_data_dir(app)?
         .join("mcp-local")
         .join(cli_key))
@@ -23,7 +23,7 @@ fn stash_file_path<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     cli_key: &str,
     bucket: &str,
-) -> Result<PathBuf, String> {
+) -> crate::shared::error::AppResult<PathBuf> {
     let dir = stash_root(app, cli_key)?.join(bucket);
     std::fs::create_dir_all(&dir)
         .map_err(|e| format!("failed to create {}: {e}", dir.display()))?;
@@ -84,10 +84,14 @@ fn json_remove_local_servers(
     }
 }
 
-fn json_write_stash(path: &Path, map: &serde_json::Map<String, Value>) -> Result<(), String> {
+fn json_write_stash(
+    path: &Path,
+    map: &serde_json::Map<String, Value>,
+) -> crate::shared::error::AppResult<()> {
     let bytes = serde_json::to_vec_pretty(&Value::Object(map.clone()))
         .map_err(|e| format!("failed to serialize stash json: {e}"))?;
-    std::fs::write(path, bytes).map_err(|e| format!("failed to write {}: {e}", path.display()))
+    std::fs::write(path, bytes)
+        .map_err(|e| format!("failed to write {}: {e}", path.display()).into())
 }
 
 fn json_read_stash(path: &Path) -> serde_json::Map<String, Value> {
@@ -169,10 +173,10 @@ fn codex_split_local_blocks(
     (kept, local)
 }
 
-fn codex_write_stash(path: &Path, lines: &[String]) -> Result<(), String> {
+fn codex_write_stash(path: &Path, lines: &[String]) -> crate::shared::error::AppResult<()> {
     let mut out = lines.join("\n");
     out.push('\n');
-    std::fs::write(path, out).map_err(|e| format!("failed to write {}: {e}", path.display()))
+    std::fs::write(path, out).map_err(|e| format!("failed to write {}: {e}", path.display()).into())
 }
 
 fn codex_read_stash(path: &Path) -> Vec<String> {
@@ -188,7 +192,7 @@ pub(crate) fn swap_local_mcp_servers_for_workspace_switch<R: tauri::Runtime>(
     managed_server_keys: &HashSet<String>,
     from_workspace_id: Option<i64>,
     to_workspace_id: i64,
-) -> Result<(), String> {
+) -> crate::shared::error::AppResult<()> {
     crate::shared::cli_key::validate_cli_key(cli_key)?;
 
     let current_bytes = mcp_sync::read_target_bytes(app, cli_key)?;

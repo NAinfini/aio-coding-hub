@@ -55,10 +55,10 @@ pub struct CodexConfigPatch {
     pub features_collaboration_modes: Option<bool>,
 }
 
-fn is_symlink(path: &Path) -> Result<bool, String> {
+fn is_symlink(path: &Path) -> crate::shared::error::AppResult<bool> {
     std::fs::symlink_metadata(path)
         .map(|m| m.file_type().is_symlink())
-        .map_err(|e| format!("failed to read metadata {}: {e}", path.display()))
+        .map_err(|e| format!("failed to read metadata {}: {e}", path.display()).into())
 }
 
 fn strip_toml_comment(line: &str) -> &str {
@@ -181,7 +181,11 @@ fn is_allowed_value(value: &str, allowed: &[&str]) -> bool {
     allowed.iter().any(|v| v.eq_ignore_ascii_case(value))
 }
 
-fn validate_enum_or_empty(key: &str, value: &str, allowed: &[&str]) -> Result<(), String> {
+fn validate_enum_or_empty(
+    key: &str,
+    value: &str,
+    allowed: &[&str],
+) -> crate::shared::error::AppResult<()> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
         return Ok(());
@@ -192,7 +196,8 @@ fn validate_enum_or_empty(key: &str, value: &str, allowed: &[&str]) -> Result<()
     Err(format!(
         "SEC_INVALID_INPUT: invalid {key}={trimmed} (allowed: {})",
         allowed.join(", ")
-    ))
+    )
+    .into())
 }
 
 fn toml_escape_basic_string(value: &str) -> String {
@@ -812,7 +817,7 @@ fn make_state_from_bytes(
     config_path: String,
     can_open_config_dir: bool,
     bytes: Option<Vec<u8>>,
-) -> Result<CodexConfigState, String> {
+) -> crate::shared::error::AppResult<CodexConfigState> {
     let exists = bytes.is_some();
     let mut state = CodexConfigState {
         config_dir,
@@ -964,7 +969,6 @@ pub fn codex_config_get(
         can_open_config_dir,
         bytes,
     )
-    .map_err(Into::into)
 }
 
 #[cfg(windows)]
@@ -987,7 +991,10 @@ fn path_is_under_allowed_root(dir: &Path, allowed_root: &Path) -> bool {
     dir.starts_with(allowed_root)
 }
 
-fn patch_config_toml(current: Option<Vec<u8>>, patch: CodexConfigPatch) -> Result<Vec<u8>, String> {
+fn patch_config_toml(
+    current: Option<Vec<u8>>,
+    patch: CodexConfigPatch,
+) -> crate::shared::error::AppResult<Vec<u8>> {
     validate_enum_or_empty(
         "approval_policy",
         patch.approval_policy.as_deref().unwrap_or(""),

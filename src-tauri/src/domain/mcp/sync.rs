@@ -10,7 +10,7 @@ use super::cli_specs::{validate_cli_key, MCP_CLI_KEYS};
 pub(super) fn list_enabled_for_cli(
     conn: &Connection,
     cli_key: &str,
-) -> Result<Vec<mcp_sync::McpServerForSync>, String> {
+) -> crate::shared::error::AppResult<Vec<mcp_sync::McpServerForSync>> {
     validate_cli_key(cli_key)?;
 
     let Some(workspace_id) = workspaces::active_id_by_cli(conn, cli_key)? else {
@@ -73,7 +73,7 @@ ORDER BY s.server_key ASC
 pub(crate) fn list_enabled_for_workspace(
     conn: &Connection,
     workspace_id: i64,
-) -> Result<Vec<mcp_sync::McpServerForSync>, String> {
+) -> crate::shared::error::AppResult<Vec<mcp_sync::McpServerForSync>> {
     let _cli_key = workspaces::get_cli_key_by_id(conn, workspace_id)?;
 
     let mut stmt = conn
@@ -133,7 +133,7 @@ pub(crate) fn sync_cli_for_workspace(
     app: &tauri::AppHandle,
     conn: &Connection,
     workspace_id: i64,
-) -> Result<(), String> {
+) -> crate::shared::error::AppResult<()> {
     let cli_key = workspaces::get_cli_key_by_id(conn, workspace_id)?;
     validate_cli_key(&cli_key)?;
     let servers = list_enabled_for_workspace(conn, workspace_id)?;
@@ -141,7 +141,10 @@ pub(crate) fn sync_cli_for_workspace(
     Ok(())
 }
 
-pub(super) fn sync_all_cli(app: &tauri::AppHandle, conn: &Connection) -> Result<(), String> {
+pub(super) fn sync_all_cli(
+    app: &tauri::AppHandle,
+    conn: &Connection,
+) -> crate::shared::error::AppResult<()> {
     for cli_key in MCP_CLI_KEYS {
         sync_one_cli(app, conn, cli_key)?;
     }
@@ -153,7 +156,7 @@ pub(super) fn sync_one_cli(
     app: &tauri::AppHandle,
     conn: &Connection,
     cli_key: &str,
-) -> Result<(), String> {
+) -> crate::shared::error::AppResult<()> {
     let servers = list_enabled_for_cli(conn, cli_key)?;
     mcp_sync::sync_cli(app, cli_key, &servers)?;
     Ok(())

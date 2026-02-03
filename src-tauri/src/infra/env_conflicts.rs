@@ -14,9 +14,8 @@ pub struct EnvConflict {
     pub source_path: String, // "Process Environment" | "<path>:<line>"
 }
 
-fn validate_cli_key(cli_key: &str) -> Result<(), String> {
-    crate::shared::cli_key::validate_cli_key(cli_key)?;
-    Ok(())
+fn validate_cli_key(cli_key: &str) -> crate::shared::error::AppResult<()> {
+    crate::shared::cli_key::validate_cli_key(cli_key)
 }
 
 fn keywords_for_cli(cli_key: &str) -> Vec<&'static str> {
@@ -55,7 +54,7 @@ fn check_shell_configs<R: tauri::Runtime>(
     keywords: &[&str],
     out: &mut Vec<EnvConflict>,
     seen: &mut HashSet<String>,
-) -> Result<(), String> {
+) -> crate::shared::error::AppResult<()> {
     use std::fs;
     use std::path::PathBuf;
 
@@ -129,7 +128,7 @@ fn check_shell_configs<R: tauri::Runtime>(
 pub fn check_env_conflicts<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     cli_key: &str,
-) -> Result<Vec<EnvConflict>, String> {
+) -> crate::shared::error::AppResult<Vec<EnvConflict>> {
     validate_cli_key(cli_key)?;
     let keywords = keywords_for_cli(cli_key);
 

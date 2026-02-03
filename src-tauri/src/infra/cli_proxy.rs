@@ -67,40 +67,46 @@ fn new_trace_id(prefix: &str) -> String {
     format!("{prefix}-{ts}-{seq}")
 }
 
-fn validate_cli_key(cli_key: &str) -> Result<(), String> {
-    if crate::shared::cli_key::is_supported_cli_key(cli_key) {
-        Ok(())
-    } else {
-        Err(format!("unsupported cli_key: {cli_key}"))
-    }
+fn validate_cli_key(cli_key: &str) -> crate::shared::error::AppResult<()> {
+    crate::shared::cli_key::validate_cli_key(cli_key)
 }
 
-fn home_dir<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
+fn home_dir<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> crate::shared::error::AppResult<PathBuf> {
     app.path()
         .home_dir()
-        .map_err(|e| format!("failed to resolve home dir: {e}"))
+        .map_err(|e| format!("failed to resolve home dir: {e}").into())
 }
 
-fn claude_settings_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
+fn claude_settings_path<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> crate::shared::error::AppResult<PathBuf> {
     Ok(home_dir(app)?.join(".claude").join("settings.json"))
 }
 
-fn codex_config_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
-    Ok(codex_paths::codex_config_toml_path(app)?)
+fn codex_config_path<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> crate::shared::error::AppResult<PathBuf> {
+    codex_paths::codex_config_toml_path(app)
 }
 
-fn codex_auth_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
-    Ok(codex_paths::codex_auth_json_path(app)?)
+fn codex_auth_path<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> crate::shared::error::AppResult<PathBuf> {
+    codex_paths::codex_auth_json_path(app)
 }
 
-fn gemini_env_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
+fn gemini_env_path<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> crate::shared::error::AppResult<PathBuf> {
     Ok(home_dir(app)?.join(".gemini").join(".env"))
 }
 
 fn cli_proxy_root_dir<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     cli_key: &str,
-) -> Result<PathBuf, String> {
+) -> crate::shared::error::AppResult<PathBuf> {
     Ok(app_paths::app_data_dir(app)?
         .join("cli-proxy")
         .join(cli_key))
@@ -121,7 +127,7 @@ fn cli_proxy_manifest_path(root: &Path) -> PathBuf {
 fn read_manifest<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     cli_key: &str,
-) -> Result<Option<CliProxyManifest>, String> {
+) -> crate::shared::error::AppResult<Option<CliProxyManifest>> {
     let root = cli_proxy_root_dir(app, cli_key)?;
     let path = cli_proxy_manifest_path(&root);
     let Some(content) = read_optional_file(&path)? else {
@@ -135,7 +141,8 @@ fn read_manifest<R: tauri::Runtime>(
         return Err(format!(
             "manifest managed_by mismatch: expected {MANAGED_BY}, got {}",
             manifest.managed_by
-        ));
+        )
+        .into());
     }
 
     Ok(Some(manifest))
@@ -145,7 +152,7 @@ fn write_manifest<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     cli_key: &str,
     manifest: &CliProxyManifest,
-) -> Result<(), String> {
+) -> crate::shared::error::AppResult<()> {
     let root = cli_proxy_root_dir(app, cli_key)?;
     std::fs::create_dir_all(&root)
         .map_err(|e| format!("failed to create {}: {e}", root.display()))?;
@@ -160,7 +167,7 @@ fn write_manifest<R: tauri::Runtime>(
 fn target_files<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     cli_key: &str,
-) -> Result<Vec<TargetFile>, String> {
+) -> crate::shared::error::AppResult<Vec<TargetFile>> {
     validate_cli_key(cli_key)?;
 
     match cli_key {
@@ -186,7 +193,7 @@ fn target_files<R: tauri::Runtime>(
             path: gemini_env_path(app)?,
             backup_name: ".env",
         }]),
-        _ => Err(format!("unsupported cli_key: {cli_key}")),
+        _ => Err(format!("SEC_INVALID_INPUT: unknown cli_key={cli_key}").into()),
     }
 }
 
@@ -195,7 +202,7 @@ fn backup_for_enable<R: tauri::Runtime>(
     cli_key: &str,
     base_origin: &str,
     existing: Option<CliProxyManifest>,
-) -> Result<CliProxyManifest, String> {
+) -> crate::shared::error::AppResult<CliProxyManifest> {
     let root = cli_proxy_root_dir(app, cli_key)?;
     let files_dir = cli_proxy_files_dir(&root);
     std::fs::create_dir_all(&files_dir)
@@ -242,7 +249,7 @@ fn backup_for_enable<R: tauri::Runtime>(
 fn restore_from_manifest<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     manifest: &CliProxyManifest,
-) -> Result<(), String> {
+) -> crate::shared::error::AppResult<()> {
     let cli_key = manifest.cli_key.as_str();
     validate_cli_key(cli_key)?;
 
@@ -258,7 +265,7 @@ fn restore_from_manifest<R: tauri::Runtime>(
         let target_path = PathBuf::from(&entry.path);
         if entry.existed {
             let Some(rel) = entry.backup_rel.as_ref() else {
-                return Err(format!("missing backup_rel for {}", entry.kind));
+                return Err(format!("missing backup_rel for {}", entry.kind).into());
             };
             let backup_path = files_dir.join(rel);
             let bytes = std::fs::read(&backup_path).map_err(|e| {
@@ -294,16 +301,22 @@ fn restore_from_manifest<R: tauri::Runtime>(
 fn patch_json_set_env_base_url(
     mut root: serde_json::Value,
     base_url: &str,
-) -> Result<serde_json::Value, String> {
-    let obj = root
-        .as_object_mut()
-        .ok_or_else(|| "settings.json root must be a JSON object".to_string())?;
+) -> crate::shared::error::AppResult<serde_json::Value> {
+    let obj = root.as_object_mut().ok_or_else(|| {
+        crate::shared::error::AppError::from(
+            "CLI_PROXY_INVALID_SETTINGS_JSON: root must be a JSON object",
+        )
+    })?;
 
     let env = obj
         .entry("env")
         .or_insert_with(|| serde_json::Value::Object(Default::default()))
         .as_object_mut()
-        .ok_or_else(|| "settings.json env must be an object".to_string())?;
+        .ok_or_else(|| {
+            crate::shared::error::AppError::from(
+                "CLI_PROXY_INVALID_SETTINGS_JSON: env must be an object",
+            )
+        })?;
 
     env.insert(
         "ANTHROPIC_BASE_URL".to_string(),
@@ -317,7 +330,10 @@ fn patch_json_set_env_base_url(
     Ok(root)
 }
 
-fn build_claude_settings_json(current: Option<Vec<u8>>, base_url: &str) -> Result<Vec<u8>, String> {
+fn build_claude_settings_json(
+    current: Option<Vec<u8>>,
+    base_url: &str,
+) -> crate::shared::error::AppResult<Vec<u8>> {
     let root = match current {
         Some(bytes) => serde_json::from_slice::<serde_json::Value>(&bytes)
             .unwrap_or_else(|_| serde_json::json!({})),
@@ -410,7 +426,10 @@ fn upsert_root_preferred_auth_method(lines: &mut Vec<String>, value: &str) {
     lines.insert(insert_at, format!("preferred_auth_method = \"{value}\""));
 }
 
-fn build_codex_config_toml(current: Option<Vec<u8>>, base_url: &str) -> Result<Vec<u8>, String> {
+fn build_codex_config_toml(
+    current: Option<Vec<u8>>,
+    base_url: &str,
+) -> crate::shared::error::AppResult<Vec<u8>> {
     let input = current
         .as_deref()
         .map(|b| String::from_utf8_lossy(b).to_string())
@@ -444,7 +463,7 @@ fn build_codex_config_toml(current: Option<Vec<u8>>, base_url: &str) -> Result<V
     Ok(out.into_bytes())
 }
 
-fn build_codex_auth_json(_current: Option<Vec<u8>>) -> Result<Vec<u8>, String> {
+fn build_codex_auth_json(_current: Option<Vec<u8>>) -> crate::shared::error::AppResult<Vec<u8>> {
     let value = serde_json::json!({
         "OPENAI_API_KEY": PLACEHOLDER_KEY,
     });
@@ -486,7 +505,10 @@ fn set_env_var_lines(input: &str, key: &str, value: &str) -> String {
     lines.join("\n")
 }
 
-fn build_gemini_env(current: Option<Vec<u8>>, base_url: &str) -> Result<Vec<u8>, String> {
+fn build_gemini_env(
+    current: Option<Vec<u8>>,
+    base_url: &str,
+) -> crate::shared::error::AppResult<Vec<u8>> {
     let input = current
         .as_deref()
         .map(|b| String::from_utf8_lossy(b).to_string())
@@ -603,7 +625,7 @@ fn apply_proxy_config<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     cli_key: &str,
     base_origin: &str,
-) -> Result<(), String> {
+) -> crate::shared::error::AppResult<()> {
     validate_cli_key(cli_key)?;
 
     let targets = target_files(app, cli_key)?;
@@ -620,7 +642,7 @@ fn apply_proxy_config<R: tauri::Runtime>(
                 }
             }
             "gemini" => build_gemini_env(current, &format!("{base_origin}/gemini"))?,
-            _ => return Err(format!("unsupported cli_key: {cli_key}")),
+            _ => return Err(format!("SEC_INVALID_INPUT: unknown cli_key={cli_key}").into()),
         };
 
         let _ = write_file_atomic_if_changed(&t.path, &bytes)?;
@@ -631,7 +653,7 @@ fn apply_proxy_config<R: tauri::Runtime>(
 
 pub fn status_all<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
-) -> Result<Vec<CliProxyStatus>, String> {
+) -> crate::shared::error::AppResult<Vec<CliProxyStatus>> {
     let mut out = Vec::new();
     for cli_key in crate::shared::cli_key::SUPPORTED_CLI_KEYS {
         let manifest = read_manifest(app, cli_key)?;
@@ -647,7 +669,7 @@ pub fn status_all<R: tauri::Runtime>(
 pub fn is_enabled<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     cli_key: &str,
-) -> Result<bool, String> {
+) -> crate::shared::error::AppResult<bool> {
     validate_cli_key(cli_key)?;
     let Some(manifest) = read_manifest(app, cli_key)? else {
         return Ok(false);
@@ -660,10 +682,10 @@ pub fn set_enabled<R: tauri::Runtime>(
     cli_key: &str,
     enabled: bool,
     base_origin: &str,
-) -> Result<CliProxyResult, String> {
+) -> crate::shared::error::AppResult<CliProxyResult> {
     validate_cli_key(cli_key)?;
     if !base_origin.starts_with("http://") && !base_origin.starts_with("https://") {
-        return Err("base_origin must start with http:// or https://".to_string());
+        return Err("SEC_INVALID_INPUT: base_origin must start with http:// or https://".into());
     }
 
     let trace_id = new_trace_id("cli-proxy");
@@ -684,7 +706,7 @@ pub fn set_enabled<R: tauri::Runtime>(
                     enabled: false,
                     ok: false,
                     error_code: Some("CLI_PROXY_BACKUP_FAILED".to_string()),
-                    message: err,
+                    message: err.to_string(),
                     base_origin: Some(base_origin.to_string()),
                 });
             }
@@ -702,7 +724,7 @@ pub fn set_enabled<R: tauri::Runtime>(
                     enabled: false,
                     ok: false,
                     error_code: Some("CLI_PROXY_MANIFEST_WRITE_FAILED".to_string()),
-                    message: err,
+                    message: err.to_string(),
                     base_origin: Some(base_origin.to_string()),
                 });
             }
@@ -720,7 +742,7 @@ pub fn set_enabled<R: tauri::Runtime>(
                         enabled: true,
                         ok: false,
                         error_code: Some("CLI_PROXY_MANIFEST_WRITE_FAILED".to_string()),
-                        message: err,
+                        message: err.to_string(),
                         base_origin: Some(base_origin.to_string()),
                     });
                 }
@@ -750,7 +772,7 @@ pub fn set_enabled<R: tauri::Runtime>(
                     enabled: false,
                     ok: false,
                     error_code: Some("CLI_PROXY_ENABLE_FAILED".to_string()),
-                    message: err,
+                    message: err.to_string(),
                     base_origin: Some(base_origin.to_string()),
                 })
             }
@@ -791,7 +813,7 @@ pub fn set_enabled<R: tauri::Runtime>(
             enabled: manifest.enabled,
             ok: false,
             error_code: Some("CLI_PROXY_DISABLE_FAILED".to_string()),
-            message: err,
+            message: err.to_string(),
             base_origin: manifest.base_origin.clone(),
         }),
     }
@@ -799,7 +821,7 @@ pub fn set_enabled<R: tauri::Runtime>(
 
 pub fn startup_repair_incomplete_enable<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
-) -> Result<Vec<CliProxyResult>, String> {
+) -> crate::shared::error::AppResult<Vec<CliProxyResult>> {
     let mut out = Vec::new();
 
     for cli_key in crate::shared::cli_key::SUPPORTED_CLI_KEYS {
@@ -838,7 +860,7 @@ pub fn startup_repair_incomplete_enable<R: tauri::Runtime>(
                 enabled: false,
                 ok: false,
                 error_code: Some("CLI_PROXY_STARTUP_REPAIR_FAILED".to_string()),
-                message: err,
+                message: err.to_string(),
                 base_origin: Some(base_origin),
             }),
         }
@@ -850,9 +872,9 @@ pub fn startup_repair_incomplete_enable<R: tauri::Runtime>(
 pub fn sync_enabled<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     base_origin: &str,
-) -> Result<Vec<CliProxyResult>, String> {
+) -> crate::shared::error::AppResult<Vec<CliProxyResult>> {
     if !base_origin.starts_with("http://") && !base_origin.starts_with("https://") {
-        return Err("base_origin must start with http:// or https://".to_string());
+        return Err("SEC_INVALID_INPUT: base_origin must start with http:// or https://".into());
     }
 
     let mut out = Vec::new();
@@ -903,7 +925,7 @@ pub fn sync_enabled<R: tauri::Runtime>(
                     enabled: true,
                     ok: false,
                     error_code: Some("CLI_PROXY_SYNC_FAILED".to_string()),
-                    message: err,
+                    message: err.to_string(),
                     base_origin: Some(base_origin.to_string()),
                 });
             }
@@ -914,7 +936,7 @@ pub fn sync_enabled<R: tauri::Runtime>(
 
 pub fn restore_enabled_keep_state<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
-) -> Result<Vec<CliProxyResult>, String> {
+) -> crate::shared::error::AppResult<Vec<CliProxyResult>> {
     let mut out = Vec::new();
     for cli_key in crate::shared::cli_key::SUPPORTED_CLI_KEYS {
         let Some(manifest) = read_manifest(app, cli_key)? else {
@@ -942,7 +964,7 @@ pub fn restore_enabled_keep_state<R: tauri::Runtime>(
                 enabled: true,
                 ok: false,
                 error_code: Some("CLI_PROXY_RESTORE_FAILED".to_string()),
-                message: err,
+                message: err.to_string(),
                 base_origin: manifest.base_origin.clone(),
             }),
         }

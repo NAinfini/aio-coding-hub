@@ -193,13 +193,13 @@ ON CONFLICT(workspace_id, skill_id) DO UPDATE SET
     if let Err(err) = copy_dir_recursive(&local_dir, &ssot_dir) {
         let _ = std::fs::remove_dir_all(&ssot_dir);
         let _ = tx.execute("DELETE FROM skills WHERE id = ?1", params![skill_id]);
-        return Err(err.into());
+        return Err(err);
     }
 
     if let Err(err) = write_marker(&local_dir) {
         let _ = std::fs::remove_dir_all(&ssot_dir);
         let _ = tx.execute("DELETE FROM skills WHERE id = ?1", params![skill_id]);
-        return Err(err.into());
+        return Err(err);
     }
 
     if let Err(err) = tx.commit() {
@@ -208,5 +208,5 @@ ON CONFLICT(workspace_id, skill_id) DO UPDATE SET
         return Err(format!("DB_ERROR: failed to commit: {err}").into());
     }
 
-    Ok(get_skill_by_id(&conn, skill_id)?)
+    get_skill_by_id(&conn, skill_id)
 }

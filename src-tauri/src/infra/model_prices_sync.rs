@@ -35,13 +35,13 @@ struct ModelPriceRow {
     price_json: String,
 }
 
-fn model_prices_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+fn model_prices_dir(app: &tauri::AppHandle) -> crate::shared::error::AppResult<PathBuf> {
     let dir = app_paths::app_data_dir(app)?.join("model-prices");
     std::fs::create_dir_all(&dir).map_err(|e| format!("failed to create model-prices dir: {e}"))?;
     Ok(dir)
 }
 
-fn basellm_cache_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+fn basellm_cache_path(app: &tauri::AppHandle) -> crate::shared::error::AppResult<PathBuf> {
     Ok(model_prices_dir(app)?.join("basellm-cache.json"))
 }
 
@@ -60,7 +60,7 @@ fn read_basellm_cache(app: &tauri::AppHandle) -> BasellmCacheMeta {
     serde_json::from_str::<BasellmCacheMeta>(&content).unwrap_or_default()
 }
 
-fn write_json_atomically(path: &Path, json_bytes: Vec<u8>) -> Result<(), String> {
+fn write_json_atomically(path: &Path, json_bytes: Vec<u8>) -> crate::shared::error::AppResult<()> {
     let tmp_path = path.with_extension("json.tmp");
     let backup_path = path.with_extension("json.bak");
 
@@ -78,7 +78,7 @@ fn write_json_atomically(path: &Path, json_bytes: Vec<u8>) -> Result<(), String>
 
     if let Err(e) = std::fs::rename(&tmp_path, path) {
         let _ = std::fs::rename(&backup_path, path);
-        return Err(format!("failed to finalize cache file: {e}"));
+        return Err(format!("failed to finalize cache file: {e}").into());
     }
 
     if backup_path.exists() {
@@ -88,7 +88,10 @@ fn write_json_atomically(path: &Path, json_bytes: Vec<u8>) -> Result<(), String>
     Ok(())
 }
 
-fn write_basellm_cache(app: &tauri::AppHandle, cache: &BasellmCacheMeta) -> Result<(), String> {
+fn write_basellm_cache(
+    app: &tauri::AppHandle,
+    cache: &BasellmCacheMeta,
+) -> crate::shared::error::AppResult<()> {
     let path = basellm_cache_path(app)?;
     let content = serde_json::to_vec_pretty(cache)
         .map_err(|e| format!("failed to serialize basellm cache: {e}"))?;
@@ -231,7 +234,7 @@ fn set_price_field(
     true
 }
 
-fn parse_basellm_all_json(root: &Value) -> Result<Vec<ModelPriceRow>, String> {
+fn parse_basellm_all_json(root: &Value) -> crate::shared::error::AppResult<Vec<ModelPriceRow>> {
     let provider_map = root
         .as_object()
         .ok_or_else(|| "SYNC_ERROR: basellm all.json root must be an object".to_string())?;
@@ -322,7 +325,7 @@ fn parse_basellm_all_json(root: &Value) -> Result<Vec<ModelPriceRow>, String> {
 fn load_existing_price_map(
     tx: &rusqlite::Transaction<'_>,
     cli_key: &str,
-) -> Result<HashMap<String, String>, String> {
+) -> crate::shared::error::AppResult<HashMap<String, String>> {
     let mut stmt = tx
         .prepare("SELECT model, price_json FROM model_prices WHERE cli_key = ?1")
         .map_err(|e| format!("DB_ERROR: failed to prepare existing model_prices query: {e}"))?;
@@ -527,7 +530,7 @@ pub async fn sync_basellm(
         move || -> crate::shared::error::AppResult<Vec<ModelPriceRow>> {
             let root: Value = serde_json::from_str(&body)
                 .map_err(|e| format!("SYNC_ERROR: basellm json parse failed: {e}"))?;
-            Ok(parse_basellm_all_json(&root)?)
+            parse_basellm_all_json(&root)
         },
     )
     .await?;

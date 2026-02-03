@@ -31,7 +31,7 @@ pub(crate) fn init(app: &tauri::AppHandle) {
     });
 }
 
-fn init_impl(app: &tauri::AppHandle) -> Result<(), String> {
+fn init_impl(app: &tauri::AppHandle) -> crate::shared::error::AppResult<()> {
     let log_dir = ensure_log_dir(app)?;
     let env_filter = default_env_filter();
 
@@ -94,8 +94,8 @@ fn default_env_filter() -> tracing_subscriber::EnvFilter {
     })
 }
 
-fn ensure_log_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    let base = app_paths::app_data_dir(app).map_err(|e| e.to_string())?;
+fn ensure_log_dir(app: &tauri::AppHandle) -> crate::shared::error::AppResult<PathBuf> {
+    let base = app_paths::app_data_dir(app)?;
     let dir = base.join(LOG_SUBDIR);
     std::fs::create_dir_all(&dir)
         .map_err(|e| format!("failed to create log dir {}: {e}", dir.display()))?;
@@ -137,7 +137,7 @@ fn cleanup_once(app: &tauri::AppHandle, log_dir: &Path) {
     }
 }
 
-fn cleanup_logs(log_dir: &Path, retention_days: u32) -> Result<usize, String> {
+fn cleanup_logs(log_dir: &Path, retention_days: u32) -> crate::shared::error::AppResult<usize> {
     let retention_days = retention_days.max(1);
     let now = SystemTime::now();
     let cutoff = now

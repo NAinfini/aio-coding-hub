@@ -9,7 +9,9 @@ use crate::shared::time::now_unix_seconds;
 // cSpell:ignore rusqlite
 use rusqlite::{params, Connection, OptionalExtension};
 
-pub(super) fn ensure_workspace_cluster(conn: &mut Connection) -> Result<(), String> {
+pub(super) fn ensure_workspace_cluster(
+    conn: &mut Connection,
+) -> crate::shared::error::AppResult<()> {
     let tx = conn
         .transaction()
         .map_err(|e| format!("failed to start sqlite transaction: {e}"))?;
@@ -25,7 +27,7 @@ pub(super) fn ensure_workspace_cluster(conn: &mut Connection) -> Result<(), Stri
     Ok(())
 }
 
-fn ensure_workspaces_and_active(conn: &Connection) -> Result<(), String> {
+fn ensure_workspaces_and_active(conn: &Connection) -> crate::shared::error::AppResult<()> {
     conn.execute_batch(
         r#"
 CREATE TABLE IF NOT EXISTS workspaces (
@@ -120,7 +122,7 @@ INSERT OR IGNORE INTO workspace_active(
     Ok(())
 }
 
-fn ensure_prompts_scoped_by_workspace(conn: &Connection) -> Result<(), String> {
+fn ensure_prompts_scoped_by_workspace(conn: &Connection) -> crate::shared::error::AppResult<()> {
     if !column_exists(conn, "prompts", "workspace_id")? {
         conn.execute_batch(
             r#"
@@ -182,7 +184,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_prompts_workspace_single_enabled
     Ok(())
 }
 
-fn ensure_mcp_scoped_by_workspace(conn: &Connection) -> Result<(), String> {
+fn ensure_mcp_scoped_by_workspace(conn: &Connection) -> crate::shared::error::AppResult<()> {
     conn.execute_batch(
         r#"
 CREATE TABLE IF NOT EXISTS workspace_mcp_enabled (
@@ -242,7 +244,7 @@ WHERE {flag_col} = 1
     Ok(())
 }
 
-fn ensure_skills_scoped_by_workspace(conn: &Connection) -> Result<(), String> {
+fn ensure_skills_scoped_by_workspace(conn: &Connection) -> crate::shared::error::AppResult<()> {
     conn.execute_batch(
         r#"
 CREATE TABLE IF NOT EXISTS workspace_skill_enabled (
@@ -302,7 +304,11 @@ WHERE {flag_col} = 1
     Ok(())
 }
 
-fn column_exists(conn: &Connection, table: &str, column: &str) -> Result<bool, String> {
+fn column_exists(
+    conn: &Connection,
+    table: &str,
+    column: &str,
+) -> crate::shared::error::AppResult<bool> {
     let sql = format!("PRAGMA table_info({table})");
     let mut stmt = conn
         .prepare(&sql)

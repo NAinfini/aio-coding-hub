@@ -59,7 +59,9 @@ ORDER BY s.updated_at DESC, s.id DESC
     Ok(out)
 }
 
-pub(super) fn installed_source_set(conn: &Connection) -> Result<HashSet<String>, String> {
+pub(super) fn installed_source_set(
+    conn: &Connection,
+) -> crate::shared::error::AppResult<HashSet<String>> {
     let mut stmt = conn
         .prepare(
             r#"
@@ -87,7 +89,7 @@ FROM skills
 pub(super) fn get_skill_by_id(
     conn: &Connection,
     skill_id: i64,
-) -> Result<InstalledSkillSummary, String> {
+) -> crate::shared::error::AppResult<InstalledSkillSummary> {
     conn.query_row(
         r#"
 SELECT
@@ -109,14 +111,14 @@ WHERE id = ?1
     )
     .optional()
     .map_err(|e| format!("DB_ERROR: failed to query skill: {e}"))?
-    .ok_or_else(|| "DB_NOT_FOUND: skill not found".to_string())
+    .ok_or_else(|| crate::shared::error::AppError::from("DB_NOT_FOUND: skill not found"))
 }
 
 pub(super) fn get_skill_by_id_for_workspace(
     conn: &Connection,
     workspace_id: i64,
     skill_id: i64,
-) -> Result<InstalledSkillSummary, String> {
+) -> crate::shared::error::AppResult<InstalledSkillSummary> {
     conn.query_row(
         r#"
 SELECT
@@ -140,10 +142,13 @@ WHERE s.id = ?2
     )
     .optional()
     .map_err(|e| format!("DB_ERROR: failed to query skill: {e}"))?
-    .ok_or_else(|| "DB_NOT_FOUND: skill not found".to_string())
+    .ok_or_else(|| crate::shared::error::AppError::from("DB_NOT_FOUND: skill not found"))
 }
 
-pub(super) fn skill_key_exists(conn: &Connection, key: &str) -> Result<bool, String> {
+pub(super) fn skill_key_exists(
+    conn: &Connection,
+    key: &str,
+) -> crate::shared::error::AppResult<bool> {
     let exists: Option<i64> = conn
         .query_row(
             "SELECT id FROM skills WHERE skill_key = ?1",
@@ -187,7 +192,10 @@ fn suggest_key(name: &str) -> String {
     }
 }
 
-pub(super) fn generate_unique_skill_key(conn: &Connection, name: &str) -> Result<String, String> {
+pub(super) fn generate_unique_skill_key(
+    conn: &Connection,
+    name: &str,
+) -> crate::shared::error::AppResult<String> {
     let base = suggest_key(name);
     if !skill_key_exists(conn, &base)? {
         return Ok(base);

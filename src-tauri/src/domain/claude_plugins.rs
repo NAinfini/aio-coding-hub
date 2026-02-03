@@ -6,24 +6,29 @@ use crate::shared::time::now_unix_seconds;
 use std::path::{Path, PathBuf};
 use tauri::Manager;
 
-fn validate_cli_key(cli_key: &str) -> Result<(), String> {
+fn validate_cli_key(cli_key: &str) -> crate::shared::error::AppResult<()> {
     crate::shared::cli_key::validate_cli_key(cli_key)?;
     if cli_key == "claude" {
         Ok(())
     } else {
-        Err(format!(
-            "SEC_INVALID_INPUT: claude plugins swap only supports cli_key={cli_key}"
-        ))
+        Err(
+            format!("SEC_INVALID_INPUT: claude plugins swap only supports cli_key={cli_key}")
+                .into(),
+        )
     }
 }
 
-fn home_dir<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
+fn home_dir<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> crate::shared::error::AppResult<PathBuf> {
     app.path()
         .home_dir()
-        .map_err(|e| format!("failed to resolve home dir: {e}"))
+        .map_err(|e| format!("failed to resolve home dir: {e}").into())
 }
 
-fn claude_plugins_root<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
+fn claude_plugins_root<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> crate::shared::error::AppResult<PathBuf> {
     Ok(home_dir(app)?.join(".claude").join("plugins"))
 }
 
@@ -36,19 +41,19 @@ fn stash_bucket_name(workspace_id: Option<i64>) -> String {
 fn stash_root<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     cli_key: &str,
-) -> Result<PathBuf, String> {
+) -> crate::shared::error::AppResult<PathBuf> {
     Ok(app_paths::app_data_dir(app)?
         .join("plugins-local")
         .join(cli_key))
 }
 
-fn is_symlink(path: &Path) -> Result<bool, String> {
+fn is_symlink(path: &Path) -> crate::shared::error::AppResult<bool> {
     std::fs::symlink_metadata(path)
         .map(|m| m.file_type().is_symlink())
-        .map_err(|e| format!("failed to read metadata {}: {e}", path.display()))
+        .map_err(|e| format!("failed to read metadata {}: {e}", path.display()).into())
 }
 
-fn rotate_existing_dir(dst: &Path) -> Result<(), String> {
+fn rotate_existing_dir(dst: &Path) -> crate::shared::error::AppResult<()> {
     if !dst.exists() {
         return Ok(());
     }
@@ -74,12 +79,9 @@ fn rotate_existing_dir(dst: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn move_dir(src: &Path, dst: &Path) -> Result<(), String> {
+fn move_dir(src: &Path, dst: &Path) -> crate::shared::error::AppResult<()> {
     let Some(parent) = dst.parent() else {
-        return Err(format!(
-            "SEC_INVALID_INPUT: invalid dst path {}",
-            dst.display()
-        ));
+        return Err(format!("SEC_INVALID_INPUT: invalid dst path {}", dst.display()).into());
     };
     std::fs::create_dir_all(parent)
         .map_err(|e| format!("failed to create {}: {e}", parent.display()))?;
@@ -89,15 +91,16 @@ fn move_dir(src: &Path, dst: &Path) -> Result<(), String> {
     }
 
     std::fs::rename(src, dst)
-        .map_err(|e| format!("failed to move {} -> {}: {e}", src.display(), dst.display()))
+        .map_err(|e| format!("failed to move {} -> {}: {e}", src.display(), dst.display()).into())
 }
 
-fn ensure_clean_plugins_layout(plugins_root: &Path) -> Result<(), String> {
+fn ensure_clean_plugins_layout(plugins_root: &Path) -> crate::shared::error::AppResult<()> {
     if plugins_root.exists() && !plugins_root.is_dir() {
         return Err(format!(
             "SEC_INVALID_INPUT: plugins path exists but is not a directory: {}",
             plugins_root.display()
-        ));
+        )
+        .into());
     }
 
     std::fs::create_dir_all(plugins_root.join("marketplaces")).map_err(|e| {
@@ -114,7 +117,8 @@ fn ensure_clean_plugins_layout(plugins_root: &Path) -> Result<(), String> {
         return Err(format!(
             "SEC_INVALID_INPUT: refusing to modify symlink path={}",
             config_path.display()
-        ));
+        )
+        .into());
     }
 
     let mut bytes = serde_json::to_vec_pretty(&serde_json::json!({ "repositories": {} }))
@@ -152,7 +156,7 @@ pub(crate) fn swap_local_plugins_for_workspace_switch<R: tauri::Runtime>(
     cli_key: &str,
     from_workspace_id: Option<i64>,
     to_workspace_id: i64,
-) -> Result<LocalPluginsSwap, String> {
+) -> crate::shared::error::AppResult<LocalPluginsSwap> {
     validate_cli_key(cli_key)?;
 
     let cli_root = claude_plugins_root(app)?;
@@ -160,13 +164,15 @@ pub(crate) fn swap_local_plugins_for_workspace_switch<R: tauri::Runtime>(
         return Err(format!(
             "SEC_INVALID_INPUT: refusing to modify symlink path={}",
             cli_root.display()
-        ));
+        )
+        .into());
     }
     if cli_root.exists() && !cli_root.is_dir() {
         return Err(format!(
             "SEC_INVALID_INPUT: plugins path exists but is not a directory: {}",
             cli_root.display()
-        ));
+        )
+        .into());
     }
 
     let stash_root = stash_root(app, cli_key)?;
@@ -201,16 +207,17 @@ pub(crate) fn swap_local_plugins_for_workspace_switch<R: tauri::Runtime>(
             swap.rollback();
             return Err(format!(
                 "CLAUDE_PLUGINS_SWAP_FAILED: failed to restore plugins dir: {err}"
-            ));
+            )
+            .into());
         }
     } else if !cli_root.exists() {
         if let Err(err) = std::fs::create_dir_all(&cli_root)
             .map_err(|e| format!("failed to create {}: {e}", cli_root.display()))
         {
             swap.rollback();
-            return Err(format!(
-                "CLAUDE_PLUGINS_SWAP_FAILED: failed to create plugins dir: {err}"
-            ));
+            return Err(
+                format!("CLAUDE_PLUGINS_SWAP_FAILED: failed to create plugins dir: {err}").into(),
+            );
         }
     }
 
@@ -218,7 +225,8 @@ pub(crate) fn swap_local_plugins_for_workspace_switch<R: tauri::Runtime>(
         swap.rollback();
         return Err(format!(
             "CLAUDE_PLUGINS_SWAP_FAILED: failed to seed clean plugins layout: {err}"
-        ));
+        )
+        .into());
     }
 
     Ok(swap)

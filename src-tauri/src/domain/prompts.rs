@@ -32,9 +32,8 @@ pub struct DefaultPromptSyncReport {
     pub items: Vec<DefaultPromptSyncItem>,
 }
 
-fn validate_cli_key(cli_key: &str) -> Result<(), String> {
-    crate::shared::cli_key::validate_cli_key(cli_key)?;
-    Ok(())
+fn validate_cli_key(cli_key: &str) -> crate::shared::error::AppResult<()> {
+    crate::shared::cli_key::validate_cli_key(cli_key)
 }
 
 fn row_to_summary(row: &rusqlite::Row<'_>) -> Result<PromptSummary, rusqlite::Error> {
@@ -58,7 +57,7 @@ fn row_default_lookup(row: &rusqlite::Row<'_>) -> Result<(i64, bool, String), ru
     ))
 }
 
-fn get_by_id(conn: &Connection, prompt_id: i64) -> Result<PromptSummary, String> {
+fn get_by_id(conn: &Connection, prompt_id: i64) -> crate::shared::error::AppResult<PromptSummary> {
     conn.query_row(
         r#"
 SELECT
@@ -79,7 +78,7 @@ WHERE p.id = ?1
     )
     .optional()
     .map_err(|e| format!("DB_ERROR: failed to query prompt: {e}"))?
-    .ok_or_else(|| "DB_NOT_FOUND: prompt not found".to_string())
+    .ok_or_else(|| crate::shared::error::AppError::from("DB_NOT_FOUND: prompt not found"))
 }
 
 pub fn list_by_workspace(
@@ -125,20 +124,24 @@ fn list_cli_keys() -> [&'static str; 3] {
     crate::shared::cli_key::SUPPORTED_CLI_KEYS
 }
 
-fn read_prompt_file_utf8(app: &tauri::AppHandle, cli_key: &str) -> Result<Option<String>, String> {
+fn read_prompt_file_utf8(
+    app: &tauri::AppHandle,
+    cli_key: &str,
+) -> crate::shared::error::AppResult<Option<String>> {
     let Some(bytes) = prompt_sync::read_target_bytes(app, cli_key)? else {
         return Ok(None);
     };
 
-    String::from_utf8(bytes)
-        .map(Some)
-        .map_err(|_| format!("PROMPT_SYNC_INVALID_UTF8: cli_key={cli_key}"))
+    let content = String::from_utf8(bytes).map_err(|_| {
+        crate::shared::error::AppError::from(format!("PROMPT_SYNC_INVALID_UTF8: cli_key={cli_key}"))
+    })?;
+    Ok(Some(content))
 }
 
 fn lookup_default_prompt(
     conn: &Connection,
     workspace_id: i64,
-) -> Result<Option<(i64, bool, String)>, String> {
+) -> crate::shared::error::AppResult<Option<(i64, bool, String)>> {
     conn.query_row(
         r#"
 SELECT
@@ -153,16 +156,19 @@ LIMIT 1
         row_default_lookup,
     )
     .optional()
-    .map_err(|e| format!("DB_ERROR: failed to query default prompt: {e}"))
+    .map_err(|e| format!("DB_ERROR: failed to query default prompt: {e}").into())
 }
 
-fn count_prompts_by_workspace(conn: &Connection, workspace_id: i64) -> Result<i64, String> {
+fn count_prompts_by_workspace(
+    conn: &Connection,
+    workspace_id: i64,
+) -> crate::shared::error::AppResult<i64> {
     conn.query_row(
         "SELECT COUNT(1) FROM prompts WHERE workspace_id = ?1",
         params![workspace_id],
         |row| row.get::<_, i64>(0),
     )
-    .map_err(|e| format!("DB_ERROR: failed to count prompts: {e}"))
+    .map_err(|e| format!("DB_ERROR: failed to count prompts: {e}").into())
 }
 
 pub fn default_sync_from_files(
@@ -204,7 +210,7 @@ pub fn default_sync_from_files(
                         items.push(DefaultPromptSyncItem {
                             cli_key: cli_key.to_string(),
                             action: "error".to_string(),
-                            message: Some(err),
+                            message: Some(err.to_string()),
                         });
                         continue;
                     }
@@ -265,7 +271,7 @@ pub fn default_sync_from_files(
                         items.push(DefaultPromptSyncItem {
                             cli_key: cli_key.to_string(),
                             action: "error".to_string(),
-                            message: Some(err),
+                            message: Some(err.to_string()),
                         });
                         continue;
                     }
@@ -315,7 +321,10 @@ INSERT INTO prompts(
     Ok(DefaultPromptSyncReport { items })
 }
 
-fn clear_enabled_for_workspace(tx: &Connection, workspace_id: i64) -> Result<(), String> {
+fn clear_enabled_for_workspace(
+    tx: &Connection,
+    workspace_id: i64,
+) -> crate::shared::error::AppResult<()> {
     tx.execute(
         "UPDATE prompts SET enabled = 0 WHERE workspace_id = ?1 AND enabled = 1",
         params![workspace_id],
@@ -576,7 +585,7 @@ pub fn set_enabled(
         return Err(format!("DB_ERROR: failed to commit: {err}").into());
     }
 
-    Ok(get_by_id(&conn, prompt_id)?)
+    get_by_id(&conn, prompt_id)
 }
 
 pub fn delete(

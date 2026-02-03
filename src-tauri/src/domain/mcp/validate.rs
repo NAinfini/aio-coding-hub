@@ -1,41 +1,40 @@
 //! Usage: Validation + normalization helpers for MCP server management.
 
-pub(super) fn validate_transport(transport: &str) -> Result<(), String> {
+pub(super) fn validate_transport(transport: &str) -> crate::shared::error::AppResult<()> {
     match transport {
         "stdio" | "http" => Ok(()),
-        other => Err(format!("SEC_INVALID_INPUT: unsupported transport={other}")),
+        other => Err(format!("SEC_INVALID_INPUT: unsupported transport={other}").into()),
     }
 }
 
-pub(super) fn validate_server_key(server_key: &str) -> Result<(), String> {
+pub(super) fn validate_server_key(server_key: &str) -> crate::shared::error::AppResult<()> {
     let key = server_key.trim();
     if key.is_empty() {
-        return Err("SEC_INVALID_INPUT: server_key is required".to_string());
+        return Err("SEC_INVALID_INPUT: server_key is required".into());
     }
     if key.len() > 64 {
-        return Err("SEC_INVALID_INPUT: server_key too long (max 64)".to_string());
+        return Err("SEC_INVALID_INPUT: server_key too long (max 64)".into());
     }
 
     let mut chars = key.chars();
     let Some(first) = chars.next() else {
-        return Err("SEC_INVALID_INPUT: server_key is required".to_string());
+        return Err("SEC_INVALID_INPUT: server_key is required".into());
     };
     if !first.is_ascii_alphanumeric() {
-        return Err("SEC_INVALID_INPUT: server_key must start with [A-Za-z0-9]".to_string());
+        return Err("SEC_INVALID_INPUT: server_key must start with [A-Za-z0-9]".into());
     }
 
     for c in chars {
         if !(c.is_ascii_alphanumeric() || c == '_' || c == '-') {
-            return Err("SEC_INVALID_INPUT: server_key allows only [A-Za-z0-9_-]".to_string());
+            return Err("SEC_INVALID_INPUT: server_key allows only [A-Za-z0-9_-]".into());
         }
     }
 
     Ok(())
 }
 
-pub(super) fn validate_cli_key(cli_key: &str) -> Result<(), String> {
-    crate::shared::cli_key::validate_cli_key(cli_key)?;
-    Ok(())
+pub(super) fn validate_cli_key(cli_key: &str) -> crate::shared::error::AppResult<()> {
+    crate::shared::cli_key::validate_cli_key(cli_key)
 }
 
 pub(super) fn suggest_key(name: &str) -> String {

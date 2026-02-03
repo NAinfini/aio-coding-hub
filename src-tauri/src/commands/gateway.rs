@@ -57,9 +57,7 @@ pub(crate) async fn gateway_sessions_list(
     state: tauri::State<'_, GatewayState>,
     limit: Option<u32>,
 ) -> Result<Vec<GatewayActiveSessionSummary>, String> {
-    let db = ensure_db_ready(app.clone(), db_state.inner())
-        .await
-        .map_err(|e| e.to_string())?;
+    let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
 
     let limit = limit.unwrap_or(50).min(200) as usize;
     let now_unix = std::time::SystemTime::now()
@@ -83,15 +81,13 @@ pub(crate) async fn gateway_sessions_list(
     let provider_names = blocking::run("providers_names_by_id", move || {
         providers::names_by_id(&db_for_names, &provider_ids)
     })
-    .await
-    .map_err(|e| e.to_string())?;
+    .await?;
 
     let db_for_agg = db.clone();
     let session_stats = blocking::run("request_logs_aggregate_by_session_ids", move || {
         request_logs::aggregate_by_session_ids(&db_for_agg, &session_ids)
     })
-    .await
-    .map_err(|e| e.to_string())?;
+    .await?;
 
     Ok(sessions
         .into_iter()
@@ -135,16 +131,14 @@ pub(crate) async fn gateway_circuit_status(
     db_state: tauri::State<'_, DbInitState>,
     cli_key: String,
 ) -> Result<Vec<gateway::GatewayProviderCircuitStatus>, String> {
-    let db = ensure_db_ready(app.clone(), db_state.inner())
-        .await
-        .map_err(|e| e.to_string())?;
+    let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
     blocking::run("gateway_circuit_status", move || {
         let state = app.state::<GatewayState>();
         let manager = state.0.lock_or_recover();
         manager.circuit_status(&app, &db, &cli_key)
     })
     .await
-    .map_err(|e| e.to_string())
+    .map_err(Into::into)
 }
 
 #[tauri::command]
@@ -153,9 +147,7 @@ pub(crate) async fn gateway_circuit_reset_provider(
     db_state: tauri::State<'_, DbInitState>,
     provider_id: i64,
 ) -> Result<bool, String> {
-    let db = ensure_db_ready(app.clone(), db_state.inner())
-        .await
-        .map_err(|e| e.to_string())?;
+    let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
     blocking::run(
         "gateway_circuit_reset_provider",
         move || -> crate::shared::error::AppResult<bool> {
@@ -166,7 +158,7 @@ pub(crate) async fn gateway_circuit_reset_provider(
         },
     )
     .await
-    .map_err(|e| e.to_string())
+    .map_err(Into::into)
 }
 
 #[tauri::command]
@@ -175,16 +167,14 @@ pub(crate) async fn gateway_circuit_reset_cli(
     db_state: tauri::State<'_, DbInitState>,
     cli_key: String,
 ) -> Result<usize, String> {
-    let db = ensure_db_ready(app.clone(), db_state.inner())
-        .await
-        .map_err(|e| e.to_string())?;
+    let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
     blocking::run("gateway_circuit_reset_cli", move || {
         let state = app.state::<GatewayState>();
         let manager = state.0.lock_or_recover();
         manager.circuit_reset_cli(&db, &cli_key)
     })
     .await
-    .map_err(|e| e.to_string())
+    .map_err(Into::into)
 }
 
 #[tauri::command]
@@ -193,9 +183,7 @@ pub(crate) async fn gateway_start(
     db_state: tauri::State<'_, DbInitState>,
     preferred_port: Option<u16>,
 ) -> Result<gateway::GatewayStatus, String> {
-    let db = ensure_db_ready(app.clone(), db_state.inner())
-        .await
-        .map_err(|e| e.to_string())?;
+    let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
     let status = blocking::run("gateway_start", {
         let app = app.clone();
         let db = db.clone();
@@ -205,8 +193,7 @@ pub(crate) async fn gateway_start(
             manager.start(&app, db, preferred_port)
         }
     })
-    .await
-    .map_err(|e| e.to_string())?;
+    .await?;
 
     let _ = app.emit("gateway:status", status.clone());
     if let Some(base_origin) = status.base_url.as_deref() {

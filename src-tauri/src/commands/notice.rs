@@ -9,6 +9,6 @@ pub(crate) fn notice_send(
     title: Option<String>,
     body: String,
 ) -> Result<bool, String> {
-    notice::emit(&app, notice::build(level, title, body)).map_err(|e| e.to_string())?;
+    notice::emit(&app, notice::build(level, title, body))?;
     Ok(true)
 }

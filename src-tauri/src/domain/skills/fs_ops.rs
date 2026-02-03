@@ -2,7 +2,7 @@ use std::path::Path;
 
 const MANAGED_MARKER_FILE: &str = ".aio-coding-hub.managed";
 
-pub(super) fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
+pub(super) fn copy_dir_recursive(src: &Path, dst: &Path) -> crate::shared::error::AppResult<()> {
     std::fs::create_dir_all(dst).map_err(|e| format!("failed to create {}: {e}", dst.display()))?;
     let entries =
         std::fs::read_dir(src).map_err(|e| format!("failed to read dir {}: {e}", src.display()))?;
@@ -27,10 +27,10 @@ pub(super) fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
     Ok(())
 }
 
-pub(super) fn write_marker(dir: &Path) -> Result<(), String> {
+pub(super) fn write_marker(dir: &Path) -> crate::shared::error::AppResult<()> {
     let path = dir.join(MANAGED_MARKER_FILE);
     std::fs::write(&path, "aio-coding-hub\n")
-        .map_err(|e| format!("failed to write marker {}: {e}", path.display()))
+        .map_err(|e| format!("failed to write marker {}: {e}", path.display()).into())
 }
 
 pub(super) fn remove_marker(dir: &Path) {
@@ -42,7 +42,7 @@ pub(super) fn is_managed_dir(dir: &Path) -> bool {
     dir.join(MANAGED_MARKER_FILE).exists()
 }
 
-pub(super) fn remove_managed_dir(dir: &Path) -> Result<(), String> {
+pub(super) fn remove_managed_dir(dir: &Path) -> crate::shared::error::AppResult<()> {
     if !dir.exists() {
         return Ok(());
     }
@@ -50,7 +50,8 @@ pub(super) fn remove_managed_dir(dir: &Path) -> Result<(), String> {
         return Err(format!(
             "SKILL_REMOVE_BLOCKED_UNMANAGED: target exists but is not managed: {}",
             dir.display()
-        ));
+        )
+        .into());
     }
     std::fs::remove_dir_all(dir).map_err(|e| format!("failed to remove {}: {e}", dir.display()))?;
     Ok(())

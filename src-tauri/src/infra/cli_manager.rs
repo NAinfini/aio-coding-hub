@@ -60,7 +60,7 @@ fn command_output_with_timeout(
     mut cmd: Command,
     timeout: Duration,
     label: String,
-) -> Result<std::process::Output, String> {
+) -> crate::shared::error::AppResult<std::process::Output> {
     cmd.stdin(Stdio::null());
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
@@ -75,36 +75,36 @@ fn command_output_with_timeout(
             Ok(Some(_)) => {
                 return child
                     .wait_with_output()
-                    .map_err(|e| format!("failed to collect output {label}: {e}"));
+                    .map_err(|e| format!("failed to collect output {label}: {e}").into());
             }
             Ok(None) => {
                 if start.elapsed() >= timeout {
                     let _ = child.kill();
                     let _ = child.wait();
-                    return Err(format!("{label} timed out after {}ms", timeout.as_millis()));
+                    return Err(format!("{label} timed out after {}ms", timeout.as_millis()).into());
                 }
                 std::thread::sleep(CMD_POLL_INTERVAL);
             }
             Err(e) => {
                 let _ = child.kill();
                 let _ = child.wait();
-                return Err(format!("failed to wait for {label}: {e}"));
+                return Err(format!("failed to wait for {label}: {e}").into());
             }
         }
     }
 }
 
-fn home_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+fn home_dir(app: &tauri::AppHandle) -> crate::shared::error::AppResult<PathBuf> {
     app.path()
         .home_dir()
-        .map_err(|e| format!("failed to resolve home dir: {e}"))
+        .map_err(|e| format!("failed to resolve home dir: {e}").into())
 }
 
-fn claude_config_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+fn claude_config_dir(app: &tauri::AppHandle) -> crate::shared::error::AppResult<PathBuf> {
     Ok(home_dir(app)?.join(".claude"))
 }
 
-fn claude_settings_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+fn claude_settings_path(app: &tauri::AppHandle) -> crate::shared::error::AppResult<PathBuf> {
     Ok(claude_config_dir(app)?.join("settings.json"))
 }
 
@@ -116,7 +116,10 @@ fn json_root_from_bytes(bytes: Option<Vec<u8>>) -> serde_json::Value {
     }
 }
 
-fn json_to_bytes(value: &serde_json::Value, hint: &str) -> Result<Vec<u8>, String> {
+fn json_to_bytes(
+    value: &serde_json::Value,
+    hint: &str,
+) -> crate::shared::error::AppResult<Vec<u8>> {
     let mut out =
         serde_json::to_vec_pretty(value).map_err(|e| format!("failed to serialize {hint}: {e}"))?;
     out.push(b'\n');
@@ -140,7 +143,7 @@ fn env_string_value(value: &serde_json::Value) -> Option<String> {
     }
 }
 
-fn read_claude_env(settings_path: &Path) -> Result<(Option<u64>, bool), String> {
+fn read_claude_env(settings_path: &Path) -> crate::shared::error::AppResult<(Option<u64>, bool)> {
     let Some(bytes) = read_optional_file(settings_path)? else {
         return Ok((None, false));
     };
@@ -168,7 +171,7 @@ fn patch_claude_env(
     root: serde_json::Value,
     mcp_timeout_ms: Option<u64>,
     disable_error_reporting: bool,
-) -> Result<serde_json::Value, String> {
+) -> crate::shared::error::AppResult<serde_json::Value> {
     let mut root = ensure_json_object_root(root);
     let obj = root
         .as_object_mut()
@@ -212,7 +215,7 @@ fn write_claude_env(
     app: &tauri::AppHandle,
     mcp_timeout_ms: Option<u64>,
     disable_error_reporting: bool,
-) -> Result<(), String> {
+) -> crate::shared::error::AppResult<()> {
     let settings_path = claude_settings_path(app)?;
     let current = read_optional_file(&settings_path)?;
     let root = json_root_from_bytes(current);
@@ -261,7 +264,10 @@ fn find_exe_in_path(names: &[String]) -> Option<PathBuf> {
     None
 }
 
-fn scan_executable(app: &tauri::AppHandle, cmd: &str) -> Result<Option<PathBuf>, String> {
+fn scan_executable(
+    app: &tauri::AppHandle,
+    cmd: &str,
+) -> crate::shared::error::AppResult<Option<PathBuf>> {
     let names = exe_names_for(cmd);
     if let Some(p) = find_exe_in_path(&names) {
         return Ok(Some(p));
@@ -342,7 +348,7 @@ fn is_fish_shell(shell: &Path) -> bool {
         .unwrap_or(false)
 }
 
-fn run_in_login_shell(shell: &Path, script: &str) -> Result<String, String> {
+fn run_in_login_shell(shell: &Path, script: &str) -> crate::shared::error::AppResult<String> {
     let mut cmd = Command::new(shell);
 
     #[cfg(not(windows))]
@@ -359,7 +365,8 @@ fn run_in_login_shell(shell: &Path, script: &str) -> Result<String, String> {
         return Err(format!(
             "login shell resolution is not supported on windows (shell={})",
             shell.display()
-        ));
+        )
+        .into());
     }
 
     let out = command_output_with_timeout(
@@ -372,16 +379,20 @@ fn run_in_login_shell(shell: &Path, script: &str) -> Result<String, String> {
         let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
         let msg = if !stderr.is_empty() { stderr } else { stdout };
         return Err(if msg.is_empty() {
-            "unknown error".to_string()
+            "unknown error"
         } else {
-            msg
-        });
+            &msg
+        }
+        .to_string()
+        .into());
     }
 
     Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
 }
 
-fn resolve_executable_via_login_shell(cmd: &str) -> Result<Option<PathBuf>, String> {
+fn resolve_executable_via_login_shell(
+    cmd: &str,
+) -> crate::shared::error::AppResult<Option<PathBuf>> {
     let Some(shell) = shell_env_path() else {
         return Ok(None);
     };
@@ -404,7 +415,7 @@ fn resolve_executable_via_login_shell(cmd: &str) -> Result<Option<PathBuf>, Stri
     Ok(None)
 }
 
-fn run_version(exe: &Path) -> Result<String, String> {
+fn run_version(exe: &Path) -> crate::shared::error::AppResult<String> {
     let mut cmd = Command::new(exe);
     cmd.arg("--version");
 
@@ -433,13 +444,15 @@ fn run_version(exe: &Path) -> Result<String, String> {
 
     let msg = if !stderr.is_empty() { stderr } else { stdout };
     Err(if msg.is_empty() {
-        "unknown error".to_string()
+        "unknown error"
     } else {
-        msg
-    })
+        &msg
+    }
+    .to_string()
+    .into())
 }
 
-fn cli_probe(app: &tauri::AppHandle, cmd: &str) -> Result<CliProbeResult, String> {
+fn cli_probe(app: &tauri::AppHandle, cmd: &str) -> crate::shared::error::AppResult<CliProbeResult> {
     let shell = std::env::var("SHELL").ok();
 
     let (exe, resolved_via) = match resolve_executable_via_login_shell(cmd) {
@@ -458,7 +471,7 @@ fn cli_probe(app: &tauri::AppHandle, cmd: &str) -> Result<CliProbeResult, String
         executable_path = Some(exe.to_string_lossy().to_string());
         match run_version(&exe) {
             Ok(v) => version = Some(v),
-            Err(err) => error = Some(err),
+            Err(err) => error = Some(err.to_string()),
         }
     }
 

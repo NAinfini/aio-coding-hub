@@ -7,7 +7,7 @@ use tauri::Manager;
 pub(crate) async fn settings_get(app: tauri::AppHandle) -> Result<settings::AppSettings, String> {
     blocking::run("settings_get", move || settings::read(&app))
         .await
-        .map_err(|e| e.to_string())
+        .map_err(Into::into)
 }
 
 #[tauri::command]
@@ -146,8 +146,7 @@ pub(crate) async fn settings_set(
             Ok(next_settings)
         },
     )
-    .await
-    .map_err(|e| e.to_string())?;
+    .await?;
 
     app.state::<resident::ResidentState>()
         .set_tray_enabled(next_settings.tray_enabled);
@@ -184,7 +183,7 @@ pub(crate) async fn settings_gateway_rectifier_set(
         settings::write(&app_for_work, &settings)
     })
     .await
-    .map_err(|e| e.to_string())
+    .map_err(Into::into)
 }
 
 #[tauri::command]
@@ -200,7 +199,7 @@ pub(crate) async fn settings_circuit_breaker_notice_set(
         settings::write(&app_for_work, &settings)
     })
     .await
-    .map_err(|e| e.to_string())
+    .map_err(Into::into)
 }
 
 #[tauri::command]
@@ -216,5 +215,5 @@ pub(crate) async fn settings_codex_session_id_completion_set(
         settings::write(&app_for_work, &settings)
     })
     .await
-    .map_err(|e| e.to_string())
+    .map_err(Into::into)
 }

@@ -21,24 +21,23 @@ pub struct SortModeActiveRow {
     pub updated_at: i64,
 }
 
-fn validate_cli_key(cli_key: &str) -> Result<(), String> {
-    crate::shared::cli_key::validate_cli_key(cli_key)?;
-    Ok(())
+fn validate_cli_key(cli_key: &str) -> crate::shared::error::AppResult<()> {
+    crate::shared::cli_key::validate_cli_key(cli_key)
 }
 
-fn validate_mode_name(name: &str) -> Result<String, String> {
+fn validate_mode_name(name: &str) -> crate::shared::error::AppResult<String> {
     let name = name.trim();
     if name.is_empty() {
-        return Err("SEC_INVALID_INPUT: mode name is required".to_string());
+        return Err("SEC_INVALID_INPUT: mode name is required".into());
     }
 
     if name.chars().count() > 32 {
-        return Err("SEC_INVALID_INPUT: mode name is too long (max 32 chars)".to_string());
+        return Err("SEC_INVALID_INPUT: mode name is too long (max 32 chars)".into());
     }
 
     let lowered = name.to_ascii_lowercase();
     if lowered == "default" || name == "默认" {
-        return Err("SEC_INVALID_INPUT: mode name is reserved".to_string());
+        return Err("SEC_INVALID_INPUT: mode name is reserved".into());
     }
 
     Ok(name.to_string())
@@ -53,9 +52,9 @@ fn row_to_mode_summary(row: &rusqlite::Row<'_>) -> Result<SortModeSummary, rusql
     })
 }
 
-fn ensure_mode_exists(conn: &Connection, mode_id: i64) -> Result<(), String> {
+fn ensure_mode_exists(conn: &Connection, mode_id: i64) -> crate::shared::error::AppResult<()> {
     if mode_id <= 0 {
-        return Err("SEC_INVALID_INPUT: invalid mode_id".to_string());
+        return Err("SEC_INVALID_INPUT: invalid mode_id".into());
     }
 
     let exists: Option<i64> = conn
@@ -68,13 +67,16 @@ fn ensure_mode_exists(conn: &Connection, mode_id: i64) -> Result<(), String> {
         .map_err(|e| format!("DB_ERROR: failed to query sort_mode: {e}"))?;
 
     if exists.is_none() {
-        return Err("DB_NOT_FOUND: sort_mode not found".to_string());
+        return Err("DB_NOT_FOUND: sort_mode not found".into());
     }
 
     Ok(())
 }
 
-fn read_active_row(conn: &Connection, cli_key: &str) -> Result<SortModeActiveRow, String> {
+fn read_active_row(
+    conn: &Connection,
+    cli_key: &str,
+) -> crate::shared::error::AppResult<SortModeActiveRow> {
     conn.query_row(
         r#"
 SELECT
@@ -95,7 +97,7 @@ WHERE cli_key = ?1
     )
     .optional()
     .map_err(|e| format!("DB_ERROR: failed to query sort_mode_active: {e}"))?
-    .ok_or_else(|| "DB_NOT_FOUND: sort_mode_active not found".to_string())
+    .ok_or_else(|| "DB_NOT_FOUND: sort_mode_active not found".into())
 }
 
 pub fn list_modes(db: &db::Db) -> crate::shared::error::AppResult<Vec<SortModeSummary>> {
@@ -281,7 +283,7 @@ ON CONFLICT(cli_key) DO UPDATE SET
     )
     .map_err(|e| format!("DB_ERROR: failed to upsert sort_mode_active: {e}"))?;
 
-    Ok(read_active_row(&conn, cli_key)?)
+    read_active_row(&conn, cli_key)
 }
 
 pub fn list_mode_providers(
@@ -322,7 +324,7 @@ fn ensure_providers_belong_to_cli(
     conn: &Connection,
     cli_key: &str,
     provider_ids: &[i64],
-) -> Result<(), String> {
+) -> crate::shared::error::AppResult<()> {
     if provider_ids.is_empty() {
         return Ok(());
     }
@@ -330,10 +332,10 @@ fn ensure_providers_belong_to_cli(
     let mut unique_ids = HashSet::new();
     for id in provider_ids {
         if *id <= 0 {
-            return Err(format!("SEC_INVALID_INPUT: invalid provider_id={id}"));
+            return Err(format!("SEC_INVALID_INPUT: invalid provider_id={id}").into());
         }
         if !unique_ids.insert(*id) {
-            return Err(format!("SEC_INVALID_INPUT: duplicate provider_id={id}"));
+            return Err(format!("SEC_INVALID_INPUT: duplicate provider_id={id}").into());
         }
     }
 
@@ -361,7 +363,8 @@ fn ensure_providers_belong_to_cli(
         let missing: Vec<i64> = unique_ids.difference(&found).copied().collect();
         return Err(format!(
             "SEC_INVALID_INPUT: provider_id does not belong to cli_key={cli_key}: {missing:?}"
-        ));
+        )
+        .into());
     }
 
     Ok(())

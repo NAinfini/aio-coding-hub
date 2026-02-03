@@ -280,7 +280,7 @@ pub fn apply(
         let _ = prompt_sync::restore_manifest_bytes(app, &cli_key, prev_prompt_manifest);
         let _ = mcp_sync::restore_target_bytes(app, &cli_key, prev_mcp_target);
         let _ = mcp_sync::restore_manifest_bytes(app, &cli_key, prev_mcp_manifest);
-        return Err(err.into());
+        return Err(err);
     }
 
     if let Err(err) = mcp::sync_cli_for_workspace(app, &conn, workspace_id) {
@@ -288,7 +288,7 @@ pub fn apply(
         let _ = prompt_sync::restore_manifest_bytes(app, &cli_key, prev_prompt_manifest);
         let _ = mcp_sync::restore_target_bytes(app, &cli_key, prev_mcp_target);
         let _ = mcp_sync::restore_manifest_bytes(app, &cli_key, prev_mcp_manifest);
-        return Err(err.into());
+        return Err(err);
     }
 
     let mut local_plugins_swap = if cli_key == "claude" {
@@ -304,7 +304,7 @@ pub fn apply(
                 let _ = prompt_sync::restore_manifest_bytes(app, &cli_key, prev_prompt_manifest);
                 let _ = mcp_sync::restore_target_bytes(app, &cli_key, prev_mcp_target);
                 let _ = mcp_sync::restore_manifest_bytes(app, &cli_key, prev_mcp_manifest);
-                return Err(err.into());
+                return Err(err);
             }
         }
     } else {
@@ -325,7 +325,7 @@ pub fn apply(
             let _ = skills::sync_cli_for_workspace(app, &conn, from_id);
         }
 
-        return Err(err.into());
+        return Err(err);
     }
 
     let local_skills_swap = match skills::swap_local_skills_for_workspace_switch(
@@ -349,7 +349,7 @@ pub fn apply(
                 let _ = skills::sync_cli_for_workspace(app, &conn, from_id);
             }
 
-            return Err(err.into());
+            return Err(err);
         }
     };
 

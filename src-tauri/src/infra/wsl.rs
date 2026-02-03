@@ -155,7 +155,7 @@ pub fn host_ipv4_best_effort() -> Option<String> {
     None
 }
 
-fn run_wsl_bash_script(distro: &str, script: &str) -> Result<(), String> {
+fn run_wsl_bash_script(distro: &str, script: &str) -> crate::shared::error::AppResult<()> {
     let mut cmd = hide_window_cmd("wsl");
     cmd.args(["-d", distro, "bash"]);
     cmd.stdin(Stdio::piped());
@@ -183,14 +183,18 @@ fn run_wsl_bash_script(distro: &str, script: &str) -> Result<(), String> {
     let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
     let msg = if !stderr.is_empty() { stderr } else { stdout };
-    Err(if msg.is_empty() {
-        "unknown error".to_string()
-    } else {
-        msg
-    })
+    Err(format!(
+        "WSL_ERROR: {}",
+        if msg.is_empty() {
+            "unknown error"
+        } else {
+            &msg
+        }
+    )
+    .into())
 }
 
-fn configure_wsl_claude(distro: &str, proxy_origin: &str) -> Result<(), String> {
+fn configure_wsl_claude(distro: &str, proxy_origin: &str) -> crate::shared::error::AppResult<()> {
     let base_url = format!("{proxy_origin}/claude");
     let base_url = bash_single_quote(&base_url);
     let auth_token = bash_single_quote("aio-coding-hub");
@@ -328,7 +332,7 @@ trap - EXIT
     run_wsl_bash_script(distro, &script)
 }
 
-fn configure_wsl_codex(distro: &str, proxy_origin: &str) -> Result<(), String> {
+fn configure_wsl_codex(distro: &str, proxy_origin: &str) -> crate::shared::error::AppResult<()> {
     let base_url = format!("{proxy_origin}/v1");
     let base_url = bash_single_quote(&base_url);
     let provider_key = bash_single_quote("aio");
@@ -590,7 +594,7 @@ exit 1
     run_wsl_bash_script(distro, &script)
 }
 
-fn configure_wsl_gemini(distro: &str, proxy_origin: &str) -> Result<(), String> {
+fn configure_wsl_gemini(distro: &str, proxy_origin: &str) -> crate::shared::error::AppResult<()> {
     let base_url = format!("{proxy_origin}/gemini");
     let base_url = bash_single_quote(&base_url);
     let api_key = bash_single_quote("aio-coding-hub");
@@ -845,7 +849,7 @@ pub fn configure_clients(
                 Err(err) => results.push(WslConfigureCliReport {
                     cli_key: "claude".to_string(),
                     ok: false,
-                    message: err,
+                    message: err.to_string(),
                 }),
             }
         }
@@ -860,7 +864,7 @@ pub fn configure_clients(
                 Err(err) => results.push(WslConfigureCliReport {
                     cli_key: "codex".to_string(),
                     ok: false,
-                    message: err,
+                    message: err.to_string(),
                 }),
             }
         }
@@ -875,7 +879,7 @@ pub fn configure_clients(
                 Err(err) => results.push(WslConfigureCliReport {
                     cli_key: "gemini".to_string(),
                     ok: false,
-                    message: err,
+                    message: err.to_string(),
                 }),
             }
         }

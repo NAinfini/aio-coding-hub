@@ -93,24 +93,24 @@ pub struct ClaudeSettingsPatch {
     pub env_claude_code_skip_prompt_history: Option<bool>,
 }
 
-fn home_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+fn home_dir(app: &tauri::AppHandle) -> crate::shared::error::AppResult<PathBuf> {
     app.path()
         .home_dir()
-        .map_err(|e| format!("failed to resolve home dir: {e}"))
+        .map_err(|e| format!("failed to resolve home dir: {e}").into())
 }
 
-fn claude_config_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+fn claude_config_dir(app: &tauri::AppHandle) -> crate::shared::error::AppResult<PathBuf> {
     Ok(home_dir(app)?.join(".claude"))
 }
 
-fn claude_settings_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+fn claude_settings_path(app: &tauri::AppHandle) -> crate::shared::error::AppResult<PathBuf> {
     Ok(claude_config_dir(app)?.join("settings.json"))
 }
 
-fn is_symlink(path: &Path) -> Result<bool, String> {
+fn is_symlink(path: &Path) -> crate::shared::error::AppResult<bool> {
     std::fs::symlink_metadata(path)
         .map(|m| m.file_type().is_symlink())
-        .map_err(|e| format!("failed to read metadata {}: {e}", path.display()))
+        .map_err(|e| format!("failed to read metadata {}: {e}", path.display()).into())
 }
 
 fn json_root_from_bytes(bytes: Option<Vec<u8>>) -> serde_json::Value {
@@ -121,7 +121,10 @@ fn json_root_from_bytes(bytes: Option<Vec<u8>>) -> serde_json::Value {
     }
 }
 
-fn json_to_bytes(value: &serde_json::Value, hint: &str) -> Result<Vec<u8>, String> {
+fn json_to_bytes(
+    value: &serde_json::Value,
+    hint: &str,
+) -> crate::shared::error::AppResult<Vec<u8>> {
     let mut out =
         serde_json::to_vec_pretty(value).map_err(|e| format!("failed to serialize {hint}: {e}"))?;
     out.push(b'\n');
@@ -360,7 +363,7 @@ fn patch_env_bool_toggle(
 fn patch_claude_settings(
     mut root: serde_json::Value,
     patch: ClaudeSettingsPatch,
-) -> Result<serde_json::Value, String> {
+) -> crate::shared::error::AppResult<serde_json::Value> {
     root = ensure_json_object_root(root);
     let obj = root
         .as_object_mut()

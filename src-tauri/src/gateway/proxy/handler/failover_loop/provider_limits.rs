@@ -90,7 +90,7 @@ fn sum_cost_usd_femto_windows(
     conn: &Connection,
     provider_id: i64,
     bounds: SpendQueryBounds,
-) -> Result<SpendSums, String> {
+) -> crate::shared::error::AppResult<SpendSums> {
     let SpendQueryBounds {
         start_5h,
         start_daily_rolling,
@@ -151,7 +151,7 @@ WHERE excluded_from_stats = 0
             })
         },
     )
-    .map_err(|e| format!("DB_ERROR: failed to sum provider cost windows: {e}"))
+    .map_err(|e| format!("DB_ERROR: failed to sum provider cost windows: {e}").into())
 }
 
 fn fetch_cost_buckets(
@@ -159,7 +159,7 @@ fn fetch_cost_buckets(
     provider_id: i64,
     start_ts: i64,
     end_ts: i64,
-) -> Result<Vec<(i64, i64)>, String> {
+) -> crate::shared::error::AppResult<Vec<(i64, i64)>> {
     let mut stmt = conn
         .prepare(
             r#"
@@ -250,7 +250,7 @@ fn compute_daily_fixed_bounds(
     conn: &Connection,
     now_unix: i64,
     reset_time: &str,
-) -> Result<(i64, i64), String> {
+) -> crate::shared::error::AppResult<(i64, i64)> {
     let (h, m, s) = parse_reset_time_hms_lossy(reset_time);
     let mod_h = format!("+{h} hours");
     let mod_m = format!("+{m} minutes");
@@ -272,10 +272,13 @@ FROM bounds
         params![now_unix, mod_h, mod_m, mod_s],
         |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
     )
-    .map_err(|e| format!("DB_ERROR: failed to compute daily reset bounds: {e}"))
+    .map_err(|e| format!("DB_ERROR: failed to compute daily reset bounds: {e}").into())
 }
 
-fn compute_weekly_bounds(conn: &Connection, now_unix: i64) -> Result<(i64, i64), String> {
+fn compute_weekly_bounds(
+    conn: &Connection,
+    now_unix: i64,
+) -> crate::shared::error::AppResult<(i64, i64)> {
     conn.query_row(
         r#"
 WITH w AS (
@@ -289,10 +292,13 @@ FROM w
         params![now_unix],
         |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
     )
-    .map_err(|e| format!("DB_ERROR: failed to compute weekly bounds: {e}"))
+    .map_err(|e| format!("DB_ERROR: failed to compute weekly bounds: {e}").into())
 }
 
-fn compute_monthly_bounds(conn: &Connection, now_unix: i64) -> Result<(i64, i64), String> {
+fn compute_monthly_bounds(
+    conn: &Connection,
+    now_unix: i64,
+) -> crate::shared::error::AppResult<(i64, i64)> {
     conn.query_row(
         r#"
 SELECT
@@ -302,7 +308,7 @@ SELECT
         params![now_unix],
         |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
     )
-    .map_err(|e| format!("DB_ERROR: failed to compute monthly bounds: {e}"))
+    .map_err(|e| format!("DB_ERROR: failed to compute monthly bounds: {e}").into())
 }
 
 /// Resolve the fixed 5h window start for a provider.
@@ -311,7 +317,7 @@ fn resolve_fixed_5h_start(
     conn: &Connection,
     provider_id: i64,
     now_unix: i64,
-) -> Result<i64, String> {
+) -> crate::shared::error::AppResult<i64> {
     let stored: Option<i64> = conn
         .query_row(
             "SELECT window_5h_start_ts FROM providers WHERE id = ?1",

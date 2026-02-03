@@ -14,7 +14,7 @@ fn stash_bucket_name(workspace_id: Option<i64>) -> String {
 fn stash_root<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     cli_key: &str,
-) -> Result<PathBuf, String> {
+) -> crate::shared::error::AppResult<PathBuf> {
     Ok(app_paths::app_data_dir(app)?
         .join("skills-local")
         .join(cli_key))
@@ -30,7 +30,7 @@ fn is_local_skill_dir(path: &Path) -> bool {
     path.join("SKILL.md").exists()
 }
 
-fn rotate_existing_dir(dst: &Path) -> Result<(), String> {
+fn rotate_existing_dir(dst: &Path) -> crate::shared::error::AppResult<()> {
     if !dst.exists() {
         return Ok(());
     }
@@ -56,12 +56,9 @@ fn rotate_existing_dir(dst: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn move_dir(src: &Path, dst: &Path) -> Result<(), String> {
+fn move_dir(src: &Path, dst: &Path) -> crate::shared::error::AppResult<()> {
     let Some(parent) = dst.parent() else {
-        return Err(format!(
-            "SEC_INVALID_INPUT: invalid dst path {}",
-            dst.display()
-        ));
+        return Err(format!("SEC_INVALID_INPUT: invalid dst path {}", dst.display()).into());
     };
     std::fs::create_dir_all(parent)
         .map_err(|e| format!("failed to create {}: {e}", parent.display()))?;
@@ -71,7 +68,7 @@ fn move_dir(src: &Path, dst: &Path) -> Result<(), String> {
     }
 
     std::fs::rename(src, dst)
-        .map_err(|e| format!("failed to move {} -> {}: {e}", src.display(), dst.display()))
+        .map_err(|e| format!("failed to move {} -> {}: {e}", src.display(), dst.display()).into())
 }
 
 #[derive(Debug)]
@@ -109,7 +106,7 @@ pub(crate) fn swap_local_skills_for_workspace_switch<R: tauri::Runtime>(
     cli_key: &str,
     from_workspace_id: Option<i64>,
     to_workspace_id: i64,
-) -> Result<LocalSkillsSwap, String> {
+) -> crate::shared::error::AppResult<LocalSkillsSwap> {
     let cli_root = cli_skills_root(app, cli_key)?;
 
     let stash_root = stash_root(app, cli_key)?;

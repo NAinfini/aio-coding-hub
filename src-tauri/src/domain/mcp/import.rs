@@ -338,7 +338,7 @@ ON CONFLICT(workspace_id, server_id) DO UPDATE SET
 
     if let Err(err) = sync_all_cli(app, &tx) {
         snapshots.restore_all(app);
-        return Err(err.into());
+        return Err(err);
     }
 
     if let Err(err) = tx.commit() {

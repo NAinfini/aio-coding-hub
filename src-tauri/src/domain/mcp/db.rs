@@ -12,7 +12,7 @@ use super::types::{McpImportServer, McpServerSummary};
 use super::validate::{suggest_key, validate_cli_key, validate_server_key, validate_transport};
 use crate::shared::text::normalize_name;
 
-fn server_key_exists(conn: &Connection, server_key: &str) -> Result<bool, String> {
+fn server_key_exists(conn: &Connection, server_key: &str) -> crate::shared::error::AppResult<bool> {
     let exists: Option<i64> = conn
         .query_row(
             "SELECT id FROM mcp_servers WHERE server_key = ?1",
@@ -24,7 +24,10 @@ fn server_key_exists(conn: &Connection, server_key: &str) -> Result<bool, String
     Ok(exists.is_some())
 }
 
-fn generate_unique_server_key(conn: &Connection, name: &str) -> Result<String, String> {
+fn generate_unique_server_key(
+    conn: &Connection,
+    name: &str,
+) -> crate::shared::error::AppResult<String> {
     let base = suggest_key(name);
     let base = base.trim();
     let base = if base.is_empty() { "mcp-server" } else { base };
@@ -53,14 +56,17 @@ fn generate_unique_server_key(conn: &Connection, name: &str) -> Result<String, S
     Ok(fallback)
 }
 
-fn args_to_json(args: &[String]) -> Result<String, String> {
+fn args_to_json(args: &[String]) -> crate::shared::error::AppResult<String> {
     serde_json::to_string(args)
-        .map_err(|e| format!("SEC_INVALID_INPUT: failed to serialize args: {e}"))
+        .map_err(|e| format!("SEC_INVALID_INPUT: failed to serialize args: {e}").into())
 }
 
-fn map_to_json(map: &BTreeMap<String, String>, hint: &str) -> Result<String, String> {
+fn map_to_json(
+    map: &BTreeMap<String, String>,
+    hint: &str,
+) -> crate::shared::error::AppResult<String> {
     serde_json::to_string(map)
-        .map_err(|e| format!("SEC_INVALID_INPUT: failed to serialize {hint}: {e}"))
+        .map_err(|e| format!("SEC_INVALID_INPUT: failed to serialize {hint}: {e}").into())
 }
 
 fn row_to_summary(row: &rusqlite::Row<'_>) -> Result<McpServerSummary, rusqlite::Error> {
@@ -90,7 +96,10 @@ fn row_to_summary(row: &rusqlite::Row<'_>) -> Result<McpServerSummary, rusqlite:
     })
 }
 
-fn get_by_id(conn: &Connection, server_id: i64) -> Result<McpServerSummary, String> {
+fn get_by_id(
+    conn: &Connection,
+    server_id: i64,
+) -> crate::shared::error::AppResult<McpServerSummary> {
     conn.query_row(
         r#"
 SELECT
@@ -115,14 +124,14 @@ WHERE id = ?1
     )
     .optional()
     .map_err(|e| format!("DB_ERROR: failed to query mcp server: {e}"))?
-    .ok_or_else(|| "DB_NOT_FOUND: mcp server not found".to_string())
+    .ok_or_else(|| crate::shared::error::AppError::from("DB_NOT_FOUND: mcp server not found"))
 }
 
 fn get_by_id_for_workspace(
     conn: &Connection,
     workspace_id: i64,
     server_id: i64,
-) -> Result<McpServerSummary, String> {
+) -> crate::shared::error::AppResult<McpServerSummary> {
     conn.query_row(
         r#"
 SELECT
@@ -149,7 +158,7 @@ WHERE s.id = ?2
     )
     .optional()
     .map_err(|e| format!("DB_ERROR: failed to query mcp server: {e}"))?
-    .ok_or_else(|| "DB_NOT_FOUND: mcp server not found".to_string())
+    .ok_or_else(|| crate::shared::error::AppError::from("DB_NOT_FOUND: mcp server not found"))
 }
 
 pub fn list_for_workspace(
@@ -370,7 +379,7 @@ WHERE id = ?11
 
     if let Err(err) = sync_all_cli(app, &tx) {
         snapshots.restore_all(app);
-        return Err(err.into());
+        return Err(err);
     }
 
     if let Err(err) = tx.commit() {
@@ -378,7 +387,7 @@ WHERE id = ?11
         return Err(format!("DB_ERROR: failed to commit: {err}").into());
     }
 
-    Ok(get_by_id(&conn, id)?)
+    get_by_id(&conn, id)
 }
 
 pub fn set_enabled(
@@ -428,7 +437,7 @@ ON CONFLICT(workspace_id, server_id) DO UPDATE SET
             if let Some(backup) = backup {
                 backup.restore(app, &cli_key);
             }
-            return Err(err.into());
+            return Err(err);
         }
     }
 
@@ -439,7 +448,7 @@ ON CONFLICT(workspace_id, server_id) DO UPDATE SET
         return Err(format!("DB_ERROR: failed to commit: {err}").into());
     }
 
-    Ok(get_by_id_for_workspace(&conn, workspace_id, server_id)?)
+    get_by_id_for_workspace(&conn, workspace_id, server_id)
 }
 
 pub fn delete(
@@ -463,7 +472,7 @@ pub fn delete(
 
     if let Err(err) = sync_all_cli(app, &tx) {
         snapshots.restore_all(app);
-        return Err(err.into());
+        return Err(err);
     }
 
     if let Err(err) = tx.commit() {
@@ -478,10 +487,10 @@ pub(super) fn upsert_by_name(
     tx: &Connection,
     input: &McpImportServer,
     now: i64,
-) -> Result<(bool, i64), String> {
+) -> crate::shared::error::AppResult<(bool, i64)> {
     let name = input.name.trim();
     if name.is_empty() {
-        return Err("SEC_INVALID_INPUT: name is required".to_string());
+        return Err("SEC_INVALID_INPUT: name is required".into());
     }
     let transport = input.transport.trim().to_lowercase();
     validate_transport(&transport)?;
@@ -506,13 +515,15 @@ pub(super) fn upsert_by_name(
         return Err(format!(
             "SEC_INVALID_INPUT: stdio command is required for server='{}'",
             name
-        ));
+        )
+        .into());
     }
     if transport == "http" && url.is_none() {
         return Err(format!(
             "SEC_INVALID_INPUT: http url is required for server='{}'",
             name
-        ));
+        )
+        .into());
     }
 
     let args_json = args_to_json(&input.args)?;

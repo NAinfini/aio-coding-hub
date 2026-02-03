@@ -55,7 +55,7 @@ pub(super) fn cli_proxy_enabled_cached(
 
     let (enabled, error) = match cli_proxy::is_enabled(app, cli_key) {
         Ok(v) => (v, None),
-        Err(err) => (false, Some(err)),
+        Err(err) => (false, Some(err.to_string())),
     };
     let cache_ttl_ms = if error.is_some() {
         CLI_PROXY_ENABLED_CACHE_TTL_MS_ERR

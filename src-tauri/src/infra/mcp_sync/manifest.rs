@@ -32,21 +32,24 @@ pub(super) struct McpSyncManifest {
 pub fn read_manifest_bytes<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     cli_key: &str,
-) -> Result<Option<Vec<u8>>, String> {
+) -> crate::shared::error::AppResult<Option<Vec<u8>>> {
     let root = mcp_sync_root_dir(app, cli_key)?;
     let path = mcp_sync_manifest_path(&root);
-    Ok(read_optional_file(&path)?)
+    read_optional_file(&path)
 }
 
 pub fn restore_manifest_bytes<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     cli_key: &str,
     bytes: Option<Vec<u8>>,
-) -> Result<(), String> {
+) -> crate::shared::error::AppResult<()> {
     let root = mcp_sync_root_dir(app, cli_key)?;
     let path = mcp_sync_manifest_path(&root);
     match bytes {
-        Some(content) => Ok(write_file_atomic(&path, &content)?),
+        Some(content) => {
+            write_file_atomic(&path, &content)?;
+            Ok(())
+        }
         None => {
             if path.exists() {
                 std::fs::remove_file(&path)
@@ -60,7 +63,7 @@ pub fn restore_manifest_bytes<R: tauri::Runtime>(
 pub(super) fn read_manifest<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     cli_key: &str,
-) -> Result<Option<McpSyncManifest>, String> {
+) -> crate::shared::error::AppResult<Option<McpSyncManifest>> {
     let root = mcp_sync_root_dir(app, cli_key)?;
     let path = mcp_sync_manifest_path(&root);
 
@@ -82,7 +85,8 @@ pub(super) fn read_manifest<R: tauri::Runtime>(
             "mcp manifest managed_by mismatch: expected {}, got {}",
             super::MANAGED_BY,
             manifest.managed_by
-        ));
+        )
+        .into());
     }
 
     Ok(Some(manifest))
@@ -92,7 +96,7 @@ pub(super) fn write_manifest<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     cli_key: &str,
     manifest: &McpSyncManifest,
-) -> Result<(), String> {
+) -> crate::shared::error::AppResult<()> {
     let root = mcp_sync_root_dir(app, cli_key)?;
     std::fs::create_dir_all(&root)
         .map_err(|e| format!("failed to create {}: {e}", root.display()))?;
@@ -108,7 +112,7 @@ pub(super) fn backup_for_enable<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     cli_key: &str,
     existing: Option<McpSyncManifest>,
-) -> Result<McpSyncManifest, String> {
+) -> crate::shared::error::AppResult<McpSyncManifest> {
     let root = mcp_sync_root_dir(app, cli_key)?;
     let files_dir = mcp_sync_files_dir(&root);
     std::fs::create_dir_all(&files_dir)

@@ -70,9 +70,7 @@ pub(crate) async fn wsl_configure_clients(
         });
     }
 
-    let db = ensure_db_ready(app.clone(), db_state.inner())
-        .await
-        .map_err(|e| e.to_string())?;
+    let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
 
     let cfg = blocking::run("wsl_configure_clients_read_settings", {
         let app = app.clone();
@@ -80,8 +78,7 @@ pub(crate) async fn wsl_configure_clients(
             Ok(settings::read(&app).unwrap_or_default())
         }
     })
-    .await
-    .map_err(|e| e.to_string())?;
+    .await?;
 
     if cfg.gateway_listen_mode == settings::GatewayListenMode::Localhost {
         return Ok(wsl::WslConfigureReport {
@@ -110,8 +107,7 @@ pub(crate) async fn wsl_configure_clients(
             manager.start(&app, db, Some(preferred_port))
         }
     })
-    .await
-    .map_err(|e| e.to_string())?;
+    .await?;
 
     let port = status
         .port
@@ -151,8 +147,7 @@ pub(crate) async fn wsl_configure_clients(
             Ok(wsl::configure_clients(&distros, &targets, &proxy_origin))
         },
     )
-    .await
-    .map_err(|e| e.to_string())?;
+    .await?;
 
     Ok(report)
 }

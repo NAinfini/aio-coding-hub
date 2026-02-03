@@ -35,7 +35,7 @@ struct PromptSyncManifest {
 }
 
 fn validate_cli_key(cli_key: &str) -> Result<(), String> {
-    crate::shared::cli_key::validate_cli_key(cli_key).map_err(|e| e.to_string())
+    crate::shared::cli_key::validate_cli_key(cli_key).map_err(Into::into)
 }
 
 fn home_dir(app: &tauri::AppHandle) -> crate::shared::error::AppResult<PathBuf> {

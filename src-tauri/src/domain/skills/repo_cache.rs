@@ -18,7 +18,11 @@ fn fnv1a64(input: &str) -> u64 {
     hash
 }
 
-fn repo_cache_dir(app: &tauri::AppHandle, git_url: &str, branch: &str) -> Result<PathBuf, String> {
+fn repo_cache_dir(
+    app: &tauri::AppHandle,
+    git_url: &str,
+    branch: &str,
+) -> crate::shared::error::AppResult<PathBuf> {
     let root = repos_root(app)?;
     let key = format!("{}#{}", git_url.trim(), branch.trim());
     Ok(root.join(format!("{:016x}", fnv1a64(&key))))
@@ -30,7 +34,7 @@ struct RepoLockGuard {
 }
 
 impl RepoLockGuard {
-    fn acquire(path: PathBuf) -> Result<Self, String> {
+    fn acquire(path: PathBuf) -> crate::shared::error::AppResult<Self> {
         fn is_stale(lock_path: &Path, stale_after: Duration) -> bool {
             let Ok(meta) = std::fs::metadata(lock_path) else {
                 return false;
@@ -74,7 +78,8 @@ impl RepoLockGuard {
                         return Err(format!(
                             "SKILL_REPO_LOCK_TIMEOUT: failed to acquire repo lock {}",
                             path.display()
-                        ));
+                        )
+                        .into());
                     }
                     std::thread::sleep(Duration::from_millis(50));
                     continue;
@@ -83,7 +88,8 @@ impl RepoLockGuard {
                     return Err(format!(
                         "SKILL_REPO_LOCK_ERROR: failed to create repo lock {}: {err}",
                         path.display()
-                    ));
+                    )
+                    .into());
                 }
             }
         }
@@ -101,7 +107,7 @@ fn lock_path_for_repo_dir(dir: &Path) -> PathBuf {
     dir.with_extension("lock")
 }
 
-fn remove_path_if_exists(path: &Path) -> Result<(), String> {
+fn remove_path_if_exists(path: &Path) -> crate::shared::error::AppResult<()> {
     if !path.exists() {
         return Ok(());
     }
@@ -110,10 +116,11 @@ fn remove_path_if_exists(path: &Path) -> Result<(), String> {
             .map_err(|e| format!("failed to remove {}: {e}", path.display()))?;
         return Ok(());
     }
-    std::fs::remove_file(path).map_err(|e| format!("failed to remove {}: {e}", path.display()))
+    std::fs::remove_file(path)
+        .map_err(|e| format!("failed to remove {}: {e}", path.display()).into())
 }
 
-fn run_git(mut cmd: Command) -> Result<(), String> {
+fn run_git(mut cmd: Command) -> crate::shared::error::AppResult<()> {
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -129,10 +136,10 @@ fn run_git(mut cmd: Command) -> Result<(), String> {
     let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
     let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
     let msg = if !stderr.is_empty() { stderr } else { stdout };
-    Err(format!("SKILL_GIT_ERROR: {msg}"))
+    Err(format!("SKILL_GIT_ERROR: {msg}").into())
 }
 
-fn run_git_capture(mut cmd: Command) -> Result<String, String> {
+fn run_git_capture(mut cmd: Command) -> crate::shared::error::AppResult<String> {
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -148,7 +155,7 @@ fn run_git_capture(mut cmd: Command) -> Result<String, String> {
     let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
     let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
     let msg = if !stderr.is_empty() { stderr } else { stdout };
-    Err(format!("SKILL_GIT_ERROR: {msg}"))
+    Err(format!("SKILL_GIT_ERROR: {msg}").into())
 }
 
 fn is_remote_branch_not_found(err: &str) -> bool {
@@ -168,14 +175,14 @@ fn read_repo_branch(dir: &Path) -> Option<String> {
     Some(branch)
 }
 
-fn write_repo_branch(dir: &Path, branch: &str) -> Result<(), String> {
+fn write_repo_branch(dir: &Path, branch: &str) -> crate::shared::error::AppResult<()> {
     let path = dir.join(REPO_BRANCH_FILE);
     std::fs::write(&path, format!("{}\n", branch.trim()))
         .map_err(|e| format!("failed to write {}: {e}", path.display()))?;
     Ok(())
 }
 
-fn detect_checked_out_branch(dir: &Path) -> Result<String, String> {
+fn detect_checked_out_branch(dir: &Path) -> crate::shared::error::AppResult<String> {
     let mut cmd = Command::new("git");
     cmd.arg("-C")
         .arg(dir)
@@ -185,20 +192,20 @@ fn detect_checked_out_branch(dir: &Path) -> Result<String, String> {
     let out = run_git_capture(cmd)?;
     let branch = out.trim().to_string();
     if branch.is_empty() || branch == "HEAD" {
-        return Err("SKILL_GIT_ERROR: failed to detect current branch".to_string());
+        return Err("SKILL_GIT_ERROR: failed to detect current branch".into());
     }
     Ok(branch)
 }
 
-fn build_github_client() -> Result<reqwest::Client, String> {
+fn build_github_client() -> crate::shared::error::AppResult<reqwest::Client> {
     reqwest::Client::builder()
         .timeout(Duration::from_secs(60))
         .user_agent(format!("aio-coding-hub/{}", env!("CARGO_PKG_VERSION")))
         .build()
-        .map_err(|e| format!("SKILL_HTTP_ERROR: failed to build http client: {e}"))
+        .map_err(|e| format!("SKILL_HTTP_ERROR: failed to build http client: {e}").into())
 }
 
-pub(super) fn github_api_url(segments: &[&str]) -> Result<reqwest::Url, String> {
+pub(super) fn github_api_url(segments: &[&str]) -> crate::shared::error::AppResult<reqwest::Url> {
     let mut url = reqwest::Url::parse("https://api.github.com")
         .map_err(|e| format!("SKILL_GITHUB_URL_ERROR: {e}"))?;
     {
@@ -216,7 +223,7 @@ fn github_default_branch(
     client: &reqwest::Client,
     owner: &str,
     repo: &str,
-) -> Result<String, String> {
+) -> crate::shared::error::AppResult<String> {
     let url = github_api_url(&["repos", owner, repo])?;
     let client = client.clone();
     tauri::async_runtime::block_on(async move {
@@ -260,6 +267,7 @@ fn github_default_branch(
         }
         Ok(branch.to_string())
     })
+    .map_err(Into::into)
 }
 
 fn github_download_zipball(
@@ -267,7 +275,7 @@ fn github_download_zipball(
     owner: &str,
     repo: &str,
     r#ref: &str,
-) -> Result<Vec<u8>, String> {
+) -> crate::shared::error::AppResult<Vec<u8>> {
     let url = github_api_url(&["repos", owner, repo, "zipball", r#ref])?;
     let client = client.clone();
     tauri::async_runtime::block_on(async move {
@@ -300,9 +308,13 @@ fn github_download_zipball(
             .map_err(|e| format!("SKILL_HTTP_ERROR: failed to read github zip body: {e}"))?;
         Ok(bytes.to_vec())
     })
+    .map_err(Into::into)
 }
 
-pub(super) fn unzip_repo_zip(zip_bytes: &[u8], dst_dir: &Path) -> Result<PathBuf, String> {
+pub(super) fn unzip_repo_zip(
+    zip_bytes: &[u8],
+    dst_dir: &Path,
+) -> crate::shared::error::AppResult<PathBuf> {
     std::fs::create_dir_all(dst_dir)
         .map_err(|e| format!("failed to create {}: {e}", dst_dir.display()))?;
 
@@ -320,13 +332,13 @@ pub(super) fn unzip_repo_zip(zip_bytes: &[u8], dst_dir: &Path) -> Result<PathBuf
 
         let rel = Path::new(&name);
         if rel.is_absolute() {
-            return Err("SKILL_ZIP_ERROR: invalid zip entry path (absolute)".to_string());
+            return Err("SKILL_ZIP_ERROR: invalid zip entry path (absolute)".into());
         }
         for comp in rel.components() {
             match comp {
                 Component::CurDir | Component::Normal(_) => {}
                 Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
-                    return Err("SKILL_ZIP_ERROR: invalid zip entry path".to_string());
+                    return Err("SKILL_ZIP_ERROR: invalid zip entry path".into());
                 }
             }
         }
@@ -369,7 +381,8 @@ pub(super) fn unzip_repo_zip(zip_bytes: &[u8], dst_dir: &Path) -> Result<PathBuf
             "SKILL_ZIP_ERROR: expected single root directory in zip (dirs={}, files={})",
             top_dirs.len(),
             top_files
-        ));
+        )
+        .into());
     }
 
     Ok(top_dirs.remove(0))
@@ -379,7 +392,11 @@ fn repo_snapshot_marker_path(dir: &Path) -> PathBuf {
     dir.join(REPO_SNAPSHOT_MARKER_FILE)
 }
 
-fn write_repo_snapshot_marker(dir: &Path, git_url: &str, branch: &str) -> Result<(), String> {
+fn write_repo_snapshot_marker(
+    dir: &Path,
+    git_url: &str,
+    branch: &str,
+) -> crate::shared::error::AppResult<()> {
     let path = repo_snapshot_marker_path(dir);
     let content = format!(
         "aio-coding-hub\nmode=snapshot\ngit_url={}\nbranch={}\n",
@@ -398,7 +415,7 @@ fn ensure_github_repo_snapshot(
     repo: &str,
     branch: &str,
     refresh: bool,
-) -> Result<PathBuf, String> {
+) -> crate::shared::error::AppResult<PathBuf> {
     let dir = repo_cache_dir(app, git_url, branch)?;
     let snapshot_marker = repo_snapshot_marker_path(&dir);
     let git_dir = dir.join(".git");
@@ -441,7 +458,7 @@ fn ensure_github_repo_snapshot(
                     break;
                 }
                 Err(err) => {
-                    last_err = Some(err);
+                    last_err = Some(err.to_string());
                 }
             }
         }
@@ -455,12 +472,12 @@ fn ensure_github_repo_snapshot(
                             zip_bytes = Some(bytes);
                         }
                         Err(err) => {
-                            last_err = Some(err);
+                            last_err = Some(err.to_string());
                         }
                     }
                 }
                 Err(err) => {
-                    last_err = Some(err);
+                    last_err = Some(err.to_string());
                 }
             }
         }
@@ -471,18 +488,20 @@ fn ensure_github_repo_snapshot(
                 zip_bytes = Some(bytes);
             }
             Err(err) => {
-                last_err = Some(err);
+                last_err = Some(err.to_string());
             }
         }
     }
 
     let Some(zip_bytes) = zip_bytes else {
-        return Err(last_err.unwrap_or_else(|| {
-            "SKILL_GITHUB_DOWNLOAD_FAILED: failed to download github zip".to_string()
-        }));
+        return Err(last_err
+            .unwrap_or_else(|| {
+                "SKILL_GITHUB_DOWNLOAD_FAILED: failed to download github zip".to_string()
+            })
+            .into());
     };
     if effective_branch.is_empty() {
-        return Err("SKILL_GITHUB_BRANCH_ERROR: failed to resolve branch".to_string());
+        return Err("SKILL_GITHUB_BRANCH_ERROR: failed to resolve branch".into());
     }
 
     let parent = dir
@@ -519,7 +538,8 @@ fn ensure_github_repo_snapshot(
             return Err(format!(
                 "SKILL_REPO_BUSY: failed to replace {}: {err}",
                 dir.display()
-            ));
+            )
+            .into());
         }
     }
 
@@ -531,7 +551,8 @@ fn ensure_github_repo_snapshot(
         return Err(format!(
             "SKILL_REPO_UPDATE_FAILED: failed to activate repo snapshot {}: {err}",
             dir.display()
-        ));
+        )
+        .into());
     }
 
     let _ = remove_path_if_exists(&backup);
@@ -544,7 +565,7 @@ fn ensure_git_repo_cache(
     git_url: &str,
     branch: &str,
     refresh: bool,
-) -> Result<PathBuf, String> {
+) -> crate::shared::error::AppResult<PathBuf> {
     let dir = repo_cache_dir(app, git_url, branch)?;
     let git_dir = dir.join(".git");
 
@@ -602,7 +623,8 @@ fn ensure_git_repo_cache(
                 return Ok(dir);
             }
             Err(err) => {
-                if !is_remote_branch_not_found(&err) {
+                let err_text = err.to_string();
+                if !is_remote_branch_not_found(&err_text) {
                     return Err(err);
                 }
 
@@ -648,7 +670,8 @@ fn ensure_git_repo_cache(
         .arg("--depth")
         .arg("1");
     if let Err(err) = run_git(cmd) {
-        if !is_remote_branch_not_found(&err) {
+        let err_text = err.to_string();
+        if !is_remote_branch_not_found(&err_text) {
             return Err(err);
         }
 
@@ -696,10 +719,10 @@ pub(super) fn ensure_repo_cache(
     git_url: &str,
     branch: &str,
     refresh: bool,
-) -> Result<PathBuf, String> {
+) -> crate::shared::error::AppResult<PathBuf> {
     let git_url = git_url.trim();
     if git_url.is_empty() {
-        return Err("SEC_INVALID_INPUT: git_url is required".to_string());
+        return Err("SEC_INVALID_INPUT: git_url is required".into());
     }
 
     let branch = normalize_repo_branch(branch);

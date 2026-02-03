@@ -18,7 +18,7 @@ fn sync_to_cli(
     cli_key: &str,
     skill_key: &str,
     ssot_dir: &Path,
-) -> Result<(), String> {
+) -> crate::shared::error::AppResult<()> {
     let cli_root = cli_skills_root(app, cli_key)?;
     std::fs::create_dir_all(&cli_root)
         .map_err(|e| format!("failed to create {}: {e}", cli_root.display()))?;
@@ -26,10 +26,7 @@ fn sync_to_cli(
 
     if target.exists() {
         if !is_managed_dir(&target) {
-            return Err(format!(
-                "SKILL_TARGET_EXISTS_UNMANAGED: {}",
-                target.display()
-            ));
+            return Err(format!("SKILL_TARGET_EXISTS_UNMANAGED: {}", target.display()).into());
         }
         std::fs::remove_dir_all(&target)
             .map_err(|e| format!("failed to remove {}: {e}", target.display()))?;
@@ -40,7 +37,11 @@ fn sync_to_cli(
     Ok(())
 }
 
-fn remove_from_cli(app: &tauri::AppHandle, cli_key: &str, skill_key: &str) -> Result<(), String> {
+fn remove_from_cli(
+    app: &tauri::AppHandle,
+    cli_key: &str,
+    skill_key: &str,
+) -> crate::shared::error::AppResult<()> {
     let cli_root = cli_skills_root(app, cli_key)?;
     let target = cli_root.join(skill_key);
     if !target.exists() {
@@ -162,7 +163,7 @@ ON CONFLICT(workspace_id, skill_id) DO UPDATE SET
     if let Err(err) = copy_dir_recursive(&src_dir, &ssot_dir) {
         let _ = std::fs::remove_dir_all(&ssot_dir);
         let _ = tx.execute("DELETE FROM skills WHERE id = ?1", params![skill_id]);
-        return Err(err.into());
+        return Err(err);
     }
 
     // FS: sync to CLI only when enabled in the active workspace.
@@ -171,7 +172,7 @@ ON CONFLICT(workspace_id, skill_id) DO UPDATE SET
             let _ = remove_from_cli(app, &cli_key, &skill_key);
             let _ = std::fs::remove_dir_all(&ssot_dir);
             let _ = tx.execute("DELETE FROM skills WHERE id = ?1", params![skill_id]);
-            return Err(err.into());
+            return Err(err);
         }
     }
 
@@ -181,11 +182,7 @@ ON CONFLICT(workspace_id, skill_id) DO UPDATE SET
         return Err(format!("DB_ERROR: failed to commit: {err}").into());
     }
 
-    Ok(get_skill_by_id_for_workspace(
-        &conn,
-        workspace_id,
-        skill_id,
-    )?)
+    get_skill_by_id_for_workspace(&conn, workspace_id, skill_id)
 }
 
 pub fn set_enabled(
@@ -213,11 +210,7 @@ pub fn set_enabled(
         .is_some();
 
     if was_enabled == enabled {
-        return Ok(get_skill_by_id_for_workspace(
-            &conn,
-            workspace_id,
-            skill_id,
-        )?);
+        return get_skill_by_id_for_workspace(&conn, workspace_id, skill_id);
     }
 
     let ssot_root = ssot_skills_root(app)?;
@@ -270,11 +263,7 @@ ON CONFLICT(workspace_id, skill_id) DO UPDATE SET
         return Err(format!("DB_ERROR: failed to commit: {err}").into());
     }
 
-    Ok(get_skill_by_id_for_workspace(
-        &conn,
-        workspace_id,
-        skill_id,
-    )?)
+    get_skill_by_id_for_workspace(&conn, workspace_id, skill_id)
 }
 
 pub fn uninstall(
@@ -321,7 +310,7 @@ pub fn sync_cli_for_workspace(
     app: &tauri::AppHandle,
     conn: &Connection,
     workspace_id: i64,
-) -> Result<(), String> {
+) -> crate::shared::error::AppResult<()> {
     ensure_skills_roots(app)?;
 
     let cli_key = workspaces::get_cli_key_by_id(conn, workspace_id)?;
@@ -388,7 +377,7 @@ ORDER BY s.skill_key ASC
     for skill_key in enabled_list {
         let ssot_dir = ssot_root.join(&skill_key);
         if !ssot_dir.exists() {
-            return Err(format!("SKILL_SSOT_MISSING: {}", ssot_dir.display()));
+            return Err(format!("SKILL_SSOT_MISSING: {}", ssot_dir.display()).into());
         }
         sync_to_cli(app, &cli_key, &skill_key, &ssot_dir)?;
     }

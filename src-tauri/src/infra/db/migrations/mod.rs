@@ -37,19 +37,21 @@ use rusqlite::Connection;
 const LATEST_SCHEMA_VERSION: i64 = 29;
 const MAX_COMPAT_SCHEMA_VERSION: i64 = 33;
 
-pub(super) fn apply_migrations(conn: &mut Connection) -> Result<(), String> {
+pub(super) fn apply_migrations(conn: &mut Connection) -> crate::shared::error::AppResult<()> {
     let mut user_version = read_user_version(conn)?;
 
     if user_version < 0 {
         return Err(format!(
             "unsupported sqlite schema version: user_version={user_version} (expected 0..={MAX_COMPAT_SCHEMA_VERSION})"
-        ));
+        )
+        .into());
     }
 
     if user_version > MAX_COMPAT_SCHEMA_VERSION {
         return Err(format!(
             "unsupported sqlite schema version: user_version={user_version} (expected 0..={MAX_COMPAT_SCHEMA_VERSION})"
-        ));
+        )
+        .into());
     }
 
     while user_version < LATEST_SCHEMA_VERSION {
@@ -86,7 +88,8 @@ pub(super) fn apply_migrations(conn: &mut Connection) -> Result<(), String> {
             v => {
                 return Err(format!(
                     "unsupported sqlite schema version: user_version={v} (expected 0..={MAX_COMPAT_SCHEMA_VERSION})"
-                ))
+                )
+                .into())
             }
         }
         user_version = read_user_version(conn)?;
@@ -108,12 +111,15 @@ pub(super) fn apply_migrations(conn: &mut Connection) -> Result<(), String> {
     Ok(())
 }
 
-fn read_user_version(conn: &Connection) -> Result<i64, String> {
+fn read_user_version(conn: &Connection) -> crate::shared::error::AppResult<i64> {
     conn.pragma_query_value(None, "user_version", |row| row.get(0))
-        .map_err(|e| format!("failed to read sqlite user_version: {e}"))
+        .map_err(|e| format!("failed to read sqlite user_version: {e}").into())
 }
 
-fn set_user_version(tx: &rusqlite::Transaction<'_>, version: i64) -> Result<(), String> {
+pub(super) fn set_user_version(
+    tx: &rusqlite::Transaction<'_>,
+    version: i64,
+) -> crate::shared::error::AppResult<()> {
     tx.pragma_update(None, "user_version", version)
         .map_err(|e| format!("failed to update sqlite user_version: {e}"))?;
     Ok(())

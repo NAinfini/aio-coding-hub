@@ -12,7 +12,7 @@ pub(crate) async fn cli_proxy_status_all(
 ) -> Result<Vec<cli_proxy::CliProxyStatus>, String> {
     blocking::run("cli_proxy_status_all", move || cli_proxy::status_all(&app))
         .await
-        .map_err(|e| e.to_string())
+        .map_err(Into::into)
 }
 
 #[tauri::command]
@@ -23,9 +23,7 @@ pub(crate) async fn cli_proxy_set_enabled(
     enabled: bool,
 ) -> Result<cli_proxy::CliProxyResult, String> {
     let base_origin = if enabled {
-        let db = ensure_db_ready(app.clone(), db_state.inner())
-            .await
-            .map_err(|e| e.to_string())?;
+        let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
 
         blocking::run("cli_proxy_set_enabled_ensure_gateway", {
             let app = app.clone();
@@ -50,8 +48,7 @@ pub(crate) async fn cli_proxy_set_enabled(
                 }))
             }
         })
-        .await
-        .map_err(|e| e.to_string())?
+        .await?
     } else {
         blocking::run("cli_proxy_set_enabled_read_settings", {
             let app = app.clone();
@@ -60,15 +57,14 @@ pub(crate) async fn cli_proxy_set_enabled(
                 Ok(format!("http://127.0.0.1:{}", settings.preferred_port))
             }
         })
-        .await
-        .map_err(|e| e.to_string())?
+        .await?
     };
 
     blocking::run("cli_proxy_set_enabled_apply", move || {
         cli_proxy::set_enabled(&app, &cli_key, enabled, &base_origin)
     })
     .await
-    .map_err(|e| e.to_string())
+    .map_err(Into::into)
 }
 
 #[tauri::command]
@@ -80,5 +76,5 @@ pub(crate) async fn cli_proxy_sync_enabled(
         cli_proxy::sync_enabled(&app, &base_origin)
     })
     .await
-    .map_err(|e| e.to_string())
+    .map_err(Into::into)
 }

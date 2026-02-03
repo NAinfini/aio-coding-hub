@@ -9,14 +9,12 @@ pub(crate) async fn model_prices_list(
     db_state: tauri::State<'_, DbInitState>,
     cli_key: String,
 ) -> Result<Vec<model_prices::ModelPriceSummary>, String> {
-    let db = ensure_db_ready(app, db_state.inner())
-        .await
-        .map_err(|e| e.to_string())?;
+    let db = ensure_db_ready(app, db_state.inner()).await?;
     blocking::run("model_prices_list", move || {
         model_prices::list_by_cli(&db, &cli_key)
     })
     .await
-    .map_err(|e| e.to_string())
+    .map_err(Into::into)
 }
 
 #[tauri::command]
@@ -27,14 +25,12 @@ pub(crate) async fn model_price_upsert(
     model: String,
     price_json: String,
 ) -> Result<model_prices::ModelPriceSummary, String> {
-    let db = ensure_db_ready(app, db_state.inner())
-        .await
-        .map_err(|e| e.to_string())?;
+    let db = ensure_db_ready(app, db_state.inner()).await?;
     blocking::run("model_price_upsert", move || {
         model_prices::upsert(&db, &cli_key, &model, &price_json)
     })
     .await
-    .map_err(|e| e.to_string())
+    .map_err(Into::into)
 }
 
 #[tauri::command]
@@ -43,12 +39,10 @@ pub(crate) async fn model_prices_sync_basellm(
     db_state: tauri::State<'_, DbInitState>,
     force: Option<bool>,
 ) -> Result<model_prices_sync::ModelPricesSyncReport, String> {
-    let db = ensure_db_ready(app.clone(), db_state.inner())
-        .await
-        .map_err(|e| e.to_string())?;
+    let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
     model_prices_sync::sync_basellm(&app, db, force.unwrap_or(false))
         .await
-        .map_err(|e| e.to_string())
+        .map_err(Into::into)
 }
 
 #[tauri::command]
@@ -62,7 +56,7 @@ pub(crate) async fn model_price_aliases_get(
         },
     )
     .await
-    .map_err(|e| e.to_string())
+    .map_err(Into::into)
 }
 
 #[tauri::command]
@@ -74,5 +68,5 @@ pub(crate) async fn model_price_aliases_set(
         model_price_aliases::write(&app, aliases)
     })
     .await
-    .map_err(|e| e.to_string())
+    .map_err(Into::into)
 }

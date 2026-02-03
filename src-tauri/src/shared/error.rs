@@ -49,8 +49,7 @@ fn split_code_message(raw: &str) -> Option<(&str, &str)> {
 impl From<String> for AppError {
     fn from(value: String) -> Self {
         if let Some((code, rest)) = split_code_message(&value) {
-            let message = if rest.is_empty() { value.trim() } else { rest };
-            return AppError::new(code.to_string(), message.to_string());
+            return AppError::new(code.to_string(), rest.to_string());
         }
         AppError::new("INTERNAL_ERROR", value)
     }
@@ -65,5 +64,40 @@ impl From<&'static str> for AppError {
 impl From<AppError> for String {
     fn from(value: AppError) -> Self {
         value.to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn from_string_parses_code_and_message() {
+        let err = AppError::from("DB_ERROR: failed to open db".to_string());
+        assert_eq!(err.to_string(), "DB_ERROR: failed to open db");
+    }
+
+    #[test]
+    fn from_string_strips_error_prefix() {
+        let err = AppError::from("Error: DB_ERROR: failed".to_string());
+        assert_eq!(err.to_string(), "DB_ERROR: failed");
+    }
+
+    #[test]
+    fn from_string_treats_invalid_code_as_internal_error() {
+        let err = AppError::from("db_error: failed".to_string());
+        assert_eq!(err.to_string(), "INTERNAL_ERROR: db_error: failed");
+    }
+
+    #[test]
+    fn from_string_trims_message() {
+        let err = AppError::from("DB_ERROR:   failed  ".to_string());
+        assert_eq!(err.to_string(), "DB_ERROR: failed");
+    }
+
+    #[test]
+    fn from_string_keeps_code_when_message_is_empty() {
+        let err = AppError::from("DB_ERROR:   ".to_string());
+        assert_eq!(err.to_string(), "DB_ERROR: ");
     }
 }

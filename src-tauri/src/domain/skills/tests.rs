@@ -53,7 +53,7 @@ fn unzip_repo_zip_rejects_path_traversal_entries() {
 
     let bytes = buf.into_inner();
     let out_dir = make_temp_dir("aio-unzip-test");
-    let err = unzip_repo_zip(&bytes, &out_dir).unwrap_err();
+    let err = unzip_repo_zip(&bytes, &out_dir).unwrap_err().to_string();
 
     assert!(
         err.starts_with("SKILL_ZIP_ERROR:"),

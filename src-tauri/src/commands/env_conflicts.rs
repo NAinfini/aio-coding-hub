@@ -11,5 +11,5 @@ pub(crate) async fn env_conflicts_check(
         env_conflicts::check_env_conflicts(&app, &cli_key)
     })
     .await
-    .map_err(|e| e.to_string())
+    .map_err(Into::into)
 }

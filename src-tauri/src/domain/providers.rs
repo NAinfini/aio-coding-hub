@@ -79,29 +79,31 @@ fn normalize_reset_time_hms_lossy(input: &str) -> String {
     format!("{h:02}:{m:02}:{s:02}")
 }
 
-fn normalize_reset_time_hms_strict(field: &str, input: &str) -> Result<String, String> {
+fn normalize_reset_time_hms_strict(
+    field: &str,
+    input: &str,
+) -> crate::shared::error::AppResult<String> {
     let Some((h, m, s)) = parse_reset_time_hms(input) else {
-        return Err(format!("SEC_INVALID_INPUT: {field} must be HH:mm[:ss]"));
+        return Err(format!("SEC_INVALID_INPUT: {field} must be HH:mm[:ss]").into());
     };
     Ok(format!("{h:02}:{m:02}:{s:02}"))
 }
 
-fn validate_limit_usd(field: &str, value: Option<f64>) -> Result<Option<f64>, String> {
+fn validate_limit_usd(
+    field: &str,
+    value: Option<f64>,
+) -> crate::shared::error::AppResult<Option<f64>> {
     let Some(v) = value else {
         return Ok(None);
     };
     if !v.is_finite() {
-        return Err(format!(
-            "SEC_INVALID_INPUT: {field} must be a finite number"
-        ));
+        return Err(format!("SEC_INVALID_INPUT: {field} must be a finite number").into());
     }
     if v < 0.0 {
-        return Err(format!("SEC_INVALID_INPUT: {field} must be >= 0"));
+        return Err(format!("SEC_INVALID_INPUT: {field} must be >= 0").into());
     }
     if v > MAX_LIMIT_USD {
-        return Err(format!(
-            "SEC_INVALID_INPUT: {field} must be <= {MAX_LIMIT_USD}"
-        ));
+        return Err(format!("SEC_INVALID_INPUT: {field} must be <= {MAX_LIMIT_USD}").into());
     }
     Ok(Some(v))
 }
@@ -269,12 +271,11 @@ pub(crate) struct GatewayProvidersSelection {
     pub providers: Vec<ProviderForGateway>,
 }
 
-fn validate_cli_key(cli_key: &str) -> Result<(), String> {
-    crate::shared::cli_key::validate_cli_key(cli_key)?;
-    Ok(())
+fn validate_cli_key(cli_key: &str) -> crate::shared::error::AppResult<()> {
+    crate::shared::cli_key::validate_cli_key(cli_key)
 }
 
-fn normalize_base_urls(base_urls: Vec<String>) -> Result<Vec<String>, String> {
+fn normalize_base_urls(base_urls: Vec<String>) -> crate::shared::error::AppResult<Vec<String>> {
     let mut out: Vec<String> = Vec::with_capacity(base_urls.len().max(1));
     let mut seen: HashSet<String> = HashSet::with_capacity(base_urls.len());
 
@@ -296,7 +297,7 @@ fn normalize_base_urls(base_urls: Vec<String>) -> Result<Vec<String>, String> {
     }
 
     if out.is_empty() {
-        return Err("SEC_INVALID_INPUT: base_urls is required".to_string());
+        return Err("SEC_INVALID_INPUT: base_urls is required".into());
     }
 
     Ok(out)
@@ -376,7 +377,10 @@ impl ProviderForGateway {
     }
 }
 
-fn get_by_id(conn: &Connection, provider_id: i64) -> Result<ProviderSummary, String> {
+fn get_by_id(
+    conn: &Connection,
+    provider_id: i64,
+) -> crate::shared::error::AppResult<ProviderSummary> {
     conn.query_row(
         r#"
 SELECT
@@ -407,7 +411,7 @@ WHERE id = ?1
     )
     .optional()
     .map_err(|e| format!("DB_ERROR: failed to query provider: {e}"))?
-    .ok_or_else(|| "DB_NOT_FOUND: provider not found".to_string())
+    .ok_or_else(|| crate::shared::error::AppError::from("DB_NOT_FOUND: provider not found"))
 }
 
 pub fn names_by_id(
@@ -509,7 +513,7 @@ fn list_enabled_for_gateway_in_sort_mode(
     conn: &Connection,
     cli_key: &str,
     mode_id: i64,
-) -> Result<Vec<ProviderForGateway>, String> {
+) -> crate::shared::error::AppResult<Vec<ProviderForGateway>> {
     let mut stmt = conn
         .prepare(
             r#"
@@ -584,7 +588,7 @@ ORDER BY mp.sort_order ASC
 fn list_enabled_for_gateway_default(
     conn: &Connection,
     cli_key: &str,
-) -> Result<Vec<ProviderForGateway>, String> {
+) -> crate::shared::error::AppResult<Vec<ProviderForGateway>> {
     let mut stmt = conn
         .prepare(
             r#"
@@ -701,13 +705,13 @@ pub(crate) fn list_enabled_for_gateway_in_mode(
     }
 }
 
-fn next_sort_order(conn: &Connection, cli_key: &str) -> Result<i64, String> {
+fn next_sort_order(conn: &Connection, cli_key: &str) -> crate::shared::error::AppResult<i64> {
     conn.query_row(
         "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM providers WHERE cli_key = ?1",
         params![cli_key],
         |row| row.get::<_, i64>(0),
     )
-    .map_err(|e| format!("DB_ERROR: failed to query next sort_order: {e}"))
+    .map_err(|e| format!("DB_ERROR: failed to query next sort_order: {e}").into())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -998,7 +1002,7 @@ WHERE id = ?18
             tx.commit()
                 .map_err(|e| format!("DB_ERROR: failed to commit: {e}"))?;
 
-            Ok(get_by_id(&conn, id)?)
+            get_by_id(&conn, id)
         }
     }
 }
@@ -1021,7 +1025,7 @@ pub fn set_enabled(
         return Err("DB_NOT_FOUND: provider not found".to_string().into());
     }
 
-    Ok(get_by_id(&conn, provider_id)?)
+    get_by_id(&conn, provider_id)
 }
 
 pub fn delete(db: &db::Db, provider_id: i64) -> crate::shared::error::AppResult<()> {

@@ -10,7 +10,7 @@ pub(crate) async fn cli_manager_claude_info_get(
         cli_manager::claude_info_get(&app)
     })
     .await
-    .map_err(|e| e.to_string())
+    .map_err(Into::into)
 }
 
 #[tauri::command]
@@ -21,7 +21,7 @@ pub(crate) async fn cli_manager_codex_info_get(
         cli_manager::codex_info_get(&app)
     })
     .await
-    .map_err(|e| e.to_string())
+    .map_err(Into::into)
 }
 
 #[tauri::command]
@@ -32,7 +32,7 @@ pub(crate) async fn cli_manager_codex_config_get(
         codex_config::codex_config_get(&app)
     })
     .await
-    .map_err(|e| e.to_string())
+    .map_err(Into::into)
 }
 
 #[tauri::command]
@@ -44,7 +44,7 @@ pub(crate) async fn cli_manager_codex_config_set(
         codex_config::codex_config_set(&app, patch)
     })
     .await
-    .map_err(|e| e.to_string())
+    .map_err(Into::into)
 }
 
 #[tauri::command]
@@ -55,7 +55,7 @@ pub(crate) async fn cli_manager_gemini_info_get(
         cli_manager::gemini_info_get(&app)
     })
     .await
-    .map_err(|e| e.to_string())
+    .map_err(Into::into)
 }
 
 #[tauri::command]
@@ -68,7 +68,7 @@ pub(crate) async fn cli_manager_claude_env_set(
         cli_manager::claude_env_set(&app, mcp_timeout_ms, disable_error_reporting)
     })
     .await
-    .map_err(|e| e.to_string())
+    .map_err(Into::into)
 }
 
 #[tauri::command]
@@ -79,7 +79,7 @@ pub(crate) async fn cli_manager_claude_settings_get(
         claude_settings::claude_settings_get(&app)
     })
     .await
-    .map_err(|e| e.to_string())
+    .map_err(Into::into)
 }
 
 #[tauri::command]
@@ -91,5 +91,5 @@ pub(crate) async fn cli_manager_claude_settings_set(
         claude_settings::claude_settings_set(&app, patch)
     })
     .await
-    .map_err(|e| e.to_string())
+    .map_err(Into::into)
 }

@@ -2,9 +2,8 @@
 
 pub(super) const MCP_CLI_KEYS: [&str; 3] = crate::shared::cli_key::SUPPORTED_CLI_KEYS;
 
-pub(super) fn validate_cli_key(cli_key: &str) -> Result<(), String> {
-    crate::shared::cli_key::validate_cli_key(cli_key)?;
-    Ok(())
+pub(super) fn validate_cli_key(cli_key: &str) -> crate::shared::error::AppResult<()> {
+    crate::shared::cli_key::validate_cli_key(cli_key)
 }
 
 #[cfg(test)]

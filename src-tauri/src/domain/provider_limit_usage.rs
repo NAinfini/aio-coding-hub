@@ -34,12 +34,11 @@ pub struct ProviderLimitUsageRow {
     pub window_monthly_start_ts: i64,
 }
 
-fn validate_cli_key(cli_key: &str) -> Result<(), String> {
-    crate::shared::cli_key::validate_cli_key(cli_key)?;
-    Ok(())
+fn validate_cli_key(cli_key: &str) -> crate::shared::error::AppResult<()> {
+    crate::shared::cli_key::validate_cli_key(cli_key)
 }
 
-fn normalize_cli_filter(cli_key: Option<&str>) -> Result<Option<&str>, String> {
+fn normalize_cli_filter(cli_key: Option<&str>) -> crate::shared::error::AppResult<Option<&str>> {
     if let Some(k) = cli_key {
         validate_cli_key(k)?;
         return Ok(Some(k));
@@ -53,7 +52,7 @@ fn cost_usd_from_femto(v: i64) -> f64 {
 
 /// Computes the start timestamp for the 5h window for a specific provider (fixed window mode)
 /// Returns the stored window_5h_start_ts from providers table, or computes from first request if expired/null.
-fn compute_ts_5h(conn: &Connection, provider_id: i64) -> Result<i64, String> {
+fn compute_ts_5h(conn: &Connection, provider_id: i64) -> crate::shared::error::AppResult<i64> {
     const WINDOW_5H_SECS: i64 = 5 * 60 * 60;
 
     // Get current time
@@ -110,7 +109,7 @@ fn compute_ts_daily(
     conn: &Connection,
     daily_reset_mode: DailyResetMode,
     daily_reset_time: &str,
-) -> Result<i64, String> {
+) -> crate::shared::error::AppResult<i64> {
     match daily_reset_mode {
         DailyResetMode::Rolling => {
             // Rolling: now - 24 hours
@@ -119,7 +118,7 @@ fn compute_ts_daily(
                 [],
                 |row| row.get::<_, i64>(0),
             )
-            .map_err(|e| format!("DB_ERROR: failed to compute rolling daily timestamp: {e}"))
+            .map_err(|e| format!("DB_ERROR: failed to compute rolling daily timestamp: {e}").into())
         }
         DailyResetMode::Fixed => {
             // Fixed: start of day based on daily_reset_time in local timezone
@@ -135,13 +134,15 @@ fn compute_ts_daily(
                 reset_time = daily_reset_time
             );
             conn.query_row(&sql, [], |row| row.get::<_, i64>(0))
-                .map_err(|e| format!("DB_ERROR: failed to compute fixed daily timestamp: {e}"))
+                .map_err(|e| {
+                    format!("DB_ERROR: failed to compute fixed daily timestamp: {e}").into()
+                })
         }
     }
 }
 
 /// Computes the start timestamp for the weekly window (Monday 00:00:00 local time)
-fn compute_ts_weekly(conn: &Connection) -> Result<i64, String> {
+fn compute_ts_weekly(conn: &Connection) -> crate::shared::error::AppResult<i64> {
     // Get Monday of current week at 00:00:00 local time, converted to UTC
     conn.query_row(
         r#"
@@ -153,17 +154,17 @@ fn compute_ts_weekly(conn: &Connection) -> Result<i64, String> {
         [],
         |row| row.get::<_, i64>(0),
     )
-    .map_err(|e| format!("DB_ERROR: failed to compute weekly timestamp: {e}"))
+    .map_err(|e| format!("DB_ERROR: failed to compute weekly timestamp: {e}").into())
 }
 
 /// Computes the start timestamp for the monthly window (1st of month 00:00:00 local time)
-fn compute_ts_monthly(conn: &Connection) -> Result<i64, String> {
+fn compute_ts_monthly(conn: &Connection) -> crate::shared::error::AppResult<i64> {
     conn.query_row(
         "SELECT CAST(strftime('%s', date('now', 'localtime', 'start of month') || ' 00:00:00', 'utc') AS INTEGER)",
         [],
         |row| row.get::<_, i64>(0),
     )
-    .map_err(|e| format!("DB_ERROR: failed to compute monthly timestamp: {e}"))
+    .map_err(|e| format!("DB_ERROR: failed to compute monthly timestamp: {e}").into())
 }
 
 /// Aggregates cost_usd from request_logs for a specific provider within a time window
@@ -171,7 +172,7 @@ fn aggregate_cost_for_provider(
     conn: &Connection,
     provider_id: i64,
     start_ts: Option<i64>,
-) -> Result<i64, String> {
+) -> crate::shared::error::AppResult<i64> {
     let sql = r#"
         SELECT COALESCE(SUM(cost_usd_femto), 0)
         FROM request_logs
@@ -184,7 +185,7 @@ fn aggregate_cost_for_provider(
     conn.query_row(sql, params![provider_id, start_ts], |row| {
         row.get::<_, i64>(0)
     })
-    .map_err(|e| format!("DB_ERROR: failed to aggregate cost: {e}"))
+    .map_err(|e| format!("DB_ERROR: failed to aggregate cost: {e}").into())
 }
 
 pub fn list_v1(

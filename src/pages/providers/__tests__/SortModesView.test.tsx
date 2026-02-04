@@ -7,6 +7,7 @@ import {
   sortModeCreate,
   sortModeDelete,
   sortModeProvidersList,
+  sortModeProviderSetEnabled,
   sortModeProvidersSetOrder,
   sortModeRename,
   sortModesList,
@@ -62,6 +63,7 @@ vi.mock("../../../services/sortModes", async () => {
     sortModeActiveList: vi.fn(),
     sortModeProvidersList: vi.fn(),
     sortModeProvidersSetOrder: vi.fn(),
+    sortModeProviderSetEnabled: vi.fn(),
     sortModeCreate: vi.fn(),
     sortModeRename: vi.fn(),
     sortModeDelete: vi.fn(),
@@ -131,8 +133,13 @@ describe("pages/providers/SortModesView", () => {
   it("loads modes, joins providers, reorders, and supports CRUD", async () => {
     vi.mocked(sortModesList).mockResolvedValue([{ id: 1, name: "Work" }] as any);
     vi.mocked(sortModeActiveList).mockResolvedValue([{ cli_key: "claude", mode_id: 1 }] as any);
-    vi.mocked(sortModeProvidersList).mockResolvedValue([101] as any);
-    vi.mocked(sortModeProvidersSetOrder).mockResolvedValue([101, 102] as any);
+    vi.mocked(sortModeProvidersList).mockResolvedValue([
+      { provider_id: 101, enabled: true },
+    ] as any);
+    vi.mocked(sortModeProvidersSetOrder).mockResolvedValue([
+      { provider_id: 101, enabled: true },
+      { provider_id: 102, enabled: true },
+    ] as any);
 
     const providers = [
       {
@@ -172,7 +179,10 @@ describe("pages/providers/SortModesView", () => {
     );
 
     // Simulate drag reorder via mocked DndContext.
-    vi.mocked(sortModeProvidersSetOrder).mockResolvedValueOnce([102, 101] as any);
+    vi.mocked(sortModeProvidersSetOrder).mockResolvedValueOnce([
+      { provider_id: 102, enabled: true },
+      { provider_id: 101, enabled: true },
+    ] as any);
     latestOnDragEnd?.({ active: { id: 101 }, over: { id: 102 } });
     await waitFor(() =>
       expect(vi.mocked(sortModeProvidersSetOrder)).toHaveBeenCalledWith(
@@ -208,6 +218,61 @@ describe("pages/providers/SortModesView", () => {
     await waitFor(() => expect(vi.mocked(sortModeDelete)).toHaveBeenCalledWith({ mode_id: 2 }));
   });
 
+  it("supports toggling provider enabled state inside a sort mode", async () => {
+    vi.mocked(sortModesList).mockResolvedValue([{ id: 1, name: "Work" }] as any);
+    vi.mocked(sortModeActiveList).mockResolvedValue([{ cli_key: "claude", mode_id: 1 }] as any);
+    vi.mocked(sortModeProvidersList).mockResolvedValue([
+      { provider_id: 101, enabled: true },
+      { provider_id: 102, enabled: false },
+    ] as any);
+    vi.mocked(sortModeProviderSetEnabled).mockResolvedValue({
+      provider_id: 102,
+      enabled: true,
+    } as any);
+
+    render(
+      <SortModesView
+        activeCli="claude"
+        setActiveCli={vi.fn()}
+        providers={
+          [
+            {
+              id: 101,
+              name: "P1",
+              enabled: true,
+              base_urls: ["https://a"],
+              base_url_mode: "order",
+            },
+            {
+              id: 102,
+              name: "P2",
+              enabled: false,
+              base_urls: ["https://b"],
+              base_url_mode: "order",
+            },
+          ] as any
+        }
+        providersLoading={false}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Work" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByRole("switch")).toHaveLength(2));
+
+    const switches = screen.getAllByRole("switch");
+    expect(switches[1]).toHaveAttribute("aria-checked", "false");
+
+    fireEvent.click(switches[1]!);
+    await waitFor(() =>
+      expect(vi.mocked(sortModeProviderSetEnabled)).toHaveBeenCalledWith({
+        mode_id: 1,
+        cli_key: "claude",
+        provider_id: 102,
+        enabled: true,
+      })
+    );
+  });
+
   it("shows tauri-only state when sort modes APIs return null", async () => {
     vi.mocked(toast).mockClear();
 
@@ -234,8 +299,12 @@ describe("pages/providers/SortModesView", () => {
 
     vi.mocked(sortModesList).mockResolvedValue([{ id: 1, name: "Work" }] as any);
     vi.mocked(sortModeActiveList).mockResolvedValue([{ cli_key: "claude", mode_id: 1 }] as any);
-    vi.mocked(sortModeProvidersList).mockResolvedValue([101] as any);
-    vi.mocked(sortModeProvidersSetOrder).mockResolvedValue([101] as any);
+    vi.mocked(sortModeProvidersList).mockResolvedValue([
+      { provider_id: 101, enabled: true },
+    ] as any);
+    vi.mocked(sortModeProvidersSetOrder).mockResolvedValue([
+      { provider_id: 101, enabled: true },
+    ] as any);
 
     const providers = [
       { id: 101, name: "P1", enabled: true, base_urls: ["https://a"], base_url_mode: "order" },
@@ -341,7 +410,9 @@ describe("pages/providers/SortModesView", () => {
 
     vi.mocked(sortModesList).mockResolvedValue([{ id: 1, name: "Work" }] as any);
     vi.mocked(sortModeActiveList).mockResolvedValue([{ cli_key: "claude", mode_id: 1 }] as any);
-    vi.mocked(sortModeProvidersList).mockResolvedValue([101] as any);
+    vi.mocked(sortModeProvidersList).mockResolvedValue([
+      { provider_id: 101, enabled: true },
+    ] as any);
 
     render(
       <SortModesView
@@ -375,12 +446,15 @@ describe("pages/providers/SortModesView", () => {
     vi.mocked(toast).mockClear();
     vi.mocked(sortModesList).mockResolvedValue([{ id: 1, name: "Work" }] as any);
     vi.mocked(sortModeActiveList).mockResolvedValue([{ cli_key: "claude", mode_id: 1 }] as any);
-    vi.mocked(sortModeProvidersList).mockResolvedValue([101, 102] as any);
+    vi.mocked(sortModeProvidersList).mockResolvedValue([
+      { provider_id: 101, enabled: true },
+      { provider_id: 102, enabled: true },
+    ] as any);
 
     vi.mocked(sortModeProvidersSetOrder)
       .mockResolvedValueOnce(null as any)
       .mockRejectedValueOnce(new Error("boom"))
-      .mockResolvedValueOnce([102] as any);
+      .mockResolvedValueOnce([{ provider_id: 102, enabled: true }] as any);
 
     const providers = [
       { id: 101, name: "P1", enabled: true, base_urls: ["https://a"], base_url_mode: "order" },
@@ -437,7 +511,9 @@ describe("pages/providers/SortModesView", () => {
     vi.mocked(sortModesList).mockResolvedValue([{ id: 1, name: "Work" }] as any);
     vi.mocked(sortModeActiveList).mockResolvedValue([{ cli_key: "claude", mode_id: 1 }] as any);
     vi.mocked(sortModeProvidersList).mockRejectedValueOnce(new Error("boom"));
-    vi.mocked(sortModeProvidersSetOrder).mockResolvedValue([101] as any);
+    vi.mocked(sortModeProvidersSetOrder).mockResolvedValue([
+      { provider_id: 101, enabled: true },
+    ] as any);
 
     const { rerender } = render(
       <SortModesView

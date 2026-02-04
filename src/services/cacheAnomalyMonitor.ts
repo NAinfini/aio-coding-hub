@@ -6,6 +6,10 @@ import type {
   GatewayRequestEvent,
   GatewayRequestStartEvent,
 } from "./gatewayEvents";
+import {
+  computeCacheHitRateDenomTokens,
+  computeEffectiveInputTokens,
+} from "../utils/cacheRateMetrics";
 
 const STORAGE_KEY_ENABLED = "aio.cacheAnomalyMonitor.enabled";
 
@@ -32,7 +36,10 @@ const THRESHOLDS = {
   baselineHitRateMin: 0.05,
   dropRatioMin: 0.25,
   dropAbsMin: 0.05,
-  createShareMin: 0.9,
+  // NOTE: Denominator now includes cache creation tokens.
+  // Keep the previous behavior (create / (effective_input + read) >= 0.9) by mapping to:
+  // create / (effective_input + read + create) >= 0.9 / (1 + 0.9)
+  createShareMin: 0.9 / (1 + 0.9),
   createReadImbalanceMin: 3,
 } as const;
 
@@ -287,15 +294,6 @@ function pickFinalProvider(attempts: GatewayAttempt[] | null | undefined): Gatew
   return list[list.length - 1] ?? null;
 }
 
-function effectiveInputTokens(
-  cliKey: SupportedCliKey,
-  inputTokens: number,
-  cacheReadTokens: number
-) {
-  if (cliKey === "codex") return Math.max(inputTokens - cacheReadTokens, 0);
-  return inputTokens;
-}
-
 function extractSample(
   cliKey: SupportedCliKey,
   payload: GatewayRequestEvent,
@@ -309,8 +307,12 @@ function extractSample(
   const create1h = normalizeTokenCount(payload.cache_creation_1h_input_tokens ?? null);
   const cacheCreateTokens = create5m + create1h > 0 ? create5m + create1h : createRaw;
 
-  const effectiveInput = effectiveInputTokens(cliKey, inputTokens, cacheReadTokens);
-  const denomTokens = effectiveInput + cacheReadTokens;
+  const effectiveInput = computeEffectiveInputTokens(cliKey, inputTokens, cacheReadTokens);
+  const denomTokens = computeCacheHitRateDenomTokens(
+    effectiveInput,
+    cacheCreateTokens,
+    cacheReadTokens
+  );
 
   const successRequest: 0 | 1 = isSuccessRequest(payload) ? 1 : 0;
 

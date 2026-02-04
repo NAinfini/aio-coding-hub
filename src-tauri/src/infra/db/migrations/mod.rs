@@ -23,6 +23,7 @@ mod v27_to_v28;
 mod v28_to_v29;
 mod v29_to_v30;
 mod v29_to_v30_provider_limits;
+mod v29_to_v30_sort_mode_providers_enabled;
 mod v2_to_v3;
 mod v3_to_v4;
 mod v4_to_v5;
@@ -97,6 +98,7 @@ pub(super) fn apply_migrations(conn: &mut Connection) -> crate::shared::error::A
 
     v29_to_v30::ensure_workspace_cluster(conn)?;
     v29_to_v30_provider_limits::ensure_provider_limits(conn)?;
+    v29_to_v30_sort_mode_providers_enabled::ensure_sort_mode_providers_enabled(conn)?;
 
     let user_version = read_user_version(conn)?;
     if user_version > LATEST_SCHEMA_VERSION {

@@ -237,12 +237,16 @@ export function CliManagerGeneralTab({
                   触发条件：命中率断崖式下降（最近 15m vs 前 45m）；或创建异常（创建但读取为 0 /
                   创建占比过高 / 创建显著高于读取）。
                 </p>
+                <p>
+                  口径：命中率=读取 /（有效输入 + 创建 + 读取）。有效输入：Codex 做 input-cache_read
+                  纠偏；Claude 原样。
+                </p>
                 <p>冷启动：开启后前 10 分钟也会评估创建异常（不依赖 45m 基线）。</p>
                 <p>Haiku：模型名包含 haiku 时默认不采集（该类模型不创建缓存）。</p>
                 <p>
                   门槛（默认）：冷启动 token≥2000 且成功请求≥5；稳定期：基线 token≥10000
-                  且成功请求≥30； 最近 token≥3000 且成功请求≥10；基线命中率≥5%；创建占比≥90% 或
-                  创建/读取≥3。* token 不是请求数
+                  且成功请求≥30； 最近 token≥3000 且成功请求≥10；基线命中率≥5%；创建占比≥47.4%
+                  （等价旧口径 90%）或 创建/读取≥3。* token 不是请求数
                 </p>
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">

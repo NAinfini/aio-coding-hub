@@ -4,7 +4,7 @@ use crate::db;
 use crate::shared::time::now_unix_seconds;
 use rusqlite::{params, params_from_iter, Connection, OptionalExtension};
 use serde::Serialize;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct SortModeSummary {
@@ -19,6 +19,24 @@ pub struct SortModeActiveRow {
     pub cli_key: String,
     pub mode_id: Option<i64>,
     pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SortModeProviderRow {
+    pub provider_id: i64,
+    pub enabled: bool,
+}
+
+fn enabled_to_int(enabled: bool) -> i64 {
+    if enabled {
+        1
+    } else {
+        0
+    }
+}
+
+fn enabled_from_int(value: i64) -> bool {
+    value != 0
 }
 
 fn validate_cli_key(cli_key: &str) -> crate::shared::error::AppResult<()> {
@@ -290,7 +308,7 @@ pub fn list_mode_providers(
     db: &db::Db,
     mode_id: i64,
     cli_key: &str,
-) -> crate::shared::error::AppResult<Vec<i64>> {
+) -> crate::shared::error::AppResult<Vec<SortModeProviderRow>> {
     let cli_key = cli_key.trim();
     validate_cli_key(cli_key)?;
     let conn = db.open_connection()?;
@@ -300,7 +318,8 @@ pub fn list_mode_providers(
         .prepare(
             r#"
 SELECT
-  provider_id
+  provider_id,
+  enabled
 FROM sort_mode_providers
 WHERE mode_id = ?1
   AND cli_key = ?2
@@ -310,12 +329,21 @@ ORDER BY sort_order ASC
         .map_err(|e| format!("DB_ERROR: failed to prepare sort_mode_providers query: {e}"))?;
 
     let rows = stmt
-        .query_map(params![mode_id, cli_key], |row| row.get::<_, i64>(0))
+        .query_map(params![mode_id, cli_key], |row| {
+            let provider_id: i64 = row.get(0)?;
+            let enabled_raw: i64 = row.get(1)?;
+            Ok(SortModeProviderRow {
+                provider_id,
+                enabled: enabled_from_int(enabled_raw),
+            })
+        })
         .map_err(|e| format!("DB_ERROR: failed to list sort_mode_providers: {e}"))?;
 
     let mut items = Vec::new();
     for row in rows {
-        items.push(row.map_err(|e| format!("DB_ERROR: failed to read provider_id row: {e}"))?);
+        items.push(
+            row.map_err(|e| format!("DB_ERROR: failed to read sort_mode_provider row: {e}"))?,
+        );
     }
     Ok(items)
 }
@@ -375,7 +403,7 @@ pub fn set_mode_providers_order(
     mode_id: i64,
     cli_key: &str,
     ordered_provider_ids: Vec<i64>,
-) -> crate::shared::error::AppResult<Vec<i64>> {
+) -> crate::shared::error::AppResult<Vec<SortModeProviderRow>> {
     let cli_key = cli_key.trim();
     validate_cli_key(cli_key)?;
 
@@ -386,6 +414,35 @@ pub fn set_mode_providers_order(
     let tx = conn
         .transaction()
         .map_err(|e| format!("DB_ERROR: failed to start transaction: {e}"))?;
+
+    let mut existing_enabled: HashMap<i64, bool> = HashMap::new();
+    {
+        let mut stmt = tx
+            .prepare(
+                r#"
+SELECT
+  provider_id,
+  enabled
+FROM sort_mode_providers
+WHERE mode_id = ?1
+  AND cli_key = ?2
+"#,
+            )
+            .map_err(|e| format!("DB_ERROR: failed to prepare sort_mode_providers query: {e}"))?;
+        let rows = stmt
+            .query_map(params![mode_id, cli_key], |row| {
+                let provider_id: i64 = row.get(0)?;
+                let enabled_raw: i64 = row.get(1)?;
+                Ok((provider_id, enabled_from_int(enabled_raw)))
+            })
+            .map_err(|e| format!("DB_ERROR: failed to list sort_mode_providers: {e}"))?;
+        for row in rows {
+            let (provider_id, enabled) =
+                row.map_err(|e| format!("DB_ERROR: failed to read sort_mode_provider row: {e}"))?;
+            existing_enabled.insert(provider_id, enabled);
+        }
+    }
+
     tx.execute(
         "DELETE FROM sort_mode_providers WHERE mode_id = ?1 AND cli_key = ?2",
         params![mode_id, cli_key],
@@ -394,6 +451,7 @@ pub fn set_mode_providers_order(
 
     let now = now_unix_seconds();
     for (idx, provider_id) in ordered_provider_ids.iter().enumerate() {
+        let enabled = existing_enabled.get(provider_id).copied().unwrap_or(true);
         tx.execute(
             r#"
 INSERT INTO sort_mode_providers(
@@ -401,11 +459,20 @@ INSERT INTO sort_mode_providers(
   cli_key,
   provider_id,
   sort_order,
+  enabled,
   created_at,
   updated_at
-) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
 "#,
-            params![mode_id, cli_key, provider_id, idx as i64, now, now],
+            params![
+                mode_id,
+                cli_key,
+                provider_id,
+                idx as i64,
+                enabled_to_int(enabled),
+                now,
+                now
+            ],
         )
         .map_err(|e| format!("DB_ERROR: failed to insert sort_mode_provider: {e}"))?;
     }
@@ -414,4 +481,61 @@ INSERT INTO sort_mode_providers(
         .map_err(|e| format!("DB_ERROR: failed to commit transaction: {e}"))?;
 
     list_mode_providers(db, mode_id, cli_key)
+}
+
+pub fn set_mode_provider_enabled(
+    db: &db::Db,
+    mode_id: i64,
+    cli_key: &str,
+    provider_id: i64,
+    enabled: bool,
+) -> crate::shared::error::AppResult<SortModeProviderRow> {
+    let cli_key = cli_key.trim();
+    validate_cli_key(cli_key)?;
+    if provider_id <= 0 {
+        return Err("SEC_INVALID_INPUT: invalid provider_id".into());
+    }
+
+    let conn = db.open_connection()?;
+    ensure_mode_exists(&conn, mode_id)?;
+    ensure_providers_belong_to_cli(&conn, cli_key, &[provider_id])?;
+
+    let now = now_unix_seconds();
+    let changed = conn
+        .execute(
+            r#"
+UPDATE sort_mode_providers
+SET enabled = ?1, updated_at = ?2
+WHERE mode_id = ?3
+  AND cli_key = ?4
+  AND provider_id = ?5
+"#,
+            params![enabled_to_int(enabled), now, mode_id, cli_key, provider_id],
+        )
+        .map_err(|e| format!("DB_ERROR: failed to update sort_mode_provider: {e}"))?;
+    if changed == 0 {
+        return Err("DB_NOT_FOUND: sort_mode_provider not found".into());
+    }
+
+    conn.query_row(
+        r#"
+SELECT
+  provider_id,
+  enabled
+FROM sort_mode_providers
+WHERE mode_id = ?1
+  AND cli_key = ?2
+  AND provider_id = ?3
+"#,
+        params![mode_id, cli_key, provider_id],
+        |row| {
+            let provider_id: i64 = row.get(0)?;
+            let enabled_raw: i64 = row.get(1)?;
+            Ok(SortModeProviderRow {
+                provider_id,
+                enabled: enabled_from_int(enabled_raw),
+            })
+        },
+    )
+    .map_err(|e| format!("DB_ERROR: failed to read sort_mode_provider: {e}").into())
 }

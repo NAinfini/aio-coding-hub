@@ -6,6 +6,7 @@ import {
   sortModeCreate,
   sortModeDelete,
   sortModeProvidersList,
+  sortModeProviderSetEnabled,
   sortModeProvidersSetOrder,
   sortModeRename,
   sortModesList,
@@ -56,6 +57,19 @@ describe("services/sortModes", () => {
       modeId: 4,
       cliKey: "gemini",
       orderedProviderIds: [9, 8, 7],
+    });
+
+    await sortModeProviderSetEnabled({
+      mode_id: 5,
+      cli_key: "claude" as any,
+      provider_id: 9,
+      enabled: false,
+    });
+    expect(invokeTauriOrNull).toHaveBeenCalledWith("sort_mode_provider_set_enabled", {
+      modeId: 5,
+      cliKey: "claude",
+      providerId: 9,
+      enabled: false,
     });
   });
 });

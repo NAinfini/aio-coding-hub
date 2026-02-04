@@ -245,6 +245,7 @@ pub fn run() {
             sort_mode_active_set,
             sort_mode_providers_list,
             sort_mode_providers_set_order,
+            sort_mode_provider_set_enabled,
             model_prices_list,
             model_price_upsert,
             model_prices_sync_basellm,

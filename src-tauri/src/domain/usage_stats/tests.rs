@@ -335,9 +335,9 @@ fn v1_provider_cache_rate_trend_uses_effective_denom_and_bucket() {
         .expect("compute_start_ts today")
         .expect("start ts exists");
 
-    for (created_at, input_tokens, cache_read_input_tokens) in [
-        (start_ts_today + 3600, 500i64, 200i64),
-        (start_ts_today + 7200, 100i64, 50i64),
+    for (created_at, input_tokens, cache_read_input_tokens, cache_creation_input_tokens) in [
+        (start_ts_today + 3600, 500i64, 200i64, 20i64),
+        (start_ts_today + 7200, 100i64, 50i64, 10i64),
     ] {
         conn.execute(
             r#"
@@ -350,8 +350,9 @@ INSERT INTO request_logs (
   duration_ms,
   input_tokens,
   cache_read_input_tokens,
+  cache_creation_input_tokens,
   created_at
-) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9);
+) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10);
             "#,
             params![
                 "codex",
@@ -362,6 +363,7 @@ INSERT INTO request_logs (
                 1000,
                 input_tokens,
                 cache_read_input_tokens,
+                cache_creation_input_tokens,
                 created_at
             ],
         )
@@ -381,11 +383,11 @@ INSERT INTO request_logs (
     assert_eq!(rows_hour.len(), 2);
     assert_eq!(rows_hour[0].name, "codex/OpenAI");
     assert_eq!(rows_hour[0].hour, Some(1));
-    assert_eq!(rows_hour[0].denom_tokens, 500);
+    assert_eq!(rows_hour[0].denom_tokens, 520);
     assert_eq!(rows_hour[0].cache_read_input_tokens, 200);
 
     assert_eq!(rows_hour[1].hour, Some(2));
-    assert_eq!(rows_hour[1].denom_tokens, 100);
+    assert_eq!(rows_hour[1].denom_tokens, 110);
     assert_eq!(rows_hour[1].cache_read_input_tokens, 50);
 
     // Weekly bucket is day-based and aggregates both rows into a single point.
@@ -401,7 +403,7 @@ INSERT INTO request_logs (
 
     assert_eq!(rows_day.len(), 1);
     assert_eq!(rows_day[0].hour, None);
-    assert_eq!(rows_day[0].denom_tokens, 600);
+    assert_eq!(rows_day[0].denom_tokens, 630);
     assert_eq!(rows_day[0].cache_read_input_tokens, 250);
     assert_eq!(rows_day[0].requests_success, 2);
 }

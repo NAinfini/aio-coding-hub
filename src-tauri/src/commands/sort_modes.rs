@@ -104,7 +104,7 @@ pub(crate) async fn sort_mode_providers_list(
     db_state: tauri::State<'_, DbInitState>,
     mode_id: i64,
     cli_key: String,
-) -> Result<Vec<i64>, String> {
+) -> Result<Vec<sort_modes::SortModeProviderRow>, String> {
     let db = ensure_db_ready(app, db_state.inner()).await?;
     blocking::run("sort_mode_providers_list", move || {
         sort_modes::list_mode_providers(&db, mode_id, &cli_key)
@@ -120,10 +120,27 @@ pub(crate) async fn sort_mode_providers_set_order(
     mode_id: i64,
     cli_key: String,
     ordered_provider_ids: Vec<i64>,
-) -> Result<Vec<i64>, String> {
+) -> Result<Vec<sort_modes::SortModeProviderRow>, String> {
     let db = ensure_db_ready(app, db_state.inner()).await?;
     blocking::run("sort_mode_providers_set_order", move || {
         sort_modes::set_mode_providers_order(&db, mode_id, &cli_key, ordered_provider_ids)
+    })
+    .await
+    .map_err(Into::into)
+}
+
+#[tauri::command]
+pub(crate) async fn sort_mode_provider_set_enabled(
+    app: tauri::AppHandle,
+    db_state: tauri::State<'_, DbInitState>,
+    mode_id: i64,
+    cli_key: String,
+    provider_id: i64,
+    enabled: bool,
+) -> Result<sort_modes::SortModeProviderRow, String> {
+    let db = ensure_db_ready(app, db_state.inner()).await?;
+    blocking::run("sort_mode_provider_set_enabled", move || {
+        sort_modes::set_mode_provider_enabled(&db, mode_id, &cli_key, provider_id, enabled)
     })
     .await
     .map_err(Into::into)

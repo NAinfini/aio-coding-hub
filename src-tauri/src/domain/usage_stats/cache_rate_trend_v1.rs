@@ -60,7 +60,7 @@ pub(super) fn provider_cache_rate_trend_v1_with_conn(
 
     let effective_input_expr = sql_effective_input_tokens_expr_with_alias("r");
     let denom_expr = format!(
-        "({effective_input_expr}) + COALESCE(r.cache_read_input_tokens, 0)",
+        "({effective_input_expr}) + COALESCE(r.cache_creation_input_tokens, 0) + COALESCE(r.cache_read_input_tokens, 0)",
         effective_input_expr = effective_input_expr
     );
 

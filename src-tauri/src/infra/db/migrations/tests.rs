@@ -375,6 +375,49 @@ fn test_has_column(conn: &Connection, table: &str, column: &str) -> bool {
 }
 
 #[test]
+fn strict_v29_patch_adds_sort_mode_provider_enabled_column() {
+    let mut conn = Connection::open_in_memory().expect("open in-memory sqlite");
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .expect("enable foreign_keys");
+
+    conn.execute_batch(
+        r#"
+CREATE TABLE prompts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  cli_key TEXT NOT NULL,
+  name TEXT NOT NULL,
+  content TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  UNIQUE(cli_key, name)
+);
+
+CREATE TABLE sort_mode_providers (
+  mode_id INTEGER NOT NULL,
+  cli_key TEXT NOT NULL,
+  provider_id INTEGER NOT NULL,
+  sort_order INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY(mode_id, cli_key, provider_id)
+);
+
+PRAGMA user_version = 29;
+"#,
+    )
+    .expect("create legacy sort_mode_providers schema");
+
+    assert!(!test_has_column(&conn, "sort_mode_providers", "enabled"));
+
+    apply_migrations(&mut conn).expect("apply migrations");
+    assert!(test_has_column(&conn, "sort_mode_providers", "enabled"));
+
+    // Idempotent: second run should succeed.
+    apply_migrations(&mut conn).expect("apply migrations twice");
+}
+
+#[test]
 fn strict_v29_patch_migrates_legacy_workspace_cluster_tables() {
     let mut conn = Connection::open_in_memory().expect("open in-memory sqlite");
     conn.execute_batch("PRAGMA foreign_keys = ON;")

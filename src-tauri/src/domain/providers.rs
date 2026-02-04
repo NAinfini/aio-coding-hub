@@ -537,7 +537,7 @@ JOIN providers p ON p.id = mp.provider_id
 WHERE mp.mode_id = ?1
   AND mp.cli_key = ?2
   AND p.cli_key = ?2
-  AND p.enabled = 1
+  AND mp.enabled = 1
 ORDER BY mp.sort_order ASC
 "#,
         )

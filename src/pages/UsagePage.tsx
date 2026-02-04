@@ -27,6 +27,7 @@ import {
   formatUsdShort,
 } from "../utils/formatters";
 import { cn } from "../utils/cn";
+import { computeCacheHitRate } from "../utils/cacheRateMetrics";
 
 type ScopeItem = { key: UsageScope; label: string };
 
@@ -110,8 +111,7 @@ function CacheBreakdown({
   cacheCreationInputTokens: number;
   cacheReadInputTokens: number;
 }) {
-  const denom = inputTokens + cacheReadInputTokens;
-  const hitRate = denom > 0 ? cacheReadInputTokens / denom : NaN;
+  const hitRate = computeCacheHitRate(inputTokens, cacheCreationInputTokens, cacheReadInputTokens);
 
   return (
     <div className="space-y-0.5 text-[10px] leading-4">
@@ -224,8 +224,11 @@ export function UsagePage() {
   const cacheStats = useMemo(() => {
     if (!summary) return null;
     const total = summary.cache_read_input_tokens + summary.cache_creation_input_tokens;
-    const denom = summary.input_tokens + summary.cache_read_input_tokens;
-    const hitRate = denom > 0 ? summary.cache_read_input_tokens / denom : NaN;
+    const hitRate = computeCacheHitRate(
+      summary.input_tokens,
+      summary.cache_creation_input_tokens,
+      summary.cache_read_input_tokens
+    );
     return { total, hitRate };
   }, [summary]);
 
@@ -511,8 +514,9 @@ export function UsagePage() {
                     />
                   </div>
                   <div className="mt-3 text-xs text-slate-500">
-                    命中率=读取 /（有效输入 + 读取）。有效输入：Codex/Gemini 做 input-cache_read
-                    纠偏；Claude 原样。预警阈值：60%（低于阈值的时间段会高亮背景）。
+                    命中率=读取 /（有效输入 + 创建 + 读取）。有效输入：Codex/Gemini 做
+                    input-cache_read 纠偏；Claude
+                    原样。预警阈值：60%（低于阈值的时间段会高亮背景）。
                   </div>
                 </>
               )}

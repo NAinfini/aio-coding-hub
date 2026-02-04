@@ -14,6 +14,11 @@ export type SortModeActiveRow = {
   updated_at: number;
 };
 
+export type SortModeProviderRow = {
+  provider_id: number;
+  enabled: boolean;
+};
+
 export async function sortModesList() {
   return invokeTauriOrNull<SortModeSummary[]>("sort_modes_list");
 }
@@ -49,7 +54,7 @@ export async function sortModeActiveSet(input: { cli_key: CliKey; mode_id: numbe
 }
 
 export async function sortModeProvidersList(input: { mode_id: number; cli_key: CliKey }) {
-  return invokeTauriOrNull<number[]>("sort_mode_providers_list", {
+  return invokeTauriOrNull<SortModeProviderRow[]>("sort_mode_providers_list", {
     modeId: input.mode_id,
     cliKey: input.cli_key,
   });
@@ -60,9 +65,23 @@ export async function sortModeProvidersSetOrder(input: {
   cli_key: CliKey;
   ordered_provider_ids: number[];
 }) {
-  return invokeTauriOrNull<number[]>("sort_mode_providers_set_order", {
+  return invokeTauriOrNull<SortModeProviderRow[]>("sort_mode_providers_set_order", {
     modeId: input.mode_id,
     cliKey: input.cli_key,
     orderedProviderIds: input.ordered_provider_ids,
+  });
+}
+
+export async function sortModeProviderSetEnabled(input: {
+  mode_id: number;
+  cli_key: CliKey;
+  provider_id: number;
+  enabled: boolean;
+}) {
+  return invokeTauriOrNull<SortModeProviderRow>("sort_mode_provider_set_enabled", {
+    modeId: input.mode_id,
+    cliKey: input.cli_key,
+    providerId: input.provider_id,
+    enabled: input.enabled,
   });
 }

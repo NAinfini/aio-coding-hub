@@ -127,7 +127,7 @@ jobs:
         name: Build & upload (Tauri)
         uses: tauri-apps/tauri-action@v0
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
         with:
           releaseId: ${{ needs.release-please.outputs.release_id }}
           tagName: ${{ needs.release-please.outputs.tag_name }}
@@ -267,7 +267,7 @@ jobs:
       - name: Upload stable assets (GitHub Release)
         uses: softprops/action-gh-release@v2
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
         with:
           tag_name: ${{ needs.release-please.outputs.tag_name }}
           files: stable-assets/*
@@ -387,7 +387,7 @@ jobs:
       - name: Upload latest.json (GitHub Release)
         uses: softprops/action-gh-release@v2
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
         with:
           tag_name: ${{ needs.release-please.outputs.tag_name }}
           files: latest.json

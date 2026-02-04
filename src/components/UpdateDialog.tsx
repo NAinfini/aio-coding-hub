@@ -106,18 +106,6 @@ export function UpdateDialog() {
           ) : null}
         </div>
 
-        {updateCandidate?.body ? (
-          <div>
-            <div className="mb-2 text-sm font-medium text-slate-700">更新说明</div>
-            <pre
-              className="max-h-[240px] overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700 whitespace-pre-wrap"
-              aria-label="Release notes"
-            >
-              {updateCandidate.body}
-            </pre>
-          </div>
-        ) : null}
-
         {!updateCandidate ? (
           <div className="rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700">
             未发现可安装更新。

@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.19.0](https://github.com/dyndynjyxa/aio-coding-hub/compare/aio-coding-hub-v0.18.0...aio-coding-hub-v0.19.0) (2026-02-04)
+
+
+### Features
+
+* **sort-modes:** add toggle functionality for enabling/disabling providers in sort modes and update related services ([e6cd992](https://github.com/dyndynjyxa/aio-coding-hub/commit/e6cd99241f5c86da3f62afebefeffdf33e62b8f0))
+
+
+### Bug Fixes
+
+* **ci:** add explicit permissions to release-please job ([8c77c04](https://github.com/dyndynjyxa/aio-coding-hub/commit/8c77c041b0d6f5081abf6ea9a39e1031dc56ad75))
+* **ci:** ensure consistent use of RELEASE_PLEASE_TOKEN in release workflow for GitHub actions ([f8a439d](https://github.com/dyndynjyxa/aio-coding-hub/commit/f8a439d213346a907dfc7355b6b6caf4b4194799))
+* **ci:** quote FALLBACK_NOTES value in release workflow ([536896c](https://github.com/dyndynjyxa/aio-coding-hub/commit/536896ca4072f48002e8c83b91d78164ed40384f))
+* **ci:** revert release-please job to original config ([0d1afad](https://github.com/dyndynjyxa/aio-coding-hub/commit/0d1afade58707c53554f7680dd7455d6ef547187))
+* **ci:** update release workflow to consistently use RELEASE_PLEASE_TOKEN for GitHub actions ([2c45c46](https://github.com/dyndynjyxa/aio-coding-hub/commit/2c45c461ddf157a4b781c146a0ebed5cd9dc1a44))
+* **ci:** update release workflow to use RELEASE_PLEASE_TOKEN for GitHub actions ([48ec3ce](https://github.com/dyndynjyxa/aio-coding-hub/commit/48ec3ce92e28702ee9920eaa42d2f7374b07be31))
+* **ci:** use PAT for release-please to fix permission issue ([a2919f2](https://github.com/dyndynjyxa/aio-coding-hub/commit/a2919f2446d8fcb1c4c7ac8dc6a1b4f63f705157))
+
 ## [0.18.0](https://github.com/dyndynjyxa/aio-coding-hub/compare/aio-coding-hub-v0.17.0...aio-coding-hub-v0.18.0) (2026-02-03)
 
 

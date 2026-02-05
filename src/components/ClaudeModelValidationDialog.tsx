@@ -906,7 +906,12 @@ export function ClaudeModelValidationDialog({
   }, [selectedHistoryLatest?.run.request_json, result, resultTemplateKey, templateKey]);
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange} title={title} className="max-w-6xl">
+    <Dialog
+      open={open}
+      onOpenChange={handleOpenChange}
+      title={title}
+      className="sm:max-w-6xl md:max-w-6xl lg:max-w-6xl"
+    >
       {!provider ? (
         <div className="flex h-40 items-center justify-center text-sm text-slate-500">
           未选择服务商

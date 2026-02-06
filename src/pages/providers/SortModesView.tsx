@@ -18,18 +18,18 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { CLIS, cliFromKeyOrDefault } from "../../constants/clis";
-import { sortModesKeys } from "../../query/keys";
-import { queryClient } from "../../query/queryClient";
 import { logToConsole } from "../../services/consoleLog";
 import type { CliKey, ProviderSummary } from "../../services/providers";
 import {
+  useSortModeCreateMutation,
+  useSortModeDeleteMutation,
+  useSortModeRenameMutation,
+} from "../../query/sortModes";
+import {
   sortModeActiveList,
-  sortModeCreate,
-  sortModeDelete,
   sortModeProvidersList,
   sortModeProvidersSetOrder,
   sortModeProviderSetEnabled,
-  sortModeRename,
   sortModesList,
   type SortModeProviderRow,
   type SortModeSummary,
@@ -188,13 +188,9 @@ export function SortModesView({
     })
   );
 
-  function invalidateSortModesListCache() {
-    void queryClient.invalidateQueries({ queryKey: sortModesKeys.list() });
-  }
-
-  function invalidateSortModesActiveCache() {
-    void queryClient.invalidateQueries({ queryKey: sortModesKeys.activeList() });
-  }
+  const createSortModeMutation = useSortModeCreateMutation();
+  const renameSortModeMutation = useSortModeRenameMutation();
+  const deleteSortModeMutation = useSortModeDeleteMutation();
 
   useEffect(() => {
     activeModeIdRef.current = activeModeId;
@@ -350,7 +346,7 @@ export function SortModesView({
 
     setCreateModeSaving(true);
     try {
-      const saved = await sortModeCreate({ name });
+      const saved = await createSortModeMutation.mutateAsync({ name });
       if (!saved) {
         toast("仅在 Tauri Desktop 环境可用");
         return;
@@ -358,7 +354,6 @@ export function SortModesView({
       setSortModes((prev) => [...prev, saved]);
       selectEditingMode(saved.id);
       setCreateModeDialogOpen(false);
-      invalidateSortModesListCache();
       toast("排序模板已创建");
     } catch (err) {
       logToConsole("error", "创建排序模板失败", { error: String(err) });
@@ -379,14 +374,13 @@ export function SortModesView({
 
     setRenameModeSaving(true);
     try {
-      const saved = await sortModeRename({ mode_id: selectedMode.id, name });
+      const saved = await renameSortModeMutation.mutateAsync({ modeId: selectedMode.id, name });
       if (!saved) {
         toast("仅在 Tauri Desktop 环境可用");
         return;
       }
       setSortModes((prev) => prev.map((m) => (m.id === saved.id ? saved : m)));
       setRenameModeDialogOpen(false);
-      invalidateSortModesListCache();
       toast("排序模板已更新");
     } catch (err) {
       logToConsole("error", "重命名排序模板失败", { error: String(err), mode_id: selectedMode.id });
@@ -400,7 +394,7 @@ export function SortModesView({
     if (!deleteModeTarget || deleteModeDeleting) return;
     setDeleteModeDeleting(true);
     try {
-      const ok = await sortModeDelete({ mode_id: deleteModeTarget.id });
+      const ok = await deleteSortModeMutation.mutateAsync({ modeId: deleteModeTarget.id });
       if (!ok) {
         toast("仅在 Tauri Desktop 环境可用");
         return;
@@ -422,8 +416,6 @@ export function SortModesView({
         setActiveModeId(null);
       }
       setDeleteModeTarget(null);
-      invalidateSortModesListCache();
-      invalidateSortModesActiveCache();
       toast("排序模板已删除");
     } catch (err) {
       logToConsole("error", "删除排序模板失败", {

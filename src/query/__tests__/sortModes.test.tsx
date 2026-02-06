@@ -1,7 +1,14 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { SortModeActiveRow } from "../../services/sortModes";
-import { sortModeActiveList, sortModeActiveSet, sortModesList } from "../../services/sortModes";
+import {
+  sortModeActiveList,
+  sortModeActiveSet,
+  sortModeCreate,
+  sortModeDelete,
+  sortModeRename,
+  sortModesList,
+} from "../../services/sortModes";
 import { createDeferred } from "../../test/utils/deferred";
 import { createQueryWrapper, createTestQueryClient } from "../../test/utils/reactQuery";
 import { setTauriRuntime } from "../../test/utils/tauriRuntime";
@@ -9,6 +16,9 @@ import { sortModesKeys } from "../keys";
 import {
   useSortModeActiveListQuery,
   useSortModeActiveSetMutation,
+  useSortModeCreateMutation,
+  useSortModeDeleteMutation,
+  useSortModeRenameMutation,
   useSortModesListQuery,
 } from "../sortModes";
 
@@ -21,6 +31,9 @@ vi.mock("../../services/sortModes", async () => {
     sortModesList: vi.fn(),
     sortModeActiveList: vi.fn(),
     sortModeActiveSet: vi.fn(),
+    sortModeCreate: vi.fn(),
+    sortModeRename: vi.fn(),
+    sortModeDelete: vi.fn(),
   };
 });
 
@@ -167,6 +180,73 @@ describe("query/sortModes", () => {
     });
 
     expect(client.getQueryData(sortModesKeys.activeList())).toBeUndefined();
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: sortModesKeys.activeList() });
+  });
+
+  it("useSortModeCreateMutation invalidates list on settle", async () => {
+    setTauriRuntime();
+
+    vi.mocked(sortModeCreate).mockResolvedValue({
+      id: 1,
+      name: "Work",
+      created_at: 0,
+      updated_at: 0,
+    } as any);
+
+    const client = createTestQueryClient();
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries");
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useSortModeCreateMutation(), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync({ name: "Work" });
+    });
+
+    expect(sortModeCreate).toHaveBeenCalledWith({ name: "Work" });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: sortModesKeys.list() });
+    expect(invalidateSpy).not.toHaveBeenCalledWith({ queryKey: sortModesKeys.activeList() });
+  });
+
+  it("useSortModeRenameMutation invalidates list on settle", async () => {
+    setTauriRuntime();
+
+    vi.mocked(sortModeRename).mockResolvedValue({
+      id: 2,
+      name: "Life",
+      created_at: 0,
+      updated_at: 0,
+    } as any);
+
+    const client = createTestQueryClient();
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries");
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useSortModeRenameMutation(), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync({ modeId: 2, name: "Life" });
+    });
+
+    expect(sortModeRename).toHaveBeenCalledWith({ mode_id: 2, name: "Life" });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: sortModesKeys.list() });
+    expect(invalidateSpy).not.toHaveBeenCalledWith({ queryKey: sortModesKeys.activeList() });
+  });
+
+  it("useSortModeDeleteMutation invalidates list and activeList on settle", async () => {
+    setTauriRuntime();
+
+    vi.mocked(sortModeDelete).mockResolvedValue(true as any);
+
+    const client = createTestQueryClient();
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries");
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useSortModeDeleteMutation(), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync({ modeId: 3 });
+    });
+
+    expect(sortModeDelete).toHaveBeenCalledWith({ mode_id: 3 });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: sortModesKeys.list() });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: sortModesKeys.activeList() });
   });
 });

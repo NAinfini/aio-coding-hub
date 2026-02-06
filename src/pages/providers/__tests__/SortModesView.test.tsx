@@ -1,4 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { QueryClientProvider } from "@tanstack/react-query";
+import type { ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { SortModesView } from "../SortModesView";
@@ -12,7 +14,6 @@ import {
   sortModeRename,
   sortModesList,
 } from "../../../services/sortModes";
-import { sortModesKeys } from "../../../query/keys";
 import { queryClient } from "../../../query/queryClient";
 
 let latestOnDragEnd: ((event: any) => void) | null = null;
@@ -72,6 +73,16 @@ vi.mock("../../../services/sortModes", async () => {
   };
 });
 
+function renderWithQueryClient(ui: ReactElement) {
+  queryClient.clear();
+  const rendered = render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+  return {
+    ...rendered,
+    rerender: (nextUi: ReactElement) =>
+      rendered.rerender(<QueryClientProvider client={queryClient}>{nextUi}</QueryClientProvider>),
+  };
+}
+
 describe("pages/providers/SortModesView", () => {
   it("covers providers list cancelled + ids null branches and active auto-selection edge cases", async () => {
     vi.mocked(toast).mockClear();
@@ -86,7 +97,7 @@ describe("pages/providers/SortModesView", () => {
     // 1) ids null -> modeProvidersAvailable=false
     vi.mocked(sortModeProvidersList).mockResolvedValueOnce(null as any);
 
-    render(
+    renderWithQueryClient(
       <SortModesView
         activeCli="claude"
         setActiveCli={vi.fn()}
@@ -133,10 +144,6 @@ describe("pages/providers/SortModesView", () => {
   });
 
   it("loads modes, joins providers, reorders, and supports CRUD", async () => {
-    const invalidateSpy = vi
-      .spyOn(queryClient, "invalidateQueries")
-      .mockResolvedValue(undefined as never);
-
     vi.mocked(sortModesList).mockResolvedValue([{ id: 1, name: "Work" }] as any);
     vi.mocked(sortModeActiveList).mockResolvedValue([{ cli_key: "claude", mode_id: 1 }] as any);
     vi.mocked(sortModeProvidersList).mockResolvedValue([
@@ -164,7 +171,7 @@ describe("pages/providers/SortModesView", () => {
       },
     ] as any[];
 
-    render(
+    renderWithQueryClient(
       <SortModesView
         activeCli="claude"
         setActiveCli={vi.fn()}
@@ -206,7 +213,6 @@ describe("pages/providers/SortModesView", () => {
     fireEvent.change(createDialog.getByPlaceholderText("工作"), { target: { value: "Life" } });
     fireEvent.click(createDialog.getByRole("button", { name: "创建" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Life" })).toBeInTheDocument());
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: sortModesKeys.list() });
 
     // Rename mode
     fireEvent.click(screen.getByRole("button", { name: "Life" }));
@@ -216,7 +222,6 @@ describe("pages/providers/SortModesView", () => {
     fireEvent.change(renameDialog.getByRole("textbox"), { target: { value: "Life2" } });
     fireEvent.click(renameDialog.getByRole("button", { name: "保存" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Life2" })).toBeInTheDocument());
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: sortModesKeys.list() });
 
     // Delete mode
     fireEvent.click(screen.getByRole("button", { name: "删除" }));
@@ -224,10 +229,6 @@ describe("pages/providers/SortModesView", () => {
     vi.mocked(sortModeDelete).mockResolvedValue(true as any);
     fireEvent.click(deleteDialog.getByRole("button", { name: "确认删除" }));
     await waitFor(() => expect(vi.mocked(sortModeDelete)).toHaveBeenCalledWith({ mode_id: 2 }));
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: sortModesKeys.list() });
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: sortModesKeys.activeList() });
-
-    invalidateSpy.mockRestore();
   });
 
   it("supports toggling provider enabled state inside a sort mode", async () => {
@@ -242,7 +243,7 @@ describe("pages/providers/SortModesView", () => {
       enabled: true,
     } as any);
 
-    render(
+    renderWithQueryClient(
       <SortModesView
         activeCli="claude"
         setActiveCli={vi.fn()}
@@ -291,7 +292,7 @@ describe("pages/providers/SortModesView", () => {
     vi.mocked(sortModesList).mockResolvedValue(null as any);
     vi.mocked(sortModeActiveList).mockResolvedValue(null as any);
 
-    render(
+    renderWithQueryClient(
       <SortModesView
         activeCli="claude"
         setActiveCli={vi.fn()}
@@ -322,7 +323,7 @@ describe("pages/providers/SortModesView", () => {
       { id: 101, name: "P1", enabled: true, base_urls: ["https://a"], base_url_mode: "order" },
     ] as any[];
 
-    render(
+    renderWithQueryClient(
       <SortModesView
         activeCli="claude"
         setActiveCli={vi.fn()}
@@ -426,7 +427,7 @@ describe("pages/providers/SortModesView", () => {
       { provider_id: 101, enabled: true },
     ] as any);
 
-    render(
+    renderWithQueryClient(
       <SortModesView
         activeCli="claude"
         setActiveCli={vi.fn()}
@@ -473,7 +474,7 @@ describe("pages/providers/SortModesView", () => {
       { id: 102, name: "", enabled: false, base_urls: ["https://b"], base_url_mode: "order" },
     ] as any[];
 
-    render(
+    renderWithQueryClient(
       <SortModesView
         activeCli="claude"
         setActiveCli={vi.fn()}
@@ -527,7 +528,7 @@ describe("pages/providers/SortModesView", () => {
       { provider_id: 101, enabled: true },
     ] as any);
 
-    const { rerender } = render(
+    const { rerender } = renderWithQueryClient(
       <SortModesView
         activeCli="claude"
         setActiveCli={vi.fn()}

@@ -1,13 +1,26 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type { CliKey } from "../services/providers";
 import {
   sortModeActiveList,
   sortModeActiveSet,
+  sortModeCreate,
+  sortModeDelete,
+  sortModeRename,
   sortModesList,
   type SortModeActiveRow,
 } from "../services/sortModes";
 import { hasTauriRuntime } from "../services/tauriInvoke";
 import { sortModesKeys } from "./keys";
+
+function invalidateSortModesQueries(
+  queryClient: QueryClient,
+  options: { includeActiveList?: boolean } = {}
+) {
+  void queryClient.invalidateQueries({ queryKey: sortModesKeys.list() });
+  if (options.includeActiveList) {
+    void queryClient.invalidateQueries({ queryKey: sortModesKeys.activeList() });
+  }
+}
 
 export function useSortModesListQuery() {
   return useQuery({
@@ -65,7 +78,41 @@ export function useSortModeActiveSetMutation() {
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: sortModesKeys.activeList() });
+      void queryClient.invalidateQueries({ queryKey: sortModesKeys.activeList() });
+    },
+  });
+}
+
+export function useSortModeCreateMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: { name: string }) => sortModeCreate({ name: input.name }),
+    onSettled: () => {
+      invalidateSortModesQueries(queryClient);
+    },
+  });
+}
+
+export function useSortModeRenameMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: { modeId: number; name: string }) =>
+      sortModeRename({ mode_id: input.modeId, name: input.name }),
+    onSettled: () => {
+      invalidateSortModesQueries(queryClient);
+    },
+  });
+}
+
+export function useSortModeDeleteMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: { modeId: number }) => sortModeDelete({ mode_id: input.modeId }),
+    onSettled: () => {
+      invalidateSortModesQueries(queryClient, { includeActiveList: true });
     },
   });
 }

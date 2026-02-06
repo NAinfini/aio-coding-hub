@@ -1,5 +1,4 @@
 //! Usage: Detect non-retryable client input errors from upstream error bodies (align with
-//! claude-code-hub's error rules approach).
 
 /// Limit how much of the upstream error body we scan (defensive against huge error payloads).
 const MAX_SCAN_BYTES: usize = 64 * 1024;
@@ -55,7 +54,6 @@ fn matches_rule(haystack_lower: &str, rule: &Rule) -> bool {
         .any(|needle| haystack_lower.contains(needle))
 }
 
-// NOTE: These rules are a high-signal subset derived from claude-code-hub defaults.
 //       We intentionally keep this list small and conservative to avoid false positives.
 const NON_RETRYABLE_RULES: &[Rule] = &[
     Rule {

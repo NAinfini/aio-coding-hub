@@ -117,7 +117,6 @@ impl SessionManager {
                 }
             }
 
-            // claude-code-hub: { "metadata": { "session_id": "..." } }
             if let Some(meta) = root.get("metadata").and_then(|v| v.as_object()) {
                 if let Some(id) = meta.get("session_id").and_then(|v| v.as_str()) {
                     if let Some(id) = sanitize_session_id(id) {
@@ -125,7 +124,6 @@ impl SessionManager {
                     }
                 }
 
-                // claude-code-hub: metadata.user_id contains "_session_" marker (Claude Code)
                 if let Some(user_id) = meta.get("user_id").and_then(|v| v.as_str()) {
                     let marker = "_session_";
                     if let Some(idx) = user_id.find(marker) {
@@ -147,7 +145,6 @@ impl SessionManager {
             }
         }
 
-        // 3) deterministic session id fallback (align claude-code-hub)
         deterministic_session_id(headers).and_then(|id| sanitize_session_id(&id))
     }
 

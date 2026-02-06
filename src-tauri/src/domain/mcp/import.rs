@@ -615,8 +615,7 @@ ON CONFLICT(workspace_id, server_id) DO UPDATE SET
             } else {
                 skipped.push(McpImportSkip {
                     name: server.name.clone(),
-                    reason: "already exists; kept existing config (cc-switch merge strategy)"
-                        .to_string(),
+                    reason: "already exists; kept existing config".to_string(),
                 });
             }
             continue;

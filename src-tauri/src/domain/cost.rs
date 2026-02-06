@@ -202,7 +202,6 @@ fn multiplier_to_scaled_int(multiplier: f64) -> Option<i128> {
     if !multiplier.is_finite() || multiplier <= 0.0 {
         return None;
     }
-    // claude-code-hub provider multiplier uses numeric(10,4) semantics; scale up to 1e6 for stability.
     let scaled = (multiplier * 1_000_000.0).round();
     if !scaled.is_finite() || scaled <= 0.0 {
         return None;

@@ -50,14 +50,13 @@ pub(super) fn classify_upstream_status(
         ),
         402 => (
             // Payment Required / insufficient balance / subscription required.
-            // Align with claude-code-hub: treat as provider-side limitation and allow failover.
+            // Align with : treat as provider-side limitation and allow failover.
             ErrorCategory::ProviderError,
             "GW_UPSTREAM_4XX",
             FailoverDecision::SwitchProvider,
         ),
         404 => (
             // Resource not found is often provider-specific (path/model support mismatch).
-            // Align with claude-code-hub: switch provider (do not abort the whole request).
             ErrorCategory::ResourceNotFound,
             "GW_UPSTREAM_4XX",
             FailoverDecision::SwitchProvider,

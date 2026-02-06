@@ -279,7 +279,6 @@ pub(super) async fn run(mut input: RequestContext) -> Response {
             };
 
             // Realtime routing UX: emit an attempt event as soon as a provider is selected (before awaiting upstream).
-            // This enables the Home page to display the current routed provider immediately, similar to claude-code-hub.
             //
             // Note: do NOT enqueue attempt_logs for this "started" event (avoid DB noise/IO); completion events still get persisted.
             emit_attempt_event(

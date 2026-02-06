@@ -243,7 +243,7 @@ pub(super) async fn handle_success_event_stream(
 
         let should_gunzip = has_gzip_content_encoding(&response_headers);
         if should_gunzip {
-            // 上游可能无视 accept-encoding: identity 返回 gzip；对齐 claude-code-hub：解压并移除头。
+            // 上游可能无视 accept-encoding: identity 返回 gzip；
             response_headers.remove(header::CONTENT_ENCODING);
             response_headers.remove(header::CONTENT_LENGTH);
         }

@@ -1,4 +1,4 @@
-//! Usage: Gateway proxy forwarding layer (aligns with cc-switch's Forwarder separation).
+//! Usage: Gateway proxy forwarding layer.
 
 use super::request_context::RequestContext;
 use axum::response::Response;

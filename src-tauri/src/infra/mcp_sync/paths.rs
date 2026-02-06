@@ -25,11 +25,8 @@ pub(super) fn mcp_target_path<R: tauri::Runtime>(
     let home = home_dir(app)?;
 
     match cli_key {
-        // cc-switch: Claude MCP uses ~/.claude.json
         "claude" => Ok(home.join(".claude.json")),
-        // cc-switch: Codex MCP uses $CODEX_HOME/config.toml (default: ~/.codex/config.toml)
         "codex" => codex_paths::codex_config_toml_path(app),
-        // cc-switch: Gemini MCP uses ~/.gemini/settings.json
         "gemini" => Ok(home.join(".gemini").join("settings.json")),
         _ => Err(format!("SEC_INVALID_INPUT: unknown cli_key={cli_key}").into()),
     }

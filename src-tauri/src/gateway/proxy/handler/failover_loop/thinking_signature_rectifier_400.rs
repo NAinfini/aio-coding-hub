@@ -161,7 +161,6 @@ pub(super) async fn handle_thinking_signature_rectifier_400(
         let mut decision = if rectified_applied {
             FailoverDecision::RetrySameProvider
         } else {
-            // Align with claude-code-hub: if it's not a known non-retryable client error,
             // allow switching providers instead of aborting the whole request.
             FailoverDecision::SwitchProvider
         };

@@ -5,7 +5,6 @@ fn mcp_sync_can_restore_and_remove_targets() {
     let app = support::TestApp::new();
     let handle = app.handle();
 
-    // cc-switch: Claude MCP uses ~/.claude.json
     assert_eq!(
         aio_coding_hub_lib::test_support::mcp_read_target_bytes(&handle, "claude")
             .expect("read claude target"),
@@ -34,7 +33,6 @@ fn mcp_sync_can_restore_and_remove_targets() {
         None
     );
 
-    // cc-switch: Codex MCP uses $CODEX_HOME/config.toml (default: ~/.codex/config.toml)
     let codex_path =
         aio_coding_hub_lib::test_support::codex_config_toml_path(&handle).expect("codex path");
     assert!(

@@ -1,5 +1,3 @@
-//! Usage: Align request log status codes with claude-code-hub semantics (e.g. 499/524).
-
 pub(in crate::gateway) fn status_override_for_error_code(error_code: Option<&str>) -> Option<u16> {
     match error_code {
         Some("GW_REQUEST_ABORTED") | Some("GW_STREAM_ABORTED") => Some(499),

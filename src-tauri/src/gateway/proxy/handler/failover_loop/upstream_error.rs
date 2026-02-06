@@ -258,7 +258,6 @@ pub(super) async fn handle_non_success_response(
         }
         FailoverDecision::Abort => {
             // On abort, we intentionally do NOT use stream tee finalizers, to avoid triggering
-            // provider cooldown on non-retryable client input errors (align with claude-code-hub).
 
             let CommonCtxOwned {
                 cli_key,
@@ -375,7 +374,7 @@ pub(super) async fn handle_non_success_response(
             strip_hop_headers(&mut response_headers);
             let should_gunzip = has_gzip_content_encoding(&response_headers);
             if should_gunzip {
-                // 上游可能无视 accept-encoding: identity 返回 gzip；对齐 claude-code-hub：解压并移除头。
+                // 上游可能无视 accept-encoding: identity 返回 gzip；
                 response_headers.remove(header::CONTENT_ENCODING);
                 response_headers.remove(header::CONTENT_LENGTH);
             }

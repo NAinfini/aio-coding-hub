@@ -9,6 +9,10 @@ import {
 import { hasTauriRuntime } from "../services/tauriInvoke";
 import { requestLogsKeys } from "./keys";
 
+function isRequestLogsQueryEnabled(enabled: boolean | undefined) {
+  return hasTauriRuntime() && (enabled ?? true);
+}
+
 function requestLogCreatedAtMs(log: Pick<RequestLogSummary, "created_at" | "created_at_ms">) {
   const ms = log.created_at_ms ?? 0;
   if (Number.isFinite(ms) && ms > 0) return ms;
@@ -45,10 +49,11 @@ export function useRequestLogsListAllQuery(
   limit: number,
   options?: { enabled?: boolean; refetchIntervalMs?: number | false }
 ) {
+  const enabled = isRequestLogsQueryEnabled(options?.enabled);
   return useQuery({
     queryKey: requestLogsKeys.listAll(limit),
     queryFn: () => requestLogsListAll(limit),
-    enabled: hasTauriRuntime() && (options?.enabled ?? true),
+    enabled,
     placeholderData: keepPreviousData,
     refetchInterval: options?.refetchIntervalMs ?? false,
   });
@@ -59,6 +64,7 @@ export function useRequestLogsIncrementalPollQuery(
   options?: { enabled?: boolean; refetchIntervalMs?: number | false }
 ) {
   const queryClient = useQueryClient();
+  const enabled = isRequestLogsQueryEnabled(options?.enabled);
 
   return useQuery({
     queryKey: requestLogsKeys.pollAfterIdAll(limit),
@@ -99,7 +105,7 @@ export function useRequestLogsIncrementalPollQuery(
 
       return items.length;
     },
-    enabled: hasTauriRuntime() && (options?.enabled ?? true),
+    enabled,
     refetchInterval: options?.refetchIntervalMs ?? false,
     refetchIntervalInBackground: false,
   });

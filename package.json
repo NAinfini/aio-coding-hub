@@ -14,7 +14,7 @@
     "test:unit:watch": "vitest watch",
     "check:no-instant-now-sub": "node scripts/check-no-instant-now-sub.mjs",
     "check:precommit": "pnpm format:check && pnpm typecheck && pnpm check:no-instant-now-sub && pnpm tauri:fmt && pnpm tauri:check && pnpm tauri:clippy",
-    "check:prepush": "pnpm tauri:test",
+    "check:prepush": "pnpm test:unit:coverage && pnpm tauri:test",
     "hooks:install": "node scripts/install-git-hooks.mjs",
     "postinstall": "node scripts/install-git-hooks.mjs",
     "preview": "vite preview",

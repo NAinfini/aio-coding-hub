@@ -10,6 +10,7 @@ import { RequestLogDetailDialog } from "../components/home/RequestLogDetailDialo
 import { logToConsole } from "../services/consoleLog";
 import { ProviderCircuitBadge, type OpenCircuitRow } from "../components/ProviderCircuitBadge";
 import { useCliProxy } from "../hooks/useCliProxy";
+import { useDocumentVisibility } from "../hooks/useDocumentVisibility";
 import { useWindowForeground } from "../hooks/useWindowForeground";
 import { gatewayKeys } from "../query/keys";
 import {
@@ -62,6 +63,7 @@ export function HomePage() {
   const { traces } = useTraceStore();
   const tauriRuntime = hasTauriRuntime();
   const showCustomTooltip = tauriRuntime;
+  const foregroundActive = useDocumentVisibility();
 
   const queryClient = useQueryClient();
 
@@ -239,9 +241,11 @@ export function HomePage() {
   const usageHeatmapRows = usageHeatmapQuery.data ?? [];
   const usageHeatmapLoading = usageHeatmapQuery.isFetching;
 
+  const overviewForegroundPollingEnabled = tab === "overview" && foregroundActive;
+
   const sessionsQuery = useGatewaySessionsListQuery(50, {
-    enabled: tab === "overview",
-    refetchIntervalMs: 5000,
+    enabled: overviewForegroundPollingEnabled,
+    refetchIntervalMs: overviewForegroundPollingEnabled ? 5000 : false,
   });
   const activeSessions = sessionsQuery.data ?? [];
   const activeSessionsLoading = sessionsQuery.isLoading;
@@ -252,8 +256,8 @@ export function HomePage() {
       : sessionsQuery.data != null;
 
   const providerLimitQuery = useProviderLimitUsageV1Query(null, {
-    enabled: tab === "overview",
-    refetchIntervalMs: 30000,
+    enabled: overviewForegroundPollingEnabled,
+    refetchIntervalMs: overviewForegroundPollingEnabled ? 30000 : false,
   });
   const providerLimitRows = providerLimitQuery.data ?? [];
   const providerLimitLoading = providerLimitQuery.isLoading;

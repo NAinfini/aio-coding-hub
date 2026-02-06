@@ -1,5 +1,5 @@
 use crate::db;
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params_from_iter, Connection, OptionalExtension};
 use std::collections::HashMap;
 
 use super::{
@@ -7,6 +7,76 @@ use super::{
     parse_period_v2, sql_effective_input_tokens_expr_with_alias, ProviderKey, UsagePeriodV2,
     UsageProviderCacheRateTrendRowV1,
 };
+
+type SqlValues = Vec<rusqlite::types::Value>;
+
+fn build_optional_range_cli_filters(
+    created_at_column: &str,
+    cli_key_column: &str,
+    start_ts: Option<i64>,
+    end_ts: Option<i64>,
+    cli_key: Option<&str>,
+) -> (String, SqlValues) {
+    let mut clauses = Vec::new();
+    let mut values: SqlValues = Vec::with_capacity(3);
+
+    if let Some(ts) = start_ts {
+        values.push(ts.into());
+        clauses.push(format!("{created_at_column} >= ?{}", values.len()));
+    }
+
+    if let Some(ts) = end_ts {
+        values.push(ts.into());
+        clauses.push(format!("{created_at_column} < ?{}", values.len()));
+    }
+
+    if let Some(cli) = cli_key {
+        values.push(cli.to_string().into());
+        clauses.push(format!("{cli_key_column} = ?{}", values.len()));
+    }
+
+    let sql = if clauses.is_empty() {
+        String::new()
+    } else {
+        format!("\nAND {}", clauses.join("\nAND "))
+    };
+
+    (sql, values)
+}
+
+fn build_optional_range_filters_with_offset(
+    created_at_column: &str,
+    start_ts: Option<i64>,
+    end_ts: Option<i64>,
+    placeholder_offset: usize,
+) -> (String, SqlValues) {
+    let mut clauses = Vec::new();
+    let mut values: SqlValues = Vec::with_capacity(2);
+
+    if let Some(ts) = start_ts {
+        values.push(ts.into());
+        clauses.push(format!(
+            "{created_at_column} >= ?{}",
+            placeholder_offset + values.len()
+        ));
+    }
+
+    if let Some(ts) = end_ts {
+        values.push(ts.into());
+        clauses.push(format!(
+            "{created_at_column} < ?{}",
+            placeholder_offset + values.len()
+        ));
+    }
+
+    let sql = if clauses.is_empty() {
+        String::new()
+    } else {
+        format!("\nAND {}", clauses.join("\nAND "))
+    };
+
+    (sql, values)
+}
 
 #[derive(Debug, Clone, Copy)]
 enum TrendBucketV1 {
@@ -63,6 +133,10 @@ pub(super) fn provider_cache_rate_trend_v1_with_conn(
         "({effective_input_expr}) + COALESCE(r.cache_creation_input_tokens, 0) + COALESCE(r.cache_read_input_tokens, 0)",
         effective_input_expr = effective_input_expr
     );
+    let (where_clause, where_params) =
+        build_optional_range_cli_filters("r.created_at", "r.cli_key", start_ts, end_ts, cli_key);
+    let (fallback_where_clause, fallback_range_params) =
+        build_optional_range_filters_with_offset("r.created_at", start_ts, end_ts, 2);
 
     let sql = format!(
         r#"
@@ -76,12 +150,10 @@ WITH top_providers AS (
   AND r.status >= 200 AND r.status < 300 AND r.error_code IS NULL
   AND r.final_provider_id IS NOT NULL
   AND r.final_provider_id > 0
-  AND (?1 IS NULL OR r.created_at >= ?1)
-  AND (?2 IS NULL OR r.created_at < ?2)
-  AND (?3 IS NULL OR r.cli_key = ?3)
+  {where_clause}
   GROUP BY r.cli_key, r.final_provider_id
   ORDER BY denom_tokens DESC
-  LIMIT ?4
+  LIMIT ?{limit_bind_idx}
 )
 SELECT
   {select_fields},
@@ -100,9 +172,7 @@ WHERE r.excluded_from_stats = 0
 AND r.status >= 200 AND r.status < 300 AND r.error_code IS NULL
 AND r.final_provider_id IS NOT NULL
 AND r.final_provider_id > 0
-AND (?1 IS NULL OR r.created_at >= ?1)
-AND (?2 IS NULL OR r.created_at < ?2)
-AND (?3 IS NULL OR r.cli_key = ?3)
+{where_clause}
 GROUP BY {group_by_fields}, r.cli_key, r.final_provider_id
 ORDER BY {order_by_fields}, denom_tokens DESC
 "#,
@@ -110,6 +180,8 @@ ORDER BY {order_by_fields}, denom_tokens DESC
         select_fields = select_fields,
         group_by_fields = group_by_fields,
         order_by_fields = order_by_fields,
+        where_clause = where_clause,
+        limit_bind_idx = where_params.len() + 1,
     );
 
     #[derive(Debug, Clone)]
@@ -129,27 +201,34 @@ ORDER BY {order_by_fields}, denom_tokens DESC
         .map_err(|e| format!("DB_ERROR: failed to prepare provider cache trend query: {e}"))?;
 
     let rows = stmt
-        .query_map(params![start_ts, end_ts, cli_key, limit], |row| {
-            Ok(RawRow {
-                day: row.get("day")?,
-                hour: row.get("hour")?,
-                cli_key: row.get("cli_key")?,
-                provider_id: row.get("provider_id")?,
-                provider_name: row.get("provider_name")?,
-                denom_tokens: row
-                    .get::<_, Option<i64>>("denom_tokens")?
-                    .unwrap_or(0)
-                    .max(0),
-                cache_read_input_tokens: row
-                    .get::<_, Option<i64>>("cache_read_input_tokens")?
-                    .unwrap_or(0)
-                    .max(0),
-                requests_success: row
-                    .get::<_, Option<i64>>("requests_success")?
-                    .unwrap_or(0)
-                    .max(0),
-            })
-        })
+        .query_map(
+            params_from_iter({
+                let mut params = where_params.clone();
+                params.push(limit.into());
+                params
+            }),
+            |row| {
+                Ok(RawRow {
+                    day: row.get("day")?,
+                    hour: row.get("hour")?,
+                    cli_key: row.get("cli_key")?,
+                    provider_id: row.get("provider_id")?,
+                    provider_name: row.get("provider_name")?,
+                    denom_tokens: row
+                        .get::<_, Option<i64>>("denom_tokens")?
+                        .unwrap_or(0)
+                        .max(0),
+                    cache_read_input_tokens: row
+                        .get::<_, Option<i64>>("cache_read_input_tokens")?
+                        .unwrap_or(0)
+                        .max(0),
+                    requests_success: row
+                        .get::<_, Option<i64>>("requests_success")?
+                        .unwrap_or(0)
+                        .max(0),
+                })
+            },
+        )
         .map_err(|e| format!("DB_ERROR: failed to run provider cache trend query: {e}"))?;
 
     let mut items = Vec::new();
@@ -157,19 +236,20 @@ ORDER BY {order_by_fields}, denom_tokens DESC
         items.push(row.map_err(|e| format!("DB_ERROR: failed to read cache trend row: {e}"))?);
     }
 
-    let mut stmt_fallback_name = conn
-        .prepare(
-            r#"
+    let fallback_sql = format!(
+        r#"
 SELECT attempts_json
 FROM request_logs r
 WHERE r.excluded_from_stats = 0
 AND r.final_provider_id = ?1
 AND r.cli_key = ?2
-AND (?3 IS NULL OR r.created_at >= ?3)
-AND (?4 IS NULL OR r.created_at < ?4)
+{fallback_where_clause}
 LIMIT 1
 "#,
-        )
+        fallback_where_clause = fallback_where_clause
+    );
+    let mut stmt_fallback_name = conn
+        .prepare(&fallback_sql)
         .map_err(|e| format!("DB_ERROR: failed to prepare provider name fallback query: {e}"))?;
 
     let mut name_cache: HashMap<(String, i64), Option<String>> = HashMap::new();
@@ -188,11 +268,11 @@ LIMIT 1
                     .map(str::to_string);
 
                 if provider_name.is_none() {
+                    let mut fallback_params: SqlValues =
+                        vec![row.provider_id.into(), row.cli_key.clone().into()];
+                    fallback_params.extend(fallback_range_params.clone());
                     let attempts_json: Option<String> = stmt_fallback_name
-                        .query_row(
-                            params![row.provider_id, row.cli_key.as_str(), start_ts, end_ts],
-                            |r| r.get(0),
-                        )
+                        .query_row(params_from_iter(fallback_params), |r| r.get(0))
                         .optional()
                         .map_err(|e| {
                             format!("DB_ERROR: failed to query provider name fallback: {e}")

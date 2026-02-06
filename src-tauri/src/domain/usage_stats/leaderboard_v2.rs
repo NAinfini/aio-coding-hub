@@ -1,5 +1,5 @@
 use crate::db;
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params_from_iter, Connection, OptionalExtension};
 
 use super::{
     compute_bounds_v2, extract_final_provider, has_valid_provider_key, normalize_cli_filter,
@@ -7,6 +7,76 @@ use super::{
     sql_effective_total_tokens_expr, sql_effective_total_tokens_expr_with_alias, ProviderAgg,
     ProviderKey, UsageLeaderboardRow, UsageScopeV2, SQL_EFFECTIVE_INPUT_TOKENS_EXPR,
 };
+
+type SqlValues = Vec<rusqlite::types::Value>;
+
+fn build_optional_range_cli_filters(
+    created_at_column: &str,
+    cli_key_column: &str,
+    start_ts: Option<i64>,
+    end_ts: Option<i64>,
+    cli_key: Option<&str>,
+) -> (String, SqlValues) {
+    let mut clauses = Vec::new();
+    let mut values: SqlValues = Vec::with_capacity(3);
+
+    if let Some(ts) = start_ts {
+        values.push(ts.into());
+        clauses.push(format!("{created_at_column} >= ?{}", values.len()));
+    }
+
+    if let Some(ts) = end_ts {
+        values.push(ts.into());
+        clauses.push(format!("{created_at_column} < ?{}", values.len()));
+    }
+
+    if let Some(cli) = cli_key {
+        values.push(cli.to_string().into());
+        clauses.push(format!("{cli_key_column} = ?{}", values.len()));
+    }
+
+    let sql = if clauses.is_empty() {
+        String::new()
+    } else {
+        format!("\nAND {}", clauses.join("\nAND "))
+    };
+
+    (sql, values)
+}
+
+fn build_optional_range_filters_with_offset(
+    created_at_column: &str,
+    start_ts: Option<i64>,
+    end_ts: Option<i64>,
+    placeholder_offset: usize,
+) -> (String, SqlValues) {
+    let mut clauses = Vec::new();
+    let mut values: SqlValues = Vec::with_capacity(2);
+
+    if let Some(ts) = start_ts {
+        values.push(ts.into());
+        clauses.push(format!(
+            "{created_at_column} >= ?{}",
+            placeholder_offset + values.len()
+        ));
+    }
+
+    if let Some(ts) = end_ts {
+        values.push(ts.into());
+        clauses.push(format!(
+            "{created_at_column} < ?{}",
+            placeholder_offset + values.len()
+        ));
+    }
+
+    let sql = if clauses.is_empty() {
+        String::new()
+    } else {
+        format!("\nAND {}", clauses.join("\nAND "))
+    };
+
+    (sql, values)
+}
 
 pub(super) fn leaderboard_v2_with_conn(
     conn: &Connection,
@@ -18,6 +88,12 @@ pub(super) fn leaderboard_v2_with_conn(
 ) -> Result<Vec<UsageLeaderboardRow>, String> {
     let effective_input_expr = SQL_EFFECTIVE_INPUT_TOKENS_EXPR;
     let effective_total_expr = sql_effective_total_tokens_expr();
+    let (where_clause, where_params) =
+        build_optional_range_cli_filters("created_at", "cli_key", start_ts, end_ts, cli_key);
+    let (provider_where_clause, provider_where_params) =
+        build_optional_range_cli_filters("r.created_at", "r.cli_key", start_ts, end_ts, cli_key);
+    let (provider_fallback_where_clause, provider_fallback_range_params) =
+        build_optional_range_filters_with_offset("r.created_at", start_ts, end_ts, 2);
 
     let mut out: Vec<UsageLeaderboardRow> = match scope {
         UsageScopeV2::Cli => {
@@ -85,20 +161,19 @@ SELECT
   ) AS success_output_tokens_for_rate_sum
 FROM request_logs
 WHERE excluded_from_stats = 0
-AND (?1 IS NULL OR created_at >= ?1)
-AND (?2 IS NULL OR created_at < ?2)
-AND (?3 IS NULL OR cli_key = ?3)
+{where_clause}
 GROUP BY cli_key
 "#,
                 effective_input_expr = effective_input_expr,
-                effective_total_expr = effective_total_expr.as_str()
+                effective_total_expr = effective_total_expr.as_str(),
+                where_clause = where_clause
             );
             let mut stmt = conn
                 .prepare(&sql)
                 .map_err(|e| format!("DB_ERROR: failed to prepare cli leaderboard query: {e}"))?;
 
             let rows = stmt
-                .query_map(params![start_ts, end_ts, cli_key], |row| {
+                .query_map(params_from_iter(where_params.clone()), |row| {
                     let key: String = row.get("key")?;
                     let agg = ProviderAgg {
                         requests_total: row.get("requests_total")?,
@@ -215,20 +290,19 @@ SELECT
   ) AS success_output_tokens_for_rate_sum
 FROM request_logs
 WHERE excluded_from_stats = 0
-AND (?1 IS NULL OR created_at >= ?1)
-AND (?2 IS NULL OR created_at < ?2)
-AND (?3 IS NULL OR cli_key = ?3)
+{where_clause}
 GROUP BY COALESCE(NULLIF(requested_model, ''), 'Unknown')
 "#,
                 effective_input_expr = effective_input_expr,
-                effective_total_expr = effective_total_expr.as_str()
+                effective_total_expr = effective_total_expr.as_str(),
+                where_clause = where_clause
             );
             let mut stmt = conn
                 .prepare(&sql)
                 .map_err(|e| format!("DB_ERROR: failed to prepare model leaderboard query: {e}"))?;
 
             let rows = stmt
-                .query_map(params![start_ts, end_ts, cli_key], |row| {
+                .query_map(params_from_iter(where_params.clone()), |row| {
                     let key: String = row.get("key")?;
                     let agg = ProviderAgg {
                         requests_total: row.get("requests_total")?,
@@ -355,13 +429,12 @@ LEFT JOIN providers p ON p.id = r.final_provider_id
 WHERE r.excluded_from_stats = 0
 AND r.final_provider_id IS NOT NULL
 AND r.final_provider_id > 0
-AND (?1 IS NULL OR r.created_at >= ?1)
-AND (?2 IS NULL OR r.created_at < ?2)
-AND (?3 IS NULL OR r.cli_key = ?3)
+{provider_where_clause}
 GROUP BY r.cli_key, r.final_provider_id
 "#,
                 effective_input_expr = effective_input_expr,
-                effective_total_expr = effective_total_expr
+                effective_total_expr = effective_total_expr,
+                provider_where_clause = provider_where_clause
             );
 
             let mut stmt = conn.prepare(&sql).map_err(|e| {
@@ -369,7 +442,7 @@ GROUP BY r.cli_key, r.final_provider_id
             })?;
 
             let rows = stmt
-                .query_map(params![start_ts, end_ts, cli_key], |row| {
+                .query_map(params_from_iter(provider_where_params.clone()), |row| {
                     let cli_key: String = row.get("cli_key")?;
                     let provider_id: i64 = row.get("provider_id")?;
                     let provider_name: Option<String> = row.get("provider_name")?;
@@ -422,22 +495,21 @@ GROUP BY r.cli_key, r.final_provider_id
                 })
                 .map_err(|e| format!("DB_ERROR: failed to run provider leaderboard query: {e}"))?;
 
-            let mut stmt_fallback_name = conn
-                .prepare(
-                    r#"
+            let fallback_name_sql = format!(
+                r#"
 SELECT attempts_json
 FROM request_logs r
 WHERE r.excluded_from_stats = 0
 AND r.final_provider_id = ?1
 AND r.cli_key = ?2
-AND (?3 IS NULL OR r.created_at >= ?3)
-AND (?4 IS NULL OR r.created_at < ?4)
+{provider_fallback_where_clause}
 LIMIT 1
 "#,
-                )
-                .map_err(|e| {
-                    format!("DB_ERROR: failed to prepare provider name fallback query: {e}")
-                })?;
+                provider_fallback_where_clause = provider_fallback_where_clause
+            );
+            let mut stmt_fallback_name = conn.prepare(&fallback_name_sql).map_err(|e| {
+                format!("DB_ERROR: failed to prepare provider name fallback query: {e}")
+            })?;
 
             let mut items = Vec::new();
             for row in rows {
@@ -455,11 +527,11 @@ LIMIT 1
                     .map(str::to_string);
 
                 if provider_name.is_none() {
+                    let mut fallback_params: SqlValues =
+                        vec![provider_id.into(), cli_key.clone().into()];
+                    fallback_params.extend(provider_fallback_range_params.clone());
                     let attempts_json: Option<String> = stmt_fallback_name
-                        .query_row(
-                            params![provider_id, cli_key.as_str(), start_ts, end_ts],
-                            |row| row.get(0),
-                        )
+                        .query_row(params_from_iter(fallback_params), |row| row.get(0))
                         .optional()
                         .map_err(|e| {
                             format!("DB_ERROR: failed to query provider name fallback: {e}")

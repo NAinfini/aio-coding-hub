@@ -1,10 +1,36 @@
 use crate::db;
-use rusqlite::{params, Connection};
+use rusqlite::{params_from_iter, Connection};
 
 use super::{
     compute_bounds_v2, compute_start_ts, normalize_cli_filter, parse_period_v2, parse_range,
     sql_effective_total_tokens_expr, UsageSummary, SQL_EFFECTIVE_INPUT_TOKENS_EXPR,
 };
+
+fn build_summary_where_clause(
+    start_ts: Option<i64>,
+    end_ts: Option<i64>,
+    cli_key: Option<&str>,
+) -> (String, Vec<rusqlite::types::Value>) {
+    let mut clauses = vec!["excluded_from_stats = 0".to_string()];
+    let mut values: Vec<rusqlite::types::Value> = Vec::with_capacity(3);
+
+    if let Some(ts) = start_ts {
+        values.push(ts.into());
+        clauses.push(format!("created_at >= ?{}", values.len()));
+    }
+
+    if let Some(ts) = end_ts {
+        values.push(ts.into());
+        clauses.push(format!("created_at < ?{}", values.len()));
+    }
+
+    if let Some(cli) = cli_key {
+        values.push(cli.to_string().into());
+        clauses.push(format!("cli_key = ?{}", values.len()));
+    }
+
+    (clauses.join("\n  AND "), values)
+}
 
 pub(super) fn summary_query(
     conn: &Connection,
@@ -14,6 +40,7 @@ pub(super) fn summary_query(
 ) -> Result<UsageSummary, String> {
     let effective_input_expr = SQL_EFFECTIVE_INPUT_TOKENS_EXPR;
     let effective_total_expr = sql_effective_total_tokens_expr();
+    let (where_sql, params_vec) = build_summary_where_clause(start_ts, end_ts, cli_key);
     let sql = format!(
         r#"
 	SELECT
@@ -78,16 +105,14 @@ pub(super) fn summary_query(
   SUM(COALESCE(cache_creation_5m_input_tokens, 0)) AS cache_creation_5m_input_tokens,
   SUM(COALESCE(cache_creation_1h_input_tokens, 0)) AS cache_creation_1h_input_tokens
 	FROM request_logs
-	WHERE excluded_from_stats = 0
-  AND (?1 IS NULL OR created_at >= ?1)
-  AND (?2 IS NULL OR created_at < ?2)
-	AND (?3 IS NULL OR cli_key = ?3)
+	WHERE {where_sql}
 	"#,
         effective_input_expr = effective_input_expr,
-        effective_total_expr = effective_total_expr.as_str()
+        effective_total_expr = effective_total_expr.as_str(),
+        where_sql = where_sql
     );
 
-    conn.query_row(&sql, params![start_ts, end_ts, cli_key], |row| {
+    conn.query_row(&sql, params_from_iter(params_vec), |row| {
         let requests_success = row.get::<_, Option<i64>>("requests_success")?.unwrap_or(0);
         let success_duration_ms_sum = row
             .get::<_, Option<i64>>("success_duration_ms_sum")?

@@ -8,6 +8,7 @@ import { HomeRequestLogsPanel } from "../components/home/HomeRequestLogsPanel";
 import { RequestLogDetailDialog } from "../components/home/RequestLogDetailDialog";
 import { CLI_FILTER_ITEMS, type CliFilterKey } from "../constants/clis";
 import { hasTauriRuntime } from "../services/tauriInvoke";
+import { useDocumentVisibility } from "../hooks/useDocumentVisibility";
 import { Card } from "../ui/Card";
 import { Input } from "../ui/Input";
 import { PageHeader } from "../ui/PageHeader";
@@ -19,6 +20,7 @@ import {
   useRequestLogsIncrementalPollQuery,
   useRequestLogsListAllQuery,
 } from "../query/requestLogs";
+import { useWindowForeground } from "../hooks/useWindowForeground";
 
 const LOGS_PAGE_LIMIT = 200;
 const AUTO_REFRESH_INTERVAL_MS = 2000;
@@ -59,6 +61,7 @@ function buildStatusPredicate(query: string): StatusPredicate | null {
 export function LogsPage() {
   const tauriRuntime = hasTauriRuntime();
   const showCustomTooltip = tauriRuntime;
+  const foregroundActive = useDocumentVisibility();
 
   const [cliKey, setCliKey] = useState<CliFilterKey>("all");
   const [statusFilter, setStatusFilter] = useState("");
@@ -67,10 +70,21 @@ export function LogsPage() {
   const [autoRefresh, setAutoRefresh] = useState(true);
 
   const [selectedLogId, setSelectedLogId] = useState<number | null>(null);
+  const incrementalPollingEnabled = autoRefresh && foregroundActive;
   const requestLogsQuery = useRequestLogsListAllQuery(LOGS_PAGE_LIMIT);
   const incrementalPollQuery = useRequestLogsIncrementalPollQuery(LOGS_PAGE_LIMIT, {
-    enabled: autoRefresh,
-    refetchIntervalMs: autoRefresh ? AUTO_REFRESH_INTERVAL_MS : false,
+    enabled: incrementalPollingEnabled,
+    refetchIntervalMs: incrementalPollingEnabled ? AUTO_REFRESH_INTERVAL_MS : false,
+  });
+
+  useWindowForeground({
+    enabled: tauriRuntime,
+    throttleMs: 1000,
+    onForeground: () => {
+      if (autoRefresh) {
+        void incrementalPollQuery.refetch();
+      }
+    },
   });
 
   const requestLogs = requestLogsQuery.data ?? [];

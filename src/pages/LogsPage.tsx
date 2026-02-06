@@ -1,5 +1,4 @@
 // Usage:
-// - Logs page aligned with claude-code-hub `/dashboard/logs` (status codes like 499/524).
 // - Entry: Home "日志" button -> `/#/logs`.
 // - Backend commands: `request_logs_list_all`, `request_logs_list_after_id_all`, `request_log_get`, `request_attempt_logs_by_trace_id`.
 

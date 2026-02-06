@@ -50,6 +50,7 @@ export type ClaudeSettingsState = {
 
   env_mcp_timeout_ms: number | null;
   env_mcp_tool_timeout_ms: number | null;
+  env_experimental_agent_teams: boolean;
   env_disable_background_tasks: boolean;
   env_disable_terminal_title: boolean;
   env_claude_bash_no_login: boolean;
@@ -81,6 +82,7 @@ export type ClaudeSettingsPatch = Partial<{
 
   env_mcp_timeout_ms: number;
   env_mcp_tool_timeout_ms: number;
+  env_experimental_agent_teams: boolean;
   env_disable_background_tasks: boolean;
   env_disable_terminal_title: boolean;
   env_claude_bash_no_login: boolean;

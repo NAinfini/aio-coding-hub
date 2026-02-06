@@ -12,6 +12,8 @@ import {
   sortModeRename,
   sortModesList,
 } from "../../../services/sortModes";
+import { sortModesKeys } from "../../../query/keys";
+import { queryClient } from "../../../query/queryClient";
 
 let latestOnDragEnd: ((event: any) => void) | null = null;
 let sortableIsDragging = false;
@@ -131,6 +133,10 @@ describe("pages/providers/SortModesView", () => {
   });
 
   it("loads modes, joins providers, reorders, and supports CRUD", async () => {
+    const invalidateSpy = vi
+      .spyOn(queryClient, "invalidateQueries")
+      .mockResolvedValue(undefined as never);
+
     vi.mocked(sortModesList).mockResolvedValue([{ id: 1, name: "Work" }] as any);
     vi.mocked(sortModeActiveList).mockResolvedValue([{ cli_key: "claude", mode_id: 1 }] as any);
     vi.mocked(sortModeProvidersList).mockResolvedValue([
@@ -200,6 +206,7 @@ describe("pages/providers/SortModesView", () => {
     fireEvent.change(createDialog.getByPlaceholderText("工作"), { target: { value: "Life" } });
     fireEvent.click(createDialog.getByRole("button", { name: "创建" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Life" })).toBeInTheDocument());
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: sortModesKeys.list() });
 
     // Rename mode
     fireEvent.click(screen.getByRole("button", { name: "Life" }));
@@ -209,6 +216,7 @@ describe("pages/providers/SortModesView", () => {
     fireEvent.change(renameDialog.getByRole("textbox"), { target: { value: "Life2" } });
     fireEvent.click(renameDialog.getByRole("button", { name: "保存" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Life2" })).toBeInTheDocument());
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: sortModesKeys.list() });
 
     // Delete mode
     fireEvent.click(screen.getByRole("button", { name: "删除" }));
@@ -216,6 +224,10 @@ describe("pages/providers/SortModesView", () => {
     vi.mocked(sortModeDelete).mockResolvedValue(true as any);
     fireEvent.click(deleteDialog.getByRole("button", { name: "确认删除" }));
     await waitFor(() => expect(vi.mocked(sortModeDelete)).toHaveBeenCalledWith({ mode_id: 2 }));
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: sortModesKeys.list() });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: sortModesKeys.activeList() });
+
+    invalidateSpy.mockRestore();
   });
 
   it("supports toggling provider enabled state inside a sort mode", async () => {

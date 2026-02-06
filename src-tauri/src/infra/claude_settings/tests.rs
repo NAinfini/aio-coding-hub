@@ -15,6 +15,7 @@ fn empty_patch() -> ClaudeSettingsPatch {
         permissions_deny: None,
         env_mcp_timeout_ms: None,
         env_mcp_tool_timeout_ms: None,
+        env_experimental_agent_teams: None,
         env_disable_background_tasks: None,
         env_disable_terminal_title: None,
         env_claude_bash_no_login: None,

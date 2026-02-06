@@ -707,6 +707,19 @@ export function CliManagerClaudeTab({
                 环境配置（env / 白名单）
               </h3>
               <div className="divide-y divide-slate-100">
+                <SettingItem
+                  label="CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"
+                  subtitle="启用 Agent Teams 功能，允许多个 Agent 协作完成任务。"
+                >
+                  <Switch
+                    checked={claudeSettings.env_experimental_agent_teams}
+                    onCheckedChange={(checked) =>
+                      void persistClaudeSettings({ env_experimental_agent_teams: checked })
+                    }
+                    disabled={saving}
+                  />
+                </SettingItem>
+
                 <EnvTimeoutItem
                   label="MCP_TIMEOUT (ms)"
                   envVarName="MCP_TIMEOUT"

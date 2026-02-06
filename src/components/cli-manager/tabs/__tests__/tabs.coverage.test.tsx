@@ -41,6 +41,7 @@ describe("cli-manager tabs (coverage)", () => {
           permissions_deny: ["WriteFile"],
           env_mcp_timeout_ms: null,
           env_mcp_tool_timeout_ms: null,
+          env_experimental_agent_teams: false,
           env_disable_background_tasks: false,
           env_disable_terminal_title: false,
           env_claude_bash_no_login: false,

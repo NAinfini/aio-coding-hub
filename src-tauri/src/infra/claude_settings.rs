@@ -7,6 +7,7 @@ use tauri::Manager;
 
 const ENV_KEY_MCP_TIMEOUT: &str = "MCP_TIMEOUT";
 const ENV_KEY_MCP_TOOL_TIMEOUT: &str = "MCP_TOOL_TIMEOUT";
+const ENV_KEY_EXPERIMENTAL_AGENT_TEAMS: &str = "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS";
 const ENV_KEY_DISABLE_BACKGROUND_TASKS: &str = "CLAUDE_CODE_DISABLE_BACKGROUND_TASKS";
 const ENV_KEY_DISABLE_TERMINAL_TITLE: &str = "CLAUDE_CODE_DISABLE_TERMINAL_TITLE";
 const ENV_KEY_CLAUDE_BASH_NO_LOGIN: &str = "CLAUDE_BASH_NO_LOGIN";
@@ -43,6 +44,7 @@ pub struct ClaudeSettingsState {
 
     pub env_mcp_timeout_ms: Option<u64>,
     pub env_mcp_tool_timeout_ms: Option<u64>,
+    pub env_experimental_agent_teams: bool,
     pub env_disable_background_tasks: bool,
     pub env_disable_terminal_title: bool,
     pub env_claude_bash_no_login: bool,
@@ -79,6 +81,7 @@ pub struct ClaudeSettingsPatch {
     // - bool (zero-toggle): `true` => write "0", `false` => delete key
     pub env_mcp_timeout_ms: Option<u64>,
     pub env_mcp_tool_timeout_ms: Option<u64>,
+    pub env_experimental_agent_teams: Option<bool>,
     pub env_disable_background_tasks: Option<bool>,
     pub env_disable_terminal_title: Option<bool>,
     pub env_claude_bash_no_login: Option<bool>,
@@ -254,6 +257,9 @@ pub fn claude_settings_get<R: tauri::Runtime>(
         .and_then(|e| e.get(ENV_KEY_MCP_TOOL_TIMEOUT))
         .and_then(env_u64_value);
 
+    let env_experimental_agent_teams = env
+        .map(|e| env_is_enabled(e, ENV_KEY_EXPERIMENTAL_AGENT_TEAMS))
+        .unwrap_or(false);
     let env_disable_background_tasks = env
         .map(|e| env_is_enabled(e, ENV_KEY_DISABLE_BACKGROUND_TASKS))
         .unwrap_or(false);
@@ -314,6 +320,7 @@ pub fn claude_settings_get<R: tauri::Runtime>(
 
         env_mcp_timeout_ms,
         env_mcp_tool_timeout_ms,
+        env_experimental_agent_teams,
         env_disable_background_tasks,
         env_disable_terminal_title,
         env_claude_bash_no_login,
@@ -491,6 +498,7 @@ fn patch_claude_settings(
 
     let has_env_patch = patch.env_mcp_timeout_ms.is_some()
         || patch.env_mcp_tool_timeout_ms.is_some()
+        || patch.env_experimental_agent_teams.is_some()
         || patch.env_disable_background_tasks.is_some()
         || patch.env_disable_terminal_title.is_some()
         || patch.env_claude_bash_no_login.is_some()
@@ -521,6 +529,9 @@ fn patch_claude_settings(
             }
             if let Some(v) = patch.env_mcp_tool_timeout_ms {
                 patch_env_u64(env, ENV_KEY_MCP_TOOL_TIMEOUT, v);
+            }
+            if let Some(v) = patch.env_experimental_agent_teams {
+                patch_env_toggle(env, ENV_KEY_EXPERIMENTAL_AGENT_TEAMS, v);
             }
             if let Some(v) = patch.env_disable_background_tasks {
                 patch_env_toggle(env, ENV_KEY_DISABLE_BACKGROUND_TASKS, v);

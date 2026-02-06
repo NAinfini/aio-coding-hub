@@ -41,6 +41,7 @@ function createClaudeSettings(overrides: Partial<any> = {}) {
     permissions_deny: [],
     env_mcp_timeout_ms: 1000,
     env_mcp_tool_timeout_ms: 2000,
+    env_experimental_agent_teams: false,
     env_claude_code_blocking_limit_override: 0,
     env_claude_code_max_output_tokens: 0,
     env_max_mcp_output_tokens: 25000,

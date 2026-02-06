@@ -95,6 +95,33 @@ describe("query/gateway", () => {
     expect(gatewaySessionsList).not.toHaveBeenCalled();
   });
 
+  it("useGatewaySessionsListQuery fetches with tauri runtime", async () => {
+    setTauriRuntime();
+
+    vi.mocked(gatewaySessionsList).mockResolvedValue([]);
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    renderHook(() => useGatewaySessionsListQuery(10), { wrapper });
+
+    await waitFor(() => {
+      expect(gatewaySessionsList).toHaveBeenCalledWith(10);
+    });
+  });
+
+  it("useGatewayStatusQuery respects options.enabled=false", async () => {
+    setTauriRuntime();
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    renderHook(() => useGatewayStatusQuery({ enabled: false }), { wrapper });
+    await Promise.resolve();
+
+    expect(gatewayStatus).not.toHaveBeenCalled();
+  });
+
   it("useGatewayStatusQuery does not call gatewayStatus without tauri runtime", async () => {
     const client = createTestQueryClient();
     const wrapper = createQueryWrapper(client);

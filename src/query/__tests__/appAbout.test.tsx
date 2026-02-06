@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { appAboutGet } from "../../services/appAbout";
 import { createQueryWrapper, createTestQueryClient } from "../../test/utils/reactQuery";
 import { setTauriRuntime } from "../../test/utils/tauriRuntime";
-import { useAppAboutQuery } from "../appAbout";
+import { isAppAboutAvailable, useAppAboutQuery } from "../appAbout";
 
 vi.mock("../../services/appAbout", async () => {
   const actual =
@@ -47,5 +47,31 @@ describe("query/appAbout", () => {
 
     expect(appAboutGet).toHaveBeenCalledTimes(1);
     expect(result.current.data?.os).toBe("windows");
+  });
+
+  it("respects options.enabled=false", async () => {
+    setTauriRuntime();
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    renderHook(() => useAppAboutQuery({ enabled: false }), { wrapper });
+    await Promise.resolve();
+
+    expect(appAboutGet).not.toHaveBeenCalled();
+  });
+
+  it("isAppAboutAvailable maps nullability to availability", () => {
+    expect(isAppAboutAvailable(null)).toBe(false);
+    expect(
+      isAppAboutAvailable({
+        os: "windows",
+        arch: "x64",
+        profile: "release",
+        app_version: "0.1.0",
+        bundle_type: null,
+        run_mode: "installed",
+      })
+    ).toBe(true);
   });
 });

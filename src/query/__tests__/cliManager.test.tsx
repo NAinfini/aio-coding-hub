@@ -6,6 +6,8 @@ import {
   cliManagerClaudeSettingsSet,
   cliManagerCodexConfigGet,
   cliManagerCodexConfigSet,
+  cliManagerCodexConfigTomlGet,
+  cliManagerCodexConfigTomlSet,
   cliManagerCodexInfoGet,
   cliManagerGeminiInfoGet,
 } from "../../services/cliManager";
@@ -19,6 +21,8 @@ import {
   useCliManagerClaudeSettingsSetMutation,
   useCliManagerCodexConfigQuery,
   useCliManagerCodexConfigSetMutation,
+  useCliManagerCodexConfigTomlQuery,
+  useCliManagerCodexConfigTomlSetMutation,
   useCliManagerCodexInfoQuery,
   useCliManagerGeminiInfoQuery,
 } from "../cliManager";
@@ -35,6 +39,8 @@ vi.mock("../../services/cliManager", async () => {
     cliManagerCodexInfoGet: vi.fn(),
     cliManagerCodexConfigGet: vi.fn(),
     cliManagerCodexConfigSet: vi.fn(),
+    cliManagerCodexConfigTomlGet: vi.fn(),
+    cliManagerCodexConfigTomlSet: vi.fn(),
     cliManagerGeminiInfoGet: vi.fn(),
   };
 });
@@ -48,6 +54,7 @@ describe("query/cliManager", () => {
     renderHook(() => useCliManagerClaudeSettingsQuery(), { wrapper });
     renderHook(() => useCliManagerCodexInfoQuery(), { wrapper });
     renderHook(() => useCliManagerCodexConfigQuery(), { wrapper });
+    renderHook(() => useCliManagerCodexConfigTomlQuery(), { wrapper });
     renderHook(() => useCliManagerGeminiInfoQuery(), { wrapper });
 
     await Promise.resolve();
@@ -56,6 +63,7 @@ describe("query/cliManager", () => {
     expect(cliManagerClaudeSettingsGet).not.toHaveBeenCalled();
     expect(cliManagerCodexInfoGet).not.toHaveBeenCalled();
     expect(cliManagerCodexConfigGet).not.toHaveBeenCalled();
+    expect(cliManagerCodexConfigTomlGet).not.toHaveBeenCalled();
     expect(cliManagerGeminiInfoGet).not.toHaveBeenCalled();
   });
 
@@ -66,6 +74,7 @@ describe("query/cliManager", () => {
     vi.mocked(cliManagerClaudeSettingsGet).mockResolvedValue({ exists: true } as any);
     vi.mocked(cliManagerCodexInfoGet).mockResolvedValue({ found: true } as any);
     vi.mocked(cliManagerCodexConfigGet).mockResolvedValue({ exists: true } as any);
+    vi.mocked(cliManagerCodexConfigTomlGet).mockResolvedValue({ exists: true, toml: "" } as any);
     vi.mocked(cliManagerGeminiInfoGet).mockResolvedValue({ found: true } as any);
 
     const client = createTestQueryClient();
@@ -75,6 +84,7 @@ describe("query/cliManager", () => {
     renderHook(() => useCliManagerClaudeSettingsQuery(), { wrapper });
     renderHook(() => useCliManagerCodexInfoQuery(), { wrapper });
     renderHook(() => useCliManagerCodexConfigQuery(), { wrapper });
+    renderHook(() => useCliManagerCodexConfigTomlQuery(), { wrapper });
     renderHook(() => useCliManagerGeminiInfoQuery(), { wrapper });
 
     await waitFor(() => {
@@ -82,8 +92,32 @@ describe("query/cliManager", () => {
       expect(cliManagerClaudeSettingsGet).toHaveBeenCalled();
       expect(cliManagerCodexInfoGet).toHaveBeenCalled();
       expect(cliManagerCodexConfigGet).toHaveBeenCalled();
+      expect(cliManagerCodexConfigTomlGet).toHaveBeenCalled();
       expect(cliManagerGeminiInfoGet).toHaveBeenCalled();
     });
+  });
+
+  it("respects options.enabled=false for all cliManager info/config queries", async () => {
+    setTauriRuntime();
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    renderHook(() => useCliManagerClaudeInfoQuery({ enabled: false }), { wrapper });
+    renderHook(() => useCliManagerClaudeSettingsQuery({ enabled: false }), { wrapper });
+    renderHook(() => useCliManagerCodexInfoQuery({ enabled: false }), { wrapper });
+    renderHook(() => useCliManagerCodexConfigQuery({ enabled: false }), { wrapper });
+    renderHook(() => useCliManagerCodexConfigTomlQuery({ enabled: false }), { wrapper });
+    renderHook(() => useCliManagerGeminiInfoQuery({ enabled: false }), { wrapper });
+
+    await Promise.resolve();
+
+    expect(cliManagerClaudeInfoGet).not.toHaveBeenCalled();
+    expect(cliManagerClaudeSettingsGet).not.toHaveBeenCalled();
+    expect(cliManagerCodexInfoGet).not.toHaveBeenCalled();
+    expect(cliManagerCodexConfigGet).not.toHaveBeenCalled();
+    expect(cliManagerCodexConfigTomlGet).not.toHaveBeenCalled();
+    expect(cliManagerGeminiInfoGet).not.toHaveBeenCalled();
   });
 
   it("useCliManagerClaudeSettingsSetMutation updates cache and invalidates", async () => {
@@ -124,6 +158,60 @@ describe("query/cliManager", () => {
 
     expect(client.getQueryData(cliManagerKeys.codexConfig())).toEqual(updated);
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: cliManagerKeys.codexConfig() });
+  });
+
+  it("useCliManagerCodexConfigTomlSetMutation updates config cache and invalidates config+toml", async () => {
+    setTauriRuntime();
+
+    const updated = { exists: true, model: "gpt-5" } as any;
+    vi.mocked(cliManagerCodexConfigTomlSet).mockResolvedValue(updated);
+
+    const client = createTestQueryClient();
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries");
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useCliManagerCodexConfigTomlSetMutation(), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync({ toml: 'model = "gpt-5"' });
+    });
+
+    expect(cliManagerCodexConfigTomlSet).toHaveBeenCalledWith('model = "gpt-5"');
+    expect(client.getQueryData(cliManagerKeys.codexConfig())).toEqual(updated);
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: cliManagerKeys.codexConfig() });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: cliManagerKeys.codexConfigToml() });
+  });
+
+  it("mutation hooks keep cache unchanged when service returns null", async () => {
+    setTauriRuntime();
+
+    vi.mocked(cliManagerClaudeSettingsSet).mockResolvedValue(null);
+    vi.mocked(cliManagerCodexConfigSet).mockResolvedValue(null);
+    vi.mocked(cliManagerCodexConfigTomlSet).mockResolvedValue(null);
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    client.setQueryData(cliManagerKeys.claudeSettings(), { exists: true, model: "old-claude" });
+    client.setQueryData(cliManagerKeys.codexConfig(), { exists: true, model: "old-codex" });
+
+    const claudeMutation = renderHook(() => useCliManagerClaudeSettingsSetMutation(), { wrapper });
+    const codexMutation = renderHook(() => useCliManagerCodexConfigSetMutation(), { wrapper });
+    const tomlMutation = renderHook(() => useCliManagerCodexConfigTomlSetMutation(), { wrapper });
+
+    await act(async () => {
+      await claudeMutation.result.current.mutateAsync({ model: "new-claude" });
+      await codexMutation.result.current.mutateAsync({ model: "new-codex" });
+      await tomlMutation.result.current.mutateAsync({ toml: 'model = "new-codex"' });
+    });
+
+    expect(client.getQueryData(cliManagerKeys.claudeSettings())).toEqual({
+      exists: true,
+      model: "old-claude",
+    });
+    expect(client.getQueryData(cliManagerKeys.codexConfig())).toEqual({
+      exists: true,
+      model: "old-codex",
+    });
   });
 
   it("pickCliAvailable maps info to availability state", () => {

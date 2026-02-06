@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   usageHourlySeries,
   usageLeaderboardV2,
+  usageProviderCacheRateTrendV1,
   usageSummary,
   usageSummaryV2,
 } from "../../services/usage";
@@ -11,6 +12,7 @@ import { setTauriRuntime } from "../../test/utils/tauriRuntime";
 import {
   useUsageHourlySeriesQuery,
   useUsageLeaderboardV2Query,
+  useUsageProviderCacheRateTrendV1Query,
   useUsageSummaryQuery,
   useUsageSummaryV2Query,
 } from "../usage";
@@ -24,6 +26,7 @@ vi.mock("../../services/usage", async () => {
     usageSummary: vi.fn(),
     usageSummaryV2: vi.fn(),
     usageLeaderboardV2: vi.fn(),
+    usageProviderCacheRateTrendV1: vi.fn(),
   };
 });
 
@@ -204,5 +207,59 @@ describe("query/usage", () => {
     await Promise.resolve();
 
     expect(usageLeaderboardV2).not.toHaveBeenCalled();
+  });
+
+  it("calls usageProviderCacheRateTrendV1 with tauri runtime", async () => {
+    setTauriRuntime();
+
+    vi.mocked(usageProviderCacheRateTrendV1).mockResolvedValue([]);
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    renderHook(
+      () =>
+        useUsageProviderCacheRateTrendV1Query("daily", {
+          startTs: 1,
+          endTs: 2,
+          cliKey: "claude",
+          limit: 20,
+        }),
+      { wrapper }
+    );
+
+    await waitFor(() => {
+      expect(usageProviderCacheRateTrendV1).toHaveBeenCalledWith("daily", {
+        startTs: 1,
+        endTs: 2,
+        cliKey: "claude",
+        limit: 20,
+      });
+    });
+  });
+
+  it("does not call usageProviderCacheRateTrendV1 when disabled", async () => {
+    setTauriRuntime();
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    renderHook(
+      () =>
+        useUsageProviderCacheRateTrendV1Query(
+          "daily",
+          {
+            startTs: 1,
+            endTs: 2,
+            cliKey: "claude",
+            limit: 20,
+          },
+          { enabled: false }
+        ),
+      { wrapper }
+    );
+    await Promise.resolve();
+
+    expect(usageProviderCacheRateTrendV1).not.toHaveBeenCalled();
   });
 });

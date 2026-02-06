@@ -49,7 +49,7 @@ describe("components/home/HomeActiveSessionsCard", () => {
     expect(screen.getByText("暂无活跃 Session。")).toBeInTheDocument();
   });
 
-  it("renders list, caps visible rows, and shows provider fallback", () => {
+  it("renders full list and shows provider fallback", () => {
     const sessions = Array.from({ length: 10 }, (_, idx) => session(idx));
     render(
       <HomeActiveSessionsCard
@@ -60,7 +60,8 @@ describe("components/home/HomeActiveSessionsCard", () => {
     );
 
     expect(screen.getByText("活跃 Session")).toBeInTheDocument();
-    expect(screen.getByText("+2 个")).toBeInTheDocument();
+    expect(screen.queryByText("+2 个")).not.toBeInTheDocument();
+    expect(screen.getByText("0000")).toBeInTheDocument();
     expect(screen.getAllByText("未知").length).toBeGreaterThan(0);
   });
 });

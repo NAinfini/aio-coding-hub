@@ -130,13 +130,17 @@ impl InsertBatchCache {
     }
 
     fn put_model_price_json(&mut self, key: String, value: Option<String>, now: i64) {
+        let Some(value) = value else {
+            return;
+        };
+
         if self.model_price_json.len() >= MODEL_PRICE_CACHE_MAX_ENTRIES {
             self.model_price_json.clear();
         }
         self.model_price_json.insert(
             key,
             CachedValue {
-                value,
+                value: Some(value),
                 fetched_at: now,
             },
         );
@@ -564,4 +568,30 @@ GROUP BY cli_key, session_id
     }
 
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::InsertBatchCache;
+
+    #[test]
+    fn model_price_cache_does_not_store_none_miss() {
+        let mut cache = InsertBatchCache::default();
+        let now = 1_770_000_000;
+        let key = "claude\\nclaude-opus-4-6".to_string();
+
+        cache.put_model_price_json(key.clone(), None, now);
+        assert_eq!(cache.get_model_price_json(&key, now), None);
+    }
+
+    #[test]
+    fn model_price_cache_stores_hit_value() {
+        let mut cache = InsertBatchCache::default();
+        let now = 1_770_000_001;
+        let key = "claude\\nclaude-opus-4-6".to_string();
+        let value = Some(r#"{"input_cost_per_token":"0.000005"}"#.to_string());
+
+        cache.put_model_price_json(key.clone(), value.clone(), now);
+        assert_eq!(cache.get_model_price_json(&key, now), Some(value));
+    }
 }

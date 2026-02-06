@@ -48,3 +48,17 @@ pub struct LocalSkillSummary {
     pub name: String,
     pub description: String,
 }
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SkillImportIssue {
+    pub dir_name: String,
+    pub error_code: Option<String>,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SkillImportLocalBatchReport {
+    pub imported: Vec<InstalledSkillSummary>,
+    pub skipped: Vec<SkillImportIssue>,
+    pub failed: Vec<SkillImportIssue>,
+}

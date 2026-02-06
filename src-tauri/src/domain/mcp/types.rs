@@ -43,4 +43,11 @@ pub struct McpParseResult {
 pub struct McpImportReport {
     pub inserted: u32,
     pub updated: u32,
+    pub skipped: Vec<McpImportSkip>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct McpImportSkip {
+    pub name: String,
+    pub reason: String,
 }

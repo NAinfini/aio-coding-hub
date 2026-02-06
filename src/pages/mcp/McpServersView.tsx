@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
+  useMcpImportFromWorkspaceCliMutation,
   useMcpServerDeleteMutation,
   useMcpServerSetEnabledMutation,
   useMcpServersListQuery,
+  type McpImportReport,
 } from "../../query/mcp";
 import { logToConsole } from "../../services/consoleLog";
-import type { McpServerSummary } from "../../services/mcp";
+import { type McpServerSummary } from "../../services/mcp";
 import { Button } from "../../ui/Button";
 import { McpDeleteDialog } from "./components/McpDeleteDialog";
 import { McpServerCard } from "./components/McpServerCard";
@@ -16,19 +18,25 @@ export type McpServersViewProps = {
   workspaceId: number;
 };
 
+function formatImportSummary(report: McpImportReport) {
+  const skippedCount = report.skipped?.length ?? 0;
+  return `导入完成：新增 ${report.inserted}，更新 ${report.updated}${skippedCount > 0 ? `，跳过 ${skippedCount}` : ""}`;
+}
+
 export function McpServersView({ workspaceId }: McpServersViewProps) {
   const mcpServersQuery = useMcpServersListQuery(workspaceId);
   const toggleMutation = useMcpServerSetEnabledMutation(workspaceId);
   const deleteMutation = useMcpServerDeleteMutation(workspaceId);
+  const importFromWorkspaceMutation = useMcpImportFromWorkspaceCliMutation(workspaceId);
 
   const items: McpServerSummary[] = mcpServersQuery.data ?? [];
   const loading = mcpServersQuery.isFetching;
   const toggling = toggleMutation.isPending;
   const deleting = deleteMutation.isPending;
+  const importing = importFromWorkspaceMutation.isPending;
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<McpServerSummary | null>(null);
-
   const [deleteTarget, setDeleteTarget] = useState<McpServerSummary | null>(null);
 
   useEffect(() => {
@@ -84,6 +92,34 @@ export function McpServersView({ workspaceId }: McpServersViewProps) {
     }
   }
 
+  async function importFromCurrentCli() {
+    if (importing) return;
+
+    try {
+      const report = await importFromWorkspaceMutation.mutateAsync();
+      if (!report) {
+        toast("仅在 Tauri Desktop 环境可用");
+        return;
+      }
+
+      const summary = formatImportSummary(report);
+      toast(summary);
+      logToConsole("info", "从当前 CLI 自动导入 MCP 完成", {
+        workspace_id: workspaceId,
+        inserted: report.inserted,
+        updated: report.updated,
+        skipped: report.skipped ?? [],
+      });
+    } catch (err) {
+      const message = String(err);
+      logToConsole("error", "从当前 CLI 自动导入 MCP 失败", {
+        error: message,
+        workspace_id: workspaceId,
+      });
+      toast(`导入失败：${message}`);
+    }
+  }
+
   return (
     <>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -94,6 +130,13 @@ export function McpServersView({ workspaceId }: McpServersViewProps) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="secondary"
+            onClick={() => void importFromCurrentCli()}
+            disabled={importing}
+          >
+            {importing ? "导入中…" : "导入已有"}
+          </Button>
           <Button
             onClick={() => {
               setEditTarget(null);

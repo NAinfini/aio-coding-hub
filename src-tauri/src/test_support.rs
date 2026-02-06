@@ -60,6 +60,47 @@ pub fn mcp_swap_local_for_workspace_switch<R: tauri::Runtime>(
     Ok(())
 }
 
+pub fn mcp_import_servers_json<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    workspace_id: i64,
+    servers: serde_json::Value,
+) -> crate::shared::error::AppResult<serde_json::Value> {
+    let db = crate::infra::db::init(app)?;
+    let servers: Vec<crate::domain::mcp::McpImportServer> = serde_json::from_value(servers)
+        .map_err(|e| format!("SEC_INVALID_INPUT: invalid mcp import servers json: {e}"))?;
+    let report = crate::domain::mcp::import_servers(app, &db, workspace_id, servers)?;
+    serialize_json(report)
+}
+
+pub fn mcp_import_from_workspace_cli_json<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    workspace_id: i64,
+) -> crate::shared::error::AppResult<serde_json::Value> {
+    let db = crate::infra::db::init(app)?;
+    let report = crate::domain::mcp::import_servers_from_workspace_cli(app, &db, workspace_id)?;
+    serialize_json(report)
+}
+
+pub fn mcp_servers_list_json<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    workspace_id: i64,
+) -> crate::shared::error::AppResult<serde_json::Value> {
+    let db = crate::infra::db::init(app)?;
+    let rows = crate::domain::mcp::list_for_workspace(&db, workspace_id)?;
+    serialize_json(rows)
+}
+
+pub fn workspace_active_id_by_cli<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    cli_key: &str,
+) -> crate::shared::error::AppResult<i64> {
+    let db = crate::infra::db::init(app)?;
+    let result = crate::workspaces::list_by_cli(&db, cli_key)?;
+    result.active_id.ok_or_else(|| {
+        format!("DB_NOT_FOUND: active workspace not found for cli_key={cli_key}").into()
+    })
+}
+
 pub fn codex_config_toml_path<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
 ) -> crate::shared::error::AppResult<PathBuf> {
@@ -209,4 +250,32 @@ pub fn cli_proxy_startup_repair_incomplete_enable_json<R: tauri::Runtime>(
 ) -> crate::shared::error::AppResult<serde_json::Value> {
     let results = crate::infra::cli_proxy::startup_repair_incomplete_enable(app)?;
     serialize_json(results)
+}
+
+pub fn cli_proxy_restore_enabled_keep_state_json<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> crate::shared::error::AppResult<serde_json::Value> {
+    let results = crate::infra::cli_proxy::restore_enabled_keep_state(app)?;
+    serialize_json(results)
+}
+
+pub fn cli_manager_codex_config_set_json<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    patch: serde_json::Value,
+) -> crate::shared::error::AppResult<serde_json::Value> {
+    let patch: crate::infra::codex_config::CodexConfigPatch = serde_json::from_value(patch)
+        .map_err(|e| format!("SEC_INVALID_INPUT: invalid codex config patch: {e}"))?;
+    let state = crate::infra::codex_config::codex_config_set(app, patch)?;
+    serialize_json(state)
+}
+
+pub fn cli_manager_claude_settings_set_json<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    patch: serde_json::Value,
+) -> crate::shared::error::AppResult<serde_json::Value> {
+    let patch: crate::infra::claude_settings::ClaudeSettingsPatch =
+        serde_json::from_value(patch)
+            .map_err(|e| format!("SEC_INVALID_INPUT: invalid claude settings patch: {e}"))?;
+    let state = crate::infra::claude_settings::claude_settings_set(app, patch)?;
+    serialize_json(state)
 }

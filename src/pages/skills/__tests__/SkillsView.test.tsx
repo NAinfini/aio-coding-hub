@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { useState } from "react";
 import { SkillsView } from "../SkillsView";
 import {
+  useSkillsImportLocalBatchMutation,
   useSkillImportLocalMutation,
   useSkillSetEnabledMutation,
   useSkillUninstallMutation,
@@ -22,6 +23,7 @@ vi.mock("../../../query/skills", async () => {
     ...actual,
     useSkillsInstalledListQuery: vi.fn(),
     useSkillsLocalListQuery: vi.fn(),
+    useSkillsImportLocalBatchMutation: vi.fn(),
     useSkillSetEnabledMutation: vi.fn(),
     useSkillUninstallMutation: vi.fn(),
     useSkillImportLocalMutation: vi.fn(),
@@ -69,6 +71,10 @@ describe("pages/skills/SkillsView", () => {
     const importMutation = { isPending: false, mutateAsync: vi.fn(), variables: null };
     importMutation.mutateAsync.mockResolvedValue({ id: 2 });
     vi.mocked(useSkillImportLocalMutation).mockReturnValue(importMutation as any);
+    vi.mocked(useSkillsImportLocalBatchMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn().mockResolvedValue({ imported: [], skipped: [], failed: [] }),
+    } as any);
 
     tauriOpenPath.mockRejectedValueOnce(new Error("no opener"));
     tauriRevealItemInDir.mockResolvedValueOnce(undefined as any);
@@ -118,6 +124,10 @@ describe("pages/skills/SkillsView", () => {
       isPending: false,
       mutateAsync: vi.fn(),
       variables: null,
+    } as any);
+    vi.mocked(useSkillsImportLocalBatchMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn().mockResolvedValue({ imported: [], skipped: [], failed: [] }),
     } as any);
 
     render(<SkillsView workspaceId={1} cliKey="gemini" isActiveWorkspace={false} />);
@@ -180,6 +190,14 @@ describe("pages/skills/SkillsView", () => {
     importMutation.mutateAsync.mockResolvedValueOnce(null);
     vi.mocked(useSkillImportLocalMutation).mockReturnValue(importMutation as any);
 
+    const batchMutation = { isPending: false, mutateAsync: vi.fn() };
+    batchMutation.mutateAsync.mockResolvedValue({
+      imported: [{ id: 3 }],
+      skipped: [{ dir_name: "local-skill", error_code: "SKILL_IMPORT_CONFLICT", message: "x" }],
+      failed: [],
+    });
+    vi.mocked(useSkillsImportLocalBatchMutation).mockReturnValue(batchMutation as any);
+
     tauriOpenPath
       .mockResolvedValueOnce(undefined as any)
       .mockRejectedValueOnce(new Error("no opener"));
@@ -227,6 +245,15 @@ describe("pages/skills/SkillsView", () => {
     await waitFor(() => expect(uninstallMutation.mutateAsync).toHaveBeenCalledTimes(2));
     fireEvent.click(uninstallDialog.getByRole("button", { name: "取消" }));
 
+    // batch import: success path (with conflict skip summary)
+    fireEvent.click(screen.getByRole("button", { name: "导入已有" }));
+    const batchDialog = within(screen.getByRole("dialog"));
+    fireEvent.click(batchDialog.getByRole("button", { name: "全选" }));
+    fireEvent.click(batchDialog.getByRole("button", { name: "确认导入" }));
+    await waitFor(() => expect(batchMutation.mutateAsync).toHaveBeenCalledWith(["local-skill"]));
+    expect(screen.getByText("导入提示（1）")).toBeInTheDocument();
+    fireEvent.click(batchDialog.getByRole("button", { name: "取消" }));
+
     // import: tauri-only null branch, then guard branch after becoming inactive
     fireEvent.click(screen.getByRole("button", { name: "导入技能库" }));
     const importDialog = within(screen.getByRole("dialog"));
@@ -241,5 +268,10 @@ describe("pages/skills/SkillsView", () => {
       )
     );
     expect(importMutation.mutateAsync).toHaveBeenCalledTimes(1);
+
+    const batchImportButton = screen.getByRole("button", { name: "导入已有" });
+    expect(batchImportButton).toBeDisabled();
+    fireEvent.click(batchImportButton);
+    expect(batchMutation.mutateAsync).toHaveBeenCalledTimes(1);
   });
 });

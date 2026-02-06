@@ -11,14 +11,17 @@ pub(super) struct SingleCliBackup {
 }
 
 impl SingleCliBackup {
-    pub(super) fn capture(app: &tauri::AppHandle, cli_key: &str) -> Result<Self, String> {
+    pub(super) fn capture<R: tauri::Runtime>(
+        app: &tauri::AppHandle<R>,
+        cli_key: &str,
+    ) -> Result<Self, String> {
         Ok(Self {
             target: mcp_sync::read_target_bytes(app, cli_key)?,
             manifest: mcp_sync::read_manifest_bytes(app, cli_key)?,
         })
     }
 
-    pub(super) fn restore(self, app: &tauri::AppHandle, cli_key: &str) {
+    pub(super) fn restore<R: tauri::Runtime>(self, app: &tauri::AppHandle<R>, cli_key: &str) {
         let _ = mcp_sync::restore_target_bytes(app, cli_key, self.target);
         let _ = mcp_sync::restore_manifest_bytes(app, cli_key, self.manifest);
     }
@@ -28,7 +31,9 @@ impl SingleCliBackup {
 pub(super) struct CliBackupSnapshots(Vec<(&'static str, SingleCliBackup)>);
 
 impl CliBackupSnapshots {
-    pub(super) fn capture_all(app: &tauri::AppHandle) -> Result<Self, String> {
+    pub(super) fn capture_all<R: tauri::Runtime>(
+        app: &tauri::AppHandle<R>,
+    ) -> Result<Self, String> {
         let mut out = Vec::with_capacity(MCP_CLI_KEYS.len());
         for cli_key in MCP_CLI_KEYS {
             out.push((cli_key, SingleCliBackup::capture(app, cli_key)?));
@@ -36,7 +41,7 @@ impl CliBackupSnapshots {
         Ok(Self(out))
     }
 
-    pub(super) fn restore_all(self, app: &tauri::AppHandle) {
+    pub(super) fn restore_all<R: tauri::Runtime>(self, app: &tauri::AppHandle<R>) {
         for (cli_key, backup) in self.0 {
             backup.restore(app, cli_key);
         }

@@ -28,15 +28,6 @@ export function HomeActiveSessionsCardContent({
       .sort((a, b) => b.expires_at - a.expires_at || a.session_id.localeCompare(b.session_id));
   }, [activeSessions]);
 
-  const visibleActiveSessions = useMemo(
-    () => activeSessionsSorted.slice(0, 8),
-    [activeSessionsSorted]
-  );
-  const extraActiveSessionCount = Math.max(
-    0,
-    activeSessionsSorted.length - visibleActiveSessions.length
-  );
-
   if (activeSessionsLoading) {
     return <div className="text-sm text-slate-600">加载中…</div>;
   }
@@ -51,7 +42,7 @@ export function HomeActiveSessionsCardContent({
 
   return (
     <div className="space-y-2 h-full overflow-auto pr-1 scrollbar-overlay">
-      {visibleActiveSessions.map((row) => {
+      {activeSessionsSorted.map((row) => {
         const providerLabel =
           row.provider_name && row.provider_name !== "Unknown" ? row.provider_name : "未知";
 
@@ -97,10 +88,6 @@ export function HomeActiveSessionsCardContent({
           </div>
         );
       })}
-
-      {extraActiveSessionCount > 0 ? (
-        <div className="text-xs text-slate-400">+{extraActiveSessionCount} 个</div>
-      ) : null}
     </div>
   );
 }

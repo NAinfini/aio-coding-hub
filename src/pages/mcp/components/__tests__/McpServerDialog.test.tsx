@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { McpServerDialog } from "../McpServerDialog";
 import { useMcpServerUpsertMutation } from "../../../../query/mcp";
+import { mcpParseJson } from "../../../../services/mcp";
 
 vi.mock("sonner", () => ({ toast: vi.fn() }));
 vi.mock("../../../../services/consoleLog", () => ({ logToConsole: vi.fn() }));
@@ -10,6 +11,13 @@ vi.mock("../../../../query/mcp", async () => {
   const actual =
     await vi.importActual<typeof import("../../../../query/mcp")>("../../../../query/mcp");
   return { ...actual, useMcpServerUpsertMutation: vi.fn() };
+});
+
+vi.mock("../../../../services/mcp", async () => {
+  const actual = await vi.importActual<typeof import("../../../../services/mcp")>(
+    "../../../../services/mcp"
+  );
+  return { ...actual, mcpParseJson: vi.fn() };
 });
 
 describe("pages/mcp/components/McpServerDialog", () => {
@@ -107,5 +115,51 @@ describe("pages/mcp/components/McpServerDialog", () => {
       )
     );
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+  });
+
+  it("fills fields from JSON in create mode", async () => {
+    const mutateAsync = vi.fn();
+    vi.mocked(useMcpServerUpsertMutation).mockReturnValue({ isPending: false, mutateAsync } as any);
+
+    vi.mocked(mcpParseJson).mockResolvedValue({
+      servers: [
+        {
+          server_key: "fetch",
+          name: "Fetch",
+          transport: "stdio",
+          command: "uvx",
+          args: ["mcp-server-fetch"],
+          env: { FOO: "bar" },
+          cwd: null,
+          url: null,
+          headers: {},
+          enabled: true,
+        },
+      ],
+    } as any);
+
+    render(
+      <McpServerDialog workspaceId={1} open={true} editTarget={null} onOpenChange={vi.fn()} />
+    );
+
+    fireEvent.change(screen.getByPlaceholderText(/示例：\{"type":"stdio"/), {
+      target: { value: '{"type":"stdio","command":"uvx","args":["mcp-server-fetch"]}' },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "从 JSON 填充" }));
+
+    await waitFor(() => expect(screen.getByDisplayValue("uvx")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "保存并同步" }));
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "Fetch",
+          transport: "stdio",
+          command: "uvx",
+          args: ["mcp-server-fetch"],
+          env: { FOO: "bar" },
+        })
+      )
+    );
   });
 });

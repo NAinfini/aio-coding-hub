@@ -2,6 +2,9 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { McpServerSummary } from "../../services/mcp";
 import {
+  mcpImportFromWorkspaceCli,
+  mcpImportServers,
+  mcpParseJson,
   mcpServerDelete,
   mcpServerSetEnabled,
   mcpServerUpsert,
@@ -12,6 +15,8 @@ import { setTauriRuntime } from "../../test/utils/tauriRuntime";
 import { mcpKeys } from "../keys";
 import {
   useMcpServerDeleteMutation,
+  useMcpImportServersMutation,
+  useMcpImportFromWorkspaceCliMutation,
   useMcpServerSetEnabledMutation,
   useMcpServerUpsertMutation,
   useMcpServersListQuery,
@@ -25,6 +30,9 @@ vi.mock("../../services/mcp", async () => {
     mcpServerUpsert: vi.fn(),
     mcpServerSetEnabled: vi.fn(),
     mcpServerDelete: vi.fn(),
+    mcpParseJson: vi.fn(),
+    mcpImportFromWorkspaceCli: vi.fn(),
+    mcpImportServers: vi.fn(),
   };
 });
 
@@ -179,5 +187,84 @@ describe("query/mcp", () => {
     });
 
     expect(client.getQueryData(mcpKeys.serversList(1))).toEqual([rows[1]]);
+  });
+
+  it("useMcpImportServersMutation invalidates servers list cache", async () => {
+    setTauriRuntime();
+
+    vi.mocked(mcpImportServers).mockResolvedValue({ inserted: 1, updated: 0, skipped: [] });
+
+    const client = createTestQueryClient();
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries");
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useMcpImportServersMutation(1), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync([
+        {
+          server_key: "fetch",
+          name: "Fetch",
+          transport: "stdio",
+          command: "npx",
+          args: ["-y", "@modelcontextprotocol/server-fetch"],
+          env: {},
+          cwd: null,
+          url: null,
+          headers: {},
+          enabled: true,
+        },
+      ]);
+    });
+
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: mcpKeys.serversList(1) });
+  });
+
+  it("useMcpImportFromWorkspaceCliMutation invalidates servers list cache", async () => {
+    setTauriRuntime();
+
+    vi.mocked(mcpImportFromWorkspaceCli).mockResolvedValue({
+      inserted: 0,
+      updated: 2,
+      skipped: [],
+    });
+
+    const client = createTestQueryClient();
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries");
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useMcpImportFromWorkspaceCliMutation(1), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync();
+    });
+
+    expect(mcpImportFromWorkspaceCli).toHaveBeenCalledWith(1);
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: mcpKeys.serversList(1) });
+  });
+
+  it("exposes mcp parse/import service fns for JSON import flow", async () => {
+    setTauriRuntime();
+    vi.mocked(mcpParseJson).mockResolvedValue({
+      servers: [
+        {
+          server_key: "fetch",
+          name: "Fetch",
+          transport: "stdio",
+          command: "npx",
+          args: ["-y", "@modelcontextprotocol/server-fetch"],
+          env: {},
+          cwd: null,
+          url: null,
+          headers: {},
+          enabled: true,
+        },
+      ],
+    });
+    vi.mocked(mcpImportServers).mockResolvedValue({ inserted: 1, updated: 0, skipped: [] });
+
+    const parsed = await mcpParseJson('{"mcpServers":{"fetch":{"command":"npx"}}}');
+    expect(parsed?.servers.length).toBe(1);
+
+    const report = await mcpImportServers({ workspace_id: 1, servers: parsed?.servers ?? [] });
+    expect(report).toEqual(expect.objectContaining({ inserted: 1, updated: 0 }));
   });
 });

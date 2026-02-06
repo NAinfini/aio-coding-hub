@@ -175,3 +175,35 @@ fn claude_keeps_cache_read_additive_cost() {
     let expected = (100i128 * input) + (80i128 * cache_read);
     assert_eq!(cost as i128, expected);
 }
+
+#[test]
+fn claude_opus_46_price_json_calculates_nonzero_cost() {
+    let usage = CostUsage {
+        input_tokens: 1,
+        output_tokens: 134,
+        cache_read_input_tokens: 86_059,
+        cache_creation_5m_input_tokens: 1_700,
+        ..Default::default()
+    };
+
+    let price_json = r#"{
+      "cache_creation_input_token_cost":"0.00000625",
+      "cache_creation_input_token_cost_above_1hr":"0.00000625",
+      "cache_read_input_token_cost":"0.0000005",
+      "input_cost_per_token":"0.000005",
+      "input_cost_per_token_above_200k_tokens":"0.00001",
+      "output_cost_per_token":"0.000025",
+      "output_cost_per_token_above_200k_tokens":"0.0000375"
+    }"#;
+
+    let cost = calculate_cost_usd_femto(&usage, price_json, 1.0, "claude", "claude-opus-4-6")
+        .expect("cost should be present");
+
+    assert!(cost > 0);
+}
+
+#[test]
+fn tiered_cost_keeps_non_negative_when_below_threshold() {
+    let cost = tiered_cost_with_separate_prices(1, 25_000_000_000, 37_500_000_000);
+    assert_eq!(cost, 25_000_000_000);
+}

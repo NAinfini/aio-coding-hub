@@ -38,6 +38,10 @@ export type McpParseResult = {
 export type McpImportReport = {
   inserted: number;
   updated: number;
+  skipped?: Array<{
+    name: string;
+    reason: string;
+  }>;
 };
 
 export async function mcpServersList(workspaceId: number) {
@@ -97,5 +101,11 @@ export async function mcpImportServers(input: {
   return invokeTauriOrNull<McpImportReport>("mcp_import_servers", {
     workspaceId: input.workspace_id,
     servers: input.servers,
+  });
+}
+
+export async function mcpImportFromWorkspaceCli(workspace_id: number) {
+  return invokeTauriOrNull<McpImportReport>("mcp_import_from_workspace_cli", {
+    workspaceId: workspace_id,
   });
 }

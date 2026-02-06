@@ -2,7 +2,9 @@ use super::fs_ops::{copy_dir_recursive, is_managed_dir, remove_marker, write_mar
 use super::installed::{get_skill_by_id, skill_key_exists};
 use super::paths::{cli_skills_root, ensure_skills_roots, ssot_skills_root, validate_cli_key};
 use super::skill_md::parse_skill_md;
-use super::types::{InstalledSkillSummary, LocalSkillSummary};
+use super::types::{
+    InstalledSkillSummary, LocalSkillSummary, SkillImportIssue, SkillImportLocalBatchReport,
+};
 use super::util::validate_dir_name;
 use crate::db;
 use crate::shared::text::normalize_name;
@@ -209,4 +211,68 @@ ON CONFLICT(workspace_id, skill_id) DO UPDATE SET
     }
 
     get_skill_by_id(&conn, skill_id)
+}
+
+pub fn import_local_batch(
+    app: &tauri::AppHandle,
+    db: &db::Db,
+    workspace_id: i64,
+    dir_names: Vec<String>,
+) -> crate::shared::error::AppResult<SkillImportLocalBatchReport> {
+    if dir_names.is_empty() {
+        return Err("SEC_INVALID_INPUT: dir_names is required"
+            .to_string()
+            .into());
+    }
+
+    let mut imported = Vec::new();
+    let mut skipped = Vec::new();
+    let mut failed = Vec::new();
+
+    for dir_name in dir_names {
+        let trimmed = dir_name.trim().to_string();
+        if trimmed.is_empty() {
+            skipped.push(SkillImportIssue {
+                dir_name,
+                error_code: Some("SEC_INVALID_INPUT".to_string()),
+                message: "SEC_INVALID_INPUT: dir_name is required".to_string(),
+            });
+            continue;
+        }
+
+        match import_local(app, db, workspace_id, &trimmed) {
+            Ok(row) => imported.push(row),
+            Err(err) => {
+                let message = err.to_string();
+                let error_code = message
+                    .split(':')
+                    .next()
+                    .map(str::trim)
+                    .filter(|code| !code.is_empty())
+                    .map(ToString::to_string);
+
+                let issue = SkillImportIssue {
+                    dir_name: trimmed,
+                    error_code,
+                    message: message.clone(),
+                };
+
+                if message.starts_with("SKILL_IMPORT_CONFLICT")
+                    || message.starts_with("SKILL_ALREADY_MANAGED")
+                    || message.starts_with("SKILL_LOCAL_NOT_FOUND")
+                    || message.starts_with("SEC_INVALID_INPUT")
+                {
+                    skipped.push(issue);
+                } else {
+                    failed.push(issue);
+                }
+            }
+        }
+    }
+
+    Ok(SkillImportLocalBatchReport {
+        imported,
+        skipped,
+        failed,
+    })
 }

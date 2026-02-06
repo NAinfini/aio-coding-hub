@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 import { McpServersView } from "../McpServersView";
 import {
+  useMcpImportFromWorkspaceCliMutation,
   useMcpServerDeleteMutation,
   useMcpServerSetEnabledMutation,
   useMcpServersListQuery,
@@ -20,6 +21,7 @@ vi.mock("../../../query/mcp", async () => {
     useMcpServersListQuery: vi.fn(),
     useMcpServerSetEnabledMutation: vi.fn(),
     useMcpServerDeleteMutation: vi.fn(),
+    useMcpImportFromWorkspaceCliMutation: vi.fn(),
   };
 });
 
@@ -37,6 +39,10 @@ describe("pages/mcp/McpServersView", () => {
     } as any);
     vi.mocked(useMcpServerSetEnabledMutation).mockReturnValue({ isPending: false } as any);
     vi.mocked(useMcpServerDeleteMutation).mockReturnValue({ isPending: false } as any);
+    vi.mocked(useMcpImportFromWorkspaceCliMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
 
     renderWithQuery(<McpServersView workspaceId={1} />);
     expect(
@@ -72,6 +78,10 @@ describe("pages/mcp/McpServersView", () => {
     const deleteMutation = { isPending: false, mutateAsync: vi.fn() };
     deleteMutation.mutateAsync.mockResolvedValue(true);
     vi.mocked(useMcpServerDeleteMutation).mockReturnValue(deleteMutation as any);
+    vi.mocked(useMcpImportFromWorkspaceCliMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
 
     renderWithQuery(<McpServersView workspaceId={1} />);
 
@@ -83,5 +93,24 @@ describe("pages/mcp/McpServersView", () => {
     fireEvent.click(screen.getByTitle("删除"));
     fireEvent.click(screen.getByRole("button", { name: "确认删除" }));
     await waitFor(() => expect(deleteMutation.mutateAsync).toHaveBeenCalledWith(1));
+  });
+
+  it("imports from workspace CLI when clicking 导入已有", async () => {
+    vi.mocked(useMcpServersListQuery).mockReturnValue({
+      data: [],
+      isFetching: false,
+      error: null,
+    } as any);
+    vi.mocked(useMcpServerSetEnabledMutation).mockReturnValue({ isPending: false } as any);
+    vi.mocked(useMcpServerDeleteMutation).mockReturnValue({ isPending: false } as any);
+
+    const importMutation = { isPending: false, mutateAsync: vi.fn() };
+    importMutation.mutateAsync.mockResolvedValue({ inserted: 1, updated: 0, skipped: [] });
+    vi.mocked(useMcpImportFromWorkspaceCliMutation).mockReturnValue(importMutation as any);
+
+    renderWithQuery(<McpServersView workspaceId={1} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "导入已有" }));
+    await waitFor(() => expect(importMutation.mutateAsync).toHaveBeenCalled());
   });
 });

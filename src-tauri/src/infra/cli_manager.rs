@@ -222,6 +222,16 @@ fn write_claude_env(
     let patched = patch_claude_env(root, mcp_timeout_ms, disable_error_reporting)?;
     let bytes = json_to_bytes(&patched, "claude/settings.json")?;
     let _ = write_file_atomic_if_changed(&settings_path, &bytes)?;
+
+    if let Some(backup_path) = crate::cli_proxy::backup_file_path_for_enabled_manifest(
+        app,
+        "claude",
+        "claude_settings_json",
+        "settings.json",
+    )? {
+        let _ = write_file_atomic_if_changed(&backup_path, &bytes)?;
+    }
+
     Ok(())
 }
 

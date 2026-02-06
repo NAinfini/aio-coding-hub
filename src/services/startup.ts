@@ -1,4 +1,5 @@
 import { logToConsole } from "./consoleLog";
+import { costBackfillMissingV1 } from "./cost";
 import { modelPricesSyncBasellm, notifyModelPricesUpdated } from "./modelPrices";
 import { promptsDefaultSyncFromFiles } from "./prompts";
 
@@ -26,23 +27,50 @@ export async function startupSyncModelPricesOnce(): Promise<void> {
   if (modelPricesSyncStarted) return;
   modelPricesSyncStarted = true;
 
-  if (hasSyncedModelPricesOnce()) return;
+  const syncedBefore = hasSyncedModelPricesOnce();
+
+  if (!syncedBefore) {
+    try {
+      const report = await modelPricesSyncBasellm(false);
+      if (!report) return;
+
+      markModelPricesSyncedOnce();
+      notifyModelPricesUpdated();
+      logToConsole("info", "初始化：模型定价同步完成", {
+        status: report.status,
+        inserted: report.inserted,
+        updated: report.updated,
+        skipped: report.skipped,
+        total: report.total,
+      });
+    } catch (err) {
+      logToConsole("error", "初始化：模型定价同步失败", { error: String(err) });
+      return;
+    }
+
+    return;
+  }
 
   try {
-    const report = await modelPricesSyncBasellm(false);
-    if (!report) return;
-
-    markModelPricesSyncedOnce();
-    notifyModelPricesUpdated();
-    logToConsole("info", "初始化：模型定价同步完成", {
-      status: report.status,
-      inserted: report.inserted,
-      updated: report.updated,
-      skipped: report.skipped,
-      total: report.total,
+    const backfillReport = await costBackfillMissingV1("allTime", {
+      cliKey: "claude",
+      maxRows: 5000,
     });
+
+    if (backfillReport) {
+      logToConsole("info", "初始化：模型花费缺失回填完成", {
+        scanned: backfillReport.scanned,
+        updated: backfillReport.updated,
+        skipped_no_model: backfillReport.skipped_no_model,
+        skipped_no_usage: backfillReport.skipped_no_usage,
+        skipped_no_price: backfillReport.skipped_no_price,
+        skipped_other: backfillReport.skipped_other,
+        capped: backfillReport.capped,
+        max_rows: backfillReport.max_rows,
+      });
+    }
   } catch (err) {
-    logToConsole("error", "初始化：模型定价同步失败", { error: String(err) });
+    logToConsole("warn", "初始化：模型花费缺失回填失败", { error: String(err) });
   }
 }
 

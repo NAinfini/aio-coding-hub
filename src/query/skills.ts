@@ -15,9 +15,12 @@ import {
   skillsLocalList,
   skillsPathsGet,
   skillImportLocal,
+  skillsImportLocalBatch,
   type AvailableSkillSummary,
   type InstalledSkillSummary,
   type LocalSkillSummary,
+  type SkillImportIssue,
+  type SkillImportLocalBatchReport,
   type SkillRepoSummary,
   type SkillsPaths,
 } from "../services/skills";
@@ -234,10 +237,38 @@ export function useSkillImportLocalMutation(workspaceId: number) {
   });
 }
 
+export function useSkillsImportLocalBatchMutation(workspaceId: number) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (dirNames: string[]) =>
+      skillsImportLocalBatch({ workspace_id: workspaceId, dir_names: dirNames }),
+    onSuccess: (report) => {
+      if (!report) return;
+      const imported = report.imported ?? [];
+      queryClient.setQueryData<InstalledSkillSummary[]>(
+        skillsKeys.installedList(workspaceId),
+        (cur) => {
+          const prev = cur ?? [];
+          if (imported.length === 0) return prev;
+          const byId = new Map(prev.map((item) => [item.id, item]));
+          for (const row of imported) {
+            byId.set(row.id, row);
+          }
+          return Array.from(byId.values());
+        }
+      );
+      queryClient.invalidateQueries({ queryKey: skillsKeys.localList(workspaceId) });
+    },
+  });
+}
+
 export type {
   AvailableSkillSummary,
   InstalledSkillSummary,
   LocalSkillSummary,
+  SkillImportIssue,
+  SkillImportLocalBatchReport,
   SkillRepoSummary,
   SkillsPaths,
 };

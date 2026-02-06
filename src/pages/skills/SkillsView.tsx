@@ -8,12 +8,17 @@ import {
   useSkillImportLocalMutation,
   useSkillSetEnabledMutation,
   useSkillUninstallMutation,
+  useSkillsImportLocalBatchMutation,
   useSkillsInstalledListQuery,
   useSkillsLocalListQuery,
 } from "../../query/skills";
 import { logToConsole } from "../../services/consoleLog";
 import type { CliKey } from "../../services/providers";
-import { type InstalledSkillSummary, type LocalSkillSummary } from "../../services/skills";
+import {
+  type InstalledSkillSummary,
+  type LocalSkillSummary,
+  type SkillImportIssue,
+} from "../../services/skills";
 import { Button } from "../../ui/Button";
 import { Card } from "../../ui/Card";
 import { Dialog } from "../../ui/Dialog";
@@ -63,6 +68,7 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
   const toggleMutation = useSkillSetEnabledMutation(workspaceId);
   const uninstallMutation = useSkillUninstallMutation(workspaceId);
   const importMutation = useSkillImportLocalMutation(workspaceId);
+  const importBatchMutation = useSkillsImportLocalBatchMutation(workspaceId);
 
   const installed: InstalledSkillSummary[] = installedQuery.data ?? [];
   const localSkills: LocalSkillSummary[] = canOperateLocal ? (localQuery.data ?? []) : [];
@@ -76,10 +82,14 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
     ? (uninstallMutation.variables ?? null)
     : null;
   const importingLocal = importMutation.isPending;
+  const importingBatch = importBatchMutation.isPending;
 
   const [uninstallTarget, setUninstallTarget] = useState<InstalledSkillSummary | null>(null);
 
   const [importTarget, setImportTarget] = useState<LocalSkillSummary | null>(null);
+  const [batchImportOpen, setBatchImportOpen] = useState(false);
+  const [selectedLocalDirNames, setSelectedLocalDirNames] = useState<string[]>([]);
+  const [batchImportIssues, setBatchImportIssues] = useState<SkillImportIssue[]>([]);
 
   useEffect(() => {
     if (!installedQuery.error) return;
@@ -186,6 +196,78 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
     }
   }
 
+  function openBatchImportDialog() {
+    setBatchImportIssues([]);
+    setSelectedLocalDirNames(localSkills.map((skill) => skill.dir_name));
+    setBatchImportOpen(true);
+  }
+
+  function toggleBatchSelection(dirName: string) {
+    setSelectedLocalDirNames((prev) =>
+      prev.includes(dirName) ? prev.filter((item) => item !== dirName) : [...prev, dirName]
+    );
+  }
+
+  function selectAllLocalSkills() {
+    setSelectedLocalDirNames(localSkills.map((skill) => skill.dir_name));
+  }
+
+  function clearLocalSkillSelections() {
+    setSelectedLocalDirNames([]);
+  }
+
+  async function confirmBatchImportLocalSkills() {
+    if (importingBatch) return;
+    if (!canOperateLocal) {
+      toast("仅当前工作区可导入本机 Skill。请先切换该工作区为当前。");
+      return;
+    }
+
+    const deduped = Array.from(new Set(selectedLocalDirNames.map((item) => item.trim()))).filter(
+      Boolean
+    );
+    if (deduped.length === 0) {
+      toast("请至少选择一个本机 Skill");
+      return;
+    }
+
+    try {
+      const report = await importBatchMutation.mutateAsync(deduped);
+      if (!report) {
+        toast("仅在 Tauri Desktop 环境可用");
+        return;
+      }
+
+      const skipped = report.skipped ?? [];
+      const failed = report.failed ?? [];
+      const imported = report.imported ?? [];
+      setBatchImportIssues([...skipped, ...failed]);
+
+      toast(`批量导入完成：成功 ${imported.length}，跳过 ${skipped.length}，失败 ${failed.length}`);
+      logToConsole("info", "批量导入本机 Skill", {
+        cli: cliKey,
+        workspace_id: workspaceId,
+        imported_count: imported.length,
+        skipped,
+        failed,
+      });
+
+      if (failed.length === 0 && skipped.length === 0) {
+        setBatchImportOpen(false);
+      }
+    } catch (err) {
+      const formatted = formatActionFailureToast("批量导入", err);
+      logToConsole("error", "批量导入本机 Skill 失败", {
+        error: formatted.raw,
+        error_code: formatted.error_code ?? undefined,
+        cli: cliKey,
+        workspace_id: workspaceId,
+        selected: selectedLocalDirNames,
+      });
+      toast(formatted.toast);
+    }
+  }
+
   async function openLocalSkillDir(skill: LocalSkillSummary) {
     try {
       await openPathOrReveal(skill.path);
@@ -274,9 +356,19 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
         <Card className="flex min-h-[240px] flex-col lg:min-h-0" padding="md">
           <div className="flex shrink-0 items-start justify-between gap-3">
             <div className="text-sm font-semibold">本机已安装</div>
-            <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
-              {canOperateLocal ? (localLoading ? "扫描中…" : `${localSkills.length}`) : "—"}
-            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={openBatchImportDialog}
+                disabled={!canOperateLocal || localLoading || !localSkills.length || importingBatch}
+              >
+                导入已有
+              </Button>
+              <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+                {canOperateLocal ? (localLoading ? "扫描中…" : `${localSkills.length}`) : "—"}
+              </span>
+            </div>
           </div>
 
           <div className="mt-4 min-h-0 flex-1 space-y-2 lg:overflow-y-auto lg:pr-1 scrollbar-overlay">
@@ -323,6 +415,90 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
           </div>
         </Card>
       </div>
+
+      <Dialog
+        open={batchImportOpen}
+        title="导入已有 Skill"
+        description="支持多选导入；冲突项会跳过并展示原因，导入流程不中断。"
+        onOpenChange={(open) => {
+          setBatchImportOpen(open);
+          if (!open) setBatchImportIssues([]);
+        }}
+      >
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" variant="secondary" onClick={selectAllLocalSkills}>
+              全选
+            </Button>
+            <Button size="sm" variant="secondary" onClick={clearLocalSkillSelections}>
+              清空
+            </Button>
+            <span className="text-xs text-slate-500">已选择 {selectedLocalDirNames.length} 项</span>
+          </div>
+
+          <div className="max-h-[280px] space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
+            {localSkills.length === 0 ? (
+              <div className="text-xs text-slate-500">暂无可导入的本机 Skill</div>
+            ) : (
+              localSkills.map((skill) => {
+                const selected = selectedLocalDirNames.includes(skill.dir_name);
+                return (
+                  <label
+                    key={skill.path}
+                    className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-2"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      onChange={() => toggleBatchSelection(skill.dir_name)}
+                      className="mt-1"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium text-slate-800">
+                        {skill.name || skill.dir_name}
+                      </div>
+                      <div className="mt-1 truncate font-mono text-xs text-slate-500">
+                        {skill.path}
+                      </div>
+                    </div>
+                  </label>
+                );
+              })
+            )}
+          </div>
+
+          {batchImportIssues.length > 0 ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+              <div className="font-medium">导入提示（{batchImportIssues.length}）</div>
+              <div className="mt-2 max-h-[140px] space-y-1 overflow-y-auto">
+                {batchImportIssues.map((issue, index) => (
+                  <div key={`${issue.dir_name}-${index}`}>
+                    {issue.dir_name}：{issue.error_code ? `[${issue.error_code}] ` : ""}
+                    {issue.message}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => setBatchImportOpen(false)}
+              disabled={importingBatch}
+            >
+              取消
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => void confirmBatchImportLocalSkills()}
+              disabled={importingBatch}
+            >
+              {importingBatch ? "导入中…" : "确认导入"}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
 
       <Dialog
         open={importTarget != null}

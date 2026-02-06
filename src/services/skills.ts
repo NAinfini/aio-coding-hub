@@ -45,6 +45,18 @@ export type LocalSkillSummary = {
   description: string;
 };
 
+export type SkillImportIssue = {
+  dir_name: string;
+  error_code: string | null;
+  message: string;
+};
+
+export type SkillImportLocalBatchReport = {
+  imported: InstalledSkillSummary[];
+  skipped: SkillImportIssue[];
+  failed: SkillImportIssue[];
+};
+
 export async function skillReposList() {
   return invokeTauriOrNull<SkillRepoSummary[]>("skill_repos_list");
 }
@@ -117,6 +129,13 @@ export async function skillImportLocal(input: { workspace_id: number; dir_name: 
   return invokeTauriOrNull<InstalledSkillSummary>("skill_import_local", {
     workspaceId: input.workspace_id,
     dirName: input.dir_name,
+  });
+}
+
+export async function skillsImportLocalBatch(input: { workspace_id: number; dir_names: string[] }) {
+  return invokeTauriOrNull<SkillImportLocalBatchReport>("skills_import_local_batch", {
+    workspaceId: input.workspace_id,
+    dirNames: input.dir_names,
   });
 }
 

@@ -129,8 +129,8 @@ ORDER BY s.server_key ASC
     Ok(out)
 }
 
-pub(crate) fn sync_cli_for_workspace(
-    app: &tauri::AppHandle,
+pub(crate) fn sync_cli_for_workspace<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
     conn: &Connection,
     workspace_id: i64,
 ) -> crate::shared::error::AppResult<()> {
@@ -141,8 +141,8 @@ pub(crate) fn sync_cli_for_workspace(
     Ok(())
 }
 
-pub(super) fn sync_all_cli(
-    app: &tauri::AppHandle,
+pub(super) fn sync_all_cli<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
     conn: &Connection,
 ) -> crate::shared::error::AppResult<()> {
     for cli_key in MCP_CLI_KEYS {
@@ -152,8 +152,8 @@ pub(super) fn sync_all_cli(
     Ok(())
 }
 
-pub(super) fn sync_one_cli(
-    app: &tauri::AppHandle,
+pub(super) fn sync_one_cli<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
     conn: &Connection,
     cli_key: &str,
 ) -> crate::shared::error::AppResult<()> {

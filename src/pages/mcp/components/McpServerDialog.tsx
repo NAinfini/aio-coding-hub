@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useMcpServerUpsertMutation } from "../../../query/mcp";
 import { logToConsole } from "../../../services/consoleLog";
-import type { McpServerSummary, McpTransport } from "../../../services/mcp";
+import { mcpParseJson, type McpServerSummary, type McpTransport } from "../../../services/mcp";
 import { Button } from "../../../ui/Button";
 import { Dialog } from "../../../ui/Dialog";
 import { cn } from "../../../utils/cn";
@@ -12,6 +12,17 @@ export type McpServerDialogProps = {
   open: boolean;
   editTarget: McpServerSummary | null;
   onOpenChange: (open: boolean) => void;
+};
+
+type McpDialogDraft = {
+  name: string;
+  transport: McpTransport;
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+  cwd: string;
+  url: string;
+  headers: Record<string, string>;
 };
 
 function parseLines(text: string) {
@@ -37,6 +48,158 @@ function parseKeyValueLines(text: string, hint: string) {
   return out;
 }
 
+function asObject(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function readString(value: unknown) {
+  return typeof value === "string" ? value : "";
+}
+
+function readStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string");
+}
+
+function readStringMap(value: unknown): Record<string, string> {
+  const object = asObject(value);
+  if (!object) return {};
+
+  const out: Record<string, string> = {};
+  for (const [key, val] of Object.entries(object)) {
+    if (typeof val === "string") {
+      out[key] = val;
+    }
+  }
+  return out;
+}
+
+function inferTransport(spec: Record<string, unknown>): McpTransport {
+  const transportValue =
+    readString(spec.type) || readString(spec.transport) || readString(spec.transport_type);
+  const transport = transportValue.trim().toLowerCase();
+  if (transport === "http" || transport === "sse") return "http";
+  if (transport === "stdio") return "stdio";
+
+  if (
+    readString(spec.url).trim() ||
+    readString(spec.httpUrl).trim() ||
+    asObject(spec.headers) ||
+    asObject(spec.http_headers) ||
+    asObject(spec.httpHeaders)
+  ) {
+    return "http";
+  }
+
+  return "stdio";
+}
+
+function selectCandidate(
+  root: unknown
+): { nameHint: string; entry: Record<string, unknown> } | null {
+  const rootObj = asObject(root);
+  if (rootObj) {
+    const mcpServers = asObject(rootObj.mcpServers);
+    if (mcpServers) {
+      const first = Object.entries(mcpServers)[0];
+      if (first) {
+        const [nameHint, entry] = first;
+        const entryObj = asObject(entry);
+        if (entryObj) return { nameHint, entry: entryObj };
+      }
+    }
+
+    for (const cliKey of ["claude", "codex", "gemini"] as const) {
+      const cliSection = asObject(rootObj[cliKey]);
+      const cliServers = asObject(cliSection?.servers);
+      if (!cliServers) continue;
+
+      const first = Object.entries(cliServers)[0];
+      if (!first) continue;
+
+      const [nameHint, entry] = first;
+      const entryObj = asObject(entry);
+      if (entryObj) return { nameHint, entry: entryObj };
+    }
+  }
+
+  if (Array.isArray(root)) {
+    const first = root.map((item) => asObject(item)).find(Boolean);
+    if (first) {
+      return { nameHint: readString(first.name), entry: first };
+    }
+  }
+
+  if (rootObj) {
+    return { nameHint: readString(rootObj.name), entry: rootObj };
+  }
+
+  return null;
+}
+
+function parseJsonDraftFallback(jsonText: string): McpDialogDraft {
+  const root = JSON.parse(jsonText) as unknown;
+  const candidate = selectCandidate(root);
+  if (!candidate) {
+    throw new Error("JSON 结构不支持：请提供 mcpServers、code-switch 格式或单条 server 配置");
+  }
+
+  const spec =
+    asObject(candidate.entry.server) ?? asObject(candidate.entry.spec) ?? candidate.entry;
+  const transport = inferTransport(spec);
+  const command = readString(spec.command).trim();
+  const url = (readString(spec.url) || readString(spec.httpUrl)).trim();
+
+  if (transport === "stdio" && !command) {
+    throw new Error("JSON 缺少 stdio command 字段");
+  }
+
+  if (transport === "http" && !url) {
+    throw new Error("JSON 缺少 http url 字段");
+  }
+
+  const name =
+    candidate.nameHint.trim() ||
+    readString(candidate.entry.name).trim() ||
+    readString(spec.name).trim();
+
+  return {
+    name,
+    transport,
+    command,
+    args: readStringArray(spec.args),
+    env: readStringMap(spec.env),
+    cwd: readString(spec.cwd).trim(),
+    url,
+    headers: readStringMap(spec.headers ?? spec.http_headers ?? spec.httpHeaders),
+  };
+}
+
+function fromServerSummary(
+  server: Pick<
+    McpServerSummary,
+    "name" | "transport" | "command" | "args" | "env" | "cwd" | "url" | "headers"
+  >
+): McpDialogDraft {
+  return {
+    name: server.name,
+    transport: server.transport,
+    command: server.command ?? "",
+    args: server.args ?? [],
+    env: server.env ?? {},
+    cwd: server.cwd ?? "",
+    url: server.url ?? "",
+    headers: server.headers ?? {},
+  };
+}
+
+function mapToLines(input: Record<string, string>) {
+  return Object.entries(input)
+    .map(([k, v]) => `${k}=${v}`)
+    .join("\n");
+}
+
 export function McpServerDialog({
   workspaceId,
   open,
@@ -54,26 +217,21 @@ export function McpServerDialog({
   const [cwd, setCwd] = useState("");
   const [url, setUrl] = useState("");
   const [headersText, setHeadersText] = useState("");
+  const [jsonText, setJsonText] = useState("");
 
   useEffect(() => {
     if (!open) return;
     if (editTarget) {
-      setName(editTarget.name);
-      setTransport(editTarget.transport);
-      setCommand(editTarget.command ?? "");
-      setArgsText((editTarget.args ?? []).join("\n"));
-      setEnvText(
-        Object.entries(editTarget.env ?? {})
-          .map(([k, v]) => `${k}=${v}`)
-          .join("\n")
-      );
-      setCwd(editTarget.cwd ?? "");
-      setUrl(editTarget.url ?? "");
-      setHeadersText(
-        Object.entries(editTarget.headers ?? {})
-          .map(([k, v]) => `${k}=${v}`)
-          .join("\n")
-      );
+      const draft = fromServerSummary(editTarget);
+      setName(draft.name);
+      setTransport(draft.transport);
+      setCommand(draft.command);
+      setArgsText(draft.args.join("\n"));
+      setEnvText(mapToLines(draft.env));
+      setCwd(draft.cwd);
+      setUrl(draft.url);
+      setHeadersText(mapToLines(draft.headers));
+      setJsonText("");
       return;
     }
 
@@ -85,19 +243,70 @@ export function McpServerDialog({
     setCwd("");
     setUrl("");
     setHeadersText("");
+    setJsonText("");
   }, [open, editTarget]);
 
   const transportHint = transport === "http" ? "HTTP（远程服务）" : "STDIO（本地命令）";
+
+  function applyDraft(draft: McpDialogDraft) {
+    setName((prev) => (draft.name.trim() ? draft.name.trim() : prev.trim() ? prev : "MCP Server"));
+    setTransport(draft.transport);
+    setCommand(draft.command);
+    setArgsText(draft.args.join("\n"));
+    setEnvText(mapToLines(draft.env));
+    setCwd(draft.cwd);
+    setUrl(draft.url);
+    setHeadersText(mapToLines(draft.headers));
+  }
+
+  async function fillFromJson() {
+    const trimmed = jsonText.trim();
+    if (!trimmed) {
+      toast("请先粘贴 JSON");
+      return;
+    }
+
+    try {
+      const parsed = await mcpParseJson(trimmed);
+      if (parsed?.servers?.length) {
+        const server = parsed.servers[0];
+        applyDraft(
+          fromServerSummary({
+            name: server.name,
+            transport: server.transport,
+            command: server.command,
+            args: server.args,
+            env: server.env,
+            cwd: server.cwd,
+            url: server.url,
+            headers: server.headers,
+          })
+        );
+        toast("已从 JSON 填充字段");
+        return;
+      }
+
+      const fallback = parseJsonDraftFallback(trimmed);
+      applyDraft(fallback);
+      toast("已从 JSON 填充字段");
+    } catch (primaryErr) {
+      try {
+        const fallback = parseJsonDraftFallback(trimmed);
+        applyDraft(fallback);
+        toast("已从 JSON 填充字段");
+      } catch (fallbackErr) {
+        const message = String(fallbackErr || primaryErr);
+        logToConsole("error", "从 JSON 填充 MCP 字段失败", { error: message });
+        toast(`JSON 解析失败：${message}`);
+      }
+    }
+  }
 
   async function save() {
     if (saving) return;
     try {
       const next = await upsertMutation.mutateAsync({
         serverId: editTarget?.id ?? null,
-        // server_key 是内部标识，用于写入 CLI 配置文件：
-        // - Claude/Gemini: JSON map key
-        // - Codex: TOML table name
-        // 为降低认知负担，创建时自动生成；编辑时保持不变。
         serverKey: editTarget?.server_key ?? "",
         name,
         transport,
@@ -139,6 +348,24 @@ export function McpServerDialog({
       className="max-w-3xl"
     >
       <div className="grid gap-4">
+        {!editTarget ? (
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+            <div className="text-xs font-medium text-slate-500">快速导入 JSON（可选）</div>
+            <textarea
+              value={jsonText}
+              onChange={(e) => setJsonText(e.currentTarget.value)}
+              placeholder='示例：{"type":"stdio","command":"uvx","args":["mcp-server-fetch"]}'
+              rows={4}
+              className="mt-2 w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-xs text-slate-900 shadow-sm outline-none focus:border-[#0052FF] focus:ring-2 focus:ring-[#0052FF]/20"
+            />
+            <div className="mt-2 flex justify-end">
+              <Button variant="secondary" onClick={() => void fillFromJson()} disabled={saving}>
+                从 JSON 填充
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
         <div className="rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-slate-50/60 p-4 shadow-card">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="text-xs font-medium text-slate-500">基础信息</div>

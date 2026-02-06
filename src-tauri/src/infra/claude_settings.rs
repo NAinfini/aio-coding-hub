@@ -93,17 +93,23 @@ pub struct ClaudeSettingsPatch {
     pub env_claude_code_skip_prompt_history: Option<bool>,
 }
 
-fn home_dir(app: &tauri::AppHandle) -> crate::shared::error::AppResult<PathBuf> {
+fn home_dir<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> crate::shared::error::AppResult<PathBuf> {
     app.path()
         .home_dir()
         .map_err(|e| format!("failed to resolve home dir: {e}").into())
 }
 
-fn claude_config_dir(app: &tauri::AppHandle) -> crate::shared::error::AppResult<PathBuf> {
+fn claude_config_dir<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> crate::shared::error::AppResult<PathBuf> {
     Ok(home_dir(app)?.join(".claude"))
 }
 
-fn claude_settings_path(app: &tauri::AppHandle) -> crate::shared::error::AppResult<PathBuf> {
+fn claude_settings_path<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> crate::shared::error::AppResult<PathBuf> {
     Ok(claude_config_dir(app)?.join("settings.json"))
 }
 
@@ -111,6 +117,24 @@ fn is_symlink(path: &Path) -> crate::shared::error::AppResult<bool> {
     std::fs::symlink_metadata(path)
         .map(|m| m.file_type().is_symlink())
         .map_err(|e| format!("failed to read metadata {}: {e}", path.display()).into())
+}
+
+fn sync_claude_cli_proxy_backup_if_enabled<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    next_bytes: &[u8],
+) -> crate::shared::error::AppResult<()> {
+    let Some(backup_path) = super::cli_proxy::backup_file_path_for_enabled_manifest(
+        app,
+        "claude",
+        "claude_settings_json",
+        "settings.json",
+    )?
+    else {
+        return Ok(());
+    };
+
+    let _ = write_file_atomic_if_changed(&backup_path, next_bytes)?;
+    Ok(())
 }
 
 fn json_root_from_bytes(bytes: Option<Vec<u8>>) -> serde_json::Value {
@@ -206,8 +230,8 @@ fn env_is_enabled(env: &serde_json::Map<String, serde_json::Value>, key: &str) -
     env.get(key).and_then(env_bool_value).unwrap_or(false)
 }
 
-pub fn claude_settings_get(
-    app: &tauri::AppHandle,
+pub fn claude_settings_get<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
 ) -> crate::shared::error::AppResult<ClaudeSettingsState> {
     let config_dir = claude_config_dir(app)?;
     let settings_path = claude_settings_path(app)?;
@@ -554,8 +578,8 @@ fn patch_claude_settings(
     Ok(root)
 }
 
-pub fn claude_settings_set(
-    app: &tauri::AppHandle,
+pub fn claude_settings_set<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
     patch: ClaudeSettingsPatch,
 ) -> crate::shared::error::AppResult<ClaudeSettingsState> {
     let path = claude_settings_path(app)?;
@@ -572,6 +596,7 @@ pub fn claude_settings_set(
     let patched = patch_claude_settings(root, patch)?;
     let bytes = json_to_bytes(&patched, "claude/settings.json")?;
     let _ = write_file_atomic_if_changed(&path, &bytes)?;
+    sync_claude_cli_proxy_backup_if_enabled(app, &bytes)?;
     claude_settings_get(app)
 }
 

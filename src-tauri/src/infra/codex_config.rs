@@ -81,6 +81,24 @@ fn is_symlink(path: &Path) -> crate::shared::error::AppResult<bool> {
         .map_err(|e| format!("failed to read metadata {}: {e}", path.display()).into())
 }
 
+fn sync_codex_cli_proxy_backup_if_enabled<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    next_bytes: &[u8],
+) -> crate::shared::error::AppResult<()> {
+    let Some(backup_path) = super::cli_proxy::backup_file_path_for_enabled_manifest(
+        app,
+        "codex",
+        "codex_config_toml",
+        "config.toml",
+    )?
+    else {
+        return Ok(());
+    };
+
+    let _ = write_file_atomic_if_changed(&backup_path, next_bytes)?;
+    Ok(())
+}
+
 fn strip_toml_comment(line: &str) -> &str {
     let mut in_single = false;
     let mut in_double = false;
@@ -1199,6 +1217,7 @@ pub fn codex_config_toml_set_raw<R: tauri::Runtime>(
     }
 
     let _ = write_file_atomic_if_changed(&path, toml.as_bytes())?;
+    sync_codex_cli_proxy_backup_if_enabled(app, toml.as_bytes())?;
     codex_config_get(app)
 }
 
@@ -1375,8 +1394,8 @@ fn patch_config_toml(
     Ok(out.into_bytes())
 }
 
-pub fn codex_config_set(
-    app: &tauri::AppHandle,
+pub fn codex_config_set<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
     patch: CodexConfigPatch,
 ) -> crate::shared::error::AppResult<CodexConfigState> {
     let path = codex_paths::codex_config_toml_path(app)?;
@@ -1391,6 +1410,7 @@ pub fn codex_config_set(
     let current = read_optional_file(&path)?;
     let next = patch_config_toml(current, patch)?;
     let _ = write_file_atomic_if_changed(&path, &next)?;
+    sync_codex_cli_proxy_backup_if_enabled(app, &next)?;
     codex_config_get(app)
 }
 

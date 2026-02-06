@@ -1,7 +1,7 @@
 //! Usage: Model pricing related Tauri commands.
 
 use crate::app_state::{ensure_db_ready, DbInitState};
-use crate::{blocking, model_price_aliases, model_prices, model_prices_sync};
+use crate::{blocking, cost_stats, model_price_aliases, model_prices, model_prices_sync};
 
 #[tauri::command]
 pub(crate) async fn model_prices_list(
@@ -40,9 +40,32 @@ pub(crate) async fn model_prices_sync_basellm(
     force: Option<bool>,
 ) -> Result<model_prices_sync::ModelPricesSyncReport, String> {
     let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
-    model_prices_sync::sync_basellm(&app, db, force.unwrap_or(false))
+    let report = model_prices_sync::sync_basellm(&app, db.clone(), force.unwrap_or(false))
         .await
-        .map_err(Into::into)
+        .map_err(|e| e.to_string())?;
+
+    let db_for_backfill = db.clone();
+    if let Err(err) = blocking::run(
+        "model_prices_sync_basellm_backfill_missing_cost",
+        move || {
+            cost_stats::backfill_missing_v1(
+                &db_for_backfill,
+                "allTime",
+                None,
+                None,
+                Some("claude"),
+                None,
+                None,
+                5000,
+            )
+        },
+    )
+    .await
+    {
+        tracing::warn!("模型定价同步后缺失成本回填失败: {}", err);
+    }
+
+    Ok(report)
 }
 
 #[tauri::command]

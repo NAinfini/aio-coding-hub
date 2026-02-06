@@ -164,6 +164,22 @@ pub(crate) async fn skill_import_local(
 }
 
 #[tauri::command]
+pub(crate) async fn skills_import_local_batch(
+    app: tauri::AppHandle,
+    db_state: tauri::State<'_, DbInitState>,
+    workspace_id: i64,
+    dir_names: Vec<String>,
+) -> Result<skills::SkillImportLocalBatchReport, String> {
+    let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
+    tauri::async_runtime::spawn_blocking(move || {
+        skills::import_local_batch(&app, &db, workspace_id, dir_names)
+    })
+    .await
+    .map_err(|e| format!("SKILL_TASK_JOIN: {e}"))?
+    .map_err(Into::into)
+}
+
+#[tauri::command]
 pub(crate) async fn skills_paths_get(
     app: tauri::AppHandle,
     cli_key: String,

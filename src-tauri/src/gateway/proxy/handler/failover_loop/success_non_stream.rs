@@ -418,7 +418,7 @@ pub(super) async fn handle_success_non_stream(
         error_code: None,
         duration_ms,
         event_ttfb_ms: Some(duration_ms),
-        log_ttfb_ms: None,
+        log_ttfb_ms: Some(duration_ms),
         attempts: attempts.as_slice(),
         special_settings_json: response_fixer::special_settings_json(&common.special_settings),
         session_id: common.session_id.clone(),

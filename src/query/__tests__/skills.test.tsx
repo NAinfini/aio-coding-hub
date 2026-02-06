@@ -9,6 +9,7 @@ import type {
 } from "../../services/skills";
 import {
   skillImportLocal,
+  skillsImportLocalBatch,
   skillInstall,
   skillRepoDelete,
   skillRepoUpsert,
@@ -25,6 +26,7 @@ import { clearTauriRuntime, setTauriRuntime } from "../../test/utils/tauriRuntim
 import { skillsKeys } from "../keys";
 import {
   useSkillImportLocalMutation,
+  useSkillsImportLocalBatchMutation,
   useSkillInstallMutation,
   useSkillRepoDeleteMutation,
   useSkillRepoUpsertMutation,
@@ -54,6 +56,7 @@ vi.mock("../../services/skills", async () => {
     skillSetEnabled: vi.fn(),
     skillUninstall: vi.fn(),
     skillImportLocal: vi.fn(),
+    skillsImportLocalBatch: vi.fn(),
   };
 });
 
@@ -725,5 +728,92 @@ describe("query/skills", () => {
     });
 
     expect(client.getQueryData(skillsKeys.installedList(1))).toEqual([updated]);
+  });
+
+  it("useSkillsImportLocalBatchMutation no-ops on null response", async () => {
+    setTauriRuntime();
+    vi.mocked(skillsImportLocalBatch).mockResolvedValue(null);
+
+    const prev: InstalledSkillSummary[] = [
+      {
+        id: 11,
+        skill_key: "s2",
+        name: "S2",
+        description: "d2",
+        source_git_url: "local",
+        source_branch: "local",
+        source_subdir: "skills/s2",
+        enabled: true,
+        created_at: 0,
+        updated_at: 0,
+      },
+    ];
+
+    const client = createTestQueryClient();
+    client.setQueryData(skillsKeys.installedList(1), prev);
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries");
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useSkillsImportLocalBatchMutation(1), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync(["s2"]);
+    });
+
+    expect(client.getQueryData(skillsKeys.installedList(1))).toEqual(prev);
+    expect(invalidateSpy).not.toHaveBeenCalled();
+  });
+
+  it("useSkillsImportLocalBatchMutation merges imported rows and invalidates localList", async () => {
+    setTauriRuntime();
+
+    vi.mocked(skillsImportLocalBatch).mockResolvedValue({
+      imported: [
+        {
+          id: 12,
+          skill_key: "s3",
+          name: "S3",
+          description: "d3",
+          source_git_url: "local",
+          source_branch: "local",
+          source_subdir: "skills/s3",
+          enabled: true,
+          created_at: 0,
+          updated_at: 0,
+        },
+      ],
+      skipped: [],
+      failed: [],
+    });
+
+    const prev: InstalledSkillSummary[] = [
+      {
+        id: 11,
+        skill_key: "s2",
+        name: "S2",
+        description: "d2",
+        source_git_url: "local",
+        source_branch: "local",
+        source_subdir: "skills/s2",
+        enabled: true,
+        created_at: 0,
+        updated_at: 0,
+      },
+    ];
+
+    const client = createTestQueryClient();
+    client.setQueryData(skillsKeys.installedList(1), prev);
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries");
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useSkillsImportLocalBatchMutation(1), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync(["s3"]);
+    });
+
+    expect(client.getQueryData(skillsKeys.installedList(1))).toEqual([
+      prev[0],
+      expect.objectContaining({ id: 12, skill_key: "s3" }),
+    ]);
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: skillsKeys.localList(1) });
   });
 });

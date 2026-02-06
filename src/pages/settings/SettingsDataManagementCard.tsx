@@ -34,7 +34,7 @@ export function SettingsDataManagementCard({
           size="sm"
           disabled={!about}
         >
-          打开目录
+          打开数据/日志目录
         </Button>
       </div>
       <div className="divide-y divide-slate-100">

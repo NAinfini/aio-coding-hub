@@ -11,10 +11,12 @@ describe("services/mcp", () => {
     clearTauriRuntime();
     vi.resetModules();
 
-    const { mcpServerDelete, mcpParseJson, mcpImportServers } = await import("../mcp");
+    const { mcpServerDelete, mcpParseJson, mcpImportFromWorkspaceCli, mcpImportServers } =
+      await import("../mcp");
 
     expect(await mcpServerDelete(1)).toBeNull();
     expect(await mcpParseJson("{}")).toBeNull();
+    expect(await mcpImportFromWorkspaceCli(1)).toBeNull();
     expect(await mcpImportServers({ workspace_id: 1, servers: [] })).toBeNull();
 
     expect(tauriInvoke).not.toHaveBeenCalled();
@@ -31,6 +33,7 @@ describe("services/mcp", () => {
       mcpServerSetEnabled,
       mcpServerDelete,
       mcpParseJson,
+      mcpImportFromWorkspaceCli,
       mcpImportServers,
     } = await import("../mcp");
 
@@ -68,6 +71,11 @@ describe("services/mcp", () => {
     await mcpParseJson('{"mcpServers":[]}');
     expect(tauriInvoke).toHaveBeenCalledWith("mcp_parse_json", { jsonText: '{"mcpServers":[]}' });
 
+    await mcpImportFromWorkspaceCli(3);
+    expect(tauriInvoke).toHaveBeenCalledWith("mcp_import_from_workspace_cli", {
+      workspaceId: 3,
+    });
+
     await mcpImportServers({
       workspace_id: 1,
       servers: [
@@ -95,5 +103,25 @@ describe("services/mcp", () => {
         }),
       ],
     });
+
+    vi.mocked(tauriInvoke).mockResolvedValueOnce({ inserted: 0, updated: 1, skipped: [] } as any);
+    const report = await mcpImportServers({
+      workspace_id: 2,
+      servers: [
+        {
+          server_key: "fetch",
+          name: "Fetch",
+          transport: "http",
+          command: null,
+          args: [],
+          env: {},
+          cwd: null,
+          url: "http://127.0.0.1:3000",
+          headers: {},
+          enabled: false,
+        },
+      ],
+    });
+    expect(report).toEqual(expect.objectContaining({ inserted: 0, updated: 1 }));
   });
 });

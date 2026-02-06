@@ -124,6 +124,15 @@ fn parse_decimal_to_femto(s: &str) -> Option<i64> {
     Some(femto_i128 as i64)
 }
 
+fn get_femto_from_any(obj: &serde_json::Map<String, Value>, keys: &[&str]) -> Option<i64> {
+    for key in keys {
+        if let Some(v) = get_femto(obj, key) {
+            return Some(v);
+        }
+    }
+    None
+}
+
 fn get_femto(obj: &serde_json::Map<String, Value>, key: &str) -> Option<i64> {
     let value = obj.get(key)?;
     let s = json_number_to_string(value)?;
@@ -163,7 +172,7 @@ fn tiered_cost_with_separate_prices(tokens: i64, base: i64, premium: i64) -> i12
         return 0;
     }
     let base_tokens = tokens.min(CONTEXT_1M_TOKEN_THRESHOLD) as i128;
-    let premium_tokens = tokens.saturating_sub(CONTEXT_1M_TOKEN_THRESHOLD) as i128;
+    let premium_tokens = tokens.saturating_sub(CONTEXT_1M_TOKEN_THRESHOLD).max(0) as i128;
     base_tokens.saturating_mul(base as i128) + premium_tokens.saturating_mul(premium as i128)
 }
 
@@ -177,7 +186,7 @@ fn tiered_cost_with_multiplier(
         return 0;
     }
     let base_tokens = tokens.min(CONTEXT_1M_TOKEN_THRESHOLD) as i128;
-    let premium_tokens = tokens.saturating_sub(CONTEXT_1M_TOKEN_THRESHOLD) as i128;
+    let premium_tokens = tokens.saturating_sub(CONTEXT_1M_TOKEN_THRESHOLD).max(0) as i128;
     let premium_cost = mul_ratio_femto(base, premium_num, premium_den) as i128;
     base_tokens.saturating_mul(base as i128) + premium_tokens.saturating_mul(premium_cost)
 }
@@ -240,8 +249,16 @@ pub fn calculate_cost_usd_femto(
     let parsed: Value = serde_json::from_str(price_json).ok()?;
     let obj = parsed.as_object()?;
 
-    let input_cost = get_femto(obj, "input_cost_per_token").unwrap_or(0);
-    let output_cost = get_femto(obj, "output_cost_per_token").unwrap_or(0);
+    let input_cost = get_femto_from_any(
+        obj,
+        &["input_cost_per_token", "input_cost_per_cached_token"],
+    )
+    .unwrap_or(0);
+    let output_cost = get_femto_from_any(
+        obj,
+        &["output_cost_per_token", "output_cost_per_cached_token"],
+    )
+    .unwrap_or(0);
 
     let input_cost_above_200k = get_femto(obj, "input_cost_per_token_above_200k_tokens");
     let output_cost_above_200k = get_femto(obj, "output_cost_per_token_above_200k_tokens");
@@ -292,7 +309,7 @@ pub fn calculate_cost_usd_femto(
     // count. We bill them at `cache_read_cost`, so subtract them from the input bucket to avoid
     // double-charging. For Claude, cache reads are billed as an additional bucket.
     let billable_input_tokens = if matches!(cli_key, "codex" | "gemini") {
-        input_tokens.saturating_sub(cache_read_input_tokens)
+        input_tokens.saturating_sub(cache_read_input_tokens).max(0)
     } else {
         input_tokens
     };
@@ -388,7 +405,6 @@ pub fn calculate_cost_usd_femto(
             (cache_creation_input_tokens as i128).saturating_mul(cache_creation_5m_cost as i128)
         };
     }
-
     let cost_femto = apply_multiplier_femto(cost_femto, multiplier)?;
     finalize_i64(cost_femto)
 }

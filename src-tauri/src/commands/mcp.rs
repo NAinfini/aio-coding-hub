@@ -107,3 +107,17 @@ pub(crate) async fn mcp_import_servers(
     .await
     .map_err(Into::into)
 }
+
+#[tauri::command]
+pub(crate) async fn mcp_import_from_workspace_cli(
+    app: tauri::AppHandle,
+    db_state: tauri::State<'_, DbInitState>,
+    workspace_id: i64,
+) -> Result<mcp::McpImportReport, String> {
+    let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
+    blocking::run("mcp_import_from_workspace_cli", move || {
+        mcp::import_servers_from_workspace_cli(&app, &db, workspace_id)
+    })
+    .await
+    .map_err(Into::into)
+}

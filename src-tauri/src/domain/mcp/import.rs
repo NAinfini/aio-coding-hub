@@ -7,9 +7,9 @@ use rusqlite::params;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use super::backups::CliBackupSnapshots;
-use super::db::upsert_by_name;
+use super::db::{list_for_workspace, upsert_by_name};
 use super::sync::sync_all_cli;
-use super::types::{McpImportReport, McpImportServer, McpParseResult};
+use super::types::{McpImportReport, McpImportServer, McpImportSkip, McpParseResult};
 use super::validate::suggest_key;
 use crate::shared::text::normalize_name;
 
@@ -77,6 +77,235 @@ fn normalize_transport_from_json(spec: &serde_json::Value) -> Option<String> {
         "sse" => Some("http".to_string()),
         _ => None,
     }
+}
+
+fn infer_transport_from_json_spec(spec: &serde_json::Value) -> String {
+    if let Some(transport) = normalize_transport_from_json(spec) {
+        return transport;
+    }
+
+    if spec.get("url").and_then(|v| v.as_str()).is_some()
+        || spec.get("httpUrl").and_then(|v| v.as_str()).is_some()
+        || spec.get("headers").is_some()
+        || spec.get("http_headers").is_some()
+        || spec.get("httpHeaders").is_some()
+    {
+        return "http".to_string();
+    }
+
+    "stdio".to_string()
+}
+
+fn resolve_enabled_from_json(entry: &serde_json::Value, spec: &serde_json::Value) -> bool {
+    if let Some(enabled) = entry.get("enabled").and_then(|v| v.as_bool()) {
+        return enabled;
+    }
+
+    let legacy_present = entry.get("enabled_claude").is_some()
+        || entry.get("enabled_codex").is_some()
+        || entry.get("enabled_gemini").is_some();
+
+    if legacy_present {
+        return entry
+            .get("enabled_claude")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false)
+            || entry
+                .get("enabled_codex")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+            || entry
+                .get("enabled_gemini")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+    }
+
+    spec.get("enabled")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true)
+}
+
+fn parse_json_server_entry(
+    name_hint: Option<&str>,
+    entry: &serde_json::Value,
+) -> Result<McpImportServer, String> {
+    let spec = entry
+        .get("server")
+        .or_else(|| entry.get("spec"))
+        .unwrap_or(entry);
+
+    let transport = infer_transport_from_json_spec(spec);
+    let command = spec
+        .get("command")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let url = spec
+        .get("url")
+        .or_else(|| spec.get("httpUrl"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let headers = extract_string_map(
+        spec.get("headers")
+            .or_else(|| spec.get("http_headers"))
+            .or_else(|| spec.get("httpHeaders")),
+    );
+
+    let raw_name = name_hint
+        .or_else(|| entry.get("name").and_then(|v| v.as_str()))
+        .or_else(|| spec.get("name").and_then(|v| v.as_str()))
+        .unwrap_or("mcp-server")
+        .trim();
+
+    let name = if raw_name.is_empty() {
+        "mcp-server".to_string()
+    } else {
+        raw_name.to_string()
+    };
+
+    if transport == "stdio" && command.as_deref().unwrap_or("").trim().is_empty() {
+        return Err(format!(
+            "SEC_INVALID_INPUT: import server '{name}' missing command"
+        ));
+    }
+    if transport == "http" && url.as_deref().unwrap_or("").trim().is_empty() {
+        return Err(format!(
+            "SEC_INVALID_INPUT: import server '{name}' missing url"
+        ));
+    }
+
+    Ok(McpImportServer {
+        server_key: suggest_key(&name),
+        name,
+        transport,
+        command,
+        args: extract_string_array(spec.get("args")),
+        env: extract_string_map(spec.get("env")),
+        cwd: spec
+            .get("cwd")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
+        url,
+        headers,
+        enabled: resolve_enabled_from_json(entry, spec),
+    })
+}
+
+fn parse_json_mcp_servers_map(
+    servers_obj: &serde_json::Map<String, serde_json::Value>,
+) -> Result<Vec<McpImportServer>, String> {
+    let mut used_keys = HashSet::new();
+    let mut out = Vec::new();
+
+    for (key, entry) in servers_obj {
+        let mut server = parse_json_server_entry(Some(key), entry)?;
+        let base = suggest_key(&server.name);
+        server.server_key = ensure_unique_key(&base, &mut used_keys);
+        out.push(server);
+    }
+
+    out.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(out)
+}
+
+fn extract_toml_string_array(value: Option<&toml::Value>) -> Vec<String> {
+    let Some(arr) = value.and_then(|v| v.as_array()) else {
+        return Vec::new();
+    };
+
+    arr.iter()
+        .filter_map(|v| v.as_str().map(|s| s.to_string()))
+        .collect()
+}
+
+fn extract_toml_string_map(value: Option<&toml::Value>) -> BTreeMap<String, String> {
+    let mut out = BTreeMap::new();
+    let Some(table) = value.and_then(|v| v.as_table()) else {
+        return out;
+    };
+
+    for (k, v) in table {
+        if let Some(s) = v.as_str() {
+            out.insert(k.to_string(), s.to_string());
+        }
+    }
+
+    out
+}
+
+fn parse_codex_toml_mcp_servers(toml_text: &str) -> Result<Vec<McpImportServer>, String> {
+    let root: toml::Value = toml::from_str(toml_text)
+        .map_err(|e| format!("SEC_INVALID_INPUT: invalid codex toml: {e}"))?;
+    let Some(servers) = root.get("mcp_servers").and_then(|v| v.as_table()) else {
+        return Ok(Vec::new());
+    };
+
+    let mut used_keys = HashSet::new();
+    let mut out = Vec::new();
+
+    for (key, value) in servers {
+        let Some(spec) = value.as_table() else {
+            continue;
+        };
+
+        let transport = spec
+            .get("type")
+            .and_then(|v| v.as_str())
+            .map(|s| s.trim().to_lowercase())
+            .unwrap_or_else(|| {
+                if spec.get("url").and_then(|v| v.as_str()).is_some()
+                    || spec.get("http_headers").is_some()
+                {
+                    "http".to_string()
+                } else {
+                    "stdio".to_string()
+                }
+            });
+
+        let command = spec
+            .get("command")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+        let url = spec
+            .get("url")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
+        if transport == "stdio" && command.as_deref().unwrap_or("").trim().is_empty() {
+            return Err(format!(
+                "SEC_INVALID_INPUT: import codex server '{key}' missing command"
+            ));
+        }
+        if transport == "http" && url.as_deref().unwrap_or("").trim().is_empty() {
+            return Err(format!(
+                "SEC_INVALID_INPUT: import codex server '{key}' missing url"
+            ));
+        }
+
+        let name = key.to_string();
+        let base = suggest_key(&name);
+        let server_key = ensure_unique_key(&base, &mut used_keys);
+
+        out.push(McpImportServer {
+            server_key,
+            name,
+            transport,
+            command,
+            args: extract_toml_string_array(spec.get("args")),
+            env: extract_toml_string_map(spec.get("env")),
+            cwd: spec
+                .get("cwd")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+            url,
+            headers: extract_toml_string_map(
+                spec.get("headers").or_else(|| spec.get("http_headers")),
+            ),
+            enabled: true,
+        });
+    }
+
+    out.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(out)
 }
 
 fn parse_code_switch_r(root: &serde_json::Value) -> Result<Vec<McpImportServer>, String> {
@@ -187,6 +416,8 @@ pub fn parse_json(json_text: &str) -> crate::shared::error::AppResult<McpParseRe
 
     let servers = if is_code_switch_r_shape(&root) {
         parse_code_switch_r(&root)?
+    } else if let Some(servers_obj) = root.get("mcpServers").and_then(|v| v.as_object()) {
+        parse_json_mcp_servers_map(servers_obj)?
     } else if let Some(arr) = root.as_array() {
         // Optional: support simplified array format used by this project.
         let mut out = Vec::new();
@@ -270,8 +501,53 @@ pub fn parse_json(json_text: &str) -> crate::shared::error::AppResult<McpParseRe
     Ok(McpParseResult { servers })
 }
 
-pub fn import_servers(
-    app: &tauri::AppHandle,
+pub fn parse_workspace_cli_target_json<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    db: &db::Db,
+    workspace_id: i64,
+) -> crate::shared::error::AppResult<McpParseResult> {
+    let conn = db.open_connection()?;
+    let cli_key = workspaces::get_cli_key_by_id(&conn, workspace_id)?;
+
+    let bytes = crate::mcp_sync::read_target_bytes(app, &cli_key)
+        .map_err(|e| format!("SYSTEM_ERROR: failed to read {cli_key} target config: {e}"))?;
+
+    let Some(raw) = bytes else {
+        return Err(format!("SEC_INVALID_INPUT: {cli_key} target config not found").into());
+    };
+
+    let text = String::from_utf8(raw)
+        .map_err(|e| format!("SEC_INVALID_INPUT: {cli_key} target config is not utf8: {e}"))?;
+
+    let parsed = if cli_key == "codex" {
+        McpParseResult {
+            servers: parse_codex_toml_mcp_servers(&text)
+                .map_err(crate::shared::error::AppError::from)?,
+        }
+    } else {
+        parse_json(&text)?
+    };
+
+    if parsed.servers.is_empty() {
+        return Err(
+            format!("SEC_INVALID_INPUT: no importable mcp servers in {cli_key} config").into(),
+        );
+    }
+
+    Ok(parsed)
+}
+
+pub fn import_servers_from_workspace_cli<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    db: &db::Db,
+    workspace_id: i64,
+) -> crate::shared::error::AppResult<McpImportReport> {
+    let parsed = parse_workspace_cli_target_json(app, db, workspace_id)?;
+    import_servers(app, db, workspace_id, parsed.servers)
+}
+
+pub fn import_servers<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
     db: &db::Db,
     workspace_id: i64,
     servers: Vec<McpImportServer>,
@@ -292,6 +568,7 @@ pub fn import_servers(
 
     let mut inserted = 0u32;
     let mut updated = 0u32;
+    let mut skipped: Vec<McpImportSkip> = Vec::new();
 
     let mut deduped: Vec<McpImportServer> = Vec::new();
     let mut index_by_name: HashMap<String, usize> = HashMap::new();
@@ -308,7 +585,43 @@ pub fn import_servers(
         deduped.push(server);
     }
 
+    let existing_servers = list_for_workspace(db, workspace_id)?;
+    let mut existing_by_name: HashMap<String, super::types::McpServerSummary> = existing_servers
+        .into_iter()
+        .map(|row| (normalize_name(&row.name), row))
+        .collect();
+
     for server in &deduped {
+        let normalized = normalize_name(&server.name);
+        if let Some(existing) = existing_by_name.get(&normalized) {
+            if server.enabled && !existing.enabled {
+                tx.execute(
+                    r#"
+INSERT INTO workspace_mcp_enabled(workspace_id, server_id, created_at, updated_at)
+VALUES (?1, ?2, ?3, ?3)
+ON CONFLICT(workspace_id, server_id) DO UPDATE SET
+  updated_at = excluded.updated_at
+"#,
+                    params![workspace_id, existing.id, now],
+                )
+                .map_err(|e| {
+                    format!("DB_ERROR: failed to merge enabled imported mcp server: {e}")
+                })?;
+                updated += 1;
+
+                let mut merged = existing.clone();
+                merged.enabled = true;
+                existing_by_name.insert(normalized, merged);
+            } else {
+                skipped.push(McpImportSkip {
+                    name: server.name.clone(),
+                    reason: "already exists; kept existing config (cc-switch merge strategy)"
+                        .to_string(),
+                });
+            }
+            continue;
+        }
+
         let (is_insert, id) = upsert_by_name(&tx, server, now)?;
         if is_insert {
             inserted += 1;
@@ -327,13 +640,26 @@ ON CONFLICT(workspace_id, server_id) DO UPDATE SET
                 params![workspace_id, id, now],
             )
             .map_err(|e| format!("DB_ERROR: failed to enable imported mcp server: {e}"))?;
-        } else {
-            tx.execute(
-                "DELETE FROM workspace_mcp_enabled WHERE workspace_id = ?1 AND server_id = ?2",
-                params![workspace_id, id],
-            )
-            .map_err(|e| format!("DB_ERROR: failed to disable imported mcp server: {e}"))?;
         }
+
+        existing_by_name.insert(
+            normalized,
+            super::types::McpServerSummary {
+                id,
+                server_key: server.server_key.clone(),
+                name: server.name.clone(),
+                transport: server.transport.clone(),
+                command: server.command.clone(),
+                args: server.args.clone(),
+                env: server.env.clone(),
+                cwd: server.cwd.clone(),
+                url: server.url.clone(),
+                headers: server.headers.clone(),
+                enabled: server.enabled,
+                created_at: now,
+                updated_at: now,
+            },
+        );
     }
 
     if let Err(err) = sync_all_cli(app, &tx) {
@@ -346,5 +672,9 @@ ON CONFLICT(workspace_id, server_id) DO UPDATE SET
         return Err(format!("DB_ERROR: failed to commit: {err}").into());
     }
 
-    Ok(McpImportReport { inserted, updated })
+    Ok(McpImportReport {
+        inserted,
+        updated,
+        skipped,
+    })
 }

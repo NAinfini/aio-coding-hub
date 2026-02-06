@@ -3,6 +3,10 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  mcpImportFromWorkspaceCli,
+  mcpImportServers,
+  type McpImportServer,
+  type McpImportReport,
   mcpServerDelete,
   mcpServerSetEnabled,
   mcpServerUpsert,
@@ -99,3 +103,30 @@ export function useMcpServerDeleteMutation(workspaceId: number) {
     },
   });
 }
+
+export function useMcpImportServersMutation(workspaceId: number) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (servers: McpImportServer[]) =>
+      mcpImportServers({ workspace_id: workspaceId, servers }),
+    onSuccess: (report) => {
+      if (!report) return;
+      queryClient.invalidateQueries({ queryKey: mcpKeys.serversList(workspaceId) });
+    },
+  });
+}
+
+export function useMcpImportFromWorkspaceCliMutation(workspaceId: number) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => mcpImportFromWorkspaceCli(workspaceId),
+    onSuccess: (report) => {
+      if (!report) return;
+      queryClient.invalidateQueries({ queryKey: mcpKeys.serversList(workspaceId) });
+    },
+  });
+}
+
+export type { McpImportReport, McpImportServer };

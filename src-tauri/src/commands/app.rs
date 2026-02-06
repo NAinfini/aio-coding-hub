@@ -2,6 +2,15 @@
 
 use tauri::utils::config::BundleType;
 
+fn sanitize_text(input: Option<String>, max_len: usize) -> Option<String> {
+    let value = input?;
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    Some(trimmed.chars().take(max_len).collect())
+}
+
 #[derive(Debug, Clone, serde::Serialize)]
 pub(crate) struct AppAboutInfo {
     os: String,
@@ -53,5 +62,35 @@ pub(crate) fn app_restart(app: tauri::AppHandle) -> Result<bool, String> {
         tauri::async_runtime::block_on(crate::app::cleanup::cleanup_before_exit(&app));
         app.request_restart();
     });
+    Ok(true)
+}
+
+#[tauri::command]
+pub(crate) fn app_frontend_error_report(
+    source: String,
+    message: String,
+    stack: Option<String>,
+    details_json: Option<String>,
+    href: Option<String>,
+    user_agent: Option<String>,
+) -> Result<bool, String> {
+    let source = sanitize_text(Some(source), 128).unwrap_or_else(|| "unknown".to_string());
+    let message = sanitize_text(Some(message), 4096).unwrap_or_else(|| "unknown".to_string());
+    let stack = sanitize_text(stack, 16_384);
+    let details_json = sanitize_text(details_json, 16_384);
+    let href = sanitize_text(href, 2_048);
+    let user_agent = sanitize_text(user_agent, 1_024);
+
+    tracing::error!(
+        target: "frontend",
+        source = %source,
+        href = %href.as_deref().unwrap_or_default(),
+        user_agent = %user_agent.as_deref().unwrap_or_default(),
+        stack = %stack.as_deref().unwrap_or_default(),
+        details_json = %details_json.as_deref().unwrap_or_default(),
+        "frontend runtime error: {}",
+        message
+    );
+
     Ok(true)
 }

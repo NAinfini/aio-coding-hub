@@ -164,6 +164,71 @@ fn write_manifest<R: tauri::Runtime>(
     Ok(())
 }
 
+pub fn backup_file_path_for_enabled_manifest<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    cli_key: &str,
+    kind: &str,
+    backup_name: &str,
+) -> crate::shared::error::AppResult<Option<PathBuf>> {
+    validate_cli_key(cli_key)?;
+
+    let Some(mut manifest) = read_manifest(app, cli_key)? else {
+        return Ok(None);
+    };
+    if !manifest.enabled {
+        return Ok(None);
+    }
+
+    let target = target_files(app, cli_key)?
+        .into_iter()
+        .find(|t| t.kind == kind)
+        .ok_or_else(|| {
+            format!("SEC_INVALID_INPUT: unknown cli backup kind={kind} for cli_key={cli_key}")
+        })?;
+
+    let root = cli_proxy_root_dir(app, cli_key)?;
+    let files_dir = cli_proxy_files_dir(&root);
+    std::fs::create_dir_all(&files_dir)
+        .map_err(|e| format!("failed to create {}: {e}", files_dir.display()))?;
+
+    let mut changed = false;
+    let target_path = target.path.to_string_lossy().to_string();
+
+    let backup_rel = if let Some(entry) = manifest.files.iter_mut().find(|entry| entry.kind == kind)
+    {
+        if entry.path != target_path {
+            entry.path = target_path.clone();
+            changed = true;
+        }
+        if !entry.existed {
+            entry.existed = true;
+            changed = true;
+        }
+        if entry.backup_rel.is_none() {
+            entry.backup_rel = Some(backup_name.to_string());
+            changed = true;
+        }
+        entry.backup_rel.clone()
+    } else {
+        let backup_rel = Some(backup_name.to_string());
+        manifest.files.push(BackupFileEntry {
+            kind: kind.to_string(),
+            path: target_path,
+            existed: true,
+            backup_rel: backup_rel.clone(),
+        });
+        changed = true;
+        backup_rel
+    };
+
+    if changed {
+        manifest.updated_at = now_unix_seconds();
+        write_manifest(app, cli_key, &manifest)?;
+    }
+
+    Ok(backup_rel.map(|rel| files_dir.join(rel)))
+}
+
 fn target_files<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     cli_key: &str,

@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.20.0](https://github.com/dyndynjyxa/aio-coding-hub/compare/aio-coding-hub-v0.19.0...aio-coding-hub-v0.20.0) (2026-02-06)
+
+
+### Features
+
+* **core:** improve workspace imports and startup resilience ([1d7dbf0](https://github.com/dyndynjyxa/aio-coding-hub/commit/1d7dbf0b73cde2b78a70be945c6fd8e248b30c1d))
+* **mcp:** implement batch import for local skills and add global error reporting ([51e053c](https://github.com/dyndynjyxa/aio-coding-hub/commit/51e053c81f1db00696f0cb968860033deee12cce))
+
+
+### Bug Fixes
+
+* **ClaudeModelValidationDialog:** adjust dialog max-width for responsive design ([11bdfd0](https://github.com/dyndynjyxa/aio-coding-hub/commit/11bdfd0df1b51923a561211f6cc6d5383eedf76c))
+
 ## [0.19.0](https://github.com/dyndynjyxa/aio-coding-hub/compare/aio-coding-hub-v0.18.0...aio-coding-hub-v0.19.0) (2026-02-04)
 
 

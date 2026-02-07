@@ -17,7 +17,9 @@ import {
   formatInteger,
   formatRelativeTimeFromUnixSeconds,
   formatTokensPerSecond,
+  formatTokensPerSecondShort,
   formatUsd,
+  formatUsdCompact,
   sanitizeTtfbMs,
 } from "../../utils/formatters";
 import {
@@ -313,7 +315,7 @@ export function HomeRequestLogsPanel({
                       <div className="flex items-start gap-3 text-[11px]">
                         {/* Provider - left side (2 rows: name + multiplier) */}
                         <div
-                          className="flex flex-col gap-y-0.5 w-[85px] shrink-0"
+                          className="flex flex-col gap-y-0.5 w-[110px] shrink-0"
                           title={providerTitle}
                         >
                           <div className="flex items-center gap-1 h-4">
@@ -355,13 +357,13 @@ export function HomeRequestLogsPanel({
                         </div>
 
                         {/* Stats Grid: 2 rows x 4 cols */}
-                        <div className="grid grid-cols-4 gap-x-4 gap-y-0.5 flex-1 text-slate-500 dark:text-slate-400">
+                        <div className="grid grid-cols-4 gap-x-3 gap-y-0.5 flex-1 text-slate-500 dark:text-slate-400">
                           {/* Row 1: 输入 | 缓存创建 | 首字 | 花费 */}
                           <div className="flex items-center gap-1 h-4" title="Input Tokens">
                             <span className="text-slate-400 dark:text-slate-500 shrink-0">
                               输入
                             </span>
-                            <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300">
+                            <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300 truncate">
                               {formatInteger(effectiveInputTokens)}
                             </span>
                           </div>
@@ -371,7 +373,7 @@ export function HomeRequestLogsPanel({
                             </span>
                             {cacheWrite.tokens ? (
                               <>
-                                <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300">
+                                <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300 truncate">
                                   {formatInteger(cacheWrite.tokens)}
                                 </span>
                                 {cacheWrite.ttl && (
@@ -388,16 +390,19 @@ export function HomeRequestLogsPanel({
                             <span className="text-slate-400 dark:text-slate-500 shrink-0">
                               首字
                             </span>
-                            <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300">
+                            <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300 truncate">
                               {ttfbMs != null ? formatDurationMs(ttfbMs) : "—"}
                             </span>
                           </div>
-                          <div className="flex items-center gap-1 h-4" title="Cost">
+                          <div
+                            className="flex items-center gap-1 h-4"
+                            title={log.cost_usd != null ? formatUsd(log.cost_usd) : undefined}
+                          >
                             <span className="text-slate-400 dark:text-slate-500 shrink-0">
                               花费
                             </span>
-                            <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300">
-                              {formatUsd(log.cost_usd)}
+                            <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300 truncate">
+                              {formatUsdCompact(log.cost_usd)}
                             </span>
                           </div>
 
@@ -406,7 +411,7 @@ export function HomeRequestLogsPanel({
                             <span className="text-slate-400 dark:text-slate-500 shrink-0">
                               输出
                             </span>
-                            <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300">
+                            <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300 truncate">
                               {formatInteger(log.output_tokens)}
                             </span>
                           </div>
@@ -415,7 +420,7 @@ export function HomeRequestLogsPanel({
                               缓存读取
                             </span>
                             {log.cache_read_input_tokens ? (
-                              <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300">
+                              <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300 truncate">
                                 {formatInteger(log.cache_read_input_tokens)}
                               </span>
                             ) : (
@@ -426,17 +431,24 @@ export function HomeRequestLogsPanel({
                             <span className="text-slate-400 dark:text-slate-500 shrink-0">
                               耗时
                             </span>
-                            <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300">
+                            <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300 truncate">
                               {formatDurationMs(log.duration_ms)}
                             </span>
                           </div>
-                          <div className="flex items-center gap-1 h-4" title="Tokens/s">
+                          <div
+                            className="flex items-center gap-1 h-4"
+                            title={
+                              outputTokensPerSecond
+                                ? formatTokensPerSecond(outputTokensPerSecond)
+                                : undefined
+                            }
+                          >
                             <span className="text-slate-400 dark:text-slate-500 shrink-0">
                               速率
                             </span>
                             {outputTokensPerSecond ? (
-                              <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300">
-                                {formatTokensPerSecond(outputTokensPerSecond)}
+                              <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300 truncate">
+                                {formatTokensPerSecondShort(outputTokensPerSecond)}
                               </span>
                             ) : (
                               <span className="text-slate-300 dark:text-slate-600">—</span>

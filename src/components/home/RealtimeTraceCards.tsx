@@ -11,6 +11,7 @@ import {
   formatDurationMs,
   formatInteger,
   formatTokensPerSecond,
+  formatTokensPerSecondShort,
   sanitizeTtfbMs,
 } from "../../utils/formatters";
 import { Clock, Server, Loader2, Cpu, Terminal, CheckCircle2, XCircle } from "lucide-react";
@@ -311,7 +312,7 @@ export function RealtimeTraceCards({
                 {/* Row 2: Provider + Stats Grid (2 rows x 4 cols for alignment) */}
                 <div className="flex items-start gap-3 text-[11px]">
                   {/* Provider - left side (2 rows: name + placeholder) */}
-                  <div className="flex flex-col gap-y-0.5 w-[85px] shrink-0" title={routeSummary}>
+                  <div className="flex flex-col gap-y-0.5 w-[110px] shrink-0" title={routeSummary}>
                     <div className="flex items-center gap-1 h-4">
                       <Server className="h-3 w-3 text-slate-400 dark:text-slate-500 shrink-0" />
                       <span className="truncate font-medium text-slate-600 dark:text-slate-400">
@@ -345,11 +346,11 @@ export function RealtimeTraceCards({
                   </div>
 
                   {/* Stats Grid: 2 rows x 4 cols */}
-                  <div className="grid grid-cols-4 gap-x-4 gap-y-0.5 flex-1 text-slate-500 dark:text-slate-400">
+                  <div className="grid grid-cols-4 gap-x-3 gap-y-0.5 flex-1 text-slate-500 dark:text-slate-400">
                     {/* Row 1: 输入 | 缓存创建 | 首字 | 花费 */}
                     <div className="flex items-center gap-1 h-4" title="Input Tokens">
                       <span className="text-slate-400 dark:text-slate-500 shrink-0">输入</span>
-                      <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300">
+                      <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300 truncate">
                         {formatInteger(effectiveInputTokens)}
                       </span>
                     </div>
@@ -357,7 +358,7 @@ export function RealtimeTraceCards({
                       <span className="text-slate-400 dark:text-slate-500 shrink-0">缓存创建</span>
                       {cacheWrite.tokens ? (
                         <>
-                          <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300">
+                          <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300 truncate">
                             {formatInteger(cacheWrite.tokens)}
                           </span>
                           {cacheWrite.ttl && (
@@ -372,26 +373,26 @@ export function RealtimeTraceCards({
                     </div>
                     <div className="flex items-center gap-1 h-4" title="TTFB">
                       <span className="text-slate-400 dark:text-slate-500 shrink-0">首字</span>
-                      <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300">
+                      <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300 truncate">
                         {ttfbMs != null ? formatDurationMs(ttfbMs) : "—"}
                       </span>
                     </div>
                     <div className="flex items-center gap-1 h-4" title="Cost">
                       <span className="text-slate-400 dark:text-slate-500 shrink-0">花费</span>
-                      <span className="text-slate-300 dark:text-slate-600">—</span>
+                      <span className="text-slate-300 dark:text-slate-600 truncate">—</span>
                     </div>
 
                     {/* Row 2: 输出 | 缓存读取 | 耗时 | 速率 */}
                     <div className="flex items-center gap-1 h-4" title="Output Tokens">
                       <span className="text-slate-400 dark:text-slate-500 shrink-0">输出</span>
-                      <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300">
+                      <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300 truncate">
                         {formatInteger(trace.summary?.output_tokens ?? null)}
                       </span>
                     </div>
                     <div className="flex items-center gap-1 h-4" title="Cache Read">
                       <span className="text-slate-400 dark:text-slate-500 shrink-0">缓存读取</span>
                       {trace.summary?.cache_read_input_tokens ? (
-                        <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300">
+                        <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300 truncate">
                           {formatInteger(trace.summary.cache_read_input_tokens)}
                         </span>
                       ) : (
@@ -402,7 +403,7 @@ export function RealtimeTraceCards({
                       <span className="text-slate-400 dark:text-slate-500 shrink-0">耗时</span>
                       <span
                         className={cn(
-                          "font-mono tabular-nums",
+                          "font-mono tabular-nums truncate",
                           isInProgress
                             ? "text-indigo-600 dark:text-indigo-400 font-medium"
                             : "text-slate-600 dark:text-slate-300"
@@ -411,11 +412,18 @@ export function RealtimeTraceCards({
                         {formatDurationMs(runningMs)}
                       </span>
                     </div>
-                    <div className="flex items-center gap-1 h-4" title="Tokens/s">
+                    <div
+                      className="flex items-center gap-1 h-4"
+                      title={
+                        outputTokensPerSecond
+                          ? formatTokensPerSecond(outputTokensPerSecond)
+                          : undefined
+                      }
+                    >
                       <span className="text-slate-400 dark:text-slate-500 shrink-0">速率</span>
                       {outputTokensPerSecond ? (
-                        <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300">
-                          {formatTokensPerSecond(outputTokensPerSecond)}
+                        <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300 truncate">
+                          {formatTokensPerSecondShort(outputTokensPerSecond)}
                         </span>
                       ) : (
                         <span className="text-slate-300 dark:text-slate-600">—</span>

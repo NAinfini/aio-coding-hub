@@ -165,6 +165,23 @@ export function formatBytes(bytes: number | null | undefined) {
   return `${gb.toFixed(2)} GB`;
 }
 
+export function formatTokensPerSecondShort(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  const v = Math.max(0, value);
+  if (v >= 1000) {
+    return `${(v / 1000).toFixed(1)}k t/s`;
+  }
+  return `${v.toFixed(1)} t/s`;
+}
+
+export function formatUsdCompact(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  const v = Math.max(0, value);
+  if (v === 0) return "$0";
+  if (v < 0.01) return `$${v.toFixed(4)}`;
+  return `$${v.toFixed(2)}`;
+}
+
 export function formatIsoDateTime(value: string | null | undefined) {
   if (!value) return "—";
   try {

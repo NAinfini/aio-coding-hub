@@ -112,7 +112,7 @@ describe("components/home/RealtimeTraceCards", () => {
     expect(screen.getByText("流中断")).toBeInTheDocument();
     expect(screen.getAllByText("会话复用").length).toBeGreaterThan(0);
     expect(screen.getByTitle("P1 → P2")).toBeInTheDocument();
-    expect(screen.getAllByText(/Token\/秒/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/t\/s/).length).toBeGreaterThan(0);
 
     vi.useRealTimers();
   });

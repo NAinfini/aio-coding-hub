@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.22.0](https://github.com/dyndynjyxa/aio-coding-hub/compare/aio-coding-hub-v0.21.0...aio-coding-hub-v0.22.0) (2026-02-07)
+
+
+### Features
+
+* **cli-manager:** add experimental agent teams setting and update related tests ([6e1dd0c](https://github.com/dyndynjyxa/aio-coding-hub/commit/6e1dd0c82a19f7fa40728fa7fa6d7f23605dfab0))
+* **components:** enhance HomeRequestLogsPanel and RealtimeTraceCards with new formatting utilities ([e6a3550](https://github.com/dyndynjyxa/aio-coding-hub/commit/e6a3550636e4278100a24d009e49ade1056733bc))
+* **home:** enhance status handling with failover support ([5aab8a9](https://github.com/dyndynjyxa/aio-coding-hub/commit/5aab8a92c4440062d18a3ecf495375d11a461660))
+* **theme:** add dark mode and native window theme sync ([588a373](https://github.com/dyndynjyxa/aio-coding-hub/commit/588a37311c456bd2182ac1676c8e9b309157353f))
+
+
+### Bug Fixes
+
+* **tests:** update RealtimeTraceCards test to reflect token display format change ([f43633e](https://github.com/dyndynjyxa/aio-coding-hub/commit/f43633e5381f44447bbf8aa64c1065d222687c59))
+
 ## [0.21.0](https://github.com/dyndynjyxa/aio-coding-hub/compare/aio-coding-hub-v0.20.0...aio-coding-hub-v0.21.0) (2026-02-06)
 
 

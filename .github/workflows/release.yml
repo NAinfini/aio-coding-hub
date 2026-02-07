@@ -53,6 +53,11 @@ jobs:
             bundles: "app"
             updater_platform: darwin-aarch64
             stable_label: macos-arm
+          - platform: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            bundles: "deb,appimage"
+            updater_platform: linux-x86_64
+            stable_label: linux-amd64
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -80,6 +85,12 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - name: Install deps
         run: pnpm install --frozen-lockfile
@@ -198,6 +209,23 @@ jobs:
             process.exit(0);
           }
 
+          if (updaterPlatform.startsWith('linux-')) {
+            const appimage = pick(
+              (p) => p.toLowerCase().endsWith('.appimage') && !p.toLowerCase().endsWith('.appimage.sig'),
+              '*.AppImage',
+            );
+            const appimageSig = pick((p) => p.toLowerCase().endsWith('.appimage.sig'), '*.AppImage.sig');
+            copy(appimage, `aio-coding-hub-${stableLabel}.AppImage`);
+            copy(appimageSig, `aio-coding-hub-${stableLabel}.AppImage.sig`);
+
+            // Also copy .deb if available
+            const deb = artifactPaths.find((p) => typeof p === 'string' && p.toLowerCase().endsWith('.deb'));
+            if (deb) {
+              copy(deb, `aio-coding-hub-${stableLabel}.deb`);
+            }
+            process.exit(0);
+          }
+
           if (!updaterPlatform.startsWith('darwin-')) {
             console.error(`Unsupported UPDATER_PLATFORM: ${updaterPlatform}`);
             process.exit(1);
@@ -311,8 +339,10 @@ jobs:
           mac_intel_sig_file="stable-assets/aio-coding-hub-macos-intel.tar.gz.sig"
           mac_arm_asset="aio-coding-hub-macos-arm.tar.gz"
           mac_arm_sig_file="stable-assets/aio-coding-hub-macos-arm.tar.gz.sig"
+          linux_asset="aio-coding-hub-linux-amd64.AppImage"
+          linux_sig_file="stable-assets/aio-coding-hub-linux-amd64.AppImage.sig"
 
-          for f in "$win_sig_file" "$mac_intel_sig_file" "$mac_arm_sig_file"; do
+          for f in "$win_sig_file" "$mac_intel_sig_file" "$mac_arm_sig_file" "$linux_sig_file"; do
             if [[ ! -f "$f" ]]; then
               echo "Missing signature file: $f"
               ls -la stable-assets || true
@@ -323,10 +353,12 @@ jobs:
           win_sig="$(tr -d '\n' < "$win_sig_file")"
           mac_intel_sig="$(tr -d '\n' < "$mac_intel_sig_file")"
           mac_arm_sig="$(tr -d '\n' < "$mac_arm_sig_file")"
+          linux_sig="$(tr -d '\n' < "$linux_sig_file")"
 
           win_url="https://github.com/${repo}/releases/download/${tag}/${win_asset}"
           mac_intel_url="https://github.com/${repo}/releases/download/${tag}/${mac_intel_asset}"
           mac_arm_url="https://github.com/${repo}/releases/download/${tag}/${mac_arm_asset}"
+          linux_url="https://github.com/${repo}/releases/download/${tag}/${linux_asset}"
 
           cat > latest.json <<EOF
           {
@@ -345,6 +377,10 @@ jobs:
               "darwin-aarch64": {
                 "signature": "${mac_arm_sig}",
                 "url": "${mac_arm_url}"
+              },
+              "linux-x86_64": {
+                "signature": "${linux_sig}",
+                "url": "${linux_url}"
               }
             }
           }

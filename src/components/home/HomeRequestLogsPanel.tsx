@@ -25,6 +25,7 @@ import {
   computeStatusBadge,
   getErrorCodeLabel,
   SessionReuseBadge,
+  FailoverBadge,
 } from "./HomeLogShared";
 import {
   Clock,
@@ -150,6 +151,7 @@ export function HomeRequestLogsPanel({
               const statusBadge = computeStatusBadge({
                 status: log.status,
                 errorCode: log.error_code,
+                hasFailover: log.has_failover,
               });
 
               const providerText =
@@ -286,17 +288,22 @@ export function HomeRequestLogsPanel({
                           {modelText}
                         </span>
 
-                        {log.session_reuse && (
-                          <SessionReuseBadge showCustomTooltip={showCustomTooltip} />
-                        )}
-
                         {log.error_code && (
                           <span className="rounded bg-amber-50 dark:bg-amber-900/30 px-1 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400 shrink-0">
                             {getErrorCodeLabel(log.error_code)}
                           </span>
                         )}
 
-                        <span className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 ml-auto shrink-0">
+                        <span className="flex items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500 ml-auto shrink-0">
+                          {log.has_failover && log.attempt_count > 1 && !statusBadge.isError && (
+                            <FailoverBadge
+                              attemptCount={log.attempt_count}
+                              showCustomTooltip={showCustomTooltip}
+                            />
+                          )}
+                          {log.session_reuse && (
+                            <SessionReuseBadge showCustomTooltip={showCustomTooltip} />
+                          )}
                           <Clock className="h-3 w-3" />
                           {formatUnixSeconds(log.created_at)}
                         </span>

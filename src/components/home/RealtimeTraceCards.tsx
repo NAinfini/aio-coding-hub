@@ -91,14 +91,6 @@ export function RealtimeTraceCards({
         const summaryStatus = trace.summary?.status ?? null;
         const summaryErrorCode = trace.summary?.error_code ?? null;
         const isInProgress = !trace.summary;
-        const statusBadge = computeStatusBadge({
-          status: summaryStatus,
-          errorCode: summaryErrorCode,
-          inProgress: isInProgress,
-        });
-        const hasSessionReuse = (trace.attempts ?? []).some(
-          (attempt) => attempt.session_reuse === true
-        );
 
         const attemptRoute = (() => {
           const sortedAttempts = (trace.attempts ?? [])
@@ -159,6 +151,20 @@ export function RealtimeTraceCards({
 
           return { providerText, startProvider, endProvider, routeLabel, segments: segs };
         })();
+
+        const hasFailover =
+          attemptRoute.segments.length > 1 ||
+          attemptRoute.segments.some((s) => s.status === "failed");
+
+        const statusBadge = computeStatusBadge({
+          status: summaryStatus,
+          errorCode: summaryErrorCode,
+          inProgress: isInProgress,
+          hasFailover,
+        });
+        const hasSessionReuse = (trace.attempts ?? []).some(
+          (attempt) => attempt.session_reuse === true
+        );
 
         const providerText = attemptRoute.providerText;
 
@@ -230,14 +236,20 @@ export function RealtimeTraceCards({
                 "relative rounded-lg border",
                 isInProgress
                   ? "bg-gradient-to-r from-indigo-50/60 to-white dark:from-indigo-900/30 dark:to-slate-800 border-indigo-200/80 dark:border-indigo-700/60 animate-[glow-pulse_2.5s_ease-in-out_infinite] glow-pulse-active"
-                  : "bg-gradient-to-r from-emerald-50/60 to-white dark:from-emerald-900/30 dark:to-slate-800 border-emerald-200 dark:border-emerald-700 shadow-sm"
+                  : hasFailover && !statusBadge.isError
+                    ? "bg-gradient-to-r from-amber-50/60 to-white dark:from-amber-900/30 dark:to-slate-800 border-amber-200 dark:border-amber-700 shadow-sm"
+                    : "bg-gradient-to-r from-emerald-50/60 to-white dark:from-emerald-900/30 dark:to-slate-800 border-emerald-200 dark:border-emerald-700 shadow-sm"
               )}
             >
               {/* Left accent bar */}
               <div
                 className={cn(
                   "absolute left-0 top-2 bottom-2 w-1 rounded-r-full",
-                  isInProgress ? "bg-indigo-500" : "bg-emerald-500"
+                  isInProgress
+                    ? "bg-indigo-500"
+                    : hasFailover && !statusBadge.isError
+                      ? "bg-amber-400"
+                      : "bg-emerald-500"
                 )}
               />
 
@@ -306,7 +318,30 @@ export function RealtimeTraceCards({
                         {providerText}
                       </span>
                     </div>
-                    <div className="h-4" />
+                    <div className="flex items-center h-4">
+                      {attemptRoute.routeLabel && !isInProgress ? (
+                        <span className="inline-flex items-center gap-0.5 text-[10px] truncate">
+                          {attemptRoute.segments.map((seg, idx) => (
+                            <span key={idx} className="inline-flex items-center gap-0.5">
+                              {idx > 0 && (
+                                <span className="text-slate-300 dark:text-slate-600">→</span>
+                              )}
+                              <span
+                                className={
+                                  seg.status === "success"
+                                    ? "text-emerald-600 dark:text-emerald-400"
+                                    : seg.status === "started"
+                                      ? "text-indigo-500 dark:text-indigo-400"
+                                      : "text-rose-500 dark:text-rose-400"
+                                }
+                              >
+                                {seg.provider}
+                              </span>
+                            </span>
+                          ))}
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
 
                   {/* Stats Grid: 2 rows x 4 cols */}

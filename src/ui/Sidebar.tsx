@@ -221,18 +221,17 @@ export function Sidebar({ isOpen = true, onNavClick, className }: SidebarProps) 
           </div>
         </div>
 
-        <div className="border-t border-slate-200 px-4 py-4 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
-          <div className="grid grid-cols-[1fr_auto] items-center gap-3">
-            <span>网关</span>
-            <div className="flex w-24 justify-center">
-              <span className={cn("rounded-full px-2 py-1 font-medium", statusTone)}>
+        <div className="border-t border-slate-200 px-4 py-3 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
+          <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-2 dark:bg-slate-800">
+            <div className="flex flex-1 items-center justify-between">
+              <span>网关</span>
+              <span className={cn("rounded-full px-2 py-0.5 font-medium", statusTone)}>
                 {statusText}
               </span>
             </div>
-          </div>
-          <div className="mt-2 grid grid-cols-[1fr_auto] items-center gap-3">
-            <span>端口</span>
-            <div className="flex w-24 justify-center">
+            <div className="mx-1.5 h-4 w-px bg-slate-200 dark:bg-slate-700" />
+            <div className="flex items-center gap-1.5">
+              <span>端口</span>
               <span className="font-mono text-slate-700 dark:text-slate-300">{portText}</span>
             </div>
           </div>

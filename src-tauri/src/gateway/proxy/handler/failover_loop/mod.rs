@@ -163,6 +163,27 @@ pub(super) async fn run(mut input: RequestContext) -> Response {
             skipped_open: &mut skipped_open,
             skipped_cooldown: &mut skipped_cooldown,
         }) else {
+            // Record skipped provider (circuit breaker gate)
+            attempts.push(FailoverAttempt {
+                provider_id,
+                provider_name: provider_name_base.clone(),
+                base_url: provider_base_url_display.clone(),
+                outcome: "skipped".to_string(),
+                status: None,
+                provider_index: None,
+                retry_index: None,
+                session_reuse: None,
+                error_category: Some("circuit_breaker"),
+                error_code: Some("GW_PROVIDER_CIRCUIT_OPEN"),
+                decision: Some("skip"),
+                reason: Some("provider skipped by circuit breaker".to_string()),
+                attempt_started_ms: Some(started.elapsed().as_millis()),
+                attempt_duration_ms: Some(0),
+                circuit_state_before: None,
+                circuit_state_after: None,
+                circuit_failure_count: None,
+                circuit_failure_threshold: None,
+            });
             continue;
         };
 
@@ -172,6 +193,27 @@ pub(super) async fn run(mut input: RequestContext) -> Response {
             earliest_available_unix: &mut earliest_available_unix,
             skipped_limits: &mut skipped_limits,
         }) {
+            // Record skipped provider (rate limit gate)
+            attempts.push(FailoverAttempt {
+                provider_id,
+                provider_name: provider_name_base.clone(),
+                base_url: provider_base_url_display.clone(),
+                outcome: "skipped".to_string(),
+                status: None,
+                provider_index: None,
+                retry_index: None,
+                session_reuse: None,
+                error_category: Some("rate_limit"),
+                error_code: Some("GW_PROVIDER_RATE_LIMITED"),
+                decision: Some("skip"),
+                reason: Some("provider skipped by rate limit".to_string()),
+                attempt_started_ms: Some(started.elapsed().as_millis()),
+                attempt_duration_ms: Some(0),
+                circuit_state_before: None,
+                circuit_state_after: None,
+                circuit_failure_count: None,
+                circuit_failure_threshold: None,
+            });
             continue;
         }
 

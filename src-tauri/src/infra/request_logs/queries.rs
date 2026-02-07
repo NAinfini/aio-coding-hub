@@ -164,7 +164,7 @@ fn row_to_summary(row: &rusqlite::Row<'_>) -> Result<RequestLogSummary, rusqlite
     let attempts_json: String = row.get("attempts_json")?;
     let attempts = parse_attempts(&attempts_json);
     let attempt_count = attempts.len() as i64;
-    let has_failover = attempt_count > 1;
+    let has_failover = attempt_count > 1 || attempts.iter().any(|a| a.outcome == "skipped");
     let (start_provider_id, start_provider_name) = start_provider_from_attempts(&attempts);
     let (final_provider_id, final_provider_name) = final_provider_from_attempts(&attempts);
     let route = route_from_attempts(&attempts);

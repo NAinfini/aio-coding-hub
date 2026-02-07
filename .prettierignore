@@ -1,7 +1,16 @@
 dist
 node_modules
 src-tauri/target
+src-tauri/target-check
+src-tauri/target-zcf
 src-tauri/gen
+src-tauri/patches
+src-tauri/Cargo.lock
 .local
 .tmp
+.zcf
+.trellis
+.github
+coverage
 pnpm-lock.yaml
+*.md

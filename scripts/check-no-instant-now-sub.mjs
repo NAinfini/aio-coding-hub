@@ -67,4 +67,3 @@ for (const v of violations) {
 }
 
 process.exit(1);
-

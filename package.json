@@ -7,8 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "typecheck": "tsc -p tsconfig.json",
-    "format": "prettier --write src",
-    "format:check": "prettier --check src",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "test:unit": "vitest run",
     "test:unit:coverage": "vitest run --coverage",
     "test:unit:watch": "vitest watch",
@@ -27,7 +27,8 @@
     "tauri:build": "node scripts/tauri-build.mjs",
     "tauri:build:mac:arm64": "node scripts/tauri-build.mjs --target aarch64-apple-darwin",
     "tauri:build:mac:x64": "node scripts/tauri-build.mjs --target x86_64-apple-darwin",
-    "tauri:build:mac:universal": "node scripts/tauri-build.mjs --target universal-apple-darwin"
+    "tauri:build:mac:universal": "node scripts/tauri-build.mjs --target universal-apple-darwin",
+    "tauri:gen-types": "cd src-tauri && cargo test export_bindings -- --ignored"
   },
   "dependencies": {
     "@codemirror/language": "^6.12.1",

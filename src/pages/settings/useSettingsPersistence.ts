@@ -396,20 +396,20 @@ export function useSettingsPersistence(options: {
 
     try {
       const nextSettings = await settingsSetMutation.mutateAsync({
-        preferred_port: desired.preferred_port,
-        auto_start: desired.auto_start,
-        tray_enabled: desired.tray_enabled,
-        log_retention_days: desired.log_retention_days,
-        provider_cooldown_seconds: desired.provider_cooldown_seconds,
-        provider_base_url_ping_cache_ttl_seconds: desired.provider_base_url_ping_cache_ttl_seconds,
-        upstream_first_byte_timeout_seconds: desired.upstream_first_byte_timeout_seconds,
-        upstream_stream_idle_timeout_seconds: desired.upstream_stream_idle_timeout_seconds,
-        upstream_request_timeout_non_streaming_seconds:
+        preferredPort: desired.preferred_port,
+        autoStart: desired.auto_start,
+        trayEnabled: desired.tray_enabled,
+        logRetentionDays: desired.log_retention_days,
+        providerCooldownSeconds: desired.provider_cooldown_seconds,
+        providerBaseUrlPingCacheTtlSeconds: desired.provider_base_url_ping_cache_ttl_seconds,
+        upstreamFirstByteTimeoutSeconds: desired.upstream_first_byte_timeout_seconds,
+        upstreamStreamIdleTimeoutSeconds: desired.upstream_stream_idle_timeout_seconds,
+        upstreamRequestTimeoutNonStreamingSeconds:
           desired.upstream_request_timeout_non_streaming_seconds,
-        failover_max_attempts_per_provider: desired.failover_max_attempts_per_provider,
-        failover_max_providers_to_try: desired.failover_max_providers_to_try,
-        circuit_breaker_failure_threshold: desired.circuit_breaker_failure_threshold,
-        circuit_breaker_open_duration_minutes: desired.circuit_breaker_open_duration_minutes,
+        failoverMaxAttemptsPerProvider: desired.failover_max_attempts_per_provider,
+        failoverMaxProvidersToTry: desired.failover_max_providers_to_try,
+        circuitBreakerFailureThreshold: desired.circuit_breaker_failure_threshold,
+        circuitBreakerOpenDurationMinutes: desired.circuit_breaker_open_duration_minutes,
       });
 
       if (!nextSettings) {

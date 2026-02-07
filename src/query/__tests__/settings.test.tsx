@@ -115,19 +115,19 @@ describe("query/settings", () => {
     const { result } = renderHook(() => useSettingsSetMutation(), { wrapper });
     await act(async () => {
       await result.current.mutateAsync({
-        preferred_port: 40000,
-        auto_start: false,
-        tray_enabled: true,
-        log_retention_days: 30,
-        provider_cooldown_seconds: 30,
-        provider_base_url_ping_cache_ttl_seconds: 60,
-        upstream_first_byte_timeout_seconds: 0,
-        upstream_stream_idle_timeout_seconds: 0,
-        upstream_request_timeout_non_streaming_seconds: 0,
-        failover_max_attempts_per_provider: 5,
-        failover_max_providers_to_try: 5,
-        circuit_breaker_failure_threshold: 5,
-        circuit_breaker_open_duration_minutes: 30,
+        preferredPort: 40000,
+        autoStart: false,
+        trayEnabled: true,
+        logRetentionDays: 30,
+        providerCooldownSeconds: 30,
+        providerBaseUrlPingCacheTtlSeconds: 60,
+        upstreamFirstByteTimeoutSeconds: 0,
+        upstreamStreamIdleTimeoutSeconds: 0,
+        upstreamRequestTimeoutNonStreamingSeconds: 0,
+        failoverMaxAttemptsPerProvider: 5,
+        failoverMaxProvidersToTry: 5,
+        circuitBreakerFailureThreshold: 5,
+        circuitBreakerOpenDurationMinutes: 30,
       });
     });
 

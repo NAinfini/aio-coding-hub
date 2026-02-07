@@ -3,7 +3,39 @@
 use crate::{blocking, resident, settings};
 use tauri::Manager;
 
+/// Encapsulates all fields for the `settings_set` command.
+#[derive(serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct SettingsUpdate {
+    pub preferred_port: u16,
+    pub gateway_listen_mode: Option<settings::GatewayListenMode>,
+    pub gateway_custom_listen_address: Option<String>,
+    pub auto_start: bool,
+    pub tray_enabled: Option<bool>,
+    pub enable_cli_proxy_startup_recovery: Option<bool>,
+    pub log_retention_days: u32,
+    pub provider_cooldown_seconds: Option<u32>,
+    pub provider_base_url_ping_cache_ttl_seconds: Option<u32>,
+    pub upstream_first_byte_timeout_seconds: Option<u32>,
+    pub upstream_stream_idle_timeout_seconds: Option<u32>,
+    pub upstream_request_timeout_non_streaming_seconds: Option<u32>,
+    pub intercept_anthropic_warmup_requests: Option<bool>,
+    pub enable_thinking_signature_rectifier: Option<bool>,
+    pub enable_response_fixer: Option<bool>,
+    pub response_fixer_fix_encoding: Option<bool>,
+    pub response_fixer_fix_sse_format: Option<bool>,
+    pub response_fixer_fix_truncated_json: Option<bool>,
+    pub failover_max_attempts_per_provider: u32,
+    pub failover_max_providers_to_try: u32,
+    pub circuit_breaker_failure_threshold: Option<u32>,
+    pub circuit_breaker_open_duration_minutes: Option<u32>,
+    pub update_releases_url: Option<String>,
+    pub wsl_auto_config: Option<bool>,
+    pub wsl_target_cli: Option<settings::WslTargetCli>,
+}
+
 #[tauri::command]
+#[specta::specta]
 pub(crate) async fn settings_get(app: tauri::AppHandle) -> Result<settings::AppSettings, String> {
     blocking::run("settings_get", move || settings::read(&app))
         .await
@@ -11,35 +43,39 @@ pub(crate) async fn settings_get(app: tauri::AppHandle) -> Result<settings::AppS
 }
 
 #[tauri::command]
-#[allow(clippy::too_many_arguments)]
+#[specta::specta]
 pub(crate) async fn settings_set(
     app: tauri::AppHandle,
-    preferred_port: u16,
-    gateway_listen_mode: Option<settings::GatewayListenMode>,
-    gateway_custom_listen_address: Option<String>,
-    auto_start: bool,
-    tray_enabled: Option<bool>,
-    enable_cli_proxy_startup_recovery: Option<bool>,
-    log_retention_days: u32,
-    provider_cooldown_seconds: Option<u32>,
-    provider_base_url_ping_cache_ttl_seconds: Option<u32>,
-    upstream_first_byte_timeout_seconds: Option<u32>,
-    upstream_stream_idle_timeout_seconds: Option<u32>,
-    upstream_request_timeout_non_streaming_seconds: Option<u32>,
-    intercept_anthropic_warmup_requests: Option<bool>,
-    enable_thinking_signature_rectifier: Option<bool>,
-    enable_response_fixer: Option<bool>,
-    response_fixer_fix_encoding: Option<bool>,
-    response_fixer_fix_sse_format: Option<bool>,
-    response_fixer_fix_truncated_json: Option<bool>,
-    failover_max_attempts_per_provider: u32,
-    failover_max_providers_to_try: u32,
-    circuit_breaker_failure_threshold: Option<u32>,
-    circuit_breaker_open_duration_minutes: Option<u32>,
-    update_releases_url: Option<String>,
-    wsl_auto_config: Option<bool>,
-    wsl_target_cli: Option<settings::WslTargetCli>,
+    update: SettingsUpdate,
 ) -> Result<settings::AppSettings, String> {
+    let SettingsUpdate {
+        preferred_port,
+        gateway_listen_mode,
+        gateway_custom_listen_address,
+        auto_start,
+        tray_enabled,
+        enable_cli_proxy_startup_recovery,
+        log_retention_days,
+        provider_cooldown_seconds,
+        provider_base_url_ping_cache_ttl_seconds,
+        upstream_first_byte_timeout_seconds,
+        upstream_stream_idle_timeout_seconds,
+        upstream_request_timeout_non_streaming_seconds,
+        intercept_anthropic_warmup_requests,
+        enable_thinking_signature_rectifier,
+        enable_response_fixer,
+        response_fixer_fix_encoding,
+        response_fixer_fix_sse_format,
+        response_fixer_fix_truncated_json,
+        failover_max_attempts_per_provider,
+        failover_max_providers_to_try,
+        circuit_breaker_failure_threshold,
+        circuit_breaker_open_duration_minutes,
+        update_releases_url,
+        wsl_auto_config,
+        wsl_target_cli,
+    } = update;
+
     let app_for_work = app.clone();
     let next_settings = blocking::run(
         "settings_set",

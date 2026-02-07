@@ -67,7 +67,7 @@ struct CachedSettings {
 
 static SETTINGS_CACHE: OnceLock<RwLock<Option<CachedSettings>>> = OnceLock::new();
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum GatewayListenMode {
     Localhost,
@@ -82,7 +82,7 @@ impl Default for GatewayListenMode {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, specta::Type)]
 #[serde(default)]
 pub struct WslTargetCli {
     pub claude: bool,
@@ -100,7 +100,7 @@ impl Default for WslTargetCli {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(default)]
 pub struct AppSettings {
     pub schema_version: u32,

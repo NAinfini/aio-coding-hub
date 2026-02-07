@@ -354,3 +354,29 @@ pub fn run() {
         }
     });
 }
+
+/// Specta type export configuration.
+///
+/// Uses `tauri_specta::Builder` to export TypeScript bindings for the subset of
+/// Tauri commands annotated with `#[specta::specta]`.
+/// Currently only the `settings` module is registered (POC / gradual migration).
+///
+/// Run `cargo test export_bindings -- --ignored` to regenerate `src/generated/bindings.ts`.
+#[cfg(test)]
+#[test]
+#[ignore = "run manually: cargo test export_bindings -- --ignored"]
+fn export_bindings() {
+    let builder = tauri_specta::Builder::<tauri::Wry>::new().commands(
+        tauri_specta::collect_commands![
+            commands::settings::settings_get,
+            commands::settings::settings_set
+        ],
+    );
+
+    builder
+        .export(
+            specta_typescript::Typescript::default(),
+            "../src/generated/bindings.ts",
+        )
+        .expect("failed to export specta TypeScript bindings");
+}

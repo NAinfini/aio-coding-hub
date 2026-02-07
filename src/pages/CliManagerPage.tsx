@@ -74,7 +74,7 @@ const LazyGeminiTab = lazy(() =>
   }))
 );
 
-const TAB_FALLBACK = <div className="p-6 text-sm text-slate-500">加载中…</div>;
+const TAB_FALLBACK = <div className="p-6 text-sm text-slate-500 dark:text-slate-400">加载中…</div>;
 
 export function CliManagerPage() {
   const [tab, setTab] = useState<TabKey>("general");
@@ -268,25 +268,25 @@ export function CliManagerPage() {
     const next: AppSettings = { ...prev, ...patch };
     try {
       const updated = await commonSettingsMutation.mutateAsync({
-        preferred_port: next.preferred_port,
-        gateway_listen_mode: next.gateway_listen_mode,
-        gateway_custom_listen_address: next.gateway_custom_listen_address,
-        auto_start: next.auto_start,
-        tray_enabled: next.tray_enabled,
-        enable_cli_proxy_startup_recovery: next.enable_cli_proxy_startup_recovery,
-        log_retention_days: next.log_retention_days,
-        provider_cooldown_seconds: next.provider_cooldown_seconds,
-        provider_base_url_ping_cache_ttl_seconds: next.provider_base_url_ping_cache_ttl_seconds,
-        upstream_first_byte_timeout_seconds: next.upstream_first_byte_timeout_seconds,
-        upstream_stream_idle_timeout_seconds: next.upstream_stream_idle_timeout_seconds,
-        upstream_request_timeout_non_streaming_seconds:
+        preferredPort: next.preferred_port,
+        gatewayListenMode: next.gateway_listen_mode,
+        gatewayCustomListenAddress: next.gateway_custom_listen_address,
+        autoStart: next.auto_start,
+        trayEnabled: next.tray_enabled,
+        enableCliProxyStartupRecovery: next.enable_cli_proxy_startup_recovery,
+        logRetentionDays: next.log_retention_days,
+        providerCooldownSeconds: next.provider_cooldown_seconds,
+        providerBaseUrlPingCacheTtlSeconds: next.provider_base_url_ping_cache_ttl_seconds,
+        upstreamFirstByteTimeoutSeconds: next.upstream_first_byte_timeout_seconds,
+        upstreamStreamIdleTimeoutSeconds: next.upstream_stream_idle_timeout_seconds,
+        upstreamRequestTimeoutNonStreamingSeconds:
           next.upstream_request_timeout_non_streaming_seconds,
-        failover_max_attempts_per_provider: next.failover_max_attempts_per_provider,
-        failover_max_providers_to_try: next.failover_max_providers_to_try,
-        circuit_breaker_failure_threshold: next.circuit_breaker_failure_threshold,
-        circuit_breaker_open_duration_minutes: next.circuit_breaker_open_duration_minutes,
-        wsl_auto_config: next.wsl_auto_config,
-        wsl_target_cli: next.wsl_target_cli,
+        failoverMaxAttemptsPerProvider: next.failover_max_attempts_per_provider,
+        failoverMaxProvidersToTry: next.failover_max_providers_to_try,
+        circuitBreakerFailureThreshold: next.circuit_breaker_failure_threshold,
+        circuitBreakerOpenDurationMinutes: next.circuit_breaker_open_duration_minutes,
+        wslAutoConfig: next.wsl_auto_config,
+        wslTargetCli: next.wsl_target_cli,
       });
 
       if (!updated) {

@@ -821,7 +821,7 @@ describe("settings/useSettingsPersistence", () => {
 
     const mutation = { mutateAsync: vi.fn() };
     mutation.mutateAsync.mockImplementation(async (payload: any) => {
-      return createSettings({ preferred_port: payload?.preferred_port ?? 37123 });
+      return createSettings({ preferred_port: payload?.preferredPort ?? 37123 });
     });
     vi.mocked(useSettingsSetMutation).mockReturnValue(mutation as any);
 

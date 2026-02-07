@@ -124,7 +124,7 @@ export function McpServersView({ workspaceId }: McpServersViewProps) {
     <>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-slate-500">
+          <span className="text-xs text-slate-500 dark:text-slate-400">
             {loading ? "加载中…" : `共 ${items.length} 条`}
           </span>
         </div>
@@ -150,9 +150,9 @@ export function McpServersView({ workspaceId }: McpServersViewProps) {
       </div>
 
       {loading ? (
-        <div className="text-sm text-slate-600">加载中…</div>
+        <div className="text-sm text-slate-600 dark:text-slate-400">加载中…</div>
       ) : items.length === 0 ? (
-        <div className="text-sm text-slate-600">
+        <div className="text-sm text-slate-600 dark:text-slate-400">
           暂无 MCP 服务。点击右上角「添加 MCP」创建第一条。
         </div>
       ) : (

@@ -81,7 +81,7 @@ export function Tooltip({
             >
               <div
                 className={cn(
-                  "max-w-[280px] whitespace-normal rounded-lg bg-slate-900 px-2 py-1 text-xs leading-snug text-white shadow-lg",
+                  "max-w-[280px] whitespace-normal rounded-lg bg-slate-900 px-2 py-1 text-xs leading-snug text-white shadow-lg dark:bg-slate-700 dark:shadow-slate-900/50",
                   contentClassName
                 )}
               >

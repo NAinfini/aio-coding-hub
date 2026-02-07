@@ -37,7 +37,7 @@ export function getErrorCodeLabel(errorCode: string) {
 
 export function SessionReuseBadge({ showCustomTooltip }: { showCustomTooltip: boolean }) {
   const className =
-    "inline-flex items-center rounded-full bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 text-[10px] font-medium text-indigo-600 cursor-help";
+    "inline-flex items-center rounded-full bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 text-[10px] font-medium text-indigo-600 dark:bg-indigo-900/30 dark:border-indigo-800 dark:text-indigo-400 cursor-help";
   return showCustomTooltip ? (
     <Tooltip content={SESSION_REUSE_TOOLTIP}>
       <span className={className}>会话复用</span>
@@ -76,12 +76,12 @@ export function computeStatusBadge(input: {
 
   const text = input.status == null ? "—" : String(input.status);
   const tone = isClientAbort
-    ? "bg-amber-50 text-amber-600 border border-amber-200/60"
+    ? "bg-amber-50 text-amber-600 border border-amber-200/60 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700/60"
     : input.status != null && input.status >= 200 && input.status < 400
-      ? "text-emerald-600 bg-emerald-50/50"
+      ? "text-emerald-600 bg-emerald-50/50 dark:text-emerald-400 dark:bg-emerald-900/30"
       : isError
-        ? "text-rose-600 bg-rose-50/50"
-        : "text-slate-500 bg-slate-100";
+        ? "text-rose-600 bg-rose-50/50 dark:text-rose-400 dark:bg-rose-900/30"
+        : "text-slate-500 bg-slate-100 dark:text-slate-400 dark:bg-slate-700";
 
   const title = input.errorCode
     ? `${getErrorCodeLabel(input.errorCode)} (${input.errorCode})`

@@ -53,7 +53,7 @@ function BaseUrlModeRadioGroup({ value, onChange, disabled }: BaseUrlModeRadioGr
       role="radiogroup"
       aria-label="Base URL 模式"
       className={cn(
-        "inline-flex w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm",
+        "inline-flex w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-800",
         disabled ? "opacity-60" : null
       )}
     >
@@ -69,10 +69,10 @@ function BaseUrlModeRadioGroup({ value, onChange, disabled }: BaseUrlModeRadioGr
             disabled={disabled}
             className={cn(
               "flex-1 px-3 py-2 text-sm font-medium transition",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0052FF]/30 focus-visible:ring-offset-2 focus-visible:ring-offset-[#FAFAFA]",
-              index < items.length - 1 ? "border-r border-slate-200" : null,
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0052FF]/30 focus-visible:ring-offset-2 focus-visible:ring-offset-[#FAFAFA] dark:focus-visible:ring-offset-slate-900",
+              index < items.length - 1 ? "border-r border-slate-200 dark:border-slate-600" : null,
               active ? "bg-gradient-to-br from-[#0052FF] to-[#4D7CFF] text-white" : null,
-              !active ? "bg-white text-slate-700 hover:bg-slate-50" : null,
+              !active ? "bg-white text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700" : null,
               disabled ? "cursor-not-allowed" : null
             )}
           >
@@ -103,7 +103,7 @@ function DailyResetModeRadioGroup({ value, onChange, disabled }: DailyResetModeR
       role="radiogroup"
       aria-label="每日重置模式"
       className={cn(
-        "inline-flex w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm",
+        "inline-flex w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-800",
         disabled ? "opacity-60" : null
       )}
     >
@@ -119,10 +119,10 @@ function DailyResetModeRadioGroup({ value, onChange, disabled }: DailyResetModeR
             disabled={disabled}
             className={cn(
               "flex-1 px-3 py-2 text-sm font-medium transition",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0052FF]/30 focus-visible:ring-offset-2 focus-visible:ring-offset-[#FAFAFA]",
-              index < items.length - 1 ? "border-r border-slate-200" : null,
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0052FF]/30 focus-visible:ring-offset-2 focus-visible:ring-offset-[#FAFAFA] dark:focus-visible:ring-offset-slate-900",
+              index < items.length - 1 ? "border-r border-slate-200 dark:border-slate-600" : null,
               active ? "bg-gradient-to-br from-[#0052FF] to-[#4D7CFF] text-white" : null,
-              !active ? "bg-white text-slate-700 hover:bg-slate-50" : null,
+              !active ? "bg-white text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700" : null,
               disabled ? "cursor-not-allowed" : null
             )}
           >
@@ -177,7 +177,7 @@ function LimitCard({
   disabled,
 }: LimitCardProps) {
   return (
-    <div className="group relative rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:border-slate-300 hover:shadow-md">
+    <div className="group relative rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:border-slate-300 hover:shadow-md dark:border-slate-700 dark:bg-slate-800 dark:hover:border-slate-600">
       <div className="flex items-start gap-3">
         <div
           className={cn(
@@ -188,8 +188,8 @@ function LimitCard({
           {icon}
         </div>
         <div className="min-w-0 flex-1">
-          <label className="text-sm font-medium text-slate-700">{label}</label>
-          {hint ? <p className="mt-0.5 text-xs text-slate-400">{hint}</p> : null}
+          <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{label}</label>
+          {hint ? <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">{hint}</p> : null}
           <div className="relative mt-2">
             <Input
               type="number"
@@ -508,32 +508,32 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
           </FormField>
         </div>
 
-        <details className="group rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50/80 to-white shadow-sm open:ring-2 open:ring-[#0052FF]/10 transition-all">
+        <details className="group rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50/80 to-white shadow-sm open:ring-2 open:ring-[#0052FF]/10 transition-all dark:border-slate-700 dark:from-slate-800/80 dark:to-slate-900">
           <summary className="flex cursor-pointer items-center justify-between px-5 py-4 select-none">
             <div className="flex items-center gap-3">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 shadow-sm">
                 <DollarSign className="h-4 w-4 text-white" />
               </div>
               <div>
-                <span className="text-sm font-semibold text-slate-700 group-open:text-[#0052FF]">
+                <span className="text-sm font-semibold text-slate-700 group-open:text-[#0052FF] dark:text-slate-300">
                   限流配置
                 </span>
-                <p className="text-xs text-slate-400">配置不同时间窗口的消费限制以控制成本</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500">配置不同时间窗口的消费限制以控制成本</p>
               </div>
             </div>
             <ChevronDown className="h-4 w-4 text-slate-400 transition-transform group-open:rotate-180" />
           </summary>
 
-          <div className="space-y-6 border-t border-slate-100 px-5 py-5">
+          <div className="space-y-6 border-t border-slate-100 px-5 py-5 dark:border-slate-700">
             {/* Time-based limits section */}
             <div>
-              <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+              <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 时间维度限制
               </h4>
               <div className="grid gap-4 sm:grid-cols-2">
                 <LimitCard
                   icon={<Clock className="h-5 w-5 text-blue-600" />}
-                  iconBgClass="bg-blue-50"
+                  iconBgClass="bg-blue-50 dark:bg-blue-900/30"
                   label="5 小时消费上限"
                   hint="留空表示不限制"
                   value={limit5hUsd}
@@ -543,7 +543,7 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
                 />
                 <LimitCard
                   icon={<DollarSign className="h-5 w-5 text-emerald-600" />}
-                  iconBgClass="bg-emerald-50"
+                  iconBgClass="bg-emerald-50 dark:bg-emerald-900/30"
                   label="每日消费上限"
                   hint="留空表示不限制"
                   value={limitDailyUsd}
@@ -553,7 +553,7 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
                 />
                 <LimitCard
                   icon={<CalendarDays className="h-5 w-5 text-violet-600" />}
-                  iconBgClass="bg-violet-50"
+                  iconBgClass="bg-violet-50 dark:bg-violet-900/30"
                   label="周消费上限"
                   hint="自然周：周一 00:00:00"
                   value={limitWeeklyUsd}
@@ -563,7 +563,7 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
                 />
                 <LimitCard
                   icon={<CalendarRange className="h-5 w-5 text-orange-600" />}
-                  iconBgClass="bg-orange-50"
+                  iconBgClass="bg-orange-50 dark:bg-orange-900/30"
                   label="月消费上限"
                   hint="自然月：每月 1 号 00:00:00"
                   value={limitMonthlyUsd}
@@ -576,19 +576,19 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
 
             {/* Daily reset settings section */}
             <div>
-              <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+              <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 每日重置设置
               </h4>
-              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
                 <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-50">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-50 dark:bg-sky-900/30">
                     <RotateCcw className="h-5 w-5 text-sky-600" />
                   </div>
                   <div className="min-w-0 flex-1 space-y-4">
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div>
-                        <label className="text-sm font-medium text-slate-700">每日重置模式</label>
-                        <p className="mb-2 text-xs text-slate-400">rolling 为过去 24 小时窗口</p>
+                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">每日重置模式</label>
+                        <p className="mb-2 text-xs text-slate-400 dark:text-slate-500">rolling 为过去 24 小时窗口</p>
                         <DailyResetModeRadioGroup
                           value={dailyResetMode}
                           onChange={(value) =>
@@ -598,8 +598,8 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
                         />
                       </div>
                       <div>
-                        <label className="text-sm font-medium text-slate-700">每日重置时间</label>
-                        <p className="mb-2 text-xs text-slate-400">
+                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">每日重置时间</label>
+                        <p className="mb-2 text-xs text-slate-400 dark:text-slate-500">
                           {dailyResetMode === "fixed"
                             ? "默认 00:00:00（本机时区）"
                             : "rolling 模式下忽略"}
@@ -619,13 +619,13 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
 
             {/* Other limits section */}
             <div>
-              <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+              <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 其他限制
               </h4>
               <div className="grid gap-4 sm:grid-cols-2">
                 <LimitCard
                   icon={<Gauge className="h-5 w-5 text-rose-600" />}
-                  iconBgClass="bg-rose-50"
+                  iconBgClass="bg-rose-50 dark:bg-rose-900/30"
                   label="总消费上限"
                   hint="达到后需手动调整/清除"
                   value={limitTotalUsd}
@@ -639,20 +639,20 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
         </details>
 
         {cliKey === "claude" ? (
-          <details className="group rounded-xl border border-slate-200 bg-white shadow-sm open:ring-2 open:ring-[#0052FF]/10 transition-all">
+          <details className="group rounded-xl border border-slate-200 bg-white shadow-sm open:ring-2 open:ring-[#0052FF]/10 transition-all dark:border-slate-700 dark:bg-slate-800">
             <summary className="flex cursor-pointer items-center justify-between px-4 py-3 select-none">
               <div className="flex items-center gap-3">
-                <span className="text-sm font-medium text-slate-700 group-open:text-[#0052FF]">
+                <span className="text-sm font-medium text-slate-700 group-open:text-[#0052FF] dark:text-slate-300">
                   Claude 模型映射
                 </span>
-                <span className="text-xs font-mono text-slate-500">
+                <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
                   已配置 {claudeModelCount}/5
                 </span>
               </div>
               <ChevronDown className="h-4 w-4 text-slate-400 transition-transform group-open:rotate-180" />
             </summary>
 
-            <div className="space-y-4 border-t border-slate-100 px-4 py-3">
+            <div className="space-y-4 border-t border-slate-100 px-4 py-3 dark:border-slate-700">
               <FormField
                 label="主模型"
                 hint="默认兜底模型；未命中 haiku/sonnet/opus 且未启用 Thinking 时使用"
@@ -725,9 +725,9 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
           </details>
         ) : null}
 
-        <div className="flex items-center justify-between border-t border-slate-100 pt-3">
+        <div className="flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-700">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-700">启用</span>
+            <span className="text-sm text-slate-700 dark:text-slate-300">启用</span>
             <Switch
               checked={enabled}
               onCheckedChange={(checked) => setValue("enabled", checked, { shouldDirty: true })}

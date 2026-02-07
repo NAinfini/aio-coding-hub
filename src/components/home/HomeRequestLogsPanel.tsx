@@ -89,7 +89,7 @@ export function HomeRequestLogsPanel({
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="text-xs text-slate-500">
+          <div className="text-xs text-slate-500 dark:text-slate-400">
             {requestLogsAvailable === false
               ? "仅在 Tauri Desktop 环境可用"
               : requestLogs.length === 0 && requestLogsLoading
@@ -103,7 +103,7 @@ export function HomeRequestLogsPanel({
               onClick={() => navigate("/logs")}
               variant="ghost"
               size="sm"
-              className="h-8 px-2 text-slate-500 hover:text-indigo-600"
+              className="h-8 px-2 text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400"
               disabled={requestLogsAvailable === false}
               title="打开日志页"
             >
@@ -115,7 +115,7 @@ export function HomeRequestLogsPanel({
             onClick={onRefreshRequestLogs}
             variant="ghost"
             size="sm"
-            className="h-8 px-2 text-slate-500 hover:text-indigo-600"
+            className="h-8 px-2 text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400"
             disabled={requestLogsAvailable === false || requestLogsLoading || requestLogsRefreshing}
           >
             <RefreshCw
@@ -129,7 +129,7 @@ export function HomeRequestLogsPanel({
         </div>
       </div>
 
-      <div className="border rounded-lg border-slate-200 bg-slate-50/30 shadow-sm overflow-hidden flex-1 min-h-0 flex flex-col">
+      <div className="border rounded-lg border-slate-200 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-800/30 shadow-sm overflow-hidden flex-1 min-h-0 flex flex-col">
         <div className="scrollbar-overlay flex-1 overflow-auto pr-1 py-2">
           <RealtimeTraceCards
             traces={realtimeTraceCandidates}
@@ -138,10 +138,10 @@ export function HomeRequestLogsPanel({
           />
 
           {requestLogsAvailable === false ? (
-            <div className="p-4 text-sm text-slate-600">仅在 Tauri Desktop 环境可用</div>
+            <div className="p-4 text-sm text-slate-600 dark:text-slate-400">仅在 Tauri Desktop 环境可用</div>
           ) : requestLogs.length === 0 ? (
             requestLogsLoading ? (
-              <div className="p-4 text-sm text-slate-600">加载中…</div>
+              <div className="p-4 text-sm text-slate-600 dark:text-slate-400">加载中…</div>
             ) : null
           ) : (
             requestLogs.map((log) => {
@@ -231,8 +231,8 @@ export function HomeRequestLogsPanel({
                     className={cn(
                       "relative transition-all duration-200 group/item mx-2 my-1.5 rounded-lg border",
                       selectedLogId === log.id
-                        ? "bg-indigo-50/40 border-indigo-200 shadow-sm"
-                        : "bg-white border-slate-100 hover:bg-slate-50/60 hover:border-slate-200 hover:shadow-sm"
+                        ? "bg-indigo-50/40 border-indigo-200 shadow-sm dark:bg-indigo-900/20 dark:border-indigo-700"
+                        : "bg-white border-slate-100 hover:bg-slate-50/60 hover:border-slate-200 hover:shadow-sm dark:bg-slate-800 dark:border-slate-700 dark:hover:bg-slate-700/60 dark:hover:border-slate-600"
                     )}
                   >
                     {/* Selection indicator */}
@@ -278,7 +278,7 @@ export function HomeRequestLogsPanel({
                         </span>
 
                         <span
-                          className="text-xs font-medium text-slate-800 truncate"
+                          className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate"
                           title={modelText}
                         >
                           {modelText}
@@ -289,12 +289,12 @@ export function HomeRequestLogsPanel({
                         )}
 
                         {log.error_code && (
-                          <span className="rounded bg-amber-50 px-1 py-0.5 text-[10px] font-medium text-amber-700 shrink-0">
+                          <span className="rounded bg-amber-50 dark:bg-amber-900/30 px-1 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400 shrink-0">
                             {getErrorCodeLabel(log.error_code)}
                           </span>
                         )}
 
-                        <span className="flex items-center gap-1 text-[11px] text-slate-400 ml-auto shrink-0">
+                        <span className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 ml-auto shrink-0">
                           <Clock className="h-3 w-3" />
                           {formatUnixSeconds(log.created_at)}
                         </span>
@@ -308,8 +308,8 @@ export function HomeRequestLogsPanel({
                           title={providerTitle}
                         >
                           <div className="flex items-center gap-1 h-4">
-                            <Server className="h-3 w-3 text-slate-400 shrink-0" />
-                            <span className="truncate font-medium text-slate-600">
+                            <Server className="h-3 w-3 text-slate-400 dark:text-slate-500 shrink-0" />
+                            <span className="truncate font-medium text-slate-600 dark:text-slate-400">
                               {providerText}
                             </span>
                           </div>
@@ -322,13 +322,13 @@ export function HomeRequestLogsPanel({
                                     contentClassName="max-w-[520px] break-words font-mono"
                                     placement="top"
                                   >
-                                    <span className="text-[10px] text-slate-400 hover:text-indigo-600 cursor-help">
+                                    <span className="text-[10px] text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-help">
                                       链路
                                     </span>
                                   </Tooltip>
                                 ) : (
                                   <span
-                                    className="text-[10px] text-slate-400 cursor-help"
+                                    className="text-[10px] text-slate-400 dark:text-slate-500 cursor-help"
                                     title={providerChainText}
                                   >
                                     链路
@@ -337,7 +337,7 @@ export function HomeRequestLogsPanel({
                               ) : null}
 
                               {showCostMultiplier ? (
-                                <span className="inline-flex items-center rounded bg-indigo-50 px-1 text-[10px] font-medium text-indigo-600 shrink-0">
+                                <span className="inline-flex items-center rounded bg-indigo-50 dark:bg-indigo-900/30 px-1 text-[10px] font-medium text-indigo-600 dark:text-indigo-400 shrink-0">
                                   x{costMultiplier.toFixed(2)}
                                 </span>
                               ) : null}
@@ -346,75 +346,75 @@ export function HomeRequestLogsPanel({
                         </div>
 
                         {/* Stats Grid: 2 rows x 4 cols */}
-                        <div className="grid grid-cols-4 gap-x-4 gap-y-0.5 flex-1 text-slate-500">
+                        <div className="grid grid-cols-4 gap-x-4 gap-y-0.5 flex-1 text-slate-500 dark:text-slate-400">
                           {/* Row 1: 输入 | 缓存创建 | 首字 | 花费 */}
                           <div className="flex items-center gap-1 h-4" title="Input Tokens">
-                            <span className="text-slate-400 shrink-0">输入</span>
-                            <span className="font-mono tabular-nums text-slate-600">
+                            <span className="text-slate-400 dark:text-slate-500 shrink-0">输入</span>
+                            <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300">
                               {formatInteger(effectiveInputTokens)}
                             </span>
                           </div>
                           <div className="flex items-center gap-1 h-4" title="Cache Write">
-                            <span className="text-slate-400 shrink-0">缓存创建</span>
+                            <span className="text-slate-400 dark:text-slate-500 shrink-0">缓存创建</span>
                             {cacheWrite.tokens ? (
                               <>
-                                <span className="font-mono tabular-nums text-slate-600">
+                                <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300">
                                   {formatInteger(cacheWrite.tokens)}
                                 </span>
                                 {cacheWrite.ttl && (
-                                  <span className="text-slate-400 text-[10px]">
+                                  <span className="text-slate-400 dark:text-slate-500 text-[10px]">
                                     ({cacheWrite.ttl})
                                   </span>
                                 )}
                               </>
                             ) : (
-                              <span className="text-slate-300">—</span>
+                              <span className="text-slate-300 dark:text-slate-600">—</span>
                             )}
                           </div>
                           <div className="flex items-center gap-1 h-4" title="TTFB">
-                            <span className="text-slate-400 shrink-0">首字</span>
-                            <span className="font-mono tabular-nums text-slate-600">
+                            <span className="text-slate-400 dark:text-slate-500 shrink-0">首字</span>
+                            <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300">
                               {ttfbMs != null ? formatDurationMs(ttfbMs) : "—"}
                             </span>
                           </div>
                           <div className="flex items-center gap-1 h-4" title="Cost">
-                            <span className="text-slate-400 shrink-0">花费</span>
-                            <span className="font-mono tabular-nums text-slate-600">
+                            <span className="text-slate-400 dark:text-slate-500 shrink-0">花费</span>
+                            <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300">
                               {formatUsd(log.cost_usd)}
                             </span>
                           </div>
 
                           {/* Row 2: 输出 | 缓存读取 | 耗时 | 速率 */}
                           <div className="flex items-center gap-1 h-4" title="Output Tokens">
-                            <span className="text-slate-400 shrink-0">输出</span>
-                            <span className="font-mono tabular-nums text-slate-600">
+                            <span className="text-slate-400 dark:text-slate-500 shrink-0">输出</span>
+                            <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300">
                               {formatInteger(log.output_tokens)}
                             </span>
                           </div>
                           <div className="flex items-center gap-1 h-4" title="Cache Read">
-                            <span className="text-slate-400 shrink-0">缓存读取</span>
+                            <span className="text-slate-400 dark:text-slate-500 shrink-0">缓存读取</span>
                             {log.cache_read_input_tokens ? (
-                              <span className="font-mono tabular-nums text-slate-600">
+                              <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300">
                                 {formatInteger(log.cache_read_input_tokens)}
                               </span>
                             ) : (
-                              <span className="text-slate-300">—</span>
+                              <span className="text-slate-300 dark:text-slate-600">—</span>
                             )}
                           </div>
                           <div className="flex items-center gap-1 h-4" title="Duration">
-                            <span className="text-slate-400 shrink-0">耗时</span>
-                            <span className="font-mono tabular-nums text-slate-600">
+                            <span className="text-slate-400 dark:text-slate-500 shrink-0">耗时</span>
+                            <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300">
                               {formatDurationMs(log.duration_ms)}
                             </span>
                           </div>
                           <div className="flex items-center gap-1 h-4" title="Tokens/s">
-                            <span className="text-slate-400 shrink-0">速率</span>
+                            <span className="text-slate-400 dark:text-slate-500 shrink-0">速率</span>
                             {outputTokensPerSecond ? (
-                              <span className="font-mono tabular-nums text-slate-600">
+                              <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300">
                                 {formatTokensPerSecond(outputTokensPerSecond)}
                               </span>
                             ) : (
-                              <span className="text-slate-300">—</span>
+                              <span className="text-slate-300 dark:text-slate-600">—</span>
                             )}
                           </div>
                         </div>

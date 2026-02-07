@@ -25,16 +25,16 @@ export function Switch({
       onClick={() => onCheckedChange(!checked)}
       className={cn(
         "inline-flex shrink-0 items-center rounded-full border-2 border-transparent transition-colors",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0052FF]/30 focus-visible:ring-offset-2 focus-visible:ring-offset-[#FAFAFA]",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0052FF]/30 focus-visible:ring-offset-2 focus-visible:ring-offset-[#FAFAFA] dark:focus-visible:ring-blue-400/30 dark:focus-visible:ring-offset-slate-900",
         isSmall ? "h-5 w-9" : "h-6 w-11",
-        checked ? "bg-[#0052FF]" : "bg-slate-200",
+        checked ? "bg-[#0052FF]" : "bg-slate-200 dark:bg-slate-600",
         disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
         className
       )}
     >
       <span
         className={cn(
-          "pointer-events-none block rounded-full bg-white shadow-sm transition-transform",
+          "pointer-events-none block rounded-full bg-white shadow-sm transition-transform dark:bg-slate-200",
           isSmall ? "h-4 w-4" : "h-5 w-5",
           checked ? (isSmall ? "translate-x-4" : "translate-x-5") : "translate-x-0"
         )}

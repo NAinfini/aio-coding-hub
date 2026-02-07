@@ -149,7 +149,7 @@ export function HomeOverviewPanel({
                     className={cn(
                       "flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-all",
                       providerLimitRefreshing
-                        ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                        ? "bg-slate-100 dark:bg-slate-700 text-slate-400 cursor-not-allowed"
                         : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
                     )}
                   >

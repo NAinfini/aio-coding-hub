@@ -9,14 +9,17 @@ import {
   CartesianGrid,
 } from "recharts";
 import type { UsageHourlyRow } from "../services/usage";
+import { useTheme } from "../hooks/useTheme";
 import { cn } from "../utils/cn";
 import { buildRecentDayKeys } from "../utils/dateKeys";
 import { formatTokensMillions, computeNiceYAxis, toDateLabel } from "../utils/chartHelpers";
 import {
   CHART_COLORS,
-  AXIS_STYLE,
-  GRID_LINE_STYLE,
-  TOOLTIP_STYLE,
+  getAxisStyle,
+  getGridLineStyle,
+  getTooltipStyle,
+  getAxisLineStroke,
+  getCursorStroke,
   CHART_ANIMATION,
 } from "./charts/chartTheme";
 
@@ -34,6 +37,15 @@ export function UsageTokensChart({
   days?: number;
   className?: string;
 }) {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
+
+  const axisStyle = useMemo(() => getAxisStyle(isDark), [isDark]);
+  const gridLineStyle = useMemo(() => getGridLineStyle(isDark), [isDark]);
+  const tooltipStyle = useMemo(() => getTooltipStyle(isDark), [isDark]);
+  const axisLineStroke = getAxisLineStroke(isDark);
+  const cursorStroke = getCursorStroke(isDark);
+
   const dayKeys = useMemo(() => buildRecentDayKeys(days), [days]);
 
   const tokensByDay = useMemo(() => {
@@ -85,14 +97,14 @@ export function UsageTokensChart({
           </defs>
           <CartesianGrid
             vertical={false}
-            stroke={GRID_LINE_STYLE.stroke}
-            strokeDasharray={GRID_LINE_STYLE.strokeDasharray}
+            stroke={gridLineStyle.stroke}
+            strokeDasharray={gridLineStyle.strokeDasharray}
           />
           <XAxis
             dataKey="label"
-            axisLine={{ stroke: "rgba(15,23,42,0.12)" }}
+            axisLine={{ stroke: axisLineStroke }}
             tickLine={false}
-            tick={{ ...AXIS_STYLE }}
+            tick={{ ...axisStyle }}
             ticks={xAxisTicks}
             interval="preserveStartEnd"
           />
@@ -101,15 +113,15 @@ export function UsageTokensChart({
             ticks={tickValues}
             axisLine={false}
             tickLine={false}
-            tick={{ ...AXIS_STYLE }}
+            tick={{ ...axisStyle }}
             tickFormatter={formatTokensMillions}
             width={45}
           />
           <Tooltip
-            contentStyle={TOOLTIP_STYLE}
+            contentStyle={tooltipStyle}
             labelStyle={{ fontWeight: 600, marginBottom: 4 }}
             formatter={(value: number) => [formatTokensMillions(value), "Tokens"]}
-            cursor={{ stroke: "rgba(0,82,255,0.15)", strokeWidth: 1 }}
+            cursor={{ stroke: cursorStroke, strokeWidth: 1 }}
           />
           <Area
             type="monotone"

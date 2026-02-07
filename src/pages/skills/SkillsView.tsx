@@ -288,34 +288,34 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
         <Card className="flex min-h-[240px] flex-col lg:min-h-0" padding="md">
           <div className="flex shrink-0 items-start justify-between gap-3">
             <div className="text-sm font-semibold">通用技能</div>
-            <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+            <span className="rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-300">
               {installed.length}
             </span>
           </div>
 
           <div className="mt-4 min-h-0 flex-1 space-y-2 lg:overflow-y-auto lg:pr-1 scrollbar-overlay">
             {loading ? (
-              <div className="text-sm text-slate-600">加载中…</div>
+              <div className="text-sm text-slate-600 dark:text-slate-400">加载中…</div>
             ) : installed.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+              <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-4 text-sm text-slate-600 dark:text-slate-400">
                 暂无已安装 Skill。
               </div>
             ) : (
               installed.map((skill) => (
-                <div key={skill.id} className="rounded-xl border border-slate-200 bg-white p-3">
+                <div key={skill.id} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3">
                   <div className="flex items-center gap-2">
                     <span className="min-w-0 truncate text-sm font-semibold">{skill.name}</span>
                     <a
                       href={`${skill.source_git_url}${skill.source_branch ? `#` + skill.source_branch : ""}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="shrink-0 text-slate-400 hover:text-slate-600"
+                      className="shrink-0 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
                       title={sourceHint(skill)}
                     >
                       <ExternalLink className="h-3.5 w-3.5" />
                     </a>
                     <div className="ms-auto flex items-center gap-2">
-                      <span className="text-xs text-slate-600">启用</span>
+                      <span className="text-xs text-slate-600 dark:text-slate-400">启用</span>
                       <Switch
                         checked={skill.enabled}
                         disabled={togglingSkillId === skill.id || uninstallingSkillId === skill.id}
@@ -332,15 +332,15 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
                     </div>
                   </div>
                   {skill.description ? (
-                    <div className="mt-1.5 text-xs text-slate-500">{skill.description}</div>
+                    <div className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">{skill.description}</div>
                   ) : null}
-                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                     <span
                       className={cn(
                         "rounded-full px-2 py-1 font-medium",
                         skill.enabled
-                          ? "bg-emerald-50 text-emerald-700"
-                          : "bg-slate-100 text-slate-600"
+                          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                          : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400"
                       )}
                     >
                       {skill.enabled ? "已启用" : "未启用"}
@@ -365,7 +365,7 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
               >
                 导入已有
               </Button>
-              <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+              <span className="rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-300">
                 {canOperateLocal ? (localLoading ? "扫描中…" : `${localSkills.length}`) : "—"}
               </span>
             </div>
@@ -373,20 +373,20 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
 
           <div className="mt-4 min-h-0 flex-1 space-y-2 lg:overflow-y-auto lg:pr-1 scrollbar-overlay">
             {!canOperateLocal ? (
-              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+              <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-4 text-sm text-slate-600 dark:text-slate-400">
                 仅当前工作区可扫描/导入本机 Skill（因为会直接读取/写入 {cliKey} 的真实目录）。
               </div>
             ) : localLoading ? (
-              <div className="text-sm text-slate-600">扫描中…</div>
+              <div className="text-sm text-slate-600 dark:text-slate-400">扫描中…</div>
             ) : localSkills.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+              <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-4 text-sm text-slate-600 dark:text-slate-400">
                 未发现本机 Skill。
               </div>
             ) : (
               localSkills.map((skill) => (
                 <div
                   key={skill.path}
-                  className="rounded-xl border border-slate-200 bg-slate-50 p-3"
+                  className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3"
                 >
                   <div className="flex items-center gap-2">
                     <span className="min-w-0 truncate text-sm font-semibold">
@@ -406,9 +406,9 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
                     </div>
                   </div>
                   {skill.description ? (
-                    <div className="mt-1.5 text-xs text-slate-500">{skill.description}</div>
+                    <div className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">{skill.description}</div>
                   ) : null}
-                  <div className="mt-2 truncate font-mono text-xs text-slate-500">{skill.path}</div>
+                  <div className="mt-2 truncate font-mono text-xs text-slate-500 dark:text-slate-400">{skill.path}</div>
                 </div>
               ))
             )}
@@ -433,19 +433,19 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
             <Button size="sm" variant="secondary" onClick={clearLocalSkillSelections}>
               清空
             </Button>
-            <span className="text-xs text-slate-500">已选择 {selectedLocalDirNames.length} 项</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">已选择 {selectedLocalDirNames.length} 项</span>
           </div>
 
-          <div className="max-h-[280px] space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <div className="max-h-[280px] space-y-2 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3">
             {localSkills.length === 0 ? (
-              <div className="text-xs text-slate-500">暂无可导入的本机 Skill</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">暂无可导入的本机 Skill</div>
             ) : (
               localSkills.map((skill) => {
                 const selected = selectedLocalDirNames.includes(skill.dir_name);
                 return (
                   <label
                     key={skill.path}
-                    className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-2"
+                    className="flex items-start gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2"
                   >
                     <input
                       type="checkbox"
@@ -454,10 +454,10 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
                       className="mt-1"
                     />
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-medium text-slate-800">
+                      <div className="truncate text-sm font-medium text-slate-800 dark:text-slate-200">
                         {skill.name || skill.dir_name}
                       </div>
-                      <div className="mt-1 truncate font-mono text-xs text-slate-500">
+                      <div className="mt-1 truncate font-mono text-xs text-slate-500 dark:text-slate-400">
                         {skill.path}
                       </div>
                     </div>
@@ -468,7 +468,7 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
           </div>
 
           {batchImportIssues.length > 0 ? (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+            <div className="rounded-xl border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30 p-3 text-xs text-amber-900 dark:text-amber-400">
               <div className="font-medium">导入提示（{batchImportIssues.length}）</div>
               <div className="mt-2 max-h-[140px] space-y-1 overflow-y-auto">
                 {batchImportIssues.map((issue, index) => (
@@ -509,8 +509,8 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
         }}
       >
         <div className="space-y-3">
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-            <div className="font-medium text-slate-800">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3 text-xs text-slate-600 dark:text-slate-400">
+            <div className="font-medium text-slate-800 dark:text-slate-200">
               {importTarget?.name || importTarget?.dir_name}
             </div>
             <div className="mt-1 break-all font-mono">{importTarget?.path}</div>
@@ -540,8 +540,8 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
         }}
       >
         <div className="space-y-3">
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-            <div className="font-medium text-slate-800">{uninstallTarget?.name}</div>
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3 text-xs text-slate-600 dark:text-slate-400">
+            <div className="font-medium text-slate-800 dark:text-slate-200">{uninstallTarget?.name}</div>
             <div className="mt-1 break-all font-mono">
               {uninstallTarget ? sourceHint(uninstallTarget) : ""}
             </div>

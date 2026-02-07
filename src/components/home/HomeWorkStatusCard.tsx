@@ -39,9 +39,9 @@ export function HomeWorkStatusCard({
       </div>
 
       {sortModesLoading ? (
-        <div className="mt-2 text-sm text-slate-600">加载中…</div>
+        <div className="mt-2 text-sm text-slate-600 dark:text-slate-400">加载中…</div>
       ) : sortModesAvailable === false ? (
-        <div className="mt-2 text-sm text-slate-600">仅在 Tauri Desktop 环境可用</div>
+        <div className="mt-2 text-sm text-slate-600 dark:text-slate-400">仅在 Tauri Desktop 环境可用</div>
       ) : (
         <div className="mt-3 space-y-2.5">
           {CLIS.map((cli) => {
@@ -55,27 +55,27 @@ export function HomeWorkStatusCard({
             return (
               <div
                 key={cli.key}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-sm transition-all duration-200 hover:bg-slate-50 hover:border-indigo-200 hover:shadow-md"
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-sm transition-all duration-200 hover:bg-slate-50 hover:border-indigo-200 hover:shadow-md dark:border-slate-700 dark:bg-slate-800 dark:shadow-none dark:hover:bg-slate-700 dark:hover:border-indigo-700"
               >
                 <div className="grid grid-cols-[6.5rem_1fr] items-center gap-x-3 gap-y-2.5 sm:grid-cols-[8rem_1fr]">
-                  <div className="text-xs font-medium text-slate-700">{cli.name}</div>
+                  <div className="text-xs font-medium text-slate-700 dark:text-slate-300">{cli.name}</div>
                   <div className="flex justify-end">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-slate-500">代理</span>
+                      <span className="text-xs text-slate-500 dark:text-slate-400">代理</span>
                       <Switch
                         checked={cliProxyEnabled[cliKey]}
                         disabled={cliProxyToggling[cliKey]}
                         onCheckedChange={(next) => onSetCliProxyEnabled(cliKey, next)}
                         size="sm"
                       />
-                      <span className="text-xs text-slate-600 font-medium min-w-[1rem]">
+                      <span className="text-xs text-slate-600 dark:text-slate-400 font-medium min-w-[1rem]">
                         {cliProxyEnabled[cliKey] ? "开" : "关"}
                       </span>
                     </div>
                   </div>
 
                   <div className="col-span-2 flex items-center justify-between">
-                    <div className="text-xs text-slate-500">当前模板</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">当前模板</div>
                     <div className="flex flex-wrap items-center gap-1.5">
                       {options.map((opt, idx) => {
                         const active = activeModeId === opt.id;
@@ -83,7 +83,7 @@ export function HomeWorkStatusCard({
                         const key = opt.id == null ? "default" : String(opt.id);
                         return (
                           <div key={key} className="flex items-center gap-1.5">
-                            {idx > 0 ? <span className="text-slate-200">|</span> : null}
+                            {idx > 0 ? <span className="text-slate-200 dark:text-slate-600">|</span> : null}
                             <Button
                               onClick={() => onSetCliActiveMode(cliKey, opt.id)}
                               variant={active ? "primary" : "secondary"}

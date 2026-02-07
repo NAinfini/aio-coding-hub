@@ -75,8 +75,8 @@ function SettingItem({
       )}
     >
       <div className="min-w-0">
-        <div className="text-sm text-slate-700">{label}</div>
-        <div className="mt-1 text-xs text-slate-500 leading-relaxed">{subtitle}</div>
+        <div className="text-sm text-slate-700 dark:text-slate-300">{label}</div>
+        <div className="mt-1 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{subtitle}</div>
       </div>
       <div className="flex flex-wrap items-center justify-end gap-2">{children}</div>
     </div>
@@ -212,28 +212,28 @@ export function CliManagerCodexTab({
   return (
     <div className="space-y-6">
       <Card className="overflow-hidden">
-        <div className="border-b border-slate-100">
+        <div className="border-b border-slate-100 dark:border-slate-700">
           <div className="flex flex-col gap-4 p-6">
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <div className="flex items-center gap-4">
-                <div className="h-14 w-14 rounded-xl bg-slate-900/5 flex items-center justify-center text-slate-700">
+                <div className="h-14 w-14 rounded-xl bg-slate-900/5 dark:bg-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-300">
                   <Terminal className="h-8 w-8" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-slate-900">Codex</h2>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Codex</h2>
                   <div className="flex items-center gap-2 mt-1">
                     {codexAvailable === "available" && codexInfo?.found ? (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 dark:bg-green-900/30 px-2.5 py-0.5 text-xs font-medium text-green-700 dark:text-green-400 ring-1 ring-inset ring-green-600/20">
                         <CheckCircle2 className="h-3 w-3" />
                         已安装 {codexInfo.version}
                       </span>
                     ) : codexAvailable === "checking" || loading ? (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 dark:bg-blue-900/30 px-2.5 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-400 ring-1 ring-inset ring-blue-600/20">
                         <RefreshCw className="h-3 w-3 animate-spin" />
                         加载中...
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600 ring-1 ring-inset ring-slate-500/10">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 dark:bg-slate-700 px-2.5 py-0.5 text-xs font-medium text-slate-600 dark:text-slate-400 ring-1 ring-inset ring-slate-500/10">
                         未检测到
                       </span>
                     )}
@@ -255,14 +255,14 @@ export function CliManagerCodexTab({
 
             {codexConfig && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mt-2">
-                <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
-                  <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1.5">
+                <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3 border border-slate-100 dark:border-slate-700">
+                  <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mb-1.5">
                     <FolderOpen className="h-3 w-3" />
                     CODEX_HOME
                   </div>
                   <div className="flex items-center gap-1.5">
                     <div
-                      className="font-mono text-xs text-slate-700 truncate flex-1"
+                      className="font-mono text-xs text-slate-700 dark:text-slate-300 truncate flex-1"
                       title={codexConfig.config_dir}
                     >
                       {codexConfig.config_dir}
@@ -272,7 +272,7 @@ export function CliManagerCodexTab({
                       disabled={!codexConfig.can_open_config_dir}
                       size="sm"
                       variant="ghost"
-                      className="shrink-0 h-6 w-6 p-0 hover:bg-slate-200"
+                      className="shrink-0 h-6 w-6 p-0 hover:bg-slate-200 dark:hover:bg-slate-700"
                       title={
                         codexConfig.can_open_config_dir
                           ? "打开配置目录"
@@ -283,60 +283,60 @@ export function CliManagerCodexTab({
                     </Button>
                   </div>
                   {!codexConfig.can_open_config_dir ? (
-                    <div className="mt-1 text-[11px] text-amber-700">
+                    <div className="mt-1 text-[11px] text-amber-700 dark:text-amber-400">
                       受权限限制，应用仅允许打开 $HOME/.codex 下的目录；请手动打开该路径。
                     </div>
                   ) : null}
                 </div>
 
-                <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
-                  <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1.5">
+                <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3 border border-slate-100 dark:border-slate-700">
+                  <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mb-1.5">
                     <FileJson className="h-3 w-3" />
                     config.toml
                   </div>
                   <div
-                    className="font-mono text-xs text-slate-700 truncate"
+                    className="font-mono text-xs text-slate-700 dark:text-slate-300 truncate"
                     title={codexConfig.config_path}
                   >
                     {codexConfig.config_path}
                   </div>
-                  <div className="mt-1 text-[11px] text-slate-500">
+                  <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
                     {codexConfig.exists ? "已存在" : "不存在（将自动创建）"}
                   </div>
                 </div>
 
-                <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
-                  <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1.5">
+                <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3 border border-slate-100 dark:border-slate-700">
+                  <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mb-1.5">
                     <Terminal className="h-3 w-3" />
                     可执行文件
                   </div>
                   <div
-                    className="font-mono text-xs text-slate-700 truncate"
+                    className="font-mono text-xs text-slate-700 dark:text-slate-300 truncate"
                     title={codexInfo?.executable_path ?? "—"}
                   >
                     {codexInfo?.executable_path ?? "—"}
                   </div>
                 </div>
 
-                <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
-                  <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1.5">
+                <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3 border border-slate-100 dark:border-slate-700">
+                  <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mb-1.5">
                     <Settings className="h-3 w-3" />
                     解析方式
                   </div>
                   <div
-                    className="font-mono text-xs text-slate-700 truncate"
+                    className="font-mono text-xs text-slate-700 dark:text-slate-300 truncate"
                     title={codexInfo?.resolved_via ?? "—"}
                   >
                     {codexInfo?.resolved_via ?? "—"}
                   </div>
-                  <div className="mt-1 text-[11px] text-slate-500">
+                  <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
                     SHELL: {codexInfo?.shell ?? "—"}
                   </div>
                 </div>
               </div>
             )}
 
-            <div className="text-xs text-slate-500">
+            <div className="text-xs text-slate-500 dark:text-slate-400">
               注意：Codex 还会读取 Team Config（例如 repo 内 `.codex/`），其优先级可能高于
               `$CODEX_HOME`。
             </div>
@@ -344,17 +344,17 @@ export function CliManagerCodexTab({
         </div>
 
         {codexAvailable === "unavailable" ? (
-          <div className="text-sm text-slate-600 text-center py-8">仅在 Tauri Desktop 环境可用</div>
+          <div className="text-sm text-slate-600 dark:text-slate-400 text-center py-8">仅在 Tauri Desktop 环境可用</div>
         ) : !codexConfig ? (
-          <div className="text-sm text-slate-500 text-center py-8">暂无配置，请尝试刷新</div>
+          <div className="text-sm text-slate-500 dark:text-slate-400 text-center py-8">暂无配置，请尝试刷新</div>
         ) : (
           <div className="p-6 space-y-6">
-            <div className="rounded-lg border border-slate-200 bg-white p-5">
-              <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2 mb-3">
-                <Settings className="h-4 w-4 text-slate-400" />
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2 mb-3">
+                <Settings className="h-4 w-4 text-slate-400 dark:text-slate-500" />
                 基础配置
               </h3>
-              <div className="divide-y divide-slate-100">
+              <div className="divide-y divide-slate-100 dark:divide-slate-700">
                 <SettingItem
                   label="默认模型 (model)"
                   subtitle="设置 Codex 默认使用的模型（例如 gpt-5-codex）。留空表示不设置（交由 Codex 默认/上层配置决定）。"
@@ -462,12 +462,12 @@ export function CliManagerCodexTab({
               </div>
             </div>
 
-            <div className="rounded-lg border border-slate-200 bg-white p-5">
-              <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2 mb-3">
-                <Settings className="h-4 w-4 text-slate-400" />
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2 mb-3">
+                <Settings className="h-4 w-4 text-slate-400 dark:text-slate-500" />
                 Sandbox（workspace-write）
               </h3>
-              <div className="divide-y divide-slate-100">
+              <div className="divide-y divide-slate-100 dark:divide-slate-700">
                 <SettingItem
                   label="允许联网 (sandbox_workspace_write.network_access)"
                   subtitle="仅在 sandbox_mode=workspace-write 时生效。开启写入 network_access=true；关闭删除该项（不写 false）。"
@@ -485,7 +485,7 @@ export function CliManagerCodexTab({
                 </SettingItem>
               </div>
               {effectiveSandboxMode !== "workspace-write" ? (
-                <div className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-700 flex items-start gap-2">
+                <div className="mt-3 rounded-lg bg-amber-50 dark:bg-amber-900/30 p-3 text-xs text-amber-700 dark:text-amber-400 flex items-start gap-2">
                   <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
                   <div>
                     当前 sandbox_mode 不是 <span className="font-mono">workspace-write</span>
@@ -495,12 +495,12 @@ export function CliManagerCodexTab({
               ) : null}
             </div>
 
-            <div className="rounded-lg border border-slate-200 bg-white p-5">
-              <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2 mb-3">
-                <Settings className="h-4 w-4 text-slate-400" />
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2 mb-3">
+                <Settings className="h-4 w-4 text-slate-400 dark:text-slate-500" />
                 Features（实验/可选能力）
               </h3>
-              <div className="divide-y divide-slate-100">
+              <div className="divide-y divide-slate-100 dark:divide-slate-700">
                 <SettingItem
                   label="shell_snapshot"
                   subtitle="测试版：快照 shell 环境以加速重复命令。开启写入 shell_snapshot=true；"
@@ -633,17 +633,17 @@ export function CliManagerCodexTab({
               </div>
             </div>
 
-            <div className="rounded-lg border border-slate-200 bg-white p-5">
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5">
               <details
                 className="group"
                 onToggle={(e) => setTomlAdvancedOpen((e.currentTarget as HTMLDetailsElement).open)}
               >
-                <summary className="cursor-pointer select-none text-sm font-semibold text-slate-900 flex items-center justify-between">
+                <summary className="cursor-pointer select-none text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center justify-between">
                   <span className="flex items-center gap-2">
-                    <Settings className="h-4 w-4 text-slate-400" />
+                    <Settings className="h-4 w-4 text-slate-400 dark:text-slate-500" />
                     高级配置（config.toml）
                   </span>
-                  <span className="text-xs font-normal text-slate-500">
+                  <span className="text-xs font-normal text-slate-500 dark:text-slate-400">
                     仅在需要编辑原始 TOML 时使用
                   </span>
                 </summary>
@@ -652,8 +652,8 @@ export function CliManagerCodexTab({
                   <div className="mt-4 space-y-3">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0">
-                        <div className="text-xs text-slate-500">路径</div>
-                        <div className="mt-1 font-mono text-xs text-slate-700 truncate">
+                        <div className="text-xs text-slate-500 dark:text-slate-400">路径</div>
+                        <div className="mt-1 font-mono text-xs text-slate-700 dark:text-slate-300 truncate">
                           {codexConfig?.config_path ?? codexConfigToml?.config_path ?? "—"}
                         </div>
                       </div>
@@ -722,11 +722,11 @@ export function CliManagerCodexTab({
                     </div>
 
                     {codexConfigTomlLoading ? (
-                      <div className="text-sm text-slate-500 py-6 text-center">加载中…</div>
+                      <div className="text-sm text-slate-500 dark:text-slate-400 py-6 text-center">加载中…</div>
                     ) : (
                       <Suspense
                         fallback={
-                          <div className="text-sm text-slate-500 py-6 text-center">加载编辑器…</div>
+                          <div className="text-sm text-slate-500 dark:text-slate-400 py-6 text-center">加载编辑器…</div>
                         }
                       >
                         <LazyCodeEditor
@@ -748,7 +748,7 @@ export function CliManagerCodexTab({
                     )}
 
                     {tomlValidation?.ok === false && tomlValidation.error ? (
-                      <div className="rounded-lg bg-rose-50 p-3 text-xs text-rose-700 flex items-start gap-2">
+                      <div className="rounded-lg bg-rose-50 dark:bg-rose-900/30 p-3 text-xs text-rose-700 dark:text-rose-400 flex items-start gap-2">
                         <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
                         <div className="min-w-0">
                           <div className="font-semibold">TOML 校验失败</div>
@@ -767,7 +767,7 @@ export function CliManagerCodexTab({
                         </div>
                       </div>
                     ) : (
-                      <div className="text-xs text-slate-500">
+                      <div className="text-xs text-slate-500 dark:text-slate-400">
                         保存前会进行后端 TOML 校验；校验失败不会写入文件。
                       </div>
                     )}
@@ -779,7 +779,7 @@ export function CliManagerCodexTab({
         )}
 
         {codexInfo?.error && (
-          <div className="mt-4 rounded-lg bg-rose-50 p-4 text-sm text-rose-600 flex items-start gap-2">
+          <div className="mt-4 rounded-lg bg-rose-50 dark:bg-rose-900/30 p-4 text-sm text-rose-600 dark:text-rose-400 flex items-start gap-2">
             <AlertTriangle className="h-5 w-5 shrink-0" />
             <div>
               <span className="font-semibold">检测失败：</span>

@@ -72,16 +72,16 @@ export function SettingsMainColumn({
     <div className="space-y-6 lg:col-span-8">
       {/* 网关服务 */}
       <Card>
-        <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-4">
-          <div className="font-semibold text-slate-900">网关服务</div>
+        <div className="mb-4 flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-4">
+          <div className="font-semibold text-slate-900 dark:text-slate-100">网关服务</div>
           <span
             className={cn(
               "rounded-full px-2.5 py-0.5 text-xs font-medium",
               gatewayAvailable === "checking" || gatewayAvailable === "unavailable"
-                ? "bg-slate-100 text-slate-600"
+                ? "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400"
                 : gateway?.running
                   ? "bg-emerald-50 text-emerald-700"
-                  : "bg-slate-100 text-slate-600"
+                  : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400"
             )}
           >
             {gatewayAvailable === "checking"
@@ -178,14 +178,14 @@ export function SettingsMainColumn({
 
       {/* 参数配置 */}
       <Card>
-        <div className="mb-4 border-b border-slate-100 pb-4">
-          <div className="font-semibold text-slate-900">参数配置</div>
+        <div className="mb-4 border-b border-slate-100 dark:border-slate-700 pb-4">
+          <div className="font-semibold text-slate-900 dark:text-slate-100">参数配置</div>
         </div>
 
         <div className="space-y-8">
           {/* 系统偏好 */}
           <div>
-            <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500">
+            <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               系统偏好
             </h3>
             <div className="space-y-1">
@@ -233,7 +233,7 @@ export function SettingsMainColumn({
                     max={3650}
                     disabled={!settingsReady}
                   />
-                  <span className="text-sm text-slate-500">天</span>
+                  <span className="text-sm text-slate-500 dark:text-slate-400">天</span>
                 </div>
               </SettingsRow>
             </div>
@@ -241,7 +241,7 @@ export function SettingsMainColumn({
 
           {/* 系统通知 */}
           <div>
-            <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500">
+            <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               系统通知
             </h3>
             <div className="space-y-1">
@@ -253,7 +253,7 @@ export function SettingsMainColumn({
                       ? "bg-emerald-50 text-emerald-700"
                       : noticePermissionStatus === "checking" ||
                           noticePermissionStatus === "unknown"
-                        ? "bg-slate-100 text-slate-600"
+                        ? "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400"
                         : "bg-amber-50 text-amber-700"
                   )}
                 >

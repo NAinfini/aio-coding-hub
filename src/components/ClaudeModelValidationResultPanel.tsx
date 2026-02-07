@@ -93,19 +93,19 @@ function TextEvidenceSection({
 
   return (
     <div className="space-y-1.5">
-      <div className="text-[11px] font-semibold text-amber-900">{title}</div>
+      <div className="text-[11px] font-semibold text-amber-900 dark:text-amber-400">{title}</div>
       <div className="space-y-1">
         {lines.map((line) => (
           <div
             key={`${keyPrefix}_${line.lineNumber}`}
-            className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1"
+            className="rounded-md border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30 px-2 py-1"
           >
             <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <span className="font-mono text-[11px] text-amber-950">
+              <span className="font-mono text-[11px] text-amber-950 dark:text-amber-300">
                 L{line.lineNumber}: {line.lineText || "—"}
               </span>
               {line.matchedKeywords.length > 0 ? (
-                <span className="font-mono text-[10px] text-amber-700">
+                <span className="font-mono text-[10px] text-amber-700 dark:text-amber-400">
                   hit: {line.matchedKeywords.join(", ")}
                 </span>
               ) : null}
@@ -178,14 +178,14 @@ function MetricCard({
   subValue?: string;
 }) {
   return (
-    <div className="flex flex-col gap-1 rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
-      <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+    <div className="flex flex-col gap-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 shadow-sm">
+      <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
         {Icon && <Icon className="h-3.5 w-3.5" />}
         {label}
       </div>
       <div className="flex items-baseline gap-1.5">
-        <span className="text-sm font-semibold text-slate-900">{value}</span>
-        {subValue && <span className="text-xs text-slate-400">{subValue}</span>}
+        <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{value}</span>
+        {subValue && <span className="text-xs text-slate-400 dark:text-slate-500">{subValue}</span>}
       </div>
     </div>
   );
@@ -193,11 +193,11 @@ function MetricCard({
 
 function SectionHeader({ title, icon: Icon }: { title: string; icon: any }) {
   return (
-    <div className="flex items-center gap-2 border-b border-slate-100 pb-2 mb-3">
-      <div className="rounded p-1 bg-slate-100 text-slate-600">
+    <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-700 pb-2 mb-3">
+      <div className="rounded p-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400">
         <Icon className="h-3.5 w-3.5" />
       </div>
-      <span className="text-xs font-bold uppercase tracking-wider text-slate-500">{title}</span>
+      <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">{title}</span>
     </div>
   );
 }
@@ -228,9 +228,9 @@ function CheckRow({
             />
           )
         ) : (
-          <div className="h-4 w-4 shrink-0 rounded-full border border-slate-300 bg-slate-100" />
+          <div className="h-4 w-4 shrink-0 rounded-full border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-700" />
         )}
-        <span className={cn("text-slate-700", !required && "text-slate-400")}>{label}</span>
+        <span className={cn("text-slate-700 dark:text-slate-300", !required && "text-slate-400 dark:text-slate-500")}>{label}</span>
         {help ? (
           <Tooltip
             content={help}
@@ -238,7 +238,7 @@ function CheckRow({
             contentClassName="whitespace-pre-line max-w-[420px]"
           >
             <span
-              className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 bg-slate-100 text-[10px] font-bold leading-none text-slate-600 cursor-help"
+              className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-700 text-[10px] font-bold leading-none text-slate-600 dark:text-slate-400 cursor-help"
               aria-label={`${label} 说明`}
               title="查看说明"
             >
@@ -247,7 +247,7 @@ function CheckRow({
           </Tooltip>
         ) : null}
       </div>
-      {value && <span className="font-mono text-xs text-slate-600">{value}</span>}
+      {value && <span className="font-mono text-xs text-slate-600 dark:text-slate-400">{value}</span>}
     </div>
   );
 }
@@ -281,8 +281,8 @@ function formatClaudeValidationFailure(result: ClaudeModelValidationResult) {
 export function ClaudeModelValidationResultPanel({ templateKey, result }: Props) {
   if (!result) {
     return (
-      <div className="flex h-40 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-slate-200 bg-slate-50/50 text-slate-500">
-        <Server className="h-8 w-8 text-slate-300" />
+      <div className="flex h-40 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400">
+        <Server className="h-8 w-8 text-slate-300 dark:text-slate-600" />
         <span className="text-sm">暂无验证结果</span>
       </div>
     );
@@ -293,16 +293,16 @@ export function ClaudeModelValidationResultPanel({ templateKey, result }: Props)
     const failure = formatClaudeValidationFailure(result);
     return (
       <Card className="overflow-hidden !p-0">
-        <div className="border-b border-rose-100 bg-rose-50 px-4 py-3">
-          <div className="flex items-center gap-2 text-rose-800">
+        <div className="border-b border-rose-100 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/30 px-4 py-3">
+          <div className="flex items-center gap-2 text-rose-800 dark:text-rose-400">
             <XCircle className="h-5 w-5" />
             <span className="font-semibold">验证失败</span>
           </div>
         </div>
         <div className="p-4 space-y-4">
           <div className="space-y-1">
-            <div className="text-lg font-medium text-slate-900">{failure.summary}</div>
-            <div className="text-sm text-slate-500">{failure.detail}</div>
+            <div className="text-lg font-medium text-slate-900 dark:text-slate-100">{failure.summary}</div>
+            <div className="text-sm text-slate-500 dark:text-slate-400">{failure.detail}</div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -465,20 +465,20 @@ export function ClaudeModelValidationResultPanel({ templateKey, result }: Props)
   return (
     <div className="space-y-6">
       {reverseProxy.anyHit ? (
-        <Card className="overflow-hidden border border-amber-200 bg-amber-50/60">
+        <Card className="overflow-hidden border border-amber-200 dark:border-amber-700 bg-amber-50/60 dark:bg-amber-900/20">
           <div className="flex items-start gap-3 px-4 py-3">
-            <div className="mt-0.5 rounded-lg bg-amber-100 p-1.5 text-amber-700 ring-1 ring-inset ring-amber-200">
+            <div className="mt-0.5 rounded-lg bg-amber-100 dark:bg-amber-900/50 p-1.5 text-amber-700 dark:text-amber-400 ring-1 ring-inset ring-amber-200 dark:ring-amber-700">
               <ShieldAlert className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <div className="text-sm font-semibold text-amber-900">
+              <div className="text-sm font-semibold text-amber-900 dark:text-amber-400">
                 疑似逆向/反代痕迹（判定不通过）
               </div>
-              <div className="mt-1 text-xs text-amber-800">
+              <div className="mt-1 text-xs text-amber-800 dark:text-amber-400/80">
                 命中关键字：{" "}
                 <span className="font-mono">{reverseProxy.hits.join(", ") || "—"}</span>
               </div>
-              <div className="mt-1 flex flex-wrap gap-1 text-xs text-amber-800">
+              <div className="mt-1 flex flex-wrap gap-1 text-xs text-amber-800 dark:text-amber-400/80">
                 {reverseProxy.sources.responseHeaders.hits.length > 0 ? (
                   <span className="rounded bg-amber-100 px-2 py-0.5 font-mono">
                     headers: {reverseProxy.sources.responseHeaders.hits.join(", ")}
@@ -504,7 +504,7 @@ export function ClaudeModelValidationResultPanel({ templateKey, result }: Props)
                 </div>
               ) : null}
 
-              <details className="group mt-2 rounded-lg border border-amber-200 bg-white/60 shadow-sm open:ring-2 open:ring-amber-500/20 transition-all">
+              <details className="group mt-2 rounded-lg border border-amber-200 dark:border-amber-700 bg-white/60 dark:bg-slate-800/60 shadow-sm open:ring-2 open:ring-amber-500/20 transition-all">
                 <summary className="flex cursor-pointer items-center justify-between px-3 py-2 select-none">
                   <div className="min-w-0">
                     <div className="text-xs font-medium text-amber-900 truncate">
@@ -521,7 +521,7 @@ export function ClaudeModelValidationResultPanel({ templateKey, result }: Props)
                   <ChevronDown className="h-4 w-4 shrink-0 text-amber-700 transition-transform group-open:rotate-180" />
                 </summary>
 
-                <div className="border-t border-amber-100 px-3 py-2 space-y-3">
+                <div className="border-t border-amber-100 dark:border-amber-800 px-3 py-2 space-y-3">
                   {reverseProxyEvidence.headers.length > 0 ? (
                     <div className="space-y-1.5">
                       <div className="text-[11px] font-semibold text-amber-900">
@@ -531,14 +531,14 @@ export function ClaudeModelValidationResultPanel({ templateKey, result }: Props)
                         {reverseProxyEvidence.headers.map((h) => (
                           <div
                             key={h.headerName}
-                            className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1"
+                            className="rounded-md border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30 px-2 py-1"
                           >
                             <div className="flex flex-wrap items-baseline justify-between gap-2">
-                              <span className="font-mono text-[11px] text-amber-950">
+                              <span className="font-mono text-[11px] text-amber-950 dark:text-amber-300">
                                 {h.headerName}
                               </span>
                               {h.matchedKeywords.length > 0 ? (
-                                <span className="font-mono text-[10px] text-amber-700">
+                                <span className="font-mono text-[10px] text-amber-700 dark:text-amber-400">
                                   hit: {h.matchedKeywords.join(", ")}
                                 </span>
                               ) : null}
@@ -577,8 +577,8 @@ export function ClaudeModelValidationResultPanel({ templateKey, result }: Props)
 
       {/* 1. Header & Stats */}
       <Card className="overflow-hidden !p-0">
-        <div className="flex items-center justify-between border-b border-emerald-100 bg-emerald-50/50 px-4 py-3">
-          <div className="flex items-center gap-2 text-emerald-800">
+        <div className="flex items-center justify-between border-b border-emerald-100 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-900/30 px-4 py-3">
+          <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-400">
             <CheckCircle2 className="h-5 w-5" />
             <span className="font-semibold">请求成功</span>
             {grade ? (
@@ -586,12 +586,12 @@ export function ClaudeModelValidationResultPanel({ templateKey, result }: Props)
                 className={cn(
                   "ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset",
                   grade.level === "A"
-                    ? "bg-emerald-100 text-emerald-800 ring-emerald-200"
+                    ? "bg-emerald-100 text-emerald-800 ring-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:ring-emerald-700"
                     : grade.level === "B"
-                      ? "bg-sky-100 text-sky-800 ring-sky-200"
+                      ? "bg-sky-100 text-sky-800 ring-sky-200 dark:bg-sky-900/30 dark:text-sky-400 dark:ring-sky-700"
                       : grade.level === "C"
-                        ? "bg-amber-100 text-amber-900 ring-amber-200"
-                        : "bg-rose-100 text-rose-800 ring-rose-200"
+                        ? "bg-amber-100 text-amber-900 ring-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:ring-amber-700"
+                        : "bg-rose-100 text-rose-800 ring-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:ring-rose-700"
                 )}
                 title={grade.title}
               >
@@ -601,52 +601,52 @@ export function ClaudeModelValidationResultPanel({ templateKey, result }: Props)
           </div>
           <div className="flex items-center gap-2">
             {mentionsBedrock && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+              <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-700 px-2.5 py-0.5 text-xs font-medium text-slate-600 dark:text-slate-400">
                 <Server className="h-3 w-3" />
                 Bedrock
               </span>
             )}
-            <span className="font-mono text-xs text-emerald-700/70">#{result.requested_model}</span>
+            <span className="font-mono text-xs text-emerald-700/70 dark:text-emerald-400/70">#{result.requested_model}</span>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-px bg-slate-100 sm:grid-cols-4">
-          <div className="bg-white p-4">
-            <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
+        <div className="grid grid-cols-2 gap-px bg-slate-100 dark:bg-slate-700 sm:grid-cols-4">
+          <div className="bg-white dark:bg-slate-800 p-4">
+            <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-1">
               <Activity className="h-3.5 w-3.5" />
               HTTP
             </div>
-            <div className="text-lg font-semibold text-slate-900">{result.status}</div>
+            <div className="text-lg font-semibold text-slate-900 dark:text-slate-100">{result.status}</div>
           </div>
-          <div className="bg-white p-4">
-            <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
+          <div className="bg-white dark:bg-slate-800 p-4">
+            <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-1">
               <Clock className="h-3.5 w-3.5" />
               延迟
             </div>
-            <div className="text-lg font-semibold text-slate-900">{result.duration_ms}ms</div>
+            <div className="text-lg font-semibold text-slate-900 dark:text-slate-100">{result.duration_ms}ms</div>
           </div>
-          <div className="bg-white p-4">
-            <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
+          <div className="bg-white dark:bg-slate-800 p-4">
+            <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-1">
               <Zap className="h-3.5 w-3.5" />
               消耗
             </div>
-            <div className="text-lg font-semibold text-slate-900">
-              {inputTokens} <span className="text-xs text-slate-400">输入</span> · {outputTokens}{" "}
-              <span className="text-xs text-slate-400">输出</span>
+            <div className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+              {inputTokens} <span className="text-xs text-slate-400 dark:text-slate-500">输入</span> · {outputTokens}{" "}
+              <span className="text-xs text-slate-400 dark:text-slate-500">输出</span>
             </div>
           </div>
-          <div className="bg-white p-4">
-            <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
+          <div className="bg-white dark:bg-slate-800 p-4">
+            <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-1">
               <Box className="h-3.5 w-3.5" />
               缓存
             </div>
-            <div className="text-lg font-semibold text-slate-900">
-              {cacheRead ?? 0} <span className="text-xs text-slate-400">读取</span> ·{" "}
-              {cacheCreate ?? 0} <span className="text-xs text-slate-400">写入</span>
+            <div className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+              {cacheRead ?? 0} <span className="text-xs text-slate-400 dark:text-slate-500">读取</span> ·{" "}
+              {cacheCreate ?? 0} <span className="text-xs text-slate-400 dark:text-slate-500">写入</span>
             </div>
             {typeof cacheReadStep2 === "number" && Number.isFinite(cacheReadStep2) ? (
-              <div className="mt-1 text-[11px] text-slate-500">
-                step2 read-hit: <span className="font-mono text-slate-700">{cacheReadStep2}</span>
+              <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                step2 read-hit: <span className="font-mono text-slate-700 dark:text-slate-300">{cacheReadStep2}</span>
               </div>
             ) : null}
           </div>
@@ -854,7 +854,7 @@ export function ClaudeModelValidationResultPanel({ templateKey, result }: Props)
               <Copy className="mr-1.5 h-3 w-3" />
             </Button>
           </div>
-          <div className="group relative rounded-lg border border-slate-200 bg-slate-900 p-4 font-mono text-xs leading-relaxed text-slate-300 shadow-sm transition-all hover:border-slate-300">
+          <div className="group relative rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-900 p-4 font-mono text-xs leading-relaxed text-slate-300 shadow-sm transition-all hover:border-slate-300 dark:hover:border-slate-600">
             <span className="block whitespace-pre-wrap">{outputPreviewForDisplay}</span>
             <div className="pointer-events-none absolute inset-0 rounded-lg ring-1 ring-inset ring-slate-400/10" />
           </div>

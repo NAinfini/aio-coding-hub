@@ -500,7 +500,7 @@ export function HomePage() {
           <HomeCostPanel />
         ) : (
           <Card padding="md">
-            <div className="text-sm text-slate-600">更多功能开发中…</div>
+            <div className="text-sm text-slate-600 dark:text-slate-400">更多功能开发中…</div>
           </Card>
         )}
       </div>
@@ -558,10 +558,10 @@ export function HomePage() {
               {pendingCliProxyEnablePrompt.conflicts.map((row) => (
                 <li
                   key={`${row.var_name}:${row.source_type}:${row.source_path}`}
-                  className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+                  className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2"
                 >
-                  <div className="font-mono text-xs text-slate-800">{row.var_name}</div>
-                  <div className="mt-1 text-xs text-slate-500">{row.source_path}</div>
+                  <div className="font-mono text-xs text-slate-800 dark:text-slate-200">{row.var_name}</div>
+                  <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{row.source_path}</div>
                 </li>
               ))}
             </ul>

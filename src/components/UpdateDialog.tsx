@@ -87,35 +87,35 @@ export function UpdateDialog() {
       className="max-w-xl"
     >
       <div className="space-y-4">
-        <div className="grid gap-2 text-sm text-slate-700">
+        <div className="grid gap-2 text-sm text-slate-700 dark:text-slate-300">
           <div className="flex items-center justify-between gap-4">
-            <span className="text-slate-500">当前版本</span>
+            <span className="text-slate-500 dark:text-slate-400">当前版本</span>
             <span className="font-mono">
               {updateCandidate?.currentVersion ?? about?.app_version ?? "—"}
             </span>
           </div>
           <div className="flex items-center justify-between gap-4">
-            <span className="text-slate-500">最新版本</span>
+            <span className="text-slate-500 dark:text-slate-400">最新版本</span>
             <span className="font-mono">{updateCandidate?.version ?? "—"}</span>
           </div>
           {updateCandidate?.date ? (
             <div className="flex items-center justify-between gap-4">
-              <span className="text-slate-500">发布日期</span>
+              <span className="text-slate-500 dark:text-slate-400">发布日期</span>
               <span className="font-mono">{formatIsoDateTime(updateCandidate.date)}</span>
             </div>
           ) : null}
         </div>
 
         {!updateCandidate ? (
-          <div className="rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700">
+          <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 text-sm text-slate-700 dark:text-slate-300">
             未发现可安装更新。
           </div>
         ) : null}
 
         {meta.installingUpdate ? (
-          <div className="rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700">
+          <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 text-sm text-slate-700 dark:text-slate-300">
             <div className="font-medium">下载并安装中…</div>
-            <div className="mt-1 font-mono text-xs text-slate-500">
+            <div className="mt-1 font-mono text-xs text-slate-500 dark:text-slate-400">
               {formatBytes(meta.installDownloadedBytes)}
               {meta.installTotalBytes != null ? ` / ${formatBytes(meta.installTotalBytes)}` : ""}
             </div>
@@ -123,7 +123,7 @@ export function UpdateDialog() {
         ) : null}
 
         {meta.installError ? (
-          <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+          <div className="rounded-lg border border-rose-200 dark:border-rose-700 bg-rose-50 dark:bg-rose-900/30 p-3 text-xs text-rose-700 dark:text-rose-400">
             安装失败：{meta.installError}
           </div>
         ) : null}

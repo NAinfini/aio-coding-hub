@@ -13,16 +13,18 @@ import {
 } from "recharts";
 import type { CustomDateRangeApplied } from "../hooks/useCustomDateRange";
 import type { UsagePeriod, UsageProviderCacheRateTrendRowV1 } from "../services/usage";
+import { useTheme } from "../hooks/useTheme";
 import { cn } from "../utils/cn";
 import { buildRecentDayKeys, dayKeyFromLocalDate } from "../utils/dateKeys";
 import { parseYyyyMmDd } from "../utils/localDate";
 import { formatInteger, formatPercent } from "../utils/formatters";
 import {
   pickPaletteColor,
-  AXIS_STYLE,
-  GRID_LINE_STYLE,
-  TOOLTIP_STYLE,
-  LEGEND_STYLE,
+  getAxisStyle,
+  getGridLineStyle,
+  getTooltipStyle,
+  getLegendStyle,
+  getAxisLineStroke,
   CHART_ANIMATION,
   THRESHOLD_COLORS,
 } from "./charts/chartTheme";
@@ -104,6 +106,15 @@ export function UsageProviderCacheRateTrendChart({
   customApplied: CustomDateRangeApplied | null;
   className?: string;
 }) {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
+
+  const axisStyle = useMemo(() => getAxisStyle(isDark), [isDark]);
+  const gridLineStyle = useMemo(() => getGridLineStyle(isDark), [isDark]);
+  const tooltipStyle = useMemo(() => getTooltipStyle(isDark), [isDark]);
+  const legendStyle = useMemo(() => getLegendStyle(isDark), [isDark]);
+  const axisLineStroke = getAxisLineStroke(isDark);
+
   const { xLabels, chartData, providers, warnRanges, yAxisRange } = useMemo(() => {
     const isHourly = period === "daily";
     const isAllTime = period === "allTime";
@@ -318,11 +329,12 @@ export function UsageProviderCacheRateTrendChart({
     return (
       <div
         style={{
-          backgroundColor: TOOLTIP_STYLE.backgroundColor,
-          border: TOOLTIP_STYLE.border,
-          borderRadius: TOOLTIP_STYLE.borderRadius,
-          boxShadow: TOOLTIP_STYLE.boxShadow,
-          padding: TOOLTIP_STYLE.padding,
+          backgroundColor: tooltipStyle.backgroundColor,
+          border: tooltipStyle.border,
+          borderRadius: tooltipStyle.borderRadius,
+          boxShadow: tooltipStyle.boxShadow,
+          padding: tooltipStyle.padding,
+          color: tooltipStyle.color,
           minWidth: 200,
         }}
       >
@@ -332,11 +344,11 @@ export function UsageProviderCacheRateTrendChart({
             预警（&lt;60%）: {warnItems.length}
           </div>
         ) : (
-          <div style={{ marginBottom: 6, color: "#64748b" }}>供应商: {items.length}</div>
+          <div style={{ marginBottom: 6, color: isDark ? "#94a3b8" : "#64748b" }}>供应商: {items.length}</div>
         )}
         {sliced.map((item: any, idx: number) => {
           const isWarn = item.value < WARN_THRESHOLD;
-          const valueColor = isWarn ? "#b91c1c" : "#0f172a";
+          const valueColor = isWarn ? "#b91c1c" : isDark ? "#e2e8f0" : "#0f172a";
 
           return (
             <div key={idx}>
@@ -373,7 +385,7 @@ export function UsageProviderCacheRateTrendChart({
               <div
                 style={{
                   margin: "2px 0 8px 16px",
-                  color: "#64748b",
+                  color: isDark ? "#94a3b8" : "#64748b",
                   fontSize: 11,
                 }}
               >
@@ -384,7 +396,7 @@ export function UsageProviderCacheRateTrendChart({
           );
         })}
         {hidden > 0 && (
-          <div style={{ marginTop: 4, color: "#64748b" }}>… +{hidden}（可通过 legend 过滤）</div>
+          <div style={{ marginTop: 4, color: isDark ? "#94a3b8" : "#64748b" }}>... +{hidden}（可通过 legend 过滤）</div>
         )}
       </div>
     );
@@ -398,14 +410,14 @@ export function UsageProviderCacheRateTrendChart({
         <LineChart data={chartData} margin={{ left: 0, right: 16, top: 56, bottom: 0 }}>
           <CartesianGrid
             vertical={false}
-            stroke={GRID_LINE_STYLE.stroke}
-            strokeDasharray={GRID_LINE_STYLE.strokeDasharray}
+            stroke={gridLineStyle.stroke}
+            strokeDasharray={gridLineStyle.strokeDasharray}
           />
           <XAxis
             dataKey="label"
-            axisLine={{ stroke: "rgba(15,23,42,0.12)" }}
+            axisLine={{ stroke: axisLineStroke }}
             tickLine={false}
-            tick={{ ...AXIS_STYLE }}
+            tick={{ ...axisStyle }}
             ticks={xAxisTicks}
             interval="preserveStartEnd"
           />
@@ -414,7 +426,7 @@ export function UsageProviderCacheRateTrendChart({
             ticks={yAxisTicks}
             axisLine={false}
             tickLine={false}
-            tick={{ ...AXIS_STYLE }}
+            tick={{ ...axisStyle }}
             tickFormatter={(v: number) => formatPercent(v, 0)}
             width={45}
           />
@@ -422,8 +434,8 @@ export function UsageProviderCacheRateTrendChart({
           <Legend
             wrapperStyle={{
               paddingTop: 8,
-              fontSize: LEGEND_STYLE.fontSize,
-              color: LEGEND_STYLE.color,
+              fontSize: legendStyle.fontSize,
+              color: legendStyle.color,
             }}
           />
           <ReferenceLine

@@ -52,10 +52,10 @@ export function SettingsDialogs({
         className="max-w-lg"
       >
         <div className="space-y-4">
-          <div className="text-sm text-slate-700">
+          <div className="text-sm text-slate-700 dark:text-slate-300">
             说明：仅影响请求日志与明细，不会影响 Providers、Prompts、MCP 等配置。
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-3">
+          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-700 pt-3">
             <Button
               onClick={() => setClearRequestLogsDialogOpen(false)}
               variant="secondary"
@@ -89,7 +89,7 @@ export function SettingsDialogs({
           <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
             注意：此操作会清空所有本地数据与配置。完成后应用会自动退出，需要手动重新打开。
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-3">
+          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-700 pt-3">
             <Button
               onClick={() => setResetAllDialogOpen(false)}
               variant="secondary"

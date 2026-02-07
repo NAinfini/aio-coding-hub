@@ -17,11 +17,11 @@ type TooltipState = {
 };
 
 const LEVEL_CLASS: Record<number, string> = {
-  0: "bg-[#ebedf0]",
-  1: "bg-[#9be9a8]",
-  2: "bg-[#40c463]",
-  3: "bg-[#30a14e]",
-  4: "bg-[#216e39]",
+  0: "bg-[#ebedf0] dark:bg-slate-700",
+  1: "bg-[#9be9a8] dark:bg-[#196c2e]",
+  2: "bg-[#40c463] dark:bg-[#2ea043]",
+  3: "bg-[#30a14e] dark:bg-[#3fb950]",
+  4: "bg-[#216e39] dark:bg-[#56d364]",
 };
 
 function clampNumber(value: number, min: number, max: number) {
@@ -186,9 +186,9 @@ export function UsageHeatmap15d({
                 key={key}
                 onMouseEnter={(e) => showTooltip(e, row)}
                 className={cn(
-                  "w-full min-w-2.5 min-h-2.5 rounded-[3px] ring-1 ring-black/5",
+                  "w-full min-w-2.5 min-h-2.5 rounded-[3px] ring-1 ring-black/5 dark:ring-white/5",
                   LEVEL_CLASS[level],
-                  isHovered ? "ring-2 ring-black/20" : null
+                  isHovered ? "ring-2 ring-black/20 dark:ring-white/20" : null
                 )}
                 style={{ aspectRatio: "1 / 1" }}
               />
@@ -198,16 +198,15 @@ export function UsageHeatmap15d({
       </div>
 
       <div className="mt-3 flex items-center justify-between gap-2">
-        <div className="text-xs text-slate-500 min-w-[4rem]">
-          {dayKeys.length > 0 ? dayKeys[0].slice(5) : "—"}
+        <div className="text-xs text-slate-500 dark:text-slate-400 min-w-[4rem]">
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 text-xs text-slate-500">
+          <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
             <span>低</span>
             {([0, 1, 2, 3, 4] as const).map((level) => (
               <div
                 key={level}
-                className={cn("h-2.5 w-2.5 rounded-[2px] ring-1 ring-black/5", LEVEL_CLASS[level])}
+                className={cn("h-2.5 w-2.5 rounded-[2px] ring-1 ring-black/5 dark:ring-white/5", LEVEL_CLASS[level])}
               />
             ))}
             <span>高</span>
@@ -218,7 +217,7 @@ export function UsageHeatmap15d({
               onClick={onRefresh}
               disabled={refreshing}
               className={cn(
-                "ml-1 p-0.5 text-slate-400 hover:text-slate-600 transition-colors",
+                "ml-1 p-0.5 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors",
                 "disabled:opacity-50 disabled:cursor-not-allowed",
                 refreshing && "animate-spin"
               )}
@@ -239,7 +238,7 @@ export function UsageHeatmap15d({
             </button>
           )}
         </div>
-        <div className="text-xs text-slate-500 min-w-[4rem] text-right">
+        <div className="text-xs text-slate-500 dark:text-slate-400 min-w-[4rem] text-right">
           {dayKeys.length > 0 ? dayKeys[dayKeys.length - 1].slice(5) : "—"}
         </div>
       </div>
@@ -250,25 +249,25 @@ export function UsageHeatmap15d({
           style={{ left: tooltip.left, top: tooltip.top, width: 240 }}
         >
           <div
-            className={cn("rounded-xl border border-slate-200 bg-white shadow-card", "px-3 py-2")}
+            className={cn("rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-card", "px-3 py-2")}
           >
             <div className="flex items-center justify-between gap-2">
-              <div className="text-xs font-medium text-slate-900">
+              <div className="text-xs font-medium text-slate-900 dark:text-slate-100">
                 {tooltip.day} {pad2(tooltip.hour)}:00
               </div>
-              <div className="text-[10px] text-slate-500">
+              <div className="text-[10px] text-slate-500 dark:text-slate-400">
                 {tooltip.placement === "above" ? "↑" : "↓"} 本地时间
               </div>
             </div>
 
             <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-              <div className="text-slate-500">请求</div>
-              <div className="text-right font-mono text-slate-900">
+              <div className="text-slate-500 dark:text-slate-400">请求</div>
+              <div className="text-right font-mono text-slate-900 dark:text-slate-100">
                 {formatNumber(tooltip.requests_total)}
               </div>
 
-              <div className="text-slate-500">成功率</div>
-              <div className="text-right font-mono text-slate-900">
+              <div className="text-slate-500 dark:text-slate-400">成功率</div>
+              <div className="text-right font-mono text-slate-900 dark:text-slate-100">
                 {tooltip.requests_total > 0
                   ? `${
                       Math.round((tooltip.requests_success / tooltip.requests_total) * 1000) / 10
@@ -276,13 +275,13 @@ export function UsageHeatmap15d({
                   : "—"}
               </div>
 
-              <div className="text-slate-500">Token</div>
-              <div className="text-right font-mono text-slate-900">
+              <div className="text-slate-500 dark:text-slate-400">Token</div>
+              <div className="text-right font-mono text-slate-900 dark:text-slate-100">
                 {tooltip.requests_with_usage > 0 ? formatTokensMillions(tooltip.total_tokens) : "—"}
               </div>
 
-              <div className="text-slate-500">有用量</div>
-              <div className="text-right font-mono text-slate-900">
+              <div className="text-slate-500 dark:text-slate-400">有用量</div>
+              <div className="text-right font-mono text-slate-900 dark:text-slate-100">
                 {formatNumber(tooltip.requests_with_usage)}
               </div>
             </div>

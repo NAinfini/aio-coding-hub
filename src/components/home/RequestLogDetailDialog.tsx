@@ -55,21 +55,21 @@ export function RequestLogDetailDialog({
       className="max-w-3xl"
     >
       {selectedLogLoading ? (
-        <div className="text-sm text-slate-600">加载中…</div>
+        <div className="text-sm text-slate-600 dark:text-slate-400">加载中…</div>
       ) : !selectedLog ? (
-        <div className="text-sm text-slate-600">未找到记录详情（可能已过期被留存策略清理）。</div>
+        <div className="text-sm text-slate-600 dark:text-slate-400">未找到记录详情（可能已过期被留存策略清理）。</div>
       ) : (
         <div className="space-y-3">
           <Card padding="sm">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
-                <div className="text-sm font-semibold text-slate-900">
-                  <span className="mr-2 font-mono text-xs text-slate-500">
+                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  <span className="mr-2 font-mono text-xs text-slate-500 dark:text-slate-400">
                     {selectedLog.method.toUpperCase()}
                   </span>
                   <span className="truncate">{selectedLog.path}</span>
                 </div>
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                   <span
                     className={cn(
                       "rounded-full px-2 py-0.5 font-medium",
@@ -93,27 +93,27 @@ export function RequestLogDetailDialog({
                     );
                   })()}
                   {selectedLog.error_code ? (
-                    <span className="rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-700">
+                    <span className="rounded-full bg-amber-50 dark:bg-amber-900/30 px-2 py-0.5 font-medium text-amber-700 dark:text-amber-400">
                       {selectedLog.error_code}
                     </span>
                   ) : null}
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5">
+                  <span className="rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-0.5">
                     耗时 {formatDurationMs(selectedLog.duration_ms)}
                   </span>
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5">
+                  <span className="rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-0.5">
                     成本 {formatUsd(selectedLog.cost_usd)}
                     {(() => {
                       const m = selectedLog.cost_multiplier;
                       const show = Number.isFinite(m) && m > 0 && Math.abs(m - 1) > 0.0001;
                       return show ? (
-                        <span className="ml-1 text-slate-500">(x{m.toFixed(2)})</span>
+                        <span className="ml-1 text-slate-500 dark:text-slate-400">(x{m.toFixed(2)})</span>
                       ) : null;
                     })()}
                   </span>
                   {(() => {
                     const ttfbMs = sanitizeTtfbMs(selectedLog.ttfb_ms, selectedLog.duration_ms);
                     return ttfbMs != null ? (
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5">
+                      <span className="rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-0.5">
                         首字 {formatDurationMs(ttfbMs)}
                       </span>
                     ) : null;
@@ -126,17 +126,17 @@ export function RequestLogDetailDialog({
                     );
                     if (rate == null) return null;
                     return (
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5">
+                      <span className="rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-0.5">
                         速率 {formatTokensPerSecond(rate)}
                       </span>
                     );
                   })()}
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5">
+                  <span className="rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-0.5">
                     {formatUnixSeconds(selectedLog.created_at)}
                   </span>
                 </div>
                 {selectedLog.query ? (
-                  <div className="mt-2 break-words text-xs text-slate-500">
+                  <div className="mt-2 break-words text-xs text-slate-500 dark:text-slate-400">
                     查询：<span className="font-mono">{selectedLog.query}</span>
                   </div>
                 ) : null}
@@ -164,7 +164,7 @@ export function RequestLogDetailDialog({
           </Card>
 
           <Card padding="sm">
-            <div className="text-sm font-semibold text-slate-900">故障切换尝试</div>
+            <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">故障切换尝试</div>
             <ProviderChainView
               attemptLogs={attemptLogs}
               attemptLogsLoading={attemptLogsLoading}
@@ -186,7 +186,7 @@ export function RequestLogDetailDialog({
             return (
               <Card padding="sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="text-sm font-semibold text-slate-900">Token 用量</div>
+                  <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">Token 用量</div>
                   <div className="flex flex-wrap items-center gap-2">
                     {selectedLog.usage_json ? (
                       <Button
@@ -209,31 +209,31 @@ export function RequestLogDetailDialog({
                   </div>
                 </div>
 
-                <div className="mt-3 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
+                <div className="mt-3 grid gap-2 text-sm text-slate-700 dark:text-slate-300 sm:grid-cols-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500">input_tokens</span>
+                    <span className="text-slate-500 dark:text-slate-400">input_tokens</span>
                     <span className="font-mono">{selectedLog.input_tokens ?? "—"}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500">output_tokens</span>
+                    <span className="text-slate-500 dark:text-slate-400">output_tokens</span>
                     <span className="font-mono">{selectedLog.output_tokens ?? "—"}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500">total_tokens</span>
+                    <span className="text-slate-500 dark:text-slate-400">total_tokens</span>
                     <span className="font-mono">{selectedLog.total_tokens ?? "—"}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500">cache_read_input_tokens</span>
+                    <span className="text-slate-500 dark:text-slate-400">cache_read_input_tokens</span>
                     <span className="font-mono">{selectedLog.cache_read_input_tokens ?? "—"}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500">cache_creation_input_tokens</span>
+                    <span className="text-slate-500 dark:text-slate-400">cache_creation_input_tokens</span>
                     <span className="font-mono">
                       {selectedLog.cache_creation_input_tokens ?? "—"}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500">cache_creation_5m_input_tokens</span>
+                    <span className="text-slate-500 dark:text-slate-400">cache_creation_5m_input_tokens</span>
                     <span className="font-mono">
                       {selectedLog.cache_creation_5m_input_tokens ?? "—"}
                     </span>

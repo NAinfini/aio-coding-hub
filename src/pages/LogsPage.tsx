@@ -132,7 +132,7 @@ export function LogsPage() {
         title="日志"
         actions={
           <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2 text-xs text-slate-600">
+            <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
               <span>自动刷新</span>
               <Switch
                 checked={autoRefresh}
@@ -149,14 +149,14 @@ export function LogsPage() {
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-sm font-semibold">筛选</div>
-            <div className="text-xs text-slate-500">
+            <div className="text-xs text-slate-500 dark:text-slate-400">
               {filteredLogs.length} / {requestLogs.length}
             </div>
           </div>
 
           <div className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center gap-3">
-              <div className="text-xs font-medium text-slate-600 w-16">CLI</div>
+              <div className="text-xs font-medium text-slate-600 dark:text-slate-400 w-16">CLI</div>
               <TabList
                 ariaLabel="CLI 过滤"
                 items={CLI_FILTER_ITEMS}
@@ -169,7 +169,7 @@ export function LogsPage() {
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               <div className="flex flex-col gap-1">
-                <div className="text-xs font-medium text-slate-600">Status</div>
+                <div className="text-xs font-medium text-slate-600 dark:text-slate-400">Status</div>
                 <Input
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
@@ -178,13 +178,13 @@ export function LogsPage() {
                   disabled={requestLogsAvailable === false}
                 />
                 {!statusFilterValid && (
-                  <div className="text-[11px] leading-4 text-rose-600">
+                  <div className="text-[11px] leading-4 text-rose-600 dark:text-rose-400">
                     表达式不合法：支持 499 / !200 / &gt;=400 / &lt;=399
                   </div>
                 )}
               </div>
               <div className="flex flex-col gap-1">
-                <div className="text-xs font-medium text-slate-600">error_code</div>
+                <div className="text-xs font-medium text-slate-600 dark:text-slate-400">error_code</div>
                 <Input
                   value={errorCodeFilter}
                   onChange={(e) => setErrorCodeFilter(e.target.value)}
@@ -194,7 +194,7 @@ export function LogsPage() {
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <div className="text-xs font-medium text-slate-600">Path</div>
+                <div className="text-xs font-medium text-slate-600 dark:text-slate-400">Path</div>
                 <Input
                   value={pathFilter}
                   onChange={(e) => setPathFilter(e.target.value)}

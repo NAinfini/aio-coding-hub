@@ -138,15 +138,15 @@ export function ProviderChainView({
   }, [attemptLogs.length, attemptLogsLoading, parsedAttemptsJson.ok]);
 
   if (attemptLogsLoading) {
-    return <div className="mt-2 text-sm text-slate-600">加载中…</div>;
+    return <div className="mt-2 text-sm text-slate-600 dark:text-slate-400">加载中…</div>;
   }
 
   if (!attempts) {
-    return <div className="mt-2 text-sm text-slate-600">无故障切换尝试。</div>;
+    return <div className="mt-2 text-sm text-slate-600 dark:text-slate-400">无故障切换尝试。</div>;
   }
 
   if (attempts.length === 0) {
-    return <div className="mt-2 text-sm text-slate-600">无故障切换尝试。</div>;
+    return <div className="mt-2 text-sm text-slate-600 dark:text-slate-400">无故障切换尝试。</div>;
   }
 
   const startAttempt = attempts[0] ?? null;
@@ -166,29 +166,29 @@ export function ProviderChainView({
   return (
     <div className="mt-3 space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="text-xs text-slate-500">
+        <div className="text-xs text-slate-500 dark:text-slate-400">
           {dataSourceLabel}
           {attemptsJson && !parsedAttemptsJson.ok ? (
-            <span className="ml-2 rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-700">
+            <span className="ml-2 rounded-full bg-amber-50 dark:bg-amber-900/30 px-2 py-0.5 font-medium text-amber-700 dark:text-amber-400">
               尝试 JSON 解析失败
             </span>
           ) : null}
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
-        <span className="rounded-full bg-slate-100 px-2 py-0.5">
-          起始：<span className="font-medium text-slate-800">{startProviderLabel}</span>
+      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
+        <span className="rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-0.5">
+          起始：<span className="font-medium text-slate-800 dark:text-slate-200">{startProviderLabel}</span>
         </span>
-        <span className="text-slate-400">→</span>
-        <span className="rounded-full bg-slate-100 px-2 py-0.5">
-          最终：<span className="font-medium text-slate-800">{finalProviderLabel}</span>
+        <span className="text-slate-400 dark:text-slate-500">→</span>
+        <span className="rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-0.5">
+          最终：<span className="font-medium text-slate-800 dark:text-slate-200">{finalProviderLabel}</span>
         </span>
         {finalAttempt ? (
           <span
             className={cn(
               "rounded-full px-2 py-0.5 font-medium",
-              finalSuccess ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
+              finalSuccess ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
             )}
           >
             {finalSuccess ? "成功" : "失败"}
@@ -210,77 +210,77 @@ export function ProviderChainView({
           <div
             key={`${attempt.attempt_index}-${attempt.provider_id}-${attempt.base_url}`}
             className={cn(
-              "rounded-xl border bg-white px-3 py-2",
+              "rounded-xl border bg-white dark:bg-slate-800 px-3 py-2",
               isFinal
                 ? success
-                  ? "border-emerald-200 bg-emerald-50/40"
-                  : "border-rose-200 bg-rose-50/40"
-                : "border-slate-200"
+                  ? "border-emerald-200 bg-emerald-50/40 dark:border-emerald-700 dark:bg-emerald-900/20"
+                  : "border-rose-200 bg-rose-50/40 dark:border-rose-700 dark:bg-rose-900/20"
+                : "border-slate-200 dark:border-slate-700"
             )}
           >
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+                  <span className="rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-0.5 text-xs font-medium text-slate-700 dark:text-slate-300">
                     #{attempt.attempt_index}
                   </span>
                   {isFinal ? (
                     <span
                       className={cn(
                         "rounded-full px-2 py-0.5 text-xs font-medium",
-                        success ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
+                        success ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
                       )}
                     >
                       最终
                     </span>
                   ) : null}
-                  <span className="truncate text-sm font-medium text-slate-900">
+                  <span className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">
                     {providerLabel}
                   </span>
                   {attempt.provider_index != null ? (
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
+                    <span className="rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-0.5 text-xs text-slate-700 dark:text-slate-300">
                       供应商 #{attempt.provider_index}
                     </span>
                   ) : null}
                   {attempt.retry_index != null ? (
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
+                    <span className="rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-0.5 text-xs text-slate-700 dark:text-slate-300">
                       retry #{attempt.retry_index}
                     </span>
                   ) : null}
                   {attempt.attempt_started_ms != null ? (
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
+                    <span className="rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-0.5 text-xs text-slate-700 dark:text-slate-300">
                       +{attempt.attempt_started_ms}ms
                     </span>
                   ) : null}
                   {attempt.attempt_duration_ms != null ? (
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
+                    <span className="rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-0.5 text-xs text-slate-700 dark:text-slate-300">
                       耗时 {attempt.attempt_duration_ms}ms
                     </span>
                   ) : null}
                 </div>
 
                 {attempt.base_url ? (
-                  <div className="mt-1 truncate font-mono text-xs text-slate-500">
+                  <div className="mt-1 truncate font-mono text-xs text-slate-500 dark:text-slate-400">
                     {attempt.base_url}
                   </div>
                 ) : null}
 
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                   <span>
                     provider_id: <span className="font-mono">{attempt.provider_id}</span>
                   </span>
                   {attempt.error_code ? (
-                    <span className="rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-700">
+                    <span className="rounded-full bg-amber-50 dark:bg-amber-900/30 px-2 py-0.5 font-medium text-amber-700 dark:text-amber-400">
                       {attempt.error_code}
                     </span>
                   ) : null}
                   {attempt.decision ? (
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-700">
+                    <span className="rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-0.5 font-medium text-slate-700 dark:text-slate-300">
                       {attempt.decision}
                     </span>
                   ) : null}
                   {attempt.reason ? (
-                    <span className="max-w-[520px] truncate font-mono text-xs text-slate-500">
+                    <span className="max-w-[520px] truncate font-mono text-xs text-slate-500 dark:text-slate-400">
                       {attempt.reason}
                     </span>
                   ) : null}
@@ -288,18 +288,18 @@ export function ProviderChainView({
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+                <span className="rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-0.5 text-xs font-medium text-slate-700 dark:text-slate-300">
                   {attempt.status == null ? "—" : attempt.status}
                 </span>
                 <span
                   className={cn(
                     "rounded-full px-2 py-0.5 text-xs font-medium",
-                    success ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
+                    success ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
                   )}
                 >
                   {success ? "成功" : "失败"}
                 </span>
-                <span className="max-w-[360px] truncate font-mono text-xs text-slate-600">
+                <span className="max-w-[360px] truncate font-mono text-xs text-slate-600 dark:text-slate-400">
                   {attempt.outcome}
                 </span>
               </div>

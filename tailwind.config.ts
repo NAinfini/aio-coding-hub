@@ -1,6 +1,7 @@
 import type { Config } from "tailwindcss";
 
 export default {
+  darkMode: "class",
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
     // Extend default screens with xs breakpoint for extra-small devices
@@ -26,4 +27,3 @@ export default {
   },
   plugins: [],
 } satisfies Config;
-

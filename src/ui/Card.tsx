@@ -18,7 +18,7 @@ export function Card({ padding = "md", className, ...props }: CardProps) {
   return (
     <div
       className={cn(
-        "overflow-hidden border border-slate-200 bg-white shadow-card",
+        "overflow-hidden border border-slate-200 bg-white shadow-card dark:bg-slate-800/80 dark:border-slate-700 dark:shadow-slate-900/30",
         // Responsive: smaller rounded corners on mobile
         "rounded-xl sm:rounded-2xl",
         PADDING_CLASS[padding],

@@ -327,7 +327,7 @@ describe("components/home/HomeCostPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "清空" }));
     expect(clearCustomRange).toHaveBeenCalled();
 
-    expect(screen.getByText("自定义范围：请选择日期后点击「应用」。")).toBeInTheDocument();
+    expect(screen.getAllByText("自定义范围：请选择日期后点击「应用」。").length).toBeGreaterThan(0);
   });
 
   it("toasts when cost query errors", async () => {

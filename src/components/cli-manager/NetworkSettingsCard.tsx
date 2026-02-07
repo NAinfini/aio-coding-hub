@@ -189,15 +189,15 @@ export function NetworkSettingsCard({
       </div>
 
       <div className="relative z-10">
-        <div className="mb-4 border-b border-slate-100 pb-4">
-          <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+        <div className="mb-4 border-b border-slate-100 dark:border-slate-700 pb-4">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <Network className="h-5 w-5 text-blue-500" />
             网络设置
           </h2>
         </div>
 
         {!available ? (
-          <div className="text-sm text-slate-600 bg-slate-50 p-4 rounded-lg">
+          <div className="text-sm font-medium text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800 p-4 rounded-lg">
             仅在 Tauri Desktop 环境可用
           </div>
         ) : (
@@ -232,7 +232,7 @@ export function NetworkSettingsCard({
             <SettingsRow label="当前监听地址">
               <div
                 className={cn(
-                  "font-mono text-xs text-slate-700 bg-slate-50 px-3 py-2 rounded border border-slate-100 break-all",
+                  "font-mono text-xs text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 px-3 py-2 rounded border border-slate-100 dark:border-slate-700 break-all",
                   !gateway?.running ? "opacity-80" : null
                 )}
               >
@@ -241,11 +241,11 @@ export function NetworkSettingsCard({
             </SettingsRow>
 
             {listenMode === "lan" ? (
-              <div className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-800 border border-amber-100 flex items-start gap-2">
+              <div className="mt-3 rounded-lg bg-amber-50 dark:bg-amber-900/30 p-3 text-sm text-amber-800 dark:text-amber-400 border border-amber-100 dark:border-amber-800 flex items-start gap-2">
                 <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
                 <div>
                   <div className="font-medium">安全提示</div>
-                  <div className="text-xs mt-0.5 text-amber-700">
+                  <div className="text-xs mt-0.5 text-amber-700 dark:text-amber-400">
                     局域网模式会将网关暴露在本机网络接口上。请确保防火墙与访问控制策略符合你的安全要求。
                   </div>
                 </div>

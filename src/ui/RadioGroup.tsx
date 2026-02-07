@@ -18,10 +18,10 @@ export function RadioGroup({ name, value, onChange, options, disabled }: RadioGr
         <label
           key={option.value}
           className={cn(
-            "flex items-center gap-2 px-3 py-1.5 rounded-md border border-slate-200 cursor-pointer transition-colors",
+            "flex items-center gap-2 px-3 py-1.5 rounded-md border border-slate-200 cursor-pointer transition-colors dark:border-slate-600",
             value === option.value
-              ? "bg-slate-100 border-slate-400 text-slate-900"
-              : "bg-white hover:bg-slate-50 text-slate-600",
+              ? "bg-slate-100 border-slate-400 text-slate-900 dark:bg-slate-700 dark:border-slate-500 dark:text-slate-100"
+              : "bg-white hover:bg-slate-50 text-slate-600 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300",
             disabled && "opacity-50 cursor-not-allowed"
           )}
         >

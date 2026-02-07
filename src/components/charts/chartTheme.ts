@@ -58,42 +58,81 @@ export const CHART_GRID = {
 } as const;
 
 /**
- * Axis styling
+ * Axis styling (dark-mode aware)
  */
-export const AXIS_STYLE = {
-  fontSize: 10,
-  fontWeight: 500,
-  fill: "#64748b",
-  color: "#64748b",
-} as const;
+export function getAxisStyle(isDark: boolean) {
+  return {
+    fontSize: 10,
+    fontWeight: 500,
+    fill: isDark ? "#94a3b8" : "#64748b",
+    color: isDark ? "#94a3b8" : "#64748b",
+  };
+}
+
+/** @deprecated Use getAxisStyle(isDark) for dark mode support */
+export const AXIS_STYLE = getAxisStyle(false);
 
 /**
- * Grid line styling
+ * Grid line styling (dark-mode aware)
  */
-export const GRID_LINE_STYLE = {
-  stroke: "rgba(0, 82, 255, 0.10)",
-  strokeDasharray: "3 3",
-} as const;
+export function getGridLineStyle(isDark: boolean) {
+  return {
+    stroke: isDark ? "rgba(100, 150, 255, 0.15)" : "rgba(0, 82, 255, 0.10)",
+    strokeDasharray: "3 3",
+  };
+}
+
+/** @deprecated Use getGridLineStyle(isDark) for dark mode support */
+export const GRID_LINE_STYLE = getGridLineStyle(false);
 
 /**
- * Tooltip styling
+ * Tooltip styling (dark-mode aware)
  */
-export const TOOLTIP_STYLE = {
-  backgroundColor: "rgba(255, 255, 255, 0.98)",
-  border: "1px solid rgba(148, 163, 184, 0.2)",
-  borderRadius: "8px",
-  boxShadow: "0 4px 12px rgba(15, 23, 42, 0.12)",
-  padding: "12px",
-} as const;
+export function getTooltipStyle(isDark: boolean) {
+  return {
+    backgroundColor: isDark ? "rgba(30, 41, 59, 0.98)" : "rgba(255, 255, 255, 0.98)",
+    border: isDark
+      ? "1px solid rgba(71, 85, 105, 0.3)"
+      : "1px solid rgba(148, 163, 184, 0.2)",
+    borderRadius: "8px",
+    boxShadow: isDark
+      ? "0 4px 12px rgba(0, 0, 0, 0.4)"
+      : "0 4px 12px rgba(15, 23, 42, 0.12)",
+    padding: "12px",
+    color: isDark ? "#e2e8f0" : undefined,
+  };
+}
+
+/** @deprecated Use getTooltipStyle(isDark) for dark mode support */
+export const TOOLTIP_STYLE = getTooltipStyle(false);
 
 /**
- * Legend styling
+ * Legend styling (dark-mode aware)
  */
-export const LEGEND_STYLE = {
-  fontSize: 11,
-  fontWeight: 500,
-  color: "#475569",
-} as const;
+export function getLegendStyle(isDark: boolean) {
+  return {
+    fontSize: 11,
+    fontWeight: 500,
+    color: isDark ? "#94a3b8" : "#475569",
+  };
+}
+
+/** @deprecated Use getLegendStyle(isDark) for dark mode support */
+export const LEGEND_STYLE = getLegendStyle(false);
+
+/**
+ * Axis line stroke color (dark-mode aware)
+ */
+export function getAxisLineStroke(isDark: boolean) {
+  return isDark ? "rgba(148, 163, 184, 0.2)" : "rgba(15, 23, 42, 0.12)";
+}
+
+/**
+ * Cursor stroke color for tooltips (dark-mode aware)
+ */
+export function getCursorStroke(isDark: boolean) {
+  return isDark ? "rgba(100, 150, 255, 0.25)" : "rgba(0, 82, 255, 0.15)";
+}
 
 /**
  * Gradient configuration for area charts

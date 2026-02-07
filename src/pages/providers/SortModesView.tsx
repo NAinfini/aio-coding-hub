@@ -78,13 +78,13 @@ function SortableModeProviderRow({
           "flex cursor-grab flex-col gap-2 transition-shadow duration-200 active:cursor-grabbing sm:flex-row sm:items-center sm:justify-between",
           isDragging && "z-10 scale-[1.02] opacity-90 shadow-lg ring-2 ring-[#0052FF]/30",
           disabled && "opacity-70",
-          !modeEnabled && "bg-slate-50"
+          !modeEnabled && "bg-slate-50 dark:bg-slate-800"
         )}
         {...attributes}
         {...listeners}
       >
         <div className="flex min-w-0 items-start gap-3 sm:items-center">
-          <div className="mt-0.5 inline-flex h-8 w-8 select-none items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 sm:mt-0">
+          <div className="mt-0.5 inline-flex h-8 w-8 select-none items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 sm:mt-0">
             ⠿
           </div>
           <div className="min-w-0">
@@ -93,12 +93,12 @@ function SortableModeProviderRow({
                 {provider?.name?.trim() ? provider.name : `未知 Provider #${providerId}`}
               </div>
               {!modeEnabled ? (
-                <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[10px] text-slate-600">
+                <span className="shrink-0 rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-0.5 font-mono text-[10px] text-slate-600 dark:text-slate-400">
                   模板关闭
                 </span>
               ) : null}
             </div>
-            <div className="truncate text-xs text-slate-500">
+            <div className="truncate text-xs text-slate-500 dark:text-slate-400">
               {providerBaseUrlSummary(provider)}
             </div>
           </div>
@@ -109,7 +109,7 @@ function SortableModeProviderRow({
           onPointerDown={(e) => e.stopPropagation()}
         >
           <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-600">启用</span>
+            <span className="text-xs text-slate-600 dark:text-slate-400">启用</span>
             <Switch
               checked={modeEnabled}
               onCheckedChange={(checked) => onToggleEnabled(providerId, checked)}
@@ -596,7 +596,7 @@ export function SortModesView({
                 {mode.name}
               </Button>
             ))}
-            <span className="text-xs text-slate-500">
+            <span className="text-xs text-slate-500 dark:text-slate-400">
               {sortModesLoading
                 ? "加载中…"
                 : sortModesAvailable === false
@@ -646,7 +646,7 @@ export function SortModesView({
               {cli.name}
             </Button>
           ))}
-          <span className="text-xs text-slate-500">选择要配置的 CLI</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400">选择要配置的 CLI</span>
         </div>
 
         <div className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-2">
@@ -654,7 +654,7 @@ export function SortModesView({
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="text-sm font-semibold">默认顺序 · {currentCli.name}</div>
-                <div className="mt-1 text-xs text-slate-500">
+                <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                   默认顺序来自「供应商」视图拖拽（基础顺序）；Default
                   路由仍受「供应商」启用开关影响。
                 </div>
@@ -663,9 +663,9 @@ export function SortModesView({
 
             <div className="mt-3 lg:min-h-0 lg:flex-1 lg:overflow-auto lg:pr-1">
               {providersLoading ? (
-                <div className="text-sm text-slate-600">加载中…</div>
+                <div className="text-sm text-slate-600 dark:text-slate-400">加载中…</div>
               ) : providers.length === 0 ? (
-                <div className="text-sm text-slate-600">
+                <div className="text-sm text-slate-600 dark:text-slate-400">
                   暂无 Provider。请先在「供应商」视图添加。
                 </div>
               ) : (
@@ -701,12 +701,12 @@ export function SortModesView({
                           <div className="flex min-w-0 items-center gap-2">
                             <div className="truncate text-sm font-semibold">{p.name}</div>
                             {!p.enabled ? (
-                              <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[10px] text-slate-600">
+                              <span className="shrink-0 rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-0.5 font-mono text-[10px] text-slate-600 dark:text-slate-400">
                                 Default 关闭
                               </span>
                             ) : null}
                           </div>
-                          <div className="truncate text-xs text-slate-500">
+                          <div className="truncate text-xs text-slate-500 dark:text-slate-400">
                             {providerBaseUrlSummary(p)}
                           </div>
                         </div>
@@ -733,7 +733,7 @@ export function SortModesView({
                 <div className="text-sm font-semibold">
                   编辑模板：{selectedMode ? selectedMode.name : "未选择"} · {currentCli.name}
                 </div>
-                <div className="mt-1 text-xs text-slate-500">
+                <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                   {activeModeId == null
                     ? "请选择一个自定义排序模板进行编辑；Default 的顺序请在「供应商」视图调整。"
                     : "严格子集：激活后仅使用该列表中「已启用」的 Provider 参与路由（不受「供应商」启用开关影响）。"}
@@ -743,18 +743,18 @@ export function SortModesView({
 
             <div className="mt-3 lg:min-h-0 lg:flex-1 lg:overflow-auto lg:pr-1">
               {activeModeId == null ? (
-                <div className="text-sm text-slate-600">请选择一个自定义排序模板进行编辑。</div>
+                <div className="text-sm text-slate-600 dark:text-slate-400">请选择一个自定义排序模板进行编辑。</div>
               ) : modeProvidersLoading ? (
-                <div className="text-sm text-slate-600">加载中…</div>
+                <div className="text-sm text-slate-600 dark:text-slate-400">加载中…</div>
               ) : modeProvidersAvailable === false ? (
-                <div className="text-sm text-slate-600">仅在 Tauri Desktop 环境可用</div>
+                <div className="text-sm text-slate-600 dark:text-slate-400">仅在 Tauri Desktop 环境可用</div>
               ) : modeProviders.length === 0 ? (
                 <div className="space-y-2">
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                  <div className="rounded-xl border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30 px-3 py-2 text-sm text-amber-800 dark:text-amber-400">
                     当前排序模板在 {currentCli.name} 下未配置 Provider；若激活将导致无可用
                     Provider。
                   </div>
-                  <div className="text-sm text-slate-600">
+                  <div className="text-sm text-slate-600 dark:text-slate-400">
                     请从左侧「默认顺序」列表点击「加入」。
                   </div>
                 </div>
@@ -805,7 +805,7 @@ export function SortModesView({
             />
           </FormField>
 
-          <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
+          <div className="flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-700 pt-3">
             <Button
               onClick={() => setCreateModeDialogOpen(false)}
               variant="secondary"
@@ -835,7 +835,7 @@ export function SortModesView({
             />
           </FormField>
 
-          <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
+          <div className="flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-700 pt-3">
             <Button
               onClick={() => setRenameModeDialogOpen(false)}
               variant="secondary"

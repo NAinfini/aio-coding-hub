@@ -129,9 +129,9 @@ export function WslSettingsCard({
 
   return (
     <Card className="md:col-span-2">
-      <div className="mb-4 border-b border-slate-100 pb-4 flex items-start justify-between gap-3">
+      <div className="mb-4 border-b border-slate-100 dark:border-slate-700 pb-4 flex items-start justify-between gap-3">
         <div>
-          <div className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+          <div className="text-lg font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <Boxes className="h-5 w-5 text-blue-500" />
             WSL 配置
           </div>
@@ -149,11 +149,11 @@ export function WslSettingsCard({
       </div>
 
       {!available ? (
-        <div className="text-sm text-slate-600 bg-slate-50 p-4 rounded-lg">
+        <div className="text-sm font-medium text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800 p-4 rounded-lg">
           仅在 Tauri Desktop 环境可用
         </div>
       ) : aboutOs && !wslSupported ? (
-        <div className="text-sm text-slate-600 bg-slate-50 p-4 rounded-lg">
+        <div className="text-sm font-medium text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800 p-4 rounded-lg">
           仅 Windows 支持 WSL 配置
         </div>
       ) : (
@@ -167,7 +167,7 @@ export function WslSettingsCard({
           </SettingsRow>
 
           <SettingsRow label="WSL 宿主机地址">
-            <div className="font-mono text-xs text-slate-700 bg-slate-50 px-3 py-2 rounded border border-slate-100">
+            <div className="font-mono text-xs text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 px-3 py-2 rounded border border-slate-100 dark:border-slate-700">
               {hostIp ?? "—"}
             </div>
           </SettingsRow>
@@ -180,7 +180,7 @@ export function WslSettingsCard({
                   wslDetected ? "bg-emerald-500" : checkedOnce ? "bg-slate-300" : "bg-slate-200"
                 )}
               />
-              <span className="text-sm text-slate-700">
+              <span className="text-sm text-slate-700 dark:text-slate-300">
                 {!checkedOnce
                   ? loading
                     ? "检测中..."
@@ -190,7 +190,7 @@ export function WslSettingsCard({
                     : "未检测到 WSL"}
               </span>
               {checkedOnce && detection ? (
-                <span className="text-xs text-slate-500">({distros.length} 个发行版)</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400">({distros.length} 个发行版)</span>
               ) : null}
             </div>
           </SettingsRow>
@@ -201,7 +201,7 @@ export function WslSettingsCard({
                 {distros.map((d) => (
                   <span
                     key={d}
-                    className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700 border border-slate-200/60"
+                    className="rounded-full bg-slate-100 dark:bg-slate-700 px-2.5 py-1 text-xs text-slate-700 dark:text-slate-300 border border-slate-200/60 dark:border-slate-600"
                   >
                     {d}
                   </span>
@@ -213,7 +213,7 @@ export function WslSettingsCard({
           {settings.wsl_auto_config ? (
             <SettingsRow label="目标 CLI">
               <div className="flex flex-wrap gap-3">
-                <label className="flex items-center gap-2 text-sm text-slate-700">
+                <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
                   <input
                     type="checkbox"
                     checked={settings.wsl_target_cli.claude}
@@ -224,10 +224,10 @@ export function WslSettingsCard({
                     }
                     disabled={saving}
                   />
-                  <Bot className="h-4 w-4 text-slate-500" />
+                  <Bot className="h-4 w-4 text-slate-500 dark:text-slate-400" />
                   Claude
                 </label>
-                <label className="flex items-center gap-2 text-sm text-slate-700">
+                <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
                   <input
                     type="checkbox"
                     checked={settings.wsl_target_cli.codex}
@@ -238,10 +238,10 @@ export function WslSettingsCard({
                     }
                     disabled={saving}
                   />
-                  <Terminal className="h-4 w-4 text-slate-500" />
+                  <Terminal className="h-4 w-4 text-slate-500 dark:text-slate-400" />
                   Codex
                 </label>
-                <label className="flex items-center gap-2 text-sm text-slate-700">
+                <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
                   <input
                     type="checkbox"
                     checked={settings.wsl_target_cli.gemini}
@@ -252,7 +252,7 @@ export function WslSettingsCard({
                     }
                     disabled={saving}
                   />
-                  <Cpu className="h-4 w-4 text-slate-500" />
+                  <Cpu className="h-4 w-4 text-slate-500 dark:text-slate-400" />
                   Gemini
                 </label>
               </div>
@@ -261,7 +261,7 @@ export function WslSettingsCard({
 
           {settings.wsl_auto_config ? (
             <div className="mt-3 flex items-start justify-between gap-3">
-              <div className="text-xs text-slate-500">
+              <div className="text-xs text-slate-500 dark:text-slate-400">
                 {listenModeOk ? null : "提示：监听模式为“仅本地(127.0.0.1)”时，WSL 无法访问网关。"}
                 {statusRows ? (
                   <div className="mt-1">
@@ -287,8 +287,8 @@ export function WslSettingsCard({
               className={cn(
                 "mt-3 rounded-lg p-3 text-sm border",
                 lastReport.ok
-                  ? "bg-emerald-50 text-emerald-800 border-emerald-100"
-                  : "bg-rose-50 text-rose-800 border-rose-100"
+                  ? "bg-emerald-50 text-emerald-800 border-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800"
+                  : "bg-rose-50 text-rose-800 border-rose-100 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800"
               )}
             >
               {lastReport.message}

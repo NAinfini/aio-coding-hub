@@ -96,18 +96,18 @@ export function CliManagerGeneralTab({
             <Shield className="h-32 w-32" />
           </div>
           <div className="relative z-10">
-            <div className="mb-4 border-b border-slate-100 pb-4">
-              <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+            <div className="mb-4 border-b border-slate-100 dark:border-slate-700 pb-4">
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 <Shield className="h-5 w-5 text-blue-500" />
                 网关整流器
               </h2>
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                 优化与 AI 服务的连接稳定性，自动修复常见响应问题。
               </p>
             </div>
 
             {rectifierAvailable === "unavailable" ? (
-              <div className="text-sm text-slate-600 bg-slate-50 p-4 rounded-lg">
+              <div className="text-sm font-medium text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800 p-4 rounded-lg">
                 仅在 Tauri Desktop 环境可用
               </div>
             ) : (
@@ -130,7 +130,7 @@ export function CliManagerGeneralTab({
                     disabled={rectifierSaving || rectifierAvailable !== "available"}
                   />
                 </SettingsRow>
-                <div className="rounded-lg bg-slate-50 p-4 border border-slate-100">
+                <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-4 border border-slate-100 dark:border-slate-700">
                   <SettingsRow label="响应整流（FluxFix）">
                     <Switch
                       checked={rectifier.enable_response_fixer}
@@ -141,7 +141,7 @@ export function CliManagerGeneralTab({
                     />
                   </SettingsRow>
                   {rectifier.enable_response_fixer && (
-                    <div className="mt-2 space-y-2 pl-4 border-l-2 border-slate-200 ml-1">
+                    <div className="mt-2 space-y-2 pl-4 border-l-2 border-slate-200 dark:border-slate-600 ml-1">
                       <SettingsRow label="修复编码问题">
                         <Switch
                           checked={rectifier.response_fixer_fix_encoding}
@@ -173,7 +173,7 @@ export function CliManagerGeneralTab({
                   )}
                 </div>
 
-                <div className="rounded-lg bg-slate-50 p-4 border border-slate-100">
+                <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-4 border border-slate-100 dark:border-slate-700">
                   <SettingsRow label="Codex Session ID 补全">
                     <Switch
                       checked={codexSessionIdCompletionEnabled}
@@ -183,7 +183,7 @@ export function CliManagerGeneralTab({
                       }
                     />
                   </SettingsRow>
-                  <p className="mt-2 text-xs text-slate-500">
+                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                     当 Codex 请求仅提供 session_id / x-session-id（请求头）或
                     prompt_cache_key（请求体）之一时，
                     自动补全另一侧；若两者均缺失，则生成并在短时间内稳定复用的会话标识。
@@ -196,15 +196,15 @@ export function CliManagerGeneralTab({
 
         <Card className="md:col-span-2">
           <div className="mb-4 flex items-start gap-4">
-            <div className="p-2 bg-amber-50 rounded-lg text-amber-600">
+            <div className="p-2 bg-amber-50 dark:bg-amber-900/30 rounded-lg text-amber-600 dark:text-amber-400">
               <AlertTriangle className="h-6 w-6" />
             </div>
             <div className="flex-1">
-              <h3 className="text-base font-semibold text-slate-900">熔断通知</h3>
-              <p className="mt-1 text-sm text-slate-500">
+              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">熔断通知</h3>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                 当服务熔断触发或恢复时，主动发送系统通知。
                 <br />
-                <span className="text-xs text-amber-600/80">* 需在系统设置中授予通知权限</span>
+                <span className="text-xs text-amber-600/80 dark:text-amber-400/80">* 需在系统设置中授予通知权限</span>
               </p>
             </div>
             <div className="pt-1">
@@ -223,16 +223,16 @@ export function CliManagerGeneralTab({
 
         <Card className="md:col-span-2">
           <div className="mb-4 flex items-start gap-4">
-            <div className="p-2 bg-slate-50 rounded-lg text-slate-600">
+            <div className="p-2 bg-slate-50 dark:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400">
               <TrendingDown className="h-6 w-6" />
             </div>
             <div className="flex-1">
-              <h3 className="text-base font-semibold text-slate-900">缓存异常监测（实验）</h3>
-              <p className="mt-1 text-sm text-slate-500">
+              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">缓存异常监测（实验）</h3>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                 近 1 小时滑窗（按 Provider + Model）监测缓存读取/创建异常。仅 Claude / Codex；
                 命中后写入控制台并发送系统通知。
               </p>
-              <div className="mt-2 space-y-1 text-xs text-slate-500">
+              <div className="mt-2 space-y-1 text-xs text-slate-500 dark:text-slate-400">
                 <p>
                   触发条件：命中率断崖式下降（最近 15m vs 前 45m）；或创建异常（创建但读取为 0 /
                   创建占比过高 / 创建显著高于读取）。
@@ -249,7 +249,7 @@ export function CliManagerGeneralTab({
                   （等价旧口径 90%）或 创建/读取≥3。* token 不是请求数
                 </p>
               </div>
-              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                 <span>
                   提示：告警会以 <span className="font-mono">WARN</span>{" "}
                   写入「控制台」页（无需开启调试日志）。
@@ -280,12 +280,12 @@ export function CliManagerGeneralTab({
           <>
             <Card className="md:col-span-2">
               <div className="mb-4 flex items-start gap-4">
-                <div className="p-2 bg-slate-50 rounded-lg text-slate-600">
+                <div className="p-2 bg-slate-50 dark:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400">
                   <Shield className="h-6 w-6" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-base font-semibold text-slate-900">启动时 CLI 代理自愈</h3>
-                  <p className="mt-1 text-sm text-slate-500">
+                  <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">启动时 CLI 代理自愈</h3>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                     应用启动后自动修复异常退出导致的 CLI 代理残留，并同步到当前网关端口。
                   </p>
                 </div>
@@ -301,7 +301,7 @@ export function CliManagerGeneralTab({
                   />
                 </div>
               </div>
-              <div className="text-xs text-slate-500">
+              <div className="text-xs text-slate-500 dark:text-slate-400">
                 建议保持开启；若你手动维护 CLI 配置文件且出现冲突，可临时关闭该开关。
               </div>
             </Card>
@@ -322,15 +322,15 @@ export function CliManagerGeneralTab({
         ) : null}
 
         <Card className="md:col-span-2">
-          <div className="mb-4 border-b border-slate-100 pb-4">
-            <div className="font-semibold text-slate-900">超时策略</div>
-            <p className="mt-1 text-sm text-slate-500">
+          <div className="mb-4 border-b border-slate-100 dark:border-slate-700 pb-4">
+            <div className="font-semibold text-slate-900 dark:text-slate-100">超时策略</div>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               控制上游请求的超时行为。0 表示禁用（交由上游/网络自行超时）。
             </p>
           </div>
 
           {rectifierAvailable === "unavailable" ? (
-            <div className="text-sm text-slate-600 bg-slate-50 p-4 rounded-lg">
+            <div className="text-sm font-medium text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800 p-4 rounded-lg">
               仅在 Tauri Desktop 环境可用
             </div>
           ) : (
@@ -362,7 +362,7 @@ export function CliManagerGeneralTab({
                     max={3600}
                     disabled={commonSettingsSaving || rectifierAvailable !== "available"}
                   />
-                  <span className="w-8 text-sm text-slate-500">秒</span>
+                  <span className="w-8 text-sm text-slate-500 dark:text-slate-400">秒</span>
                 </div>
               </SettingsRow>
 
@@ -393,7 +393,7 @@ export function CliManagerGeneralTab({
                     max={3600}
                     disabled={commonSettingsSaving || rectifierAvailable !== "available"}
                   />
-                  <span className="w-8 text-sm text-slate-500">秒</span>
+                  <span className="w-8 text-sm text-slate-500 dark:text-slate-400">秒</span>
                 </div>
               </SettingsRow>
 
@@ -426,7 +426,7 @@ export function CliManagerGeneralTab({
                     max={86400}
                     disabled={commonSettingsSaving || rectifierAvailable !== "available"}
                   />
-                  <span className="w-8 text-sm text-slate-500">秒</span>
+                  <span className="w-8 text-sm text-slate-500 dark:text-slate-400">秒</span>
                 </div>
               </SettingsRow>
             </div>
@@ -434,15 +434,15 @@ export function CliManagerGeneralTab({
         </Card>
 
         <Card className="md:col-span-2">
-          <div className="mb-4 border-b border-slate-100 pb-4">
-            <div className="font-semibold text-slate-900">熔断与重试</div>
-            <p className="mt-1 text-sm text-slate-500">
+          <div className="mb-4 border-b border-slate-100 dark:border-slate-700 pb-4">
+            <div className="font-semibold text-slate-900 dark:text-slate-100">熔断与重试</div>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               控制 Provider 失败后的冷却、重试与熔断行为。修改后建议重启网关以完全生效。
             </p>
           </div>
 
           {rectifierAvailable === "unavailable" ? (
-            <div className="text-sm text-slate-600 bg-slate-50 p-4 rounded-lg">
+            <div className="text-sm font-medium text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800 p-4 rounded-lg">
               仅在 Tauri Desktop 环境可用
             </div>
           ) : (
@@ -472,7 +472,7 @@ export function CliManagerGeneralTab({
                     max={3600}
                     disabled={commonSettingsSaving || rectifierAvailable !== "available"}
                   />
-                  <span className="w-8 text-sm text-slate-500">秒</span>
+                  <span className="w-8 text-sm text-slate-500 dark:text-slate-400">秒</span>
                 </div>
               </SettingsRow>
 
@@ -505,7 +505,7 @@ export function CliManagerGeneralTab({
                     max={3600}
                     disabled={commonSettingsSaving || rectifierAvailable !== "available"}
                   />
-                  <span className="w-8 text-sm text-slate-500">秒</span>
+                  <span className="w-8 text-sm text-slate-500 dark:text-slate-400">秒</span>
                 </div>
               </SettingsRow>
 
@@ -536,7 +536,7 @@ export function CliManagerGeneralTab({
                     max={50}
                     disabled={commonSettingsSaving || rectifierAvailable !== "available"}
                   />
-                  <span className="w-8 text-sm text-slate-500">次</span>
+                  <span className="w-8 text-sm text-slate-500 dark:text-slate-400">次</span>
                 </div>
               </SettingsRow>
 
@@ -569,7 +569,7 @@ export function CliManagerGeneralTab({
                     max={1440}
                     disabled={commonSettingsSaving || rectifierAvailable !== "available"}
                   />
-                  <span className="w-8 text-sm text-slate-500">分钟</span>
+                  <span className="w-8 text-sm text-slate-500 dark:text-slate-400">分钟</span>
                 </div>
               </SettingsRow>
             </div>

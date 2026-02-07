@@ -27,7 +27,7 @@ export function SettingsDataManagementCard({
   return (
     <Card>
       <div className="mb-4 flex items-center justify-between gap-2">
-        <div className="font-semibold text-slate-900">数据管理</div>
+        <div className="font-semibold text-slate-900 dark:text-slate-100">数据管理</div>
         <Button
           onClick={() => void openAppDataDir()}
           variant="secondary"
@@ -37,9 +37,9 @@ export function SettingsDataManagementCard({
           打开数据/日志目录
         </Button>
       </div>
-      <div className="divide-y divide-slate-100">
+      <div className="divide-y divide-slate-100 dark:divide-slate-700">
         <SettingsRow label="数据磁盘占用">
-          <span className="font-mono text-sm text-slate-900">
+          <span className="font-mono text-sm text-slate-900 dark:text-slate-100">
             {dbDiskUsageAvailable === "checking"
               ? "加载中…"
               : dbDiskUsageAvailable === "unavailable"
@@ -56,7 +56,7 @@ export function SettingsDataManagementCard({
           </Button>
         </SettingsRow>
         <SettingsRow label="清理请求日志">
-          <span className="text-xs text-slate-500">不可撤销</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400">不可撤销</span>
           <Button
             onClick={openClearRequestLogsDialog}
             variant="warning"

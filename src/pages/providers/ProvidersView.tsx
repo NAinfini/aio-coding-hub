@@ -136,7 +136,7 @@ function SortableProviderCard({
         {...listeners}
       >
         <div className="flex min-w-0 items-center gap-3">
-          <div className="inline-flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400">
+          <div className="inline-flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-500">
             ⠿
           </div>
           <div className="min-w-0 flex-1">
@@ -144,7 +144,7 @@ function SortableProviderCard({
               <div className="truncate text-sm font-semibold">{provider.name}</div>
               {isUnavailable ? (
                 <span
-                  className="shrink-0 rounded-full bg-rose-50 px-2 py-0.5 font-mono text-[10px] text-rose-700"
+                  className="shrink-0 rounded-full bg-rose-50 px-2 py-0.5 font-mono text-[10px] text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
                   title={
                     unavailableUntil != null
                       ? `熔断至 ${formatUnixSeconds(unavailableUntil)}`
@@ -156,15 +156,15 @@ function SortableProviderCard({
               ) : null}
             </div>
             <div className="mt-1 flex items-center gap-2">
-              <span className="shrink-0 rounded-full bg-slate-50 px-2 py-0.5 font-mono text-[10px] text-slate-700">
+              <span className="shrink-0 rounded-full bg-slate-50 px-2 py-0.5 font-mono text-[10px] text-slate-700 dark:bg-slate-700 dark:text-slate-300">
                 {provider.base_url_mode === "ping" ? "Ping" : "顺序"}
               </span>
-              <span className="shrink-0 rounded-full bg-slate-50 px-2 py-0.5 font-mono text-[10px] text-slate-700">
+              <span className="shrink-0 rounded-full bg-slate-50 px-2 py-0.5 font-mono text-[10px] text-slate-700 dark:bg-slate-700 dark:text-slate-300">
                 倍率 {provider.cost_multiplier}x
               </span>
               {provider.cli_key === "claude" && hasClaudeModels ? (
                 <span
-                  className="shrink-0 rounded-full bg-sky-50 px-2 py-0.5 font-mono text-[10px] text-sky-700"
+                  className="shrink-0 rounded-full bg-sky-50 px-2 py-0.5 font-mono text-[10px] text-sky-700 dark:bg-sky-900/30 dark:text-sky-400"
                   title={`已配置 Claude 模型映射（${claudeModelsCount}/5）`}
                 >
                   Claude Models
@@ -172,7 +172,7 @@ function SortableProviderCard({
               ) : null}
               {hasLimits ? (
                 <span
-                  className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 font-mono text-[10px] text-amber-700"
+                  className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 font-mono text-[10px] text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
                   title={limitChips.join("\n")}
                 >
                   限额
@@ -180,7 +180,7 @@ function SortableProviderCard({
               ) : null}
             </div>
             <div
-              className="mt-1 truncate font-mono text-xs text-slate-500 cursor-default"
+              className="mt-1 truncate font-mono text-xs text-slate-500 dark:text-slate-400 cursor-default"
               title={provider.base_urls.join("\n")}
             >
               {providerBaseUrlSummary(provider)}
@@ -193,7 +193,7 @@ function SortableProviderCard({
           onPointerDown={(e) => e.stopPropagation()}
         >
           <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-600">启用</span>
+            <span className="text-xs text-slate-600 dark:text-slate-400">启用</span>
             <Switch checked={provider.enabled} onCheckedChange={() => onToggleEnabled(provider)} />
           </div>
 
@@ -552,7 +552,7 @@ export function ProvidersView({ activeCli, setActiveCli }: ProvidersViewProps) {
         </div>
 
         <div className="flex items-center justify-between gap-2">
-          <div className="text-[11px] text-slate-500">路由顺序：按拖拽顺序（上→下）</div>
+          <div className="text-[11px] text-slate-500 dark:text-slate-400">路由顺序：按拖拽顺序（上→下）</div>
           <div className="flex items-center gap-2">
             {hasUnavailableCircuit ? (
               <Button
@@ -584,9 +584,9 @@ export function ProvidersView({ activeCli, setActiveCli }: ProvidersViewProps) {
 
         <div className="lg:min-h-0 lg:flex-1 lg:overflow-auto lg:pr-1">
           {providersLoading ? (
-            <div className="text-sm text-slate-600">加载中…</div>
+            <div className="text-sm text-slate-600 dark:text-slate-400">加载中…</div>
           ) : providers.length === 0 ? (
-            <div className="text-sm text-slate-600">暂无 Provider。请点击「添加」新增。</div>
+            <div className="text-sm text-slate-600 dark:text-slate-400">暂无 Provider。请点击「添加」新增。</div>
           ) : (
             <DndContext
               sensors={sensors}

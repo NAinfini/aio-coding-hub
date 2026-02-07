@@ -58,10 +58,10 @@ export function cliShortLabel(cliKey: string) {
 
 export function cliBadgeTone(cliKey: string) {
   if (cliKey === "claude")
-    return "bg-slate-100 text-slate-600 group-hover:bg-white group-hover:border-slate-200 border border-transparent";
+    return "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 group-hover:bg-white dark:group-hover:bg-slate-800 group-hover:border-slate-200 dark:group-hover:border-slate-700 border border-transparent";
   if (cliKey === "codex")
-    return "bg-slate-100 text-slate-600 group-hover:bg-white group-hover:border-slate-200 border border-transparent";
+    return "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 group-hover:bg-white dark:group-hover:bg-slate-800 group-hover:border-slate-200 dark:group-hover:border-slate-700 border border-transparent";
   if (cliKey === "gemini")
-    return "bg-slate-100 text-slate-600 group-hover:bg-white group-hover:border-slate-200 border border-transparent";
-  return "bg-slate-100 text-slate-600 border border-transparent";
+    return "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 group-hover:bg-white dark:group-hover:bg-slate-800 group-hover:border-slate-200 dark:group-hover:border-slate-700 border border-transparent";
+  return "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 border border-transparent";
 }

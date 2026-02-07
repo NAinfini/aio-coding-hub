@@ -37,7 +37,7 @@ const SCOPE_ITEMS: ScopeItem[] = [
   { key: "model", label: "模型" },
 ];
 
-const FILTER_LABEL_CLASS = "w-16 shrink-0 pt-1.5 text-right text-xs font-medium text-slate-600";
+const FILTER_LABEL_CLASS = "w-16 shrink-0 pt-1.5 text-right text-xs font-medium text-slate-600 dark:text-slate-400";
 const FILTER_OPTIONS_CLASS = "min-w-0 flex flex-1 flex-wrap items-center gap-2";
 const FILTER_OPTION_BUTTON_CLASS = "w-24 whitespace-nowrap";
 
@@ -54,10 +54,10 @@ function StatCard({
 }) {
   return (
     <Card padding="md" className={cn("flex h-full flex-col", className)}>
-      <div className="text-xs font-medium text-slate-500">{title}</div>
-      <div className="mt-1.5 text-xl font-semibold tracking-tight text-slate-900">{value}</div>
+      <div className="text-xs font-medium text-slate-500 dark:text-slate-400">{title}</div>
+      <div className="mt-1.5 text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">{value}</div>
       {hint ? (
-        <div className="mt-auto pt-1.5 text-[11px] leading-4 text-slate-500">{hint}</div>
+        <div className="mt-auto pt-1.5 text-[11px] leading-4 text-slate-500 dark:text-slate-400">{hint}</div>
       ) : null}
     </Card>
   );
@@ -66,9 +66,9 @@ function StatCard({
 function StatCardSkeleton({ className }: { className?: string }) {
   return (
     <Card padding="md" className={cn("h-full animate-pulse", className)}>
-      <div className="h-3 w-16 rounded bg-slate-200" />
-      <div className="mt-2 h-6 w-20 rounded bg-slate-200" />
-      <div className="mt-2 h-3 w-28 rounded bg-slate-100" />
+      <div className="h-3 w-16 rounded bg-slate-200 dark:bg-slate-700" />
+      <div className="mt-2 h-6 w-20 rounded bg-slate-200 dark:bg-slate-700" />
+      <div className="mt-2 h-3 w-28 rounded bg-slate-100 dark:bg-slate-600" />
     </Card>
   );
 }
@@ -87,15 +87,15 @@ function TokenBreakdown({
   return (
     <div className="space-y-0.5">
       <div>{formatInteger(totalTokens)}</div>
-      <div className="text-[10px] leading-4 text-slate-500">
-        输入 <span className="text-slate-700">{formatInteger(inputTokens)}</span>
+      <div className="text-[10px] leading-4 text-slate-500 dark:text-slate-400">
+        输入 <span className="text-slate-700 dark:text-slate-300">{formatInteger(inputTokens)}</span>
       </div>
-      <div className="text-[10px] leading-4 text-slate-500">
-        输出 <span className="text-slate-700">{formatInteger(outputTokens)}</span>
+      <div className="text-[10px] leading-4 text-slate-500 dark:text-slate-400">
+        输出 <span className="text-slate-700 dark:text-slate-300">{formatInteger(outputTokens)}</span>
       </div>
       {totalTokensWithCache != null && Number.isFinite(totalTokensWithCache) ? (
-        <div className="text-[10px] leading-4 text-slate-500">
-          含缓存 <span className="text-slate-700">{formatInteger(totalTokensWithCache)}</span>
+        <div className="text-[10px] leading-4 text-slate-500 dark:text-slate-400">
+          含缓存 <span className="text-slate-700 dark:text-slate-300">{formatInteger(totalTokensWithCache)}</span>
         </div>
       ) : null}
     </div>
@@ -115,14 +115,14 @@ function CacheBreakdown({
 
   return (
     <div className="space-y-0.5 text-[10px] leading-4">
-      <div className="text-slate-500">
-        创建 <span className="text-slate-700">{formatInteger(cacheCreationInputTokens)}</span>
+      <div className="text-slate-500 dark:text-slate-400">
+        创建 <span className="text-slate-700 dark:text-slate-300">{formatInteger(cacheCreationInputTokens)}</span>
       </div>
-      <div className="text-slate-500">
-        读取 <span className="text-slate-700">{formatInteger(cacheReadInputTokens)}</span>
+      <div className="text-slate-500 dark:text-slate-400">
+        读取 <span className="text-slate-700 dark:text-slate-300">{formatInteger(cacheReadInputTokens)}</span>
       </div>
-      <div className="text-slate-500">
-        命中率 <span className="text-slate-700">{formatPercent(hitRate, 2)}</span>
+      <div className="text-slate-500 dark:text-slate-400">
+        命中率 <span className="text-slate-700 dark:text-slate-300">{formatPercent(hitRate, 2)}</span>
       </div>
     </div>
   );
@@ -306,7 +306,7 @@ export function UsagePage() {
                 </Button>
               ))}
               {tableTab === "cacheTrend" ? (
-                <span className="w-full pt-1 text-xs text-slate-500">
+                <span className="w-full pt-1 text-xs text-slate-500 dark:text-slate-400">
                   缓存走势图仅支持供应商维度（已锁定）
                 </span>
               ) : null}
@@ -329,7 +329,7 @@ export function UsagePage() {
                 </Button>
               ))}
               {period === "custom" ? (
-                <span className="w-full pt-1 text-xs text-slate-500">
+                <span className="w-full pt-1 text-xs text-slate-500 dark:text-slate-400">
                   endDate 包含（按本地日期边界计算）
                 </span>
               ) : null}
@@ -337,27 +337,27 @@ export function UsagePage() {
           </div>
 
           {showCustomForm ? (
-            <div className="flex items-start gap-3 border-t border-slate-100 pt-4">
+            <div className="flex items-start gap-3 border-t border-slate-100 dark:border-slate-700 pt-4">
               <div className="w-16 shrink-0" aria-hidden="true" />
               <div className="min-w-0 flex flex-1 flex-col gap-3 md:flex-row md:items-end">
                 <div className="flex flex-col gap-1.5">
-                  <div className="text-xs font-medium text-slate-600">开始日期</div>
+                  <div className="text-xs font-medium text-slate-600 dark:text-slate-400">开始日期</div>
                   <input
                     type="date"
                     value={customStartDate}
                     onChange={(e) => setCustomStartDate(e.currentTarget.value)}
                     aria-label="开始日期"
-                    className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#0052FF] focus:ring-2 focus:ring-[#0052FF]/20"
+                    className="h-10 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm text-slate-900 dark:text-slate-100 shadow-sm outline-none transition focus:border-[#0052FF] focus:ring-2 focus:ring-[#0052FF]/20"
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <div className="text-xs font-medium text-slate-600">结束日期</div>
+                  <div className="text-xs font-medium text-slate-600 dark:text-slate-400">结束日期</div>
                   <input
                     type="date"
                     value={customEndDate}
                     onChange={(e) => setCustomEndDate(e.currentTarget.value)}
                     aria-label="结束日期"
-                    className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#0052FF] focus:ring-2 focus:ring-[#0052FF]/20"
+                    className="h-10 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm text-slate-900 dark:text-slate-100 shadow-sm outline-none transition focus:border-[#0052FF] focus:ring-2 focus:ring-[#0052FF]/20"
                   />
                 </div>
                 <div className="flex flex-wrap items-center gap-2 md:pb-0.5">
@@ -373,11 +373,11 @@ export function UsagePage() {
                     清空
                   </Button>
                   {customApplied ? (
-                    <span className="text-xs font-medium text-slate-600">
+                    <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
                       已应用：{customApplied.startDate} → {customApplied.endDate}
                     </span>
                   ) : (
-                    <span className="text-xs text-slate-500">请选择日期范围后点击"应用"</span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400">请选择日期范围后点击"应用"</span>
                   )}
                 </div>
               </div>
@@ -430,11 +430,11 @@ export function UsagePage() {
       </div>
 
       {errorText ? (
-        <Card padding="md" className="shrink-0 border-rose-200 bg-rose-50">
+        <Card padding="md" className="shrink-0 border-rose-200 dark:border-rose-700 bg-rose-50 dark:bg-rose-900/30">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <div className="text-sm font-semibold text-rose-900">加载失败</div>
-              <div className="mt-1 text-sm text-rose-800">
+              <div className="text-sm font-semibold text-rose-900 dark:text-rose-400">加载失败</div>
+              <div className="mt-1 text-sm text-rose-800 dark:text-rose-300">
                 用量数据刷新失败，请重试；必要时查看 Console 日志定位 error_code。
               </div>
             </div>
@@ -450,12 +450,12 @@ export function UsagePage() {
                 void leaderboardQuery.refetch();
               }}
               disabled={loading}
-              className="border-rose-200 bg-white text-rose-800 hover:bg-rose-50"
+              className="border-rose-200 dark:border-rose-700 bg-white dark:bg-slate-800 text-rose-800 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-900/30"
             >
               重试
             </Button>
           </div>
-          <div className="mt-3 rounded-lg border border-rose-200 bg-white/60 p-3 font-mono text-xs text-slate-800">
+          <div className="mt-3 rounded-lg border border-rose-200 dark:border-rose-700 bg-white/60 dark:bg-slate-800/60 p-3 font-mono text-xs text-slate-800 dark:text-slate-300">
             {errorText}
           </div>
         </Card>
@@ -463,7 +463,7 @@ export function UsagePage() {
 
       {tauriAvailable === false ? (
         <Card padding="md" className="shrink-0">
-          <div className="text-sm text-slate-600">
+          <div className="text-sm text-slate-600 dark:text-slate-400">
             当前环境未检测到 Tauri Runtime。请通过桌面端运行（`pnpm tauri dev`）后查看用量。
           </div>
         </Card>
@@ -481,7 +481,7 @@ export function UsagePage() {
               size="sm"
             />
           </div>
-          <div className="text-xs text-slate-500">
+          <div className="text-xs text-slate-500 dark:text-slate-400">
             {tableTab === "cacheTrend"
               ? cacheTrendProviderCount > 0
                 ? `${formatInteger(cacheTrendProviderCount)} · 命中率走势`
@@ -494,9 +494,9 @@ export function UsagePage() {
           {tableTab === "cacheTrend" ? (
             <div className="px-6 pb-6">
               {cacheTrendLoading && cacheTrendRows.length === 0 ? (
-                <div className="h-80 animate-pulse rounded-lg bg-slate-100" />
+                <div className="h-80 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800" />
               ) : cacheTrendRows.length === 0 ? (
-                <div className="text-sm text-slate-600">
+                <div className="text-sm text-slate-600 dark:text-slate-400">
                   {errorText
                     ? '加载失败：暂无可展示的数据。请点击上方"重试"。'
                     : period === "custom" && !customApplied
@@ -513,7 +513,7 @@ export function UsagePage() {
                       className="h-full"
                     />
                   </div>
-                  <div className="mt-3 text-xs text-slate-500">
+                  <div className="mt-3 text-xs text-slate-500 dark:text-slate-400">
                     命中率=读取 /（有效输入 + 创建 + 读取）。有效输入：Codex/Gemini 做
                     input-cache_read 纠偏；Claude
                     原样。预警阈值：60%（低于阈值的时间段会高亮背景）。
@@ -525,27 +525,27 @@ export function UsagePage() {
             <div className="overflow-x-auto">
               <table className="w-full border-separate border-spacing-0 text-left text-sm">
                 <thead>
-                  <tr className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                    <th className="border-b border-slate-200 bg-slate-50/60 px-3 py-2.5">#</th>
-                    <th className="border-b border-slate-200 bg-slate-50/60 px-3 py-2.5">名称</th>
-                    <th className="border-b border-slate-200 bg-slate-50/60 px-3 py-2.5">请求数</th>
-                    <th className="border-b border-slate-200 bg-slate-50/60 px-3 py-2.5">成功率</th>
-                    <th className="border-b border-slate-200 bg-slate-50/60 px-3 py-2.5">
+                  <tr className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    <th className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/60 px-3 py-2.5">#</th>
+                    <th className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/60 px-3 py-2.5">名称</th>
+                    <th className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/60 px-3 py-2.5">请求数</th>
+                    <th className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/60 px-3 py-2.5">成功率</th>
+                    <th className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/60 px-3 py-2.5">
                       总 Token
                     </th>
-                    <th className="border-b border-slate-200 bg-slate-50/60 px-3 py-2.5">
+                    <th className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/60 px-3 py-2.5">
                       缓存 / 命中率
                     </th>
-                    <th className="border-b border-slate-200 bg-slate-50/60 px-3 py-2.5">
+                    <th className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/60 px-3 py-2.5">
                       平均耗时
                     </th>
-                    <th className="border-b border-slate-200 bg-slate-50/60 px-3 py-2.5">
+                    <th className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/60 px-3 py-2.5">
                       平均首字
                     </th>
-                    <th className="border-b border-slate-200 bg-slate-50/60 px-3 py-2.5">
+                    <th className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/60 px-3 py-2.5">
                       平均速率
                     </th>
-                    <th className="border-b border-slate-200 bg-slate-50/60 px-3 py-2.5">
+                    <th className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/60 px-3 py-2.5">
                       花费金额
                     </th>
                   </tr>
@@ -553,36 +553,36 @@ export function UsagePage() {
                 <tbody className="animate-pulse">
                   {Array.from({ length: 5 }).map((_, idx) => (
                     <tr key={idx} className="align-top">
-                      <td className="border-b border-slate-100 px-3 py-3.5">
-                        <div className="h-3 w-5 rounded-md bg-slate-200" />
+                      <td className="border-b border-slate-100 dark:border-slate-700 px-3 py-3.5">
+                        <div className="h-3 w-5 rounded-md bg-slate-200 dark:bg-slate-700" />
                       </td>
-                      <td className="border-b border-slate-100 px-3 py-3.5">
-                        <div className="h-3 w-32 rounded-md bg-slate-200" />
-                        <div className="mt-2 h-3 w-48 rounded-md bg-slate-100" />
+                      <td className="border-b border-slate-100 dark:border-slate-700 px-3 py-3.5">
+                        <div className="h-3 w-32 rounded-md bg-slate-200 dark:bg-slate-700" />
+                        <div className="mt-2 h-3 w-48 rounded-md bg-slate-100 dark:bg-slate-600" />
                       </td>
-                      <td className="border-b border-slate-100 px-3 py-3.5">
-                        <div className="h-3 w-14 rounded-md bg-slate-200" />
+                      <td className="border-b border-slate-100 dark:border-slate-700 px-3 py-3.5">
+                        <div className="h-3 w-14 rounded-md bg-slate-200 dark:bg-slate-700" />
                       </td>
-                      <td className="border-b border-slate-100 px-3 py-3.5">
-                        <div className="h-3 w-12 rounded-md bg-slate-200" />
+                      <td className="border-b border-slate-100 dark:border-slate-700 px-3 py-3.5">
+                        <div className="h-3 w-12 rounded-md bg-slate-200 dark:bg-slate-700" />
                       </td>
-                      <td className="border-b border-slate-100 px-3 py-3.5">
-                        <div className="h-3 w-16 rounded-md bg-slate-200" />
+                      <td className="border-b border-slate-100 dark:border-slate-700 px-3 py-3.5">
+                        <div className="h-3 w-16 rounded-md bg-slate-200 dark:bg-slate-700" />
                       </td>
-                      <td className="border-b border-slate-100 px-3 py-3.5">
-                        <div className="h-3 w-20 rounded-md bg-slate-200" />
+                      <td className="border-b border-slate-100 dark:border-slate-700 px-3 py-3.5">
+                        <div className="h-3 w-20 rounded-md bg-slate-200 dark:bg-slate-700" />
                       </td>
-                      <td className="border-b border-slate-100 px-3 py-3.5">
-                        <div className="h-3 w-14 rounded-md bg-slate-200" />
+                      <td className="border-b border-slate-100 dark:border-slate-700 px-3 py-3.5">
+                        <div className="h-3 w-14 rounded-md bg-slate-200 dark:bg-slate-700" />
                       </td>
-                      <td className="border-b border-slate-100 px-3 py-3.5">
-                        <div className="h-3 w-14 rounded-md bg-slate-200" />
+                      <td className="border-b border-slate-100 dark:border-slate-700 px-3 py-3.5">
+                        <div className="h-3 w-14 rounded-md bg-slate-200 dark:bg-slate-700" />
                       </td>
-                      <td className="border-b border-slate-100 px-3 py-3.5">
-                        <div className="h-3 w-16 rounded-md bg-slate-200" />
+                      <td className="border-b border-slate-100 dark:border-slate-700 px-3 py-3.5">
+                        <div className="h-3 w-16 rounded-md bg-slate-200 dark:bg-slate-700" />
                       </td>
-                      <td className="border-b border-slate-100 px-3 py-3.5">
-                        <div className="h-3 w-14 rounded-md bg-slate-200" />
+                      <td className="border-b border-slate-100 dark:border-slate-700 px-3 py-3.5">
+                        <div className="h-3 w-14 rounded-md bg-slate-200 dark:bg-slate-700" />
                       </td>
                     </tr>
                   ))}
@@ -590,7 +590,7 @@ export function UsagePage() {
               </table>
             </div>
           ) : rows.length === 0 && !summary ? (
-            <div className="px-6 pb-5 text-sm text-slate-600">
+            <div className="px-6 pb-5 text-sm text-slate-600 dark:text-slate-400">
               {errorText
                 ? '加载失败：暂无可展示的数据。请点击上方"重试"。'
                 : period === "custom" && !customApplied
@@ -601,35 +601,35 @@ export function UsagePage() {
             <div className="overflow-x-auto">
               <table className="w-full border-separate border-spacing-0 text-left text-sm">
                 <thead className="sticky top-0 z-10">
-                  <tr className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                    <th className="border-b border-slate-200 bg-slate-50/60 px-3 py-2.5 backdrop-blur-sm">
+                  <tr className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    <th className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/60 px-3 py-2.5 backdrop-blur-sm">
                       #
                     </th>
-                    <th className="border-b border-slate-200 bg-slate-50/60 px-3 py-2.5 backdrop-blur-sm">
+                    <th className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/60 px-3 py-2.5 backdrop-blur-sm">
                       名称
                     </th>
-                    <th className="border-b border-slate-200 bg-slate-50/60 px-3 py-2.5 backdrop-blur-sm">
+                    <th className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/60 px-3 py-2.5 backdrop-blur-sm">
                       请求数
                     </th>
-                    <th className="border-b border-slate-200 bg-slate-50/60 px-3 py-2.5 backdrop-blur-sm">
+                    <th className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/60 px-3 py-2.5 backdrop-blur-sm">
                       成功率
                     </th>
-                    <th className="border-b border-slate-200 bg-slate-50/60 px-3 py-2.5 backdrop-blur-sm">
+                    <th className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/60 px-3 py-2.5 backdrop-blur-sm">
                       总 Token
                     </th>
-                    <th className="border-b border-slate-200 bg-slate-50/60 px-3 py-2.5 backdrop-blur-sm">
+                    <th className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/60 px-3 py-2.5 backdrop-blur-sm">
                       缓存 / 命中率
                     </th>
-                    <th className="border-b border-slate-200 bg-slate-50/60 px-3 py-2.5 backdrop-blur-sm">
+                    <th className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/60 px-3 py-2.5 backdrop-blur-sm">
                       平均耗时
                     </th>
-                    <th className="border-b border-slate-200 bg-slate-50/60 px-3 py-2.5 backdrop-blur-sm">
+                    <th className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/60 px-3 py-2.5 backdrop-blur-sm">
                       平均首字
                     </th>
-                    <th className="border-b border-slate-200 bg-slate-50/60 px-3 py-2.5 backdrop-blur-sm">
+                    <th className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/60 px-3 py-2.5 backdrop-blur-sm">
                       平均速率
                     </th>
-                    <th className="border-b border-slate-200 bg-slate-50/60 px-3 py-2.5 backdrop-blur-sm">
+                    <th className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/60 px-3 py-2.5 backdrop-blur-sm">
                       花费金额
                     </th>
                   </tr>
@@ -639,7 +639,7 @@ export function UsagePage() {
                     <tr className="align-top">
                       <td
                         colSpan={10}
-                        className="border-b border-slate-100 px-3 py-4 text-sm text-slate-600"
+                        className="border-b border-slate-100 dark:border-slate-700 px-3 py-4 text-sm text-slate-600 dark:text-slate-400"
                       >
                         {errorText
                           ? '加载失败：暂无可展示的数据。请点击上方"重试"。'
@@ -652,21 +652,21 @@ export function UsagePage() {
                     rows.map((row, index) => (
                       <tr
                         key={row.key}
-                        className="align-top transition-colors hover:bg-slate-50/50"
+                        className="align-top transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-800/50"
                       >
-                        <td className="border-b border-slate-100 px-3 py-3 text-xs tabular-nums text-slate-400">
+                        <td className="border-b border-slate-100 dark:border-slate-700 px-3 py-3 text-xs tabular-nums text-slate-400 dark:text-slate-500">
                           {index + 1}
                         </td>
-                        <td className="border-b border-slate-100 px-3 py-3">
-                          <div className="font-medium text-slate-900">{row.name}</div>
+                        <td className="border-b border-slate-100 dark:border-slate-700 px-3 py-3">
+                          <div className="font-medium text-slate-900 dark:text-slate-100">{row.name}</div>
                         </td>
-                        <td className="border-b border-slate-100 px-3 py-3 font-mono text-xs tabular-nums text-slate-700">
+                        <td className="border-b border-slate-100 dark:border-slate-700 px-3 py-3 font-mono text-xs tabular-nums text-slate-700 dark:text-slate-300">
                           {formatInteger(row.requests_total)}
                         </td>
-                        <td className="border-b border-slate-100 px-3 py-3 font-mono text-xs tabular-nums text-slate-700">
+                        <td className="border-b border-slate-100 dark:border-slate-700 px-3 py-3 font-mono text-xs tabular-nums text-slate-700 dark:text-slate-300">
                           {formatPercent(successRate(row))}
                         </td>
-                        <td className="border-b border-slate-100 px-3 py-3 font-mono text-xs tabular-nums text-slate-700">
+                        <td className="border-b border-slate-100 dark:border-slate-700 px-3 py-3 font-mono text-xs tabular-nums text-slate-700 dark:text-slate-300">
                           <TokenBreakdown
                             totalTokens={row.io_total_tokens}
                             inputTokens={row.input_tokens}
@@ -674,23 +674,23 @@ export function UsagePage() {
                             totalTokensWithCache={row.total_tokens}
                           />
                         </td>
-                        <td className="border-b border-slate-100 px-3 py-3 font-mono text-xs tabular-nums text-slate-700">
+                        <td className="border-b border-slate-100 dark:border-slate-700 px-3 py-3 font-mono text-xs tabular-nums text-slate-700 dark:text-slate-300">
                           <CacheBreakdown
                             inputTokens={row.input_tokens}
                             cacheCreationInputTokens={row.cache_creation_input_tokens}
                             cacheReadInputTokens={row.cache_read_input_tokens}
                           />
                         </td>
-                        <td className="border-b border-slate-100 px-3 py-3 font-mono text-xs tabular-nums text-slate-700">
+                        <td className="border-b border-slate-100 dark:border-slate-700 px-3 py-3 font-mono text-xs tabular-nums text-slate-700 dark:text-slate-300">
                           {formatDurationMs(row.avg_duration_ms)}
                         </td>
-                        <td className="border-b border-slate-100 px-3 py-3 font-mono text-xs tabular-nums text-slate-700">
+                        <td className="border-b border-slate-100 dark:border-slate-700 px-3 py-3 font-mono text-xs tabular-nums text-slate-700 dark:text-slate-300">
                           {formatDurationMs(row.avg_ttfb_ms)}
                         </td>
-                        <td className="border-b border-slate-100 px-3 py-3 font-mono text-xs tabular-nums text-slate-700">
+                        <td className="border-b border-slate-100 dark:border-slate-700 px-3 py-3 font-mono text-xs tabular-nums text-slate-700 dark:text-slate-300">
                           {formatTokensPerSecond(row.avg_output_tokens_per_second)}
                         </td>
-                        <td className="border-b border-slate-100 px-3 py-3 font-mono text-xs tabular-nums text-slate-700">
+                        <td className="border-b border-slate-100 dark:border-slate-700 px-3 py-3 font-mono text-xs tabular-nums text-slate-700 dark:text-slate-300">
                           {formatUsd(row.cost_usd)}
                         </td>
                       </tr>
@@ -699,31 +699,31 @@ export function UsagePage() {
                 </tbody>
                 {summary ? (
                   <tfoot>
-                    <tr className="align-top bg-slate-100/80">
-                      <td className="border-b border-slate-200 px-3 py-3 text-sm font-semibold text-slate-500">
+                    <tr className="align-top bg-slate-100/80 dark:bg-slate-800/80">
+                      <td className="border-b border-slate-200 dark:border-slate-700 px-3 py-3 text-sm font-semibold text-slate-500 dark:text-slate-400">
                         Σ
                       </td>
-                      <td className="border-b border-slate-200 px-3 py-3">
-                        <div className="font-semibold text-slate-900">总计</div>
-                        <div className="mt-1 text-xs leading-relaxed text-slate-500">
+                      <td className="border-b border-slate-200 dark:border-slate-700 px-3 py-3">
+                        <div className="font-semibold text-slate-900 dark:text-slate-100">总计</div>
+                        <div className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
                           {formatInteger(summary.requests_total)} 请求 ·{" "}
                           {formatInteger(summary.requests_with_usage)} 有用量
                         </div>
-                        <div className="mt-0.5 text-xs text-slate-500">
+                        <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                           仅统计成功请求（{formatInteger(summary.requests_success)}）
                         </div>
                       </td>
-                      <td className="border-b border-slate-200 px-3 py-3 font-mono text-xs font-medium tabular-nums text-slate-900">
+                      <td className="border-b border-slate-200 dark:border-slate-700 px-3 py-3 font-mono text-xs font-medium tabular-nums text-slate-900 dark:text-slate-100">
                         {formatInteger(summary.requests_total)}
                       </td>
-                      <td className="border-b border-slate-200 px-3 py-3 font-mono text-xs font-medium tabular-nums text-slate-900">
+                      <td className="border-b border-slate-200 dark:border-slate-700 px-3 py-3 font-mono text-xs font-medium tabular-nums text-slate-900 dark:text-slate-100">
                         {formatPercent(
                           summary.requests_total > 0
                             ? summary.requests_success / summary.requests_total
                             : NaN
                         )}
                       </td>
-                      <td className="border-b border-slate-200 px-3 py-3 font-mono text-xs font-medium tabular-nums text-slate-900">
+                      <td className="border-b border-slate-200 dark:border-slate-700 px-3 py-3 font-mono text-xs font-medium tabular-nums text-slate-900 dark:text-slate-100">
                         <TokenBreakdown
                           totalTokens={summary.io_total_tokens}
                           inputTokens={summary.input_tokens}
@@ -731,23 +731,23 @@ export function UsagePage() {
                           totalTokensWithCache={summary.total_tokens}
                         />
                       </td>
-                      <td className="border-b border-slate-200 px-3 py-3 font-mono text-xs font-medium tabular-nums text-slate-900">
+                      <td className="border-b border-slate-200 dark:border-slate-700 px-3 py-3 font-mono text-xs font-medium tabular-nums text-slate-900 dark:text-slate-100">
                         <CacheBreakdown
                           inputTokens={summary.input_tokens}
                           cacheCreationInputTokens={summary.cache_creation_input_tokens}
                           cacheReadInputTokens={summary.cache_read_input_tokens}
                         />
                       </td>
-                      <td className="border-b border-slate-200 px-3 py-3 font-mono text-xs font-medium tabular-nums text-slate-900">
+                      <td className="border-b border-slate-200 dark:border-slate-700 px-3 py-3 font-mono text-xs font-medium tabular-nums text-slate-900 dark:text-slate-100">
                         {formatDurationMs(summary.avg_duration_ms)}
                       </td>
-                      <td className="border-b border-slate-200 px-3 py-3 font-mono text-xs font-medium tabular-nums text-slate-900">
+                      <td className="border-b border-slate-200 dark:border-slate-700 px-3 py-3 font-mono text-xs font-medium tabular-nums text-slate-900 dark:text-slate-100">
                         {formatDurationMs(summary.avg_ttfb_ms)}
                       </td>
-                      <td className="border-b border-slate-200 px-3 py-3 font-mono text-xs font-medium tabular-nums text-slate-900">
+                      <td className="border-b border-slate-200 dark:border-slate-700 px-3 py-3 font-mono text-xs font-medium tabular-nums text-slate-900 dark:text-slate-100">
                         {formatTokensPerSecond(summary.avg_output_tokens_per_second)}
                       </td>
-                      <td className="border-b border-slate-200 px-3 py-3 font-mono text-xs font-medium tabular-nums text-slate-500">
+                      <td className="border-b border-slate-200 dark:border-slate-700 px-3 py-3 font-mono text-xs font-medium tabular-nums text-slate-500 dark:text-slate-400">
                         —
                       </td>
                     </tr>

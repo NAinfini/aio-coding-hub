@@ -20,7 +20,7 @@ export function HomeUsageSection({
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-12 md:items-stretch md:gap-5">
       <Card className="min-w-0 md:col-span-7" padding="sm">
-        <div className="text-sm font-medium text-slate-600 mb-2">热力图</div>
+        <div className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">热力图</div>
         {usageHeatmapLoading && usageHeatmapRows.length === 0 ? (
           <div className="text-sm text-slate-400">加载中…</div>
         ) : (
@@ -34,7 +34,7 @@ export function HomeUsageSection({
       </Card>
 
       <Card className="flex flex-col md:col-span-5 min-h-[200px]" padding="sm">
-        <div className="text-sm font-medium text-slate-600 mb-2">用量统计</div>
+        <div className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">用量统计</div>
         {usageHeatmapLoading && usageHeatmapRows.length === 0 ? (
           <div className="text-sm text-slate-400">加载中…</div>
         ) : (

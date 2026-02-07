@@ -60,7 +60,7 @@ const ConsoleLogRow = memo(function ConsoleLogRow({ entry }: { entry: ConsoleLog
         "items-center px-4 py-3 group-hover:bg-slate-800/40 transition-colors duration-200"
       )}
     >
-      <span className="shrink-0 text-slate-500 font-mono text-[11px]">{entry.tsText}</span>
+      <span className="shrink-0 text-slate-500 dark:text-slate-400 font-mono text-[11px]">{entry.tsText}</span>
       <div className="flex items-center">
         <span
           className={cn(
@@ -74,7 +74,7 @@ const ConsoleLogRow = memo(function ConsoleLogRow({ entry }: { entry: ConsoleLog
       <span className="min-w-0 whitespace-pre-wrap break-words text-slate-300 text-[13px] leading-relaxed font-normal">
         {entry.title}
       </span>
-      <span className="flex justify-end text-slate-600 group-open:text-slate-400 transition-colors duration-200">
+      <span className="flex justify-end text-slate-600 dark:text-slate-400 group-open:text-slate-400 transition-colors duration-200">
         {hasDetails ? (
           <ChevronRight className="h-4 w-4 transition-transform duration-200 group-open:rotate-90" />
         ) : null}
@@ -176,11 +176,11 @@ export function ConsolePage() {
               </Button>
             ) : null}
             <div className="flex items-center gap-2">
-              <span className="text-sm text-slate-600">自动滚动</span>
+              <span className="text-sm text-slate-600 dark:text-slate-400">自动滚动</span>
               <Switch checked={autoScroll} onCheckedChange={setAutoScroll} size="sm" />
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-sm text-slate-600">调试日志</span>
+              <span className="text-sm text-slate-600 dark:text-slate-400">调试日志</span>
               <Switch
                 checked={debugEnabled}
                 onCheckedChange={(next) => {
@@ -205,31 +205,31 @@ export function ConsolePage() {
       />
 
       <Card padding="none">
-        <div className="border-b border-slate-200 bg-gradient-to-r from-slate-50 to-slate-100/50 px-6 py-4">
+        <div className="border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-slate-50 to-slate-100/50 dark:from-slate-800 dark:to-slate-800/50 px-6 py-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="text-sm font-semibold text-slate-900">
+              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                 日志{" "}
                 <span className="ml-1.5 inline-flex items-center rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-medium text-accent">
                   {displayLogs.length}
                 </span>
               </div>
               {!renderAll && visibleLogs.length > DEFAULT_RENDER_LIMIT ? (
-                <div className="text-xs text-slate-500 flex items-center gap-1.5">
-                  <span className="inline-block h-1 w-1 rounded-full bg-slate-400"></span>共{" "}
+                <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                  <span className="inline-block h-1 w-1 rounded-full bg-slate-400 dark:bg-slate-500"></span>共{" "}
                   {visibleLogs.length} 条，仅显示最近 {DEFAULT_RENDER_LIMIT} 条
                 </div>
               ) : null}
               {!debugEnabled && hiddenCount > 0 ? (
-                <div className="text-xs text-slate-500 flex items-center gap-1.5">
-                  <span className="inline-block h-1 w-1 rounded-full bg-slate-400"></span>
+                <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                  <span className="inline-block h-1 w-1 rounded-full bg-slate-400 dark:bg-slate-500"></span>
                   已隐藏 {hiddenCount} 条调试日志
                 </div>
               ) : null}
             </div>
-            <div className="text-xs text-slate-500 flex items-center gap-1.5">
+            <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
               <svg
-                className="h-3.5 w-3.5 text-slate-400"
+                className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500"
                 fill="none"
                 viewBox="0 0 24 24"
                 strokeWidth="2"
@@ -258,7 +258,7 @@ export function ConsolePage() {
             <div className="flex flex-col items-center justify-center px-4 py-16 text-center">
               <div className="mb-3 rounded-full bg-slate-800/50 p-4 border border-slate-700/50">
                 <svg
-                  className="h-8 w-8 text-slate-600"
+                  className="h-8 w-8 text-slate-600 dark:text-slate-400"
                   fill="none"
                   viewBox="0 0 24 24"
                   strokeWidth="1.5"
@@ -271,10 +271,10 @@ export function ConsolePage() {
                   />
                 </svg>
               </div>
-              <p className="text-sm font-medium text-slate-400">
+              <p className="text-sm font-medium text-slate-400 dark:text-slate-500">
                 {logs.length === 0 ? "暂无日志" : "暂无可显示的日志"}
               </p>
-              <p className="mt-1 text-xs text-slate-600">
+              <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
                 {logs.length === 0 ? "系统日志将在这里显示" : "调整过滤器以查看更多日志"}
               </p>
             </div>

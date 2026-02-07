@@ -10,7 +10,7 @@ export function AppLayout() {
   const sidebar = useSidebarState();
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       {/* Mobile header - only shown on small screens */}
       {!isDesktop && <MobileHeader onMenuClick={sidebar.toggleMobileDrawer} />}
 
@@ -21,8 +21,10 @@ export function AppLayout() {
         </div>
 
         {/* Main content area */}
-        <div className="min-w-0 flex-1 bg-grid-pattern">
-          <main className="px-4 py-4 sm:px-6 sm:py-5">
+        <div className="relative min-w-0 flex-1 bg-grid-pattern">
+          {/* Window drag region for titleBarStyle: overlay */}
+          <div data-tauri-drag-region className="absolute inset-x-0 top-0 z-10 h-8" />
+          <main className="px-4 pb-4 pt-10 sm:px-6 sm:pb-5 sm:pt-11">
             <Outlet />
           </main>
         </div>

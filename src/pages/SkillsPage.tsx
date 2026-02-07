@@ -72,7 +72,7 @@ export function SkillsPage() {
         />
       </div>
 
-      <div className="shrink-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+      <div className="shrink-0 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm text-slate-700 dark:text-slate-300">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>这是高级入口：默认操作当前 workspace。推荐在「Workspaces」配置中心统一管理。</div>
           <Button variant="secondary" onClick={() => navigate("/workspaces")}>
@@ -83,11 +83,11 @@ export function SkillsPage() {
 
       <div className="min-h-0 flex-1 lg:overflow-hidden">
         {loading ? (
-          <div className="text-sm text-slate-600">加载中…</div>
+          <div className="text-sm text-slate-600 dark:text-slate-400">加载中…</div>
         ) : !tauriRuntime ? (
-          <div className="text-sm text-slate-600">仅在 Tauri Desktop 环境可用</div>
+          <div className="text-sm text-slate-600 dark:text-slate-400">仅在 Tauri Desktop 环境可用</div>
         ) : !activeWorkspaceId ? (
-          <div className="text-sm text-slate-600">
+          <div className="text-sm text-slate-600 dark:text-slate-400">
             未找到 {currentCli.name} 的当前工作区（workspace）。请先在 Workspaces
             页面创建并设为当前。
           </div>

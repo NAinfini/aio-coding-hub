@@ -77,8 +77,8 @@ function Badge({
 }) {
   const toneClass =
     tone === "active"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-      : "border-slate-200 bg-white text-slate-600";
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+      : "border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400";
 
   return (
     <span
@@ -404,10 +404,10 @@ export function WorkspacesPage() {
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-900">
+                <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
                   <Layers className="h-4 w-4 shrink-0 text-[#0052FF]" />
                   <span className="shrink-0">工作区</span>
-                  <span className="shrink-0 text-xs font-medium text-slate-500">
+                  <span className="shrink-0 text-xs font-medium text-slate-500 dark:text-slate-400">
                     {items.length} 个
                   </span>
                 </div>
@@ -416,7 +416,7 @@ export function WorkspacesPage() {
                   新建
                 </Button>
               </div>
-              <div className="mt-1 text-xs text-slate-500">同一 CLI 下名称不可重复。</div>
+              <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">同一 CLI 下名称不可重复。</div>
             </div>
           </div>
 
@@ -437,9 +437,9 @@ export function WorkspacesPage() {
 
           <div className="mt-3 space-y-3 lg:min-h-0 lg:flex-1 lg:overflow-auto lg:pr-1">
             {loading ? (
-              <div className="text-sm text-slate-600 px-1">加载中…</div>
+              <div className="text-sm text-slate-600 dark:text-slate-400 px-1">加载中…</div>
             ) : filtered.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-600">
+              <div className="rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 p-4 text-sm text-slate-600 dark:text-slate-400">
                 暂无工作区
               </div>
             ) : (
@@ -453,10 +453,10 @@ export function WorkspacesPage() {
                     className={cn(
                       "rounded-2xl border p-4 transition",
                       isActive
-                        ? "border-[#0052FF]/30 bg-[#0052FF]/[0.03] shadow-sm"
+                        ? "border-[#0052FF]/30 bg-[#0052FF]/[0.03] shadow-sm dark:border-[#0052FF]/40 dark:bg-[#0052FF]/10"
                         : isSelected
-                          ? "border-slate-300 bg-slate-50"
-                          : "border-slate-200 bg-white hover:bg-slate-50"
+                          ? "border-slate-300 bg-slate-50 dark:border-slate-600 dark:bg-slate-700"
+                          : "border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700"
                     )}
                     aria-current={isActive ? "true" : undefined}
                     role="button"
@@ -469,7 +469,7 @@ export function WorkspacesPage() {
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <div className="truncate text-sm font-semibold text-slate-900">
+                          <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
                             {workspace.name}
                           </div>
                           {isActive ? (
@@ -537,7 +537,7 @@ export function WorkspacesPage() {
               <div className="shrink-0 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <div className="truncate text-lg font-semibold text-slate-900">
+                    <div className="truncate text-lg font-semibold text-slate-900 dark:text-slate-100">
                       {selectedWorkspace.name}
                     </div>
                     {selectedWorkspace.id === activeWorkspaceId ? (
@@ -569,18 +569,18 @@ export function WorkspacesPage() {
                 {rightTab === "overview" ? (
                   <div className="space-y-4">
                     {selectedWorkspace.id === activeWorkspaceId ? (
-                      <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+                      <div className="rounded-xl border border-emerald-200 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 px-3 py-2 text-sm text-emerald-900 dark:text-emerald-400">
                         <div className="font-medium">当前工作区</div>
-                        <div className="mt-1 text-xs text-emerald-900/80">
+                        <div className="mt-1 text-xs text-emerald-900/80 dark:text-emerald-400/80">
                           对 Prompts/MCP/Skills 的修改会立即生效。
                         </div>
                       </div>
                     ) : (
-                      <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                      <div className="rounded-xl border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30 px-3 py-2 text-sm text-amber-900 dark:text-amber-400">
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                           <div>
-                            <div className="font-medium text-slate-900">该工作区尚未生效</div>
-                            <div className="mt-1 text-xs text-amber-900/80">
+                            <div className="font-medium text-slate-900 dark:text-slate-100">该工作区尚未生效</div>
+                            <div className="mt-1 text-xs text-amber-900/80 dark:text-amber-400/80">
                               修改会先保存，切换后才会写入对应 CLI 配置（仅 AIO 托管部分）。
                             </div>
                           </div>
@@ -600,8 +600,8 @@ export function WorkspacesPage() {
                     )}
 
                     {applyReport && applyReport.to_workspace_id === selectedWorkspace.id ? (
-                      <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                        已切换为当前（{new Date(applyReport.applied_at * 1000).toLocaleString()}）
+                      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm text-slate-700 dark:text-slate-300">
+                        已切换为当前工作区（{new Date(applyReport.applied_at * 1000).toLocaleString()}）
                         {applyReport.from_workspace_id ? (
                           <Button
                             size="sm"
@@ -618,10 +618,10 @@ export function WorkspacesPage() {
 
                     <div className="grid gap-3 sm:grid-cols-3">
                       <Card padding="sm">
-                        <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                        <div className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                           Prompts
                         </div>
-                        <div className="mt-2 text-sm text-slate-700">
+                        <div className="mt-2 text-sm text-slate-700 dark:text-slate-300">
                           {overviewLoading ? (
                             "加载中…"
                           ) : overviewStats ? (
@@ -645,10 +645,10 @@ export function WorkspacesPage() {
                       </Card>
 
                       <Card padding="sm">
-                        <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                        <div className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                           MCP
                         </div>
-                        <div className="mt-2 text-sm text-slate-700">
+                        <div className="mt-2 text-sm text-slate-700 dark:text-slate-300">
                           {overviewLoading ? (
                             "加载中…"
                           ) : overviewStats ? (
@@ -667,10 +667,10 @@ export function WorkspacesPage() {
                       </Card>
 
                       <Card padding="sm">
-                        <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                        <div className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                           Skills
                         </div>
-                        <div className="mt-2 text-sm text-slate-700">
+                        <div className="mt-2 text-sm text-slate-700 dark:text-slate-300">
                           {overviewLoading ? (
                             "加载中…"
                           ) : overviewStats ? (
@@ -703,7 +703,7 @@ export function WorkspacesPage() {
                 ) : rightTab === "mcp" ? (
                   <>
                     {selectedWorkspace.id === activeWorkspaceId ? null : (
-                      <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                      <div className="mb-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm text-slate-700 dark:text-slate-300">
                         非当前工作区：启用/停用仅写入数据库，不会同步到 CLI。
                       </div>
                     )}
@@ -719,7 +719,7 @@ export function WorkspacesPage() {
               </div>
             </Card>
           ) : (
-            <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-600">
+            <div className="rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 p-4 text-sm text-slate-600 dark:text-slate-400">
               请选择一个工作区
             </div>
           )}
@@ -743,61 +743,61 @@ export function WorkspacesPage() {
       >
         <div className="space-y-3">
           <Card padding="sm">
-            <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            <div className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
               对比范围
             </div>
-            <div className="mt-2 text-sm text-slate-700">
+            <div className="mt-2 text-sm text-slate-700 dark:text-slate-300">
               当前：
               {(() => {
                 const fromId = preview?.from_workspace_id ?? activeWorkspaceId;
                 if (!fromId) return "（未设置）";
                 return workspaceById.get(fromId)?.name ?? `#${fromId}`;
               })()}
-              <span className="mx-2 text-slate-400">→</span>
+              <span className="mx-2 text-slate-400 dark:text-slate-500">→</span>
               目标：{switchTarget?.name ?? "—"}
             </div>
-            <div className="mt-1 text-xs text-slate-500">
+            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               仅展示 Prompts/MCP/Skills 的差异。确认无误后再切换为当前。
             </div>
           </Card>
 
           {previewLoading ? (
-            <div className="text-sm text-slate-600">生成对比中…</div>
+            <div className="text-sm text-slate-600 dark:text-slate-400">生成对比中…</div>
           ) : !preview ? (
-            <div className="text-sm text-slate-600">暂无对比数据。</div>
+            <div className="text-sm text-slate-600 dark:text-slate-400">暂无对比数据。</div>
           ) : (
             <div className="space-y-3">
               <Card padding="sm">
-                <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                <div className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   Prompts
                 </div>
-                <div className="mt-2 text-sm text-slate-700">
+                <div className="mt-2 text-sm text-slate-700 dark:text-slate-300">
                   {preview.prompts.will_change ? (
-                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+                    <span className="rounded-full bg-amber-50 dark:bg-amber-900/30 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:text-amber-400">
                       将变更
                     </span>
                   ) : (
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                    <span className="rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:text-slate-400">
                       不变
                     </span>
                   )}
                 </div>
                 <div className="mt-2 grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-xl border border-slate-200 bg-white p-3">
-                    <div className="text-xs font-medium text-slate-500">当前</div>
-                    <div className="mt-1 text-sm font-semibold text-slate-900">
+                  <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3">
+                    <div className="text-xs font-medium text-slate-500 dark:text-slate-400">当前</div>
+                    <div className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
                       {preview.prompts.from_enabled?.name ?? "（未启用）"}
                     </div>
-                    <div className="mt-1 text-xs text-slate-600">
+                    <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">
                       {preview.prompts.from_enabled?.excerpt ?? "—"}
                     </div>
                   </div>
-                  <div className="rounded-xl border border-slate-200 bg-white p-3">
-                    <div className="text-xs font-medium text-slate-500">目标</div>
-                    <div className="mt-1 text-sm font-semibold text-slate-900">
+                  <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3">
+                    <div className="text-xs font-medium text-slate-500 dark:text-slate-400">目标</div>
+                    <div className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
                       {preview.prompts.to_enabled?.name ?? "（未启用）"}
                     </div>
-                    <div className="mt-1 text-xs text-slate-600">
+                    <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">
                       {preview.prompts.to_enabled?.excerpt ?? "—"}
                     </div>
                   </div>
@@ -805,34 +805,34 @@ export function WorkspacesPage() {
               </Card>
 
               <Card padding="sm">
-                <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                <div className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   MCP
                 </div>
-                <div className="mt-2 text-sm text-slate-700">
+                <div className="mt-2 text-sm text-slate-700 dark:text-slate-300">
                   +{preview.mcp.added.length} / -{preview.mcp.removed.length}
                 </div>
                 {preview.mcp.added.length || preview.mcp.removed.length ? (
                   <div className="mt-2 grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-xl border border-slate-200 bg-white p-3">
-                      <div className="text-xs font-medium text-slate-500">新增</div>
+                    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3">
+                      <div className="text-xs font-medium text-slate-500 dark:text-slate-400">新增</div>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {preview.mcp.added.map((k) => (
                           <span
                             key={k}
-                            className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700"
+                            className="rounded-full bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400"
                           >
                             {k}
                           </span>
                         ))}
                       </div>
                     </div>
-                    <div className="rounded-xl border border-slate-200 bg-white p-3">
-                      <div className="text-xs font-medium text-slate-500">移除</div>
+                    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3">
+                      <div className="text-xs font-medium text-slate-500 dark:text-slate-400">移除</div>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {preview.mcp.removed.map((k) => (
                           <span
                             key={k}
-                            className="rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-medium text-rose-700"
+                            className="rounded-full bg-rose-50 dark:bg-rose-900/30 px-2 py-0.5 text-[11px] font-medium text-rose-700 dark:text-rose-400"
                           >
                             {k}
                           </span>
@@ -841,39 +841,39 @@ export function WorkspacesPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="mt-2 text-xs text-slate-500">无变化</div>
+                  <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">无变化</div>
                 )}
               </Card>
 
               <Card padding="sm">
-                <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                <div className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   Skills
                 </div>
-                <div className="mt-2 text-sm text-slate-700">
+                <div className="mt-2 text-sm text-slate-700 dark:text-slate-300">
                   +{preview.skills.added.length} / -{preview.skills.removed.length}
                 </div>
                 {preview.skills.added.length || preview.skills.removed.length ? (
                   <div className="mt-2 grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-xl border border-slate-200 bg-white p-3">
-                      <div className="text-xs font-medium text-slate-500">新增</div>
+                    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3">
+                      <div className="text-xs font-medium text-slate-500 dark:text-slate-400">新增</div>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {preview.skills.added.map((k) => (
                           <span
                             key={k}
-                            className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700"
+                            className="rounded-full bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400"
                           >
                             {k}
                           </span>
                         ))}
                       </div>
                     </div>
-                    <div className="rounded-xl border border-slate-200 bg-white p-3">
-                      <div className="text-xs font-medium text-slate-500">移除</div>
+                    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3">
+                      <div className="text-xs font-medium text-slate-500 dark:text-slate-400">移除</div>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {preview.skills.removed.map((k) => (
                           <span
                             key={k}
-                            className="rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-medium text-rose-700"
+                            className="rounded-full bg-rose-50 dark:bg-rose-900/30 px-2 py-0.5 text-[11px] font-medium text-rose-700 dark:text-rose-400"
                           >
                             {k}
                           </span>
@@ -882,7 +882,7 @@ export function WorkspacesPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="mt-2 text-xs text-slate-500">无变化</div>
+                  <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">无变化</div>
                 )}
               </Card>
             </div>
@@ -895,7 +895,7 @@ export function WorkspacesPage() {
             />
           </FormField>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 dark:border-slate-700 pt-3">
             <Button
               variant="secondary"
               onClick={() => void previewQuery.refetch()}
@@ -938,7 +938,7 @@ export function WorkspacesPage() {
 
           <FormField label="创建方式">
             <div className="grid gap-2">
-              <label className="flex items-center gap-2 text-sm text-slate-700">
+              <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
                 <input
                   type="radio"
                   name="create-mode"
@@ -947,7 +947,7 @@ export function WorkspacesPage() {
                 />
                 从当前工作区克隆
               </label>
-              <label className="flex items-center gap-2 text-sm text-slate-700">
+              <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
                 <input
                   type="radio"
                   name="create-mode"
@@ -960,12 +960,12 @@ export function WorkspacesPage() {
           </FormField>
 
           {createError ? (
-            <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+            <div className="rounded-xl border border-rose-200 dark:border-rose-700 bg-rose-50 dark:bg-rose-900/30 px-3 py-2 text-sm text-rose-800 dark:text-rose-400">
               {createError}
             </div>
           ) : null}
 
-          <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
+          <div className="flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-700 pt-3">
             <Button onClick={() => setCreateOpen(false)} variant="secondary">
               取消
             </Button>
@@ -996,12 +996,12 @@ export function WorkspacesPage() {
           </FormField>
 
           {renameError ? (
-            <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+            <div className="rounded-xl border border-rose-200 dark:border-rose-700 bg-rose-50 dark:bg-rose-900/30 px-3 py-2 text-sm text-rose-800 dark:text-rose-400">
               {renameError}
             </div>
           ) : null}
 
-          <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
+          <div className="flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-700 pt-3">
             <Button onClick={() => setRenameOpen(false)} variant="secondary">
               取消
             </Button>
@@ -1027,7 +1027,7 @@ export function WorkspacesPage() {
         className="max-w-lg"
       >
         <div className="space-y-4">
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <div className="rounded-xl border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30 px-3 py-2 text-sm text-amber-900 dark:text-amber-400">
             删除会移除此工作区下的 Prompts/MCP/Skills 配置（DB）。不会删除任何未托管的 CLI 文件。
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">

@@ -14,8 +14,8 @@ export function SettingsUpdateCard({
 }) {
   return (
     <Card>
-      <div className="mb-4 font-semibold text-slate-900">软件更新</div>
-      <div className="divide-y divide-slate-100">
+      <div className="mb-4 font-semibold text-slate-900 dark:text-slate-100">软件更新</div>
+      <div className="divide-y divide-slate-100 dark:divide-slate-700">
         <SettingsRow label={about?.run_mode === "portable" ? "获取新版本" : "检查更新"}>
           <Button
             onClick={() => void checkUpdate()}

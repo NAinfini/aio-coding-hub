@@ -15,7 +15,7 @@ export function SettingsRow({ label, children, className }: SettingsRowProps) {
         className
       )}
     >
-      <div className="text-sm text-slate-600">{label}</div>
+      <div className="text-sm font-medium text-slate-700 dark:text-slate-200">{label}</div>
       <div className="flex flex-wrap items-center justify-end gap-2">{children}</div>
     </div>
   );

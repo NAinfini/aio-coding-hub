@@ -91,13 +91,9 @@ export const GRID_LINE_STYLE = getGridLineStyle(false);
 export function getTooltipStyle(isDark: boolean) {
   return {
     backgroundColor: isDark ? "rgba(30, 41, 59, 0.98)" : "rgba(255, 255, 255, 0.98)",
-    border: isDark
-      ? "1px solid rgba(71, 85, 105, 0.3)"
-      : "1px solid rgba(148, 163, 184, 0.2)",
+    border: isDark ? "1px solid rgba(71, 85, 105, 0.3)" : "1px solid rgba(148, 163, 184, 0.2)",
     borderRadius: "8px",
-    boxShadow: isDark
-      ? "0 4px 12px rgba(0, 0, 0, 0.4)"
-      : "0 4px 12px rgba(15, 23, 42, 0.12)",
+    boxShadow: isDark ? "0 4px 12px rgba(0, 0, 0, 0.4)" : "0 4px 12px rgba(15, 23, 42, 0.12)",
     padding: "12px",
     color: isDark ? "#e2e8f0" : undefined,
   };

@@ -76,12 +76,16 @@ export function ClaudeModelValidationHistoryStepCard({
   return (
     <div className={cn("space-y-3", className)}>
       <div className="flex items-center justify-between gap-2">
-        <div className="min-w-0 text-xs font-medium text-slate-700 dark:text-slate-300 truncate">{title}</div>
+        <div className="min-w-0 text-xs font-medium text-slate-700 dark:text-slate-300 truncate">
+          {title}
+        </div>
         {rightBadge ? <div className="shrink-0">{rightBadge}</div> : null}
       </div>
 
       {errorText ? (
-        <div className="rounded bg-rose-50 dark:bg-rose-900/30 px-2 py-1 text-xs text-rose-700 dark:text-rose-400">{errorText}</div>
+        <div className="rounded bg-rose-50 dark:bg-rose-900/30 px-2 py-1 text-xs text-rose-700 dark:text-rose-400">
+          {errorText}
+        </div>
       ) : null}
 
       <details className="group rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm open:ring-2 open:ring-indigo-500/10 transition-all">
@@ -161,7 +165,9 @@ export function ClaudeModelValidationHistoryStepCard({
 
         <div className="border-t border-slate-100 dark:border-slate-700 px-4 py-3 space-y-3">
           <div className="space-y-2">
-            <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">Result JSON</div>
+            <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+              Result JSON
+            </div>
             <Textarea
               mono
               readOnly
@@ -172,7 +178,9 @@ export function ClaudeModelValidationHistoryStepCard({
 
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">SSE 原文</div>
+              <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+                SSE 原文
+              </div>
               <Button
                 onClick={(e) => {
                   stopDetailsToggle(e);
@@ -189,7 +197,11 @@ export function ClaudeModelValidationHistoryStepCard({
               </Button>
             </div>
             <pre className="custom-scrollbar max-h-60 overflow-auto rounded-lg bg-slate-950 p-4 font-mono text-[10px] leading-relaxed text-slate-300">
-              {sseText ? sseText : <span className="text-slate-600 dark:text-slate-400 italic">// 暂无 SSE 数据</span>}
+              {sseText ? (
+                sseText
+              ) : (
+                <span className="text-slate-600 dark:text-slate-400 italic">// 暂无 SSE 数据</span>
+              )}
             </pre>
           </div>
         </div>

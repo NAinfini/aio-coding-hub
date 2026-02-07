@@ -54,7 +54,9 @@ export function SettingsDataSyncCard({
           ) : null}
         </SettingsRow>
         <SettingsRow label="定价匹配">
-          <span className="text-xs text-slate-500 dark:text-slate-400">prefix / wildcard / exact</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400">
+            prefix / wildcard / exact
+          </span>
           <Button
             onClick={openModelPriceAliasesDialog}
             variant="secondary"

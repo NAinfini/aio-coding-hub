@@ -184,7 +184,9 @@ export function LogsPage() {
                 )}
               </div>
               <div className="flex flex-col gap-1">
-                <div className="text-xs font-medium text-slate-600 dark:text-slate-400">error_code</div>
+                <div className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                  error_code
+                </div>
                 <Input
                   value={errorCodeFilter}
                   onChange={(e) => setErrorCodeFilter(e.target.value)}

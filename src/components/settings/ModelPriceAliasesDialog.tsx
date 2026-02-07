@@ -276,7 +276,9 @@ export function ModelPriceAliasesDialog({
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <div className="text-xs font-semibold text-slate-800 dark:text-slate-200">规则 #{idx + 1}</div>
+                      <div className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                        规则 #{idx + 1}
+                      </div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-slate-600 dark:text-slate-400">启用</span>
                         <Switch
@@ -301,7 +303,9 @@ export function ModelPriceAliasesDialog({
 
                   <div className="mt-4 grid items-start gap-4 lg:grid-cols-12">
                     <div className="lg:col-span-2">
-                      <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">CLI</label>
+                      <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">
+                        CLI
+                      </label>
                       <Select
                         value={cliKey}
                         onChange={(e) =>

@@ -57,7 +57,9 @@ export function RequestLogDetailDialog({
       {selectedLogLoading ? (
         <div className="text-sm text-slate-600 dark:text-slate-400">加载中…</div>
       ) : !selectedLog ? (
-        <div className="text-sm text-slate-600 dark:text-slate-400">未找到记录详情（可能已过期被留存策略清理）。</div>
+        <div className="text-sm text-slate-600 dark:text-slate-400">
+          未找到记录详情（可能已过期被留存策略清理）。
+        </div>
       ) : (
         <div className="space-y-3">
           <Card padding="sm">
@@ -106,7 +108,9 @@ export function RequestLogDetailDialog({
                       const m = selectedLog.cost_multiplier;
                       const show = Number.isFinite(m) && m > 0 && Math.abs(m - 1) > 0.0001;
                       return show ? (
-                        <span className="ml-1 text-slate-500 dark:text-slate-400">(x{m.toFixed(2)})</span>
+                        <span className="ml-1 text-slate-500 dark:text-slate-400">
+                          (x{m.toFixed(2)})
+                        </span>
                       ) : null;
                     })()}
                   </span>
@@ -164,7 +168,9 @@ export function RequestLogDetailDialog({
           </Card>
 
           <Card padding="sm">
-            <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">故障切换尝试</div>
+            <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+              故障切换尝试
+            </div>
             <ProviderChainView
               attemptLogs={attemptLogs}
               attemptLogsLoading={attemptLogsLoading}
@@ -186,7 +192,9 @@ export function RequestLogDetailDialog({
             return (
               <Card padding="sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">Token 用量</div>
+                  <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                    Token 用量
+                  </div>
                   <div className="flex flex-wrap items-center gap-2">
                     {selectedLog.usage_json ? (
                       <Button
@@ -223,17 +231,23 @@ export function RequestLogDetailDialog({
                     <span className="font-mono">{selectedLog.total_tokens ?? "—"}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500 dark:text-slate-400">cache_read_input_tokens</span>
+                    <span className="text-slate-500 dark:text-slate-400">
+                      cache_read_input_tokens
+                    </span>
                     <span className="font-mono">{selectedLog.cache_read_input_tokens ?? "—"}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500 dark:text-slate-400">cache_creation_input_tokens</span>
+                    <span className="text-slate-500 dark:text-slate-400">
+                      cache_creation_input_tokens
+                    </span>
                     <span className="font-mono">
                       {selectedLog.cache_creation_input_tokens ?? "—"}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500 dark:text-slate-400">cache_creation_5m_input_tokens</span>
+                    <span className="text-slate-500 dark:text-slate-400">
+                      cache_creation_5m_input_tokens
+                    </span>
                     <span className="font-mono">
                       {selectedLog.cache_creation_5m_input_tokens ?? "—"}
                     </span>

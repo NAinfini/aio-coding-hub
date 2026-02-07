@@ -197,7 +197,9 @@ function SectionHeader({ title, icon: Icon }: { title: string; icon: any }) {
       <div className="rounded p-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400">
         <Icon className="h-3.5 w-3.5" />
       </div>
-      <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">{title}</span>
+      <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        {title}
+      </span>
     </div>
   );
 }
@@ -230,7 +232,14 @@ function CheckRow({
         ) : (
           <div className="h-4 w-4 shrink-0 rounded-full border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-700" />
         )}
-        <span className={cn("text-slate-700 dark:text-slate-300", !required && "text-slate-400 dark:text-slate-500")}>{label}</span>
+        <span
+          className={cn(
+            "text-slate-700 dark:text-slate-300",
+            !required && "text-slate-400 dark:text-slate-500"
+          )}
+        >
+          {label}
+        </span>
         {help ? (
           <Tooltip
             content={help}
@@ -247,7 +256,9 @@ function CheckRow({
           </Tooltip>
         ) : null}
       </div>
-      {value && <span className="font-mono text-xs text-slate-600 dark:text-slate-400">{value}</span>}
+      {value && (
+        <span className="font-mono text-xs text-slate-600 dark:text-slate-400">{value}</span>
+      )}
     </div>
   );
 }
@@ -301,7 +312,9 @@ export function ClaudeModelValidationResultPanel({ templateKey, result }: Props)
         </div>
         <div className="p-4 space-y-4">
           <div className="space-y-1">
-            <div className="text-lg font-medium text-slate-900 dark:text-slate-100">{failure.summary}</div>
+            <div className="text-lg font-medium text-slate-900 dark:text-slate-100">
+              {failure.summary}
+            </div>
             <div className="text-sm text-slate-500 dark:text-slate-400">{failure.detail}</div>
           </div>
 
@@ -606,7 +619,9 @@ export function ClaudeModelValidationResultPanel({ templateKey, result }: Props)
                 Bedrock
               </span>
             )}
-            <span className="font-mono text-xs text-emerald-700/70 dark:text-emerald-400/70">#{result.requested_model}</span>
+            <span className="font-mono text-xs text-emerald-700/70 dark:text-emerald-400/70">
+              #{result.requested_model}
+            </span>
           </div>
         </div>
 
@@ -616,14 +631,18 @@ export function ClaudeModelValidationResultPanel({ templateKey, result }: Props)
               <Activity className="h-3.5 w-3.5" />
               HTTP
             </div>
-            <div className="text-lg font-semibold text-slate-900 dark:text-slate-100">{result.status}</div>
+            <div className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+              {result.status}
+            </div>
           </div>
           <div className="bg-white dark:bg-slate-800 p-4">
             <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-1">
               <Clock className="h-3.5 w-3.5" />
               延迟
             </div>
-            <div className="text-lg font-semibold text-slate-900 dark:text-slate-100">{result.duration_ms}ms</div>
+            <div className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+              {result.duration_ms}ms
+            </div>
           </div>
           <div className="bg-white dark:bg-slate-800 p-4">
             <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-1">
@@ -631,7 +650,8 @@ export function ClaudeModelValidationResultPanel({ templateKey, result }: Props)
               消耗
             </div>
             <div className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-              {inputTokens} <span className="text-xs text-slate-400 dark:text-slate-500">输入</span> · {outputTokens}{" "}
+              {inputTokens} <span className="text-xs text-slate-400 dark:text-slate-500">输入</span>{" "}
+              · {outputTokens}{" "}
               <span className="text-xs text-slate-400 dark:text-slate-500">输出</span>
             </div>
           </div>
@@ -641,12 +661,17 @@ export function ClaudeModelValidationResultPanel({ templateKey, result }: Props)
               缓存
             </div>
             <div className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-              {cacheRead ?? 0} <span className="text-xs text-slate-400 dark:text-slate-500">读取</span> ·{" "}
-              {cacheCreate ?? 0} <span className="text-xs text-slate-400 dark:text-slate-500">写入</span>
+              {cacheRead ?? 0}{" "}
+              <span className="text-xs text-slate-400 dark:text-slate-500">读取</span> ·{" "}
+              {cacheCreate ?? 0}{" "}
+              <span className="text-xs text-slate-400 dark:text-slate-500">写入</span>
             </div>
             {typeof cacheReadStep2 === "number" && Number.isFinite(cacheReadStep2) ? (
               <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-                step2 read-hit: <span className="font-mono text-slate-700 dark:text-slate-300">{cacheReadStep2}</span>
+                step2 read-hit:{" "}
+                <span className="font-mono text-slate-700 dark:text-slate-300">
+                  {cacheReadStep2}
+                </span>
               </div>
             ) : null}
           </div>

@@ -275,7 +275,10 @@ export function RealtimeTraceCards({
                     {cliShortLabel(trace.cli_key)}
                   </span>
 
-                  <span className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate" title={modelText}>
+                  <span
+                    className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate"
+                    title={modelText}
+                  >
                     {modelText}
                   </span>
 
@@ -299,7 +302,9 @@ export function RealtimeTraceCards({
                   <div className="flex flex-col gap-y-0.5 w-[85px] shrink-0" title={routeSummary}>
                     <div className="flex items-center gap-1 h-4">
                       <Server className="h-3 w-3 text-slate-400 dark:text-slate-500 shrink-0" />
-                      <span className="truncate font-medium text-slate-600 dark:text-slate-400">{providerText}</span>
+                      <span className="truncate font-medium text-slate-600 dark:text-slate-400">
+                        {providerText}
+                      </span>
                     </div>
                     <div className="h-4" />
                   </div>
@@ -321,7 +326,9 @@ export function RealtimeTraceCards({
                             {formatInteger(cacheWrite.tokens)}
                           </span>
                           {cacheWrite.ttl && (
-                            <span className="text-slate-400 dark:text-slate-500 text-[10px]">({cacheWrite.ttl})</span>
+                            <span className="text-slate-400 dark:text-slate-500 text-[10px]">
+                              ({cacheWrite.ttl})
+                            </span>
                           )}
                         </>
                       ) : (
@@ -361,7 +368,9 @@ export function RealtimeTraceCards({
                       <span
                         className={cn(
                           "font-mono tabular-nums",
-                          isInProgress ? "text-indigo-600 dark:text-indigo-400 font-medium" : "text-slate-600 dark:text-slate-300"
+                          isInProgress
+                            ? "text-indigo-600 dark:text-indigo-400 font-medium"
+                            : "text-slate-600 dark:text-slate-300"
                         )}
                       >
                         {formatDurationMs(runningMs)}

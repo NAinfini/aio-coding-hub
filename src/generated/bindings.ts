@@ -4,100 +4,141 @@
 
 /** user-defined commands **/
 
-
 export const commands = {
-async settingsGet() : Promise<Result<AppSettings, string>> {
+  async settingsGet(): Promise<Result<AppSettings, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("settings_get") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async settingsSet(update: SettingsUpdate) : Promise<Result<AppSettings, string>> {
+      return { status: "ok", data: await TAURI_INVOKE("settings_get") };
+    } catch (e) {
+      if (e instanceof Error) throw e;
+      else return { status: "error", error: e as any };
+    }
+  },
+  async settingsSet(update: SettingsUpdate): Promise<Result<AppSettings, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("settings_set", { update }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-}
-}
+      return { status: "ok", data: await TAURI_INVOKE("settings_set", { update }) };
+    } catch (e) {
+      if (e instanceof Error) throw e;
+      else return { status: "error", error: e as any };
+    }
+  },
+};
 
 /** user-defined events **/
 
-
-
 /** user-defined constants **/
-
-
 
 /** user-defined types **/
 
-export type AppSettings = { schema_version: number; preferred_port: number; gateway_listen_mode: GatewayListenMode; gateway_custom_listen_address: string; wsl_auto_config: boolean; wsl_target_cli: WslTargetCli; auto_start: boolean; tray_enabled: boolean; enable_cli_proxy_startup_recovery: boolean; log_retention_days: number; provider_cooldown_seconds: number; provider_base_url_ping_cache_ttl_seconds: number; upstream_first_byte_timeout_seconds: number; upstream_stream_idle_timeout_seconds: number; upstream_request_timeout_non_streaming_seconds: number; update_releases_url: string; failover_max_attempts_per_provider: number; failover_max_providers_to_try: number; circuit_breaker_failure_threshold: number; circuit_breaker_open_duration_minutes: number; enable_circuit_breaker_notice: boolean; intercept_anthropic_warmup_requests: boolean; enable_thinking_signature_rectifier: boolean; enable_codex_session_id_completion: boolean; enable_response_fixer: boolean; response_fixer_fix_encoding: boolean; response_fixer_fix_sse_format: boolean; response_fixer_fix_truncated_json: boolean; response_fixer_max_json_depth: number; response_fixer_max_fix_size: number }
-export type GatewayListenMode = "localhost" | "wsl_auto" | "lan" | "custom"
+export type AppSettings = {
+  schema_version: number;
+  preferred_port: number;
+  gateway_listen_mode: GatewayListenMode;
+  gateway_custom_listen_address: string;
+  wsl_auto_config: boolean;
+  wsl_target_cli: WslTargetCli;
+  auto_start: boolean;
+  tray_enabled: boolean;
+  enable_cli_proxy_startup_recovery: boolean;
+  log_retention_days: number;
+  provider_cooldown_seconds: number;
+  provider_base_url_ping_cache_ttl_seconds: number;
+  upstream_first_byte_timeout_seconds: number;
+  upstream_stream_idle_timeout_seconds: number;
+  upstream_request_timeout_non_streaming_seconds: number;
+  update_releases_url: string;
+  failover_max_attempts_per_provider: number;
+  failover_max_providers_to_try: number;
+  circuit_breaker_failure_threshold: number;
+  circuit_breaker_open_duration_minutes: number;
+  enable_circuit_breaker_notice: boolean;
+  intercept_anthropic_warmup_requests: boolean;
+  enable_thinking_signature_rectifier: boolean;
+  enable_codex_session_id_completion: boolean;
+  enable_response_fixer: boolean;
+  response_fixer_fix_encoding: boolean;
+  response_fixer_fix_sse_format: boolean;
+  response_fixer_fix_truncated_json: boolean;
+  response_fixer_max_json_depth: number;
+  response_fixer_max_fix_size: number;
+};
+export type GatewayListenMode = "localhost" | "wsl_auto" | "lan" | "custom";
 /**
  * Encapsulates all fields for the `settings_set` command.
  */
-export type SettingsUpdate = { preferredPort: number; gatewayListenMode: GatewayListenMode | null; gatewayCustomListenAddress: string | null; autoStart: boolean; trayEnabled: boolean | null; enableCliProxyStartupRecovery: boolean | null; logRetentionDays: number; providerCooldownSeconds: number | null; providerBaseUrlPingCacheTtlSeconds: number | null; upstreamFirstByteTimeoutSeconds: number | null; upstreamStreamIdleTimeoutSeconds: number | null; upstreamRequestTimeoutNonStreamingSeconds: number | null; interceptAnthropicWarmupRequests: boolean | null; enableThinkingSignatureRectifier: boolean | null; enableResponseFixer: boolean | null; responseFixerFixEncoding: boolean | null; responseFixerFixSseFormat: boolean | null; responseFixerFixTruncatedJson: boolean | null; failoverMaxAttemptsPerProvider: number; failoverMaxProvidersToTry: number; circuitBreakerFailureThreshold: number | null; circuitBreakerOpenDurationMinutes: number | null; updateReleasesUrl: string | null; wslAutoConfig: boolean | null; wslTargetCli: WslTargetCli | null }
-export type WslTargetCli = { claude: boolean; codex: boolean; gemini: boolean }
+export type SettingsUpdate = {
+  preferredPort: number;
+  gatewayListenMode: GatewayListenMode | null;
+  gatewayCustomListenAddress: string | null;
+  autoStart: boolean;
+  trayEnabled: boolean | null;
+  enableCliProxyStartupRecovery: boolean | null;
+  logRetentionDays: number;
+  providerCooldownSeconds: number | null;
+  providerBaseUrlPingCacheTtlSeconds: number | null;
+  upstreamFirstByteTimeoutSeconds: number | null;
+  upstreamStreamIdleTimeoutSeconds: number | null;
+  upstreamRequestTimeoutNonStreamingSeconds: number | null;
+  interceptAnthropicWarmupRequests: boolean | null;
+  enableThinkingSignatureRectifier: boolean | null;
+  enableResponseFixer: boolean | null;
+  responseFixerFixEncoding: boolean | null;
+  responseFixerFixSseFormat: boolean | null;
+  responseFixerFixTruncatedJson: boolean | null;
+  failoverMaxAttemptsPerProvider: number;
+  failoverMaxProvidersToTry: number;
+  circuitBreakerFailureThreshold: number | null;
+  circuitBreakerOpenDurationMinutes: number | null;
+  updateReleasesUrl: string | null;
+  wslAutoConfig: boolean | null;
+  wslTargetCli: WslTargetCli | null;
+};
+export type WslTargetCli = { claude: boolean; codex: boolean; gemini: boolean };
 
 /** tauri-specta globals **/
 
-import {
-	invoke as TAURI_INVOKE,
-	Channel as TAURI_CHANNEL,
-} from "@tauri-apps/api/core";
+import { invoke as TAURI_INVOKE, Channel as TAURI_CHANNEL } from "@tauri-apps/api/core";
 import * as TAURI_API_EVENT from "@tauri-apps/api/event";
 import { type WebviewWindow as __WebviewWindow__ } from "@tauri-apps/api/webviewWindow";
 
 type __EventObj__<T> = {
-	listen: (
-		cb: TAURI_API_EVENT.EventCallback<T>,
-	) => ReturnType<typeof TAURI_API_EVENT.listen<T>>;
-	once: (
-		cb: TAURI_API_EVENT.EventCallback<T>,
-	) => ReturnType<typeof TAURI_API_EVENT.once<T>>;
-	emit: null extends T
-		? (payload?: T) => ReturnType<typeof TAURI_API_EVENT.emit>
-		: (payload: T) => ReturnType<typeof TAURI_API_EVENT.emit>;
+  listen: (cb: TAURI_API_EVENT.EventCallback<T>) => ReturnType<typeof TAURI_API_EVENT.listen<T>>;
+  once: (cb: TAURI_API_EVENT.EventCallback<T>) => ReturnType<typeof TAURI_API_EVENT.once<T>>;
+  emit: null extends T
+    ? (payload?: T) => ReturnType<typeof TAURI_API_EVENT.emit>
+    : (payload: T) => ReturnType<typeof TAURI_API_EVENT.emit>;
 };
 
-export type Result<T, E> =
-	| { status: "ok"; data: T }
-	| { status: "error"; error: E };
+export type Result<T, E> = { status: "ok"; data: T } | { status: "error"; error: E };
 
-function __makeEvents__<T extends Record<string, any>>(
-	mappings: Record<keyof T, string>,
-) {
-	return new Proxy(
-		{} as unknown as {
-			[K in keyof T]: __EventObj__<T[K]> & {
-				(handle: __WebviewWindow__): __EventObj__<T[K]>;
-			};
-		},
-		{
-			get: (_, event) => {
-				const name = mappings[event as keyof T];
+function __makeEvents__<T extends Record<string, any>>(mappings: Record<keyof T, string>) {
+  return new Proxy(
+    {} as unknown as {
+      [K in keyof T]: __EventObj__<T[K]> & {
+        (handle: __WebviewWindow__): __EventObj__<T[K]>;
+      };
+    },
+    {
+      get: (_, event) => {
+        const name = mappings[event as keyof T];
 
-				return new Proxy((() => {}) as any, {
-					apply: (_, __, [window]: [__WebviewWindow__]) => ({
-						listen: (arg: any) => window.listen(name, arg),
-						once: (arg: any) => window.once(name, arg),
-						emit: (arg: any) => window.emit(name, arg),
-					}),
-					get: (_, command: keyof __EventObj__<any>) => {
-						switch (command) {
-							case "listen":
-								return (arg: any) => TAURI_API_EVENT.listen(name, arg);
-							case "once":
-								return (arg: any) => TAURI_API_EVENT.once(name, arg);
-							case "emit":
-								return (arg: any) => TAURI_API_EVENT.emit(name, arg);
-						}
-					},
-				});
-			},
-		},
-	);
+        return new Proxy((() => {}) as any, {
+          apply: (_, __, [window]: [__WebviewWindow__]) => ({
+            listen: (arg: any) => window.listen(name, arg),
+            once: (arg: any) => window.once(name, arg),
+            emit: (arg: any) => window.emit(name, arg),
+          }),
+          get: (_, command: keyof __EventObj__<any>) => {
+            switch (command) {
+              case "listen":
+                return (arg: any) => TAURI_API_EVENT.listen(name, arg);
+              case "once":
+                return (arg: any) => TAURI_API_EVENT.once(name, arg);
+              case "emit":
+                return (arg: any) => TAURI_API_EVENT.emit(name, arg);
+            }
+          },
+        });
+      },
+    }
+  );
 }

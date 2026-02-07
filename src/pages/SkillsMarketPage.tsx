@@ -513,7 +513,10 @@ export function SkillsMarketPage() {
                     : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400";
 
               return (
-                <div key={key} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3">
+                <div
+                  key={key}
+                  className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3"
+                >
                   <div className="flex items-center gap-2">
                     <span className="min-w-0 truncate text-sm font-semibold">{skill.name}</span>
                     <a
@@ -552,7 +555,9 @@ export function SkillsMarketPage() {
                     </div>
                   </div>
                   {skill.description ? (
-                    <div className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">{skill.description}</div>
+                    <div className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                      {skill.description}
+                    </div>
                   ) : null}
                 </div>
               );
@@ -572,7 +577,9 @@ export function SkillsMarketPage() {
             <div className="text-sm font-semibold">添加仓库</div>
             <div className="mt-2 grid gap-3 sm:grid-cols-3">
               <div className="sm:col-span-2">
-                <div className="text-xs font-medium text-slate-600 dark:text-slate-400">Git URL</div>
+                <div className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                  Git URL
+                </div>
                 <input
                   value={newRepoUrl}
                   onChange={(e) => setNewRepoUrl(e.target.value)}
@@ -612,7 +619,10 @@ export function SkillsMarketPage() {
               </div>
             ) : (
               repos.map((repo) => (
-                <div key={repo.id} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3">
+                <div
+                  key={repo.id}
+                  className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3"
+                >
                   <div className="flex items-center gap-2">
                     <span className="min-w-0 truncate text-sm font-medium">{repo.git_url}</span>
                     <a

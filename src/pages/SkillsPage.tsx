@@ -85,7 +85,9 @@ export function SkillsPage() {
         {loading ? (
           <div className="text-sm text-slate-600 dark:text-slate-400">加载中…</div>
         ) : !tauriRuntime ? (
-          <div className="text-sm text-slate-600 dark:text-slate-400">仅在 Tauri Desktop 环境可用</div>
+          <div className="text-sm text-slate-600 dark:text-slate-400">
+            仅在 Tauri Desktop 环境可用
+          </div>
         ) : !activeWorkspaceId ? (
           <div className="text-sm text-slate-600 dark:text-slate-400">
             未找到 {currentCli.name} 的当前工作区（workspace）。请先在 Workspaces

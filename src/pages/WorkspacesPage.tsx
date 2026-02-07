@@ -416,7 +416,9 @@ export function WorkspacesPage() {
                   新建
                 </Button>
               </div>
-              <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">同一 CLI 下名称不可重复。</div>
+              <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                同一 CLI 下名称不可重复。
+              </div>
             </div>
           </div>
 
@@ -579,7 +581,9 @@ export function WorkspacesPage() {
                       <div className="rounded-xl border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30 px-3 py-2 text-sm text-amber-900 dark:text-amber-400">
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                           <div>
-                            <div className="font-medium text-slate-900 dark:text-slate-100">该工作区尚未生效</div>
+                            <div className="font-medium text-slate-900 dark:text-slate-100">
+                              该工作区尚未生效
+                            </div>
                             <div className="mt-1 text-xs text-amber-900/80 dark:text-amber-400/80">
                               修改会先保存，切换后才会写入对应 CLI 配置（仅 AIO 托管部分）。
                             </div>
@@ -601,7 +605,8 @@ export function WorkspacesPage() {
 
                     {applyReport && applyReport.to_workspace_id === selectedWorkspace.id ? (
                       <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm text-slate-700 dark:text-slate-300">
-                        已切换为当前工作区（{new Date(applyReport.applied_at * 1000).toLocaleString()}）
+                        已切换为当前工作区（
+                        {new Date(applyReport.applied_at * 1000).toLocaleString()}）
                         {applyReport.from_workspace_id ? (
                           <Button
                             size="sm"
@@ -784,7 +789,9 @@ export function WorkspacesPage() {
                 </div>
                 <div className="mt-2 grid gap-3 sm:grid-cols-2">
                   <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3">
-                    <div className="text-xs font-medium text-slate-500 dark:text-slate-400">当前</div>
+                    <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                      当前
+                    </div>
                     <div className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
                       {preview.prompts.from_enabled?.name ?? "（未启用）"}
                     </div>
@@ -793,7 +800,9 @@ export function WorkspacesPage() {
                     </div>
                   </div>
                   <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3">
-                    <div className="text-xs font-medium text-slate-500 dark:text-slate-400">目标</div>
+                    <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                      目标
+                    </div>
                     <div className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
                       {preview.prompts.to_enabled?.name ?? "（未启用）"}
                     </div>
@@ -814,7 +823,9 @@ export function WorkspacesPage() {
                 {preview.mcp.added.length || preview.mcp.removed.length ? (
                   <div className="mt-2 grid gap-3 sm:grid-cols-2">
                     <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3">
-                      <div className="text-xs font-medium text-slate-500 dark:text-slate-400">新增</div>
+                      <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                        新增
+                      </div>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {preview.mcp.added.map((k) => (
                           <span
@@ -827,7 +838,9 @@ export function WorkspacesPage() {
                       </div>
                     </div>
                     <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3">
-                      <div className="text-xs font-medium text-slate-500 dark:text-slate-400">移除</div>
+                      <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                        移除
+                      </div>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {preview.mcp.removed.map((k) => (
                           <span
@@ -855,7 +868,9 @@ export function WorkspacesPage() {
                 {preview.skills.added.length || preview.skills.removed.length ? (
                   <div className="mt-2 grid gap-3 sm:grid-cols-2">
                     <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3">
-                      <div className="text-xs font-medium text-slate-500 dark:text-slate-400">新增</div>
+                      <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                        新增
+                      </div>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {preview.skills.added.map((k) => (
                           <span
@@ -868,7 +883,9 @@ export function WorkspacesPage() {
                       </div>
                     </div>
                     <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3">
-                      <div className="text-xs font-medium text-slate-500 dark:text-slate-400">移除</div>
+                      <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                        移除
+                      </div>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {preview.skills.removed.map((k) => (
                           <span

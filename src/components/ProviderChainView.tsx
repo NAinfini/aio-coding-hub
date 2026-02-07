@@ -178,17 +178,25 @@ export function ProviderChainView({
 
       <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
         <span className="rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-0.5">
-          起始：<span className="font-medium text-slate-800 dark:text-slate-200">{startProviderLabel}</span>
+          起始：
+          <span className="font-medium text-slate-800 dark:text-slate-200">
+            {startProviderLabel}
+          </span>
         </span>
         <span className="text-slate-400 dark:text-slate-500">→</span>
         <span className="rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-0.5">
-          最终：<span className="font-medium text-slate-800 dark:text-slate-200">{finalProviderLabel}</span>
+          最终：
+          <span className="font-medium text-slate-800 dark:text-slate-200">
+            {finalProviderLabel}
+          </span>
         </span>
         {finalAttempt ? (
           <span
             className={cn(
               "rounded-full px-2 py-0.5 font-medium",
-              finalSuccess ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
+              finalSuccess
+                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                : "bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
             )}
           >
             {finalSuccess ? "成功" : "失败"}
@@ -228,7 +236,9 @@ export function ProviderChainView({
                     <span
                       className={cn(
                         "rounded-full px-2 py-0.5 text-xs font-medium",
-                        success ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
+                        success
+                          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                          : "bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
                       )}
                     >
                       最终
@@ -294,7 +304,9 @@ export function ProviderChainView({
                 <span
                   className={cn(
                     "rounded-full px-2 py-0.5 text-xs font-medium",
-                    success ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                    success
+                      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                      : "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
                   )}
                 >
                   {success ? "成功" : "失败"}

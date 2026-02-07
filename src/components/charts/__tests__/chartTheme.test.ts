@@ -79,4 +79,3 @@ describe("components/charts/chartTheme", () => {
     });
   });
 });
-

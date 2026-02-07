@@ -138,7 +138,9 @@ export function HomeRequestLogsPanel({
           />
 
           {requestLogsAvailable === false ? (
-            <div className="p-4 text-sm text-slate-600 dark:text-slate-400">仅在 Tauri Desktop 环境可用</div>
+            <div className="p-4 text-sm text-slate-600 dark:text-slate-400">
+              仅在 Tauri Desktop 环境可用
+            </div>
           ) : requestLogs.length === 0 ? (
             requestLogsLoading ? (
               <div className="p-4 text-sm text-slate-600 dark:text-slate-400">加载中…</div>
@@ -349,13 +351,17 @@ export function HomeRequestLogsPanel({
                         <div className="grid grid-cols-4 gap-x-4 gap-y-0.5 flex-1 text-slate-500 dark:text-slate-400">
                           {/* Row 1: 输入 | 缓存创建 | 首字 | 花费 */}
                           <div className="flex items-center gap-1 h-4" title="Input Tokens">
-                            <span className="text-slate-400 dark:text-slate-500 shrink-0">输入</span>
+                            <span className="text-slate-400 dark:text-slate-500 shrink-0">
+                              输入
+                            </span>
                             <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300">
                               {formatInteger(effectiveInputTokens)}
                             </span>
                           </div>
                           <div className="flex items-center gap-1 h-4" title="Cache Write">
-                            <span className="text-slate-400 dark:text-slate-500 shrink-0">缓存创建</span>
+                            <span className="text-slate-400 dark:text-slate-500 shrink-0">
+                              缓存创建
+                            </span>
                             {cacheWrite.tokens ? (
                               <>
                                 <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300">
@@ -372,13 +378,17 @@ export function HomeRequestLogsPanel({
                             )}
                           </div>
                           <div className="flex items-center gap-1 h-4" title="TTFB">
-                            <span className="text-slate-400 dark:text-slate-500 shrink-0">首字</span>
+                            <span className="text-slate-400 dark:text-slate-500 shrink-0">
+                              首字
+                            </span>
                             <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300">
                               {ttfbMs != null ? formatDurationMs(ttfbMs) : "—"}
                             </span>
                           </div>
                           <div className="flex items-center gap-1 h-4" title="Cost">
-                            <span className="text-slate-400 dark:text-slate-500 shrink-0">花费</span>
+                            <span className="text-slate-400 dark:text-slate-500 shrink-0">
+                              花费
+                            </span>
                             <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300">
                               {formatUsd(log.cost_usd)}
                             </span>
@@ -386,13 +396,17 @@ export function HomeRequestLogsPanel({
 
                           {/* Row 2: 输出 | 缓存读取 | 耗时 | 速率 */}
                           <div className="flex items-center gap-1 h-4" title="Output Tokens">
-                            <span className="text-slate-400 dark:text-slate-500 shrink-0">输出</span>
+                            <span className="text-slate-400 dark:text-slate-500 shrink-0">
+                              输出
+                            </span>
                             <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300">
                               {formatInteger(log.output_tokens)}
                             </span>
                           </div>
                           <div className="flex items-center gap-1 h-4" title="Cache Read">
-                            <span className="text-slate-400 dark:text-slate-500 shrink-0">缓存读取</span>
+                            <span className="text-slate-400 dark:text-slate-500 shrink-0">
+                              缓存读取
+                            </span>
                             {log.cache_read_input_tokens ? (
                               <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300">
                                 {formatInteger(log.cache_read_input_tokens)}
@@ -402,13 +416,17 @@ export function HomeRequestLogsPanel({
                             )}
                           </div>
                           <div className="flex items-center gap-1 h-4" title="Duration">
-                            <span className="text-slate-400 dark:text-slate-500 shrink-0">耗时</span>
+                            <span className="text-slate-400 dark:text-slate-500 shrink-0">
+                              耗时
+                            </span>
                             <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300">
                               {formatDurationMs(log.duration_ms)}
                             </span>
                           </div>
                           <div className="flex items-center gap-1 h-4" title="Tokens/s">
-                            <span className="text-slate-400 dark:text-slate-500 shrink-0">速率</span>
+                            <span className="text-slate-400 dark:text-slate-500 shrink-0">
+                              速率
+                            </span>
                             {outputTokensPerSecond ? (
                               <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300">
                                 {formatTokensPerSecond(outputTokensPerSecond)}

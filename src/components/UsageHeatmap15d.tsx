@@ -198,15 +198,17 @@ export function UsageHeatmap15d({
       </div>
 
       <div className="mt-3 flex items-center justify-between gap-2">
-        <div className="text-xs text-slate-500 dark:text-slate-400 min-w-[4rem]">
-        </div>
+        <div className="text-xs text-slate-500 dark:text-slate-400 min-w-[4rem]"></div>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
             <span>低</span>
             {([0, 1, 2, 3, 4] as const).map((level) => (
               <div
                 key={level}
-                className={cn("h-2.5 w-2.5 rounded-[2px] ring-1 ring-black/5 dark:ring-white/5", LEVEL_CLASS[level])}
+                className={cn(
+                  "h-2.5 w-2.5 rounded-[2px] ring-1 ring-black/5 dark:ring-white/5",
+                  LEVEL_CLASS[level]
+                )}
               />
             ))}
             <span>高</span>
@@ -249,7 +251,10 @@ export function UsageHeatmap15d({
           style={{ left: tooltip.left, top: tooltip.top, width: 240 }}
         >
           <div
-            className={cn("rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-card", "px-3 py-2")}
+            className={cn(
+              "rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-card",
+              "px-3 py-2"
+            )}
           >
             <div className="flex items-center justify-between gap-2">
               <div className="text-xs font-medium text-slate-900 dark:text-slate-100">

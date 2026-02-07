@@ -148,14 +148,18 @@ function LimitItem({ display }: { display: LimitDisplay }) {
       <div className="flex items-center justify-between text-[10px]">
         <div className="flex items-center gap-1.5">
           <span className="text-slate-500 dark:text-slate-400 font-medium">{display.label}</span>
-          {windowLabel && <span className="text-slate-400 dark:text-slate-500 font-mono">{windowLabel}</span>}
+          {windowLabel && (
+            <span className="text-slate-400 dark:text-slate-500 font-mono">{windowLabel}</span>
+          )}
         </div>
         <div className="flex items-center gap-1">
           {display.warning && <AlertTriangle className="h-3 w-3 text-amber-500" />}
           <span className="font-mono text-slate-700 dark:text-slate-300">
             {formatUsdShort(display.usage)} / {formatUsdShort(display.limit)}
           </span>
-          <span className="text-slate-400 dark:text-slate-500">({formatPercent(display.percent, 0)})</span>
+          <span className="text-slate-400 dark:text-slate-500">
+            ({formatPercent(display.percent, 0)})
+          </span>
         </div>
       </div>
       <ProgressBar percent={display.percent} warning={display.warning} />
@@ -238,7 +242,9 @@ export function HomeProviderLimitPanelContent({
   }
 
   if (available === false) {
-    return <div className="text-sm text-slate-600 dark:text-slate-400">仅在 Tauri Desktop 环境可用</div>;
+    return (
+      <div className="text-sm text-slate-600 dark:text-slate-400">仅在 Tauri Desktop 环境可用</div>
+    );
   }
 
   if (rows.length === 0) {
@@ -300,7 +306,9 @@ export function HomeProviderLimitPanel({
       {loading ? (
         <div className="mt-2 text-sm text-slate-600 dark:text-slate-400">加载中...</div>
       ) : available === false ? (
-        <div className="mt-2 text-sm text-slate-600 dark:text-slate-400">仅在 Tauri Desktop 环境可用</div>
+        <div className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+          仅在 Tauri Desktop 环境可用
+        </div>
       ) : rows.length === 0 ? (
         <div className="mt-2 text-sm text-slate-600 dark:text-slate-400">
           暂无配置限额的供应商。请在供应商编辑界面配置限额。

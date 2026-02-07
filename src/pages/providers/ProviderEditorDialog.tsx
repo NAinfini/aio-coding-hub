@@ -72,7 +72,9 @@ function BaseUrlModeRadioGroup({ value, onChange, disabled }: BaseUrlModeRadioGr
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0052FF]/30 focus-visible:ring-offset-2 focus-visible:ring-offset-[#FAFAFA] dark:focus-visible:ring-offset-slate-900",
               index < items.length - 1 ? "border-r border-slate-200 dark:border-slate-600" : null,
               active ? "bg-gradient-to-br from-[#0052FF] to-[#4D7CFF] text-white" : null,
-              !active ? "bg-white text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700" : null,
+              !active
+                ? "bg-white text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                : null,
               disabled ? "cursor-not-allowed" : null
             )}
           >
@@ -122,7 +124,9 @@ function DailyResetModeRadioGroup({ value, onChange, disabled }: DailyResetModeR
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0052FF]/30 focus-visible:ring-offset-2 focus-visible:ring-offset-[#FAFAFA] dark:focus-visible:ring-offset-slate-900",
               index < items.length - 1 ? "border-r border-slate-200 dark:border-slate-600" : null,
               active ? "bg-gradient-to-br from-[#0052FF] to-[#4D7CFF] text-white" : null,
-              !active ? "bg-white text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700" : null,
+              !active
+                ? "bg-white text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                : null,
               disabled ? "cursor-not-allowed" : null
             )}
           >
@@ -189,7 +193,9 @@ function LimitCard({
         </div>
         <div className="min-w-0 flex-1">
           <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{label}</label>
-          {hint ? <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">{hint}</p> : null}
+          {hint ? (
+            <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">{hint}</p>
+          ) : null}
           <div className="relative mt-2">
             <Input
               type="number"
@@ -518,7 +524,9 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
                 <span className="text-sm font-semibold text-slate-700 group-open:text-[#0052FF] dark:text-slate-300">
                   限流配置
                 </span>
-                <p className="text-xs text-slate-400 dark:text-slate-500">配置不同时间窗口的消费限制以控制成本</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500">
+                  配置不同时间窗口的消费限制以控制成本
+                </p>
               </div>
             </div>
             <ChevronDown className="h-4 w-4 text-slate-400 transition-transform group-open:rotate-180" />
@@ -587,8 +595,12 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
                   <div className="min-w-0 flex-1 space-y-4">
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div>
-                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">每日重置模式</label>
-                        <p className="mb-2 text-xs text-slate-400 dark:text-slate-500">rolling 为过去 24 小时窗口</p>
+                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                          每日重置模式
+                        </label>
+                        <p className="mb-2 text-xs text-slate-400 dark:text-slate-500">
+                          rolling 为过去 24 小时窗口
+                        </p>
                         <DailyResetModeRadioGroup
                           value={dailyResetMode}
                           onChange={(value) =>
@@ -598,7 +610,9 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
                         />
                       </div>
                       <div>
-                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">每日重置时间</label>
+                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                          每日重置时间
+                        </label>
                         <p className="mb-2 text-xs text-slate-400 dark:text-slate-500">
                           {dailyResetMode === "fixed"
                             ? "默认 00:00:00（本机时区）"

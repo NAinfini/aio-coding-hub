@@ -136,7 +136,9 @@ function StatCard({
       <div className="mt-2 text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-100 xl:text-xl">
         {value}
       </div>
-      {hint ? <div className="mt-auto pt-2 text-xs text-slate-500 dark:text-slate-400">{hint}</div> : null}
+      {hint ? (
+        <div className="mt-auto pt-2 text-xs text-slate-500 dark:text-slate-400">{hint}</div>
+      ) : null}
     </Card>
   );
 }
@@ -332,7 +334,9 @@ function CostScatterChart({ data, isDark }: { data: ScatterPoint[]; isDark: bool
         <div style={{ fontSize: 11, color: isDark ? "#94a3b8" : "#64748b" }}>
           总耗时：{formatDurationMs(meta.total_duration_ms)}
         </div>
-        <div style={{ fontSize: 11, color: isDark ? "#94a3b8" : "#64748b" }}>请求数：{formatInteger(requests)}</div>
+        <div style={{ fontSize: 11, color: isDark ? "#94a3b8" : "#64748b" }}>
+          请求数：{formatInteger(requests)}
+        </div>
         <div style={{ fontSize: 11, color: isDark ? "#cbd5e1" : "#94a3b8" }}>
           {avgCostUsd == null
             ? "均值：—"
@@ -348,7 +352,10 @@ function CostScatterChart({ data, isDark }: { data: ScatterPoint[]; isDark: bool
   return (
     <ResponsiveContainer width="100%" height="100%">
       <ScatterChart margin={{ left: 0, right: 16, top: 8, bottom: 4 }}>
-        <CartesianGrid stroke={isDark ? "rgba(100, 150, 255, 0.1)" : "rgba(15,23,42,0.08)"} strokeDasharray="3 3" />
+        <CartesianGrid
+          stroke={isDark ? "rgba(100, 150, 255, 0.1)" : "rgba(15,23,42,0.08)"}
+          strokeDasharray="3 3"
+        />
         <XAxis
           type="number"
           dataKey="x"
@@ -614,7 +621,9 @@ export function HomeCostPanel() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Filter className="h-4 w-4 text-indigo-500" />
-                <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">筛选条件</span>
+                <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  筛选条件
+                </span>
               </div>
               <button
                 type="button"
@@ -635,7 +644,9 @@ export function HomeCostPanel() {
             {/* Primary Filters: CLI + Period in one row */}
             <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap">CLI</span>
+                <span className="text-xs font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                  CLI
+                </span>
                 <div className="flex items-center gap-1">
                   {CLI_ITEMS.map((item) => (
                     <button
@@ -685,7 +696,10 @@ export function HomeCostPanel() {
 
             {/* Custom Date Range */}
             {showCustomForm && (
-              <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-3" data-testid="home-cost-custom-range">
+              <div
+                className="rounded-lg bg-slate-50 dark:bg-slate-800 p-3"
+                data-testid="home-cost-custom-range"
+              >
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                   <div className="flex items-center gap-2 flex-1">
                     <label className="sr-only" htmlFor="home-cost-custom-start-date">
@@ -796,7 +810,9 @@ export function HomeCostPanel() {
               </div>
 
               <div className="flex items-center gap-2 flex-1">
-                <label className="text-xs font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap">模型</label>
+                <label className="text-xs font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                  模型
+                </label>
                 <div className="relative flex-1">
                   <select
                     value={modelSelectValue}
@@ -870,22 +886,36 @@ export function HomeCostPanel() {
             data-testid="home-cost-donut-charts"
           >
             <div className="mb-2 flex items-center justify-between gap-3">
-              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">花费占比</div>
+              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                花费占比
+              </div>
             </div>
             {loading ? (
               <div className="text-sm text-slate-400 dark:text-slate-500">加载中…</div>
             ) : summary && summary.requests_success > 0 ? (
               <div className="grid grid-cols-2 gap-4 flex-1">
                 <div className="flex flex-col">
-                  <div className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">供应商</div>
+                  <div className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                    供应商
+                  </div>
                   <div className="h-[140px]">
-                    <DonutChart data={providerDonutData.data} total={providerDonutData.total} isDark={isDark} />
+                    <DonutChart
+                      data={providerDonutData.data}
+                      total={providerDonutData.total}
+                      isDark={isDark}
+                    />
                   </div>
                 </div>
                 <div className="flex flex-col">
-                  <div className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">模型</div>
+                  <div className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                    模型
+                  </div>
                   <div className="h-[140px]">
-                    <DonutChart data={modelDonutData.data} total={modelDonutData.total} isDark={isDark} />
+                    <DonutChart
+                      data={modelDonutData.data}
+                      total={modelDonutData.total}
+                      isDark={isDark}
+                    />
                   </div>
                 </div>
               </div>
@@ -901,11 +931,16 @@ export function HomeCostPanel() {
       </div>
 
       {errorText ? (
-        <Card padding="md" className="border-rose-200 dark:border-rose-700 bg-rose-50 dark:bg-rose-900/30">
+        <Card
+          padding="md"
+          className="border-rose-200 dark:border-rose-700 bg-rose-50 dark:bg-rose-900/30"
+        >
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <div className="text-sm font-semibold text-rose-900 dark:text-rose-400">加载失败</div>
-              <div className="mt-1 text-sm text-rose-800 dark:text-rose-300">花费数据刷新失败，请重试。</div>
+              <div className="mt-1 text-sm text-rose-800 dark:text-rose-300">
+                花费数据刷新失败，请重试。
+              </div>
             </div>
             <button
               type="button"
@@ -934,7 +969,9 @@ export function HomeCostPanel() {
         >
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-baseline gap-2">
-              <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">总花费趋势</span>
+              <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                总花费趋势
+              </span>
               <span className="text-xs text-slate-400 dark:text-slate-500">
                 {period === "daily" ? "按小时" : "按天"}
               </span>
@@ -978,7 +1015,9 @@ export function HomeCostPanel() {
         >
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">总成本 × 总耗时</span>
+              <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                总成本 × 总耗时
+              </span>
               {scatterChartData.activeClis.length > 1 && (
                 <div className="flex items-center gap-1.5">
                   {scatterChartData.activeClis.map((cli) => (
@@ -987,7 +1026,9 @@ export function HomeCostPanel() {
                         className="inline-block h-2 w-2 rounded-full"
                         style={{ backgroundColor: SCATTER_COLORS[cli] }}
                       />
-                      <span className="text-[10px] text-slate-500 dark:text-slate-400">{cliShortLabel(cli)}</span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                        {cliShortLabel(cli)}
+                      </span>
                     </div>
                   ))}
                 </div>

@@ -552,7 +552,9 @@ export function ProvidersView({ activeCli, setActiveCli }: ProvidersViewProps) {
         </div>
 
         <div className="flex items-center justify-between gap-2">
-          <div className="text-[11px] text-slate-500 dark:text-slate-400">路由顺序：按拖拽顺序（上→下）</div>
+          <div className="text-[11px] text-slate-500 dark:text-slate-400">
+            路由顺序：按拖拽顺序（上→下）
+          </div>
           <div className="flex items-center gap-2">
             {hasUnavailableCircuit ? (
               <Button
@@ -586,7 +588,9 @@ export function ProvidersView({ activeCli, setActiveCli }: ProvidersViewProps) {
           {providersLoading ? (
             <div className="text-sm text-slate-600 dark:text-slate-400">加载中…</div>
           ) : providers.length === 0 ? (
-            <div className="text-sm text-slate-600 dark:text-slate-400">暂无 Provider。请点击「添加」新增。</div>
+            <div className="text-sm text-slate-600 dark:text-slate-400">
+              暂无 Provider。请点击「添加」新增。
+            </div>
           ) : (
             <DndContext
               sensors={sensors}

@@ -76,7 +76,9 @@ function SettingItem({
     >
       <div className="min-w-0">
         <div className="text-sm text-slate-700 dark:text-slate-300">{label}</div>
-        <div className="mt-1 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{subtitle}</div>
+        <div className="mt-1 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+          {subtitle}
+        </div>
       </div>
       <div className="flex flex-wrap items-center justify-end gap-2">{children}</div>
     </div>
@@ -344,9 +346,13 @@ export function CliManagerCodexTab({
         </div>
 
         {codexAvailable === "unavailable" ? (
-          <div className="text-sm text-slate-600 dark:text-slate-400 text-center py-8">仅在 Tauri Desktop 环境可用</div>
+          <div className="text-sm text-slate-600 dark:text-slate-400 text-center py-8">
+            仅在 Tauri Desktop 环境可用
+          </div>
         ) : !codexConfig ? (
-          <div className="text-sm text-slate-500 dark:text-slate-400 text-center py-8">暂无配置，请尝试刷新</div>
+          <div className="text-sm text-slate-500 dark:text-slate-400 text-center py-8">
+            暂无配置，请尝试刷新
+          </div>
         ) : (
           <div className="p-6 space-y-6">
             <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5">
@@ -722,11 +728,15 @@ export function CliManagerCodexTab({
                     </div>
 
                     {codexConfigTomlLoading ? (
-                      <div className="text-sm text-slate-500 dark:text-slate-400 py-6 text-center">加载中…</div>
+                      <div className="text-sm text-slate-500 dark:text-slate-400 py-6 text-center">
+                        加载中…
+                      </div>
                     ) : (
                       <Suspense
                         fallback={
-                          <div className="text-sm text-slate-500 dark:text-slate-400 py-6 text-center">加载编辑器…</div>
+                          <div className="text-sm text-slate-500 dark:text-slate-400 py-6 text-center">
+                            加载编辑器…
+                          </div>
                         }
                       >
                         <LazyCodeEditor

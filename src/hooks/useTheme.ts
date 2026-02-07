@@ -16,9 +16,11 @@ function syncNativeTheme(theme: Theme) {
 
   const nativeTheme = theme === "system" ? null : theme;
   try {
-    getCurrentWindow().setTheme(nativeTheme ?? undefined).catch(() => {
-      // Non-Tauri environment (browser dev) — ignore silently.
-    });
+    getCurrentWindow()
+      .setTheme(nativeTheme ?? undefined)
+      .catch(() => {
+        // Non-Tauri environment (browser dev) — ignore silently.
+      });
   } catch {
     // Non-Tauri environment (browser dev / tests) — ignore silently.
   }

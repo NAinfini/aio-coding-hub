@@ -92,7 +92,9 @@ export function ProviderCircuitBadge({
       contentClassName="w-[480px] overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-card"
     >
       <div className="border-b border-slate-200 dark:border-slate-700 px-4 py-3">
-        <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">熔断列表 ({count})</span>
+        <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+          熔断列表 ({count})
+        </span>
       </div>
       <div className="max-h-[400px] overflow-y-auto p-3">
         {(Object.keys(groupedByCli) as CliKey[])
@@ -108,7 +110,9 @@ export function ProviderCircuitBadge({
                 >
                   {cliShortLabel(cliKey)}
                 </span>
-                <span className="text-xs text-slate-500 dark:text-slate-400">{groupedByCli[cliKey].length} 个熔断</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  {groupedByCli[cliKey].length} 个熔断
+                </span>
               </div>
               <div className="space-y-2">
                 {groupedByCli[cliKey].map((row) => {
@@ -130,7 +134,9 @@ export function ProviderCircuitBadge({
                           {row.provider_name || "未知"}
                         </div>
                       </div>
-                      <div className="shrink-0 font-mono text-xs text-slate-500 dark:text-slate-400">{remaining}</div>
+                      <div className="shrink-0 font-mono text-xs text-slate-500 dark:text-slate-400">
+                        {remaining}
+                      </div>
                       <Button
                         variant="secondary"
                         size="sm"

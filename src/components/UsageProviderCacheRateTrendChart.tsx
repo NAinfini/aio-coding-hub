@@ -344,7 +344,9 @@ export function UsageProviderCacheRateTrendChart({
             预警（&lt;60%）: {warnItems.length}
           </div>
         ) : (
-          <div style={{ marginBottom: 6, color: isDark ? "#94a3b8" : "#64748b" }}>供应商: {items.length}</div>
+          <div style={{ marginBottom: 6, color: isDark ? "#94a3b8" : "#64748b" }}>
+            供应商: {items.length}
+          </div>
         )}
         {sliced.map((item: any, idx: number) => {
           const isWarn = item.value < WARN_THRESHOLD;
@@ -396,7 +398,9 @@ export function UsageProviderCacheRateTrendChart({
           );
         })}
         {hidden > 0 && (
-          <div style={{ marginTop: 4, color: isDark ? "#94a3b8" : "#64748b" }}>... +{hidden}（可通过 legend 过滤）</div>
+          <div style={{ marginTop: 4, color: isDark ? "#94a3b8" : "#64748b" }}>
+            ... +{hidden}（可通过 legend 过滤）
+          </div>
         )}
       </div>
     );

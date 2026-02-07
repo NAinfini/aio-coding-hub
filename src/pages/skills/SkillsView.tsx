@@ -302,7 +302,10 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
               </div>
             ) : (
               installed.map((skill) => (
-                <div key={skill.id} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3">
+                <div
+                  key={skill.id}
+                  className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3"
+                >
                   <div className="flex items-center gap-2">
                     <span className="min-w-0 truncate text-sm font-semibold">{skill.name}</span>
                     <a
@@ -332,7 +335,9 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
                     </div>
                   </div>
                   {skill.description ? (
-                    <div className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">{skill.description}</div>
+                    <div className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                      {skill.description}
+                    </div>
                   ) : null}
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                     <span
@@ -406,9 +411,13 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
                     </div>
                   </div>
                   {skill.description ? (
-                    <div className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">{skill.description}</div>
+                    <div className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                      {skill.description}
+                    </div>
                   ) : null}
-                  <div className="mt-2 truncate font-mono text-xs text-slate-500 dark:text-slate-400">{skill.path}</div>
+                  <div className="mt-2 truncate font-mono text-xs text-slate-500 dark:text-slate-400">
+                    {skill.path}
+                  </div>
                 </div>
               ))
             )}
@@ -433,12 +442,16 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
             <Button size="sm" variant="secondary" onClick={clearLocalSkillSelections}>
               清空
             </Button>
-            <span className="text-xs text-slate-500 dark:text-slate-400">已选择 {selectedLocalDirNames.length} 项</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              已选择 {selectedLocalDirNames.length} 项
+            </span>
           </div>
 
           <div className="max-h-[280px] space-y-2 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3">
             {localSkills.length === 0 ? (
-              <div className="text-xs text-slate-500 dark:text-slate-400">暂无可导入的本机 Skill</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">
+                暂无可导入的本机 Skill
+              </div>
             ) : (
               localSkills.map((skill) => {
                 const selected = selectedLocalDirNames.includes(skill.dir_name);
@@ -541,7 +554,9 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
       >
         <div className="space-y-3">
           <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3 text-xs text-slate-600 dark:text-slate-400">
-            <div className="font-medium text-slate-800 dark:text-slate-200">{uninstallTarget?.name}</div>
+            <div className="font-medium text-slate-800 dark:text-slate-200">
+              {uninstallTarget?.name}
+            </div>
             <div className="mt-1 break-all font-mono">
               {uninstallTarget ? sourceHint(uninstallTarget) : ""}
             </div>

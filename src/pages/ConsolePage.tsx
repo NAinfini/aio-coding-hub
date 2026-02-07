@@ -60,7 +60,9 @@ const ConsoleLogRow = memo(function ConsoleLogRow({ entry }: { entry: ConsoleLog
         "items-center px-4 py-3 group-hover:bg-slate-800/40 transition-colors duration-200"
       )}
     >
-      <span className="shrink-0 text-slate-500 dark:text-slate-400 font-mono text-[11px]">{entry.tsText}</span>
+      <span className="shrink-0 text-slate-500 dark:text-slate-400 font-mono text-[11px]">
+        {entry.tsText}
+      </span>
       <div className="flex items-center">
         <span
           className={cn(
@@ -216,8 +218,8 @@ export function ConsolePage() {
               </div>
               {!renderAll && visibleLogs.length > DEFAULT_RENDER_LIMIT ? (
                 <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                  <span className="inline-block h-1 w-1 rounded-full bg-slate-400 dark:bg-slate-500"></span>共{" "}
-                  {visibleLogs.length} 条，仅显示最近 {DEFAULT_RENDER_LIMIT} 条
+                  <span className="inline-block h-1 w-1 rounded-full bg-slate-400 dark:bg-slate-500"></span>
+                  共 {visibleLogs.length} 条，仅显示最近 {DEFAULT_RENDER_LIMIT} 条
                 </div>
               ) : null}
               {!debugEnabled && hiddenCount > 0 ? (

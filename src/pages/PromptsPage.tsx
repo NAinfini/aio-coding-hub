@@ -59,7 +59,9 @@ export function PromptsPage() {
       {loading ? (
         <div className="text-sm text-slate-600 dark:text-slate-400">加载中…</div>
       ) : !tauriRuntime ? (
-        <div className="text-sm text-slate-600 dark:text-slate-400">仅在 Tauri Desktop 环境可用</div>
+        <div className="text-sm text-slate-600 dark:text-slate-400">
+          仅在 Tauri Desktop 环境可用
+        </div>
       ) : !activeWorkspaceId ? (
         <div className="text-sm text-slate-600 dark:text-slate-400">
           未找到 {cliLabel} 的当前工作区（workspace）。请先在 Workspaces 页面创建并设为当前。

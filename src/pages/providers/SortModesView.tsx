@@ -743,11 +743,15 @@ export function SortModesView({
 
             <div className="mt-3 lg:min-h-0 lg:flex-1 lg:overflow-auto lg:pr-1">
               {activeModeId == null ? (
-                <div className="text-sm text-slate-600 dark:text-slate-400">请选择一个自定义排序模板进行编辑。</div>
+                <div className="text-sm text-slate-600 dark:text-slate-400">
+                  请选择一个自定义排序模板进行编辑。
+                </div>
               ) : modeProvidersLoading ? (
                 <div className="text-sm text-slate-600 dark:text-slate-400">加载中…</div>
               ) : modeProvidersAvailable === false ? (
-                <div className="text-sm text-slate-600 dark:text-slate-400">仅在 Tauri Desktop 环境可用</div>
+                <div className="text-sm text-slate-600 dark:text-slate-400">
+                  仅在 Tauri Desktop 环境可用
+                </div>
               ) : modeProviders.length === 0 ? (
                 <div className="space-y-2">
                   <div className="rounded-xl border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30 px-3 py-2 text-sm text-amber-800 dark:text-amber-400">

@@ -33,7 +33,9 @@ export function HomeActiveSessionsCardContent({
   }
 
   if (activeSessionsAvailable === false) {
-    return <div className="text-sm text-slate-600 dark:text-slate-400">仅在 Tauri Desktop 环境可用</div>;
+    return (
+      <div className="text-sm text-slate-600 dark:text-slate-400">仅在 Tauri Desktop 环境可用</div>
+    );
   }
 
   if (activeSessions.length === 0) {
@@ -62,7 +64,9 @@ export function HomeActiveSessionsCardContent({
                   >
                     {cliShortLabel(row.cli_key)}
                   </span>
-                  <span className="font-mono text-xs text-slate-400 dark:text-slate-500">{row.session_suffix}</span>
+                  <span className="font-mono text-xs text-slate-400 dark:text-slate-500">
+                    {row.session_suffix}
+                  </span>
                   <span className="truncate max-w-[150px]">{providerLabel}</span>
                 </div>
 

@@ -190,7 +190,9 @@ export function WslSettingsCard({
                     : "未检测到 WSL"}
               </span>
               {checkedOnce && detection ? (
-                <span className="text-xs text-slate-500 dark:text-slate-400">({distros.length} 个发行版)</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  ({distros.length} 个发行版)
+                </span>
               ) : null}
             </div>
           </SettingsRow>

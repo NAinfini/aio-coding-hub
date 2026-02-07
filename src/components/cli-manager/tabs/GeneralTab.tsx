@@ -200,11 +200,15 @@ export function CliManagerGeneralTab({
               <AlertTriangle className="h-6 w-6" />
             </div>
             <div className="flex-1">
-              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">熔断通知</h3>
+              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                熔断通知
+              </h3>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                 当服务熔断触发或恢复时，主动发送系统通知。
                 <br />
-                <span className="text-xs text-amber-600/80 dark:text-amber-400/80">* 需在系统设置中授予通知权限</span>
+                <span className="text-xs text-amber-600/80 dark:text-amber-400/80">
+                  * 需在系统设置中授予通知权限
+                </span>
               </p>
             </div>
             <div className="pt-1">
@@ -227,7 +231,9 @@ export function CliManagerGeneralTab({
               <TrendingDown className="h-6 w-6" />
             </div>
             <div className="flex-1">
-              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">缓存异常监测（实验）</h3>
+              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                缓存异常监测（实验）
+              </h3>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                 近 1 小时滑窗（按 Provider + Model）监测缓存读取/创建异常。仅 Claude / Codex；
                 命中后写入控制台并发送系统通知。
@@ -284,7 +290,9 @@ export function CliManagerGeneralTab({
                   <Shield className="h-6 w-6" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">启动时 CLI 代理自愈</h3>
+                  <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                    启动时 CLI 代理自愈
+                  </h3>
                   <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                     应用启动后自动修复异常退出导致的 CLI 代理残留，并同步到当前网关端口。
                   </p>

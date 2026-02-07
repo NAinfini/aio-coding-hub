@@ -350,7 +350,9 @@ export function McpServerDialog({
       <div className="grid gap-4">
         {!editTarget ? (
           <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-4 shadow-sm">
-            <div className="text-xs font-medium text-slate-500 dark:text-slate-400">快速导入 JSON（可选）</div>
+            <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
+              快速导入 JSON（可选）
+            </div>
             <textarea
               value={jsonText}
               onChange={(e) => setJsonText(e.currentTarget.value)}
@@ -433,7 +435,9 @@ export function McpServerDialog({
                     </div>
 
                     <div className="min-w-0 pr-7">
-                      <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{item.title}</div>
+                      <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                        {item.title}
+                      </div>
                       <div className="mt-0.5 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
                         {item.desc}
                       </div>
@@ -464,7 +468,9 @@ export function McpServerDialog({
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <div className="text-sm font-medium text-slate-700 dark:text-slate-300">Args（每行一个）</div>
+                <div className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Args（每行一个）
+                </div>
                 <textarea
                   value={argsText}
                   onChange={(e) => setArgsText(e.currentTarget.value)}
@@ -475,7 +481,9 @@ export function McpServerDialog({
               </div>
 
               <div>
-                <div className="text-sm font-medium text-slate-700 dark:text-slate-300">Env（每行 KEY=VALUE）</div>
+                <div className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Env（每行 KEY=VALUE）
+                </div>
                 <textarea
                   value={envText}
                   onChange={(e) => setEnvText(e.currentTarget.value)}
@@ -487,7 +495,9 @@ export function McpServerDialog({
             </div>
 
             <div>
-              <div className="text-sm font-medium text-slate-700 dark:text-slate-300">CWD（可选）</div>
+              <div className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                CWD（可选）
+              </div>
               <input
                 type="text"
                 value={cwd}
@@ -511,7 +521,9 @@ export function McpServerDialog({
             </div>
 
             <div>
-              <div className="text-sm font-medium text-slate-700 dark:text-slate-300">Headers（每行 KEY=VALUE）</div>
+              <div className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                Headers（每行 KEY=VALUE）
+              </div>
               <textarea
                 value={headersText}
                 onChange={(e) => setHeadersText(e.currentTarget.value)}

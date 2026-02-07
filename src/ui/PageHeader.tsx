@@ -26,7 +26,9 @@ export function PageHeader({ title, subtitle, actions }: PageHeaderProps) {
             {title}
           </h1>
           {subtitle ? (
-            <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-400 sm:mt-1 sm:text-sm">{subtitle}</p>
+            <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-400 sm:mt-1 sm:text-sm">
+              {subtitle}
+            </p>
           ) : null}
         </div>
       </div>

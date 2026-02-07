@@ -366,12 +366,11 @@ pub fn run() {
 #[test]
 #[ignore = "run manually: cargo test export_bindings -- --ignored"]
 fn export_bindings() {
-    let builder = tauri_specta::Builder::<tauri::Wry>::new().commands(
-        tauri_specta::collect_commands![
+    let builder =
+        tauri_specta::Builder::<tauri::Wry>::new().commands(tauri_specta::collect_commands![
             commands::settings::settings_get,
             commands::settings::settings_set
-        ],
-    );
+        ]);
 
     builder
         .export(

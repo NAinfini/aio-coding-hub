@@ -62,9 +62,13 @@ export function CliManagerGeminiTab({
         </div>
 
         {geminiAvailable === "unavailable" ? (
-          <div className="text-sm text-slate-600 dark:text-slate-400 text-center py-8">仅在 Tauri Desktop 环境可用</div>
+          <div className="text-sm text-slate-600 dark:text-slate-400 text-center py-8">
+            仅在 Tauri Desktop 环境可用
+          </div>
         ) : !geminiInfo ? (
-          <div className="text-sm text-slate-500 dark:text-slate-400 text-center py-8">暂无信息，请尝试刷新</div>
+          <div className="text-sm text-slate-500 dark:text-slate-400 text-center py-8">
+            暂无信息，请尝试刷新
+          </div>
         ) : (
           <div className="grid gap-6 md:grid-cols-2 p-6 pt-0">
             <div className="space-y-4">

@@ -60,7 +60,9 @@ function SettingItem({
     >
       <div className="min-w-0">
         <div className="text-sm text-slate-700 dark:text-slate-300">{label}</div>
-        <div className="mt-1 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{subtitle}</div>
+        <div className="mt-1 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+          {subtitle}
+        </div>
       </div>
       <div className="flex flex-wrap items-center justify-end gap-2">{children}</div>
     </div>
@@ -360,7 +362,9 @@ export function CliManagerClaudeTab({
                   <Bot className="h-8 w-8" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Claude Code</h2>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">
+                    Claude Code
+                  </h2>
                   <div className="flex items-center gap-2 mt-1">
                     {claudeAvailable === "available" && claudeInfo?.found ? (
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 dark:bg-green-900/30 px-2.5 py-0.5 text-xs font-medium text-green-700 dark:text-green-400 ring-1 ring-inset ring-green-600/20">
@@ -472,9 +476,13 @@ export function CliManagerClaudeTab({
         </div>
 
         {claudeAvailable === "unavailable" ? (
-          <div className="text-sm text-slate-600 dark:text-slate-400 text-center py-8">仅在 Tauri Desktop 环境可用</div>
+          <div className="text-sm text-slate-600 dark:text-slate-400 text-center py-8">
+            仅在 Tauri Desktop 环境可用
+          </div>
         ) : !claudeSettings ? (
-          <div className="text-sm text-slate-500 dark:text-slate-400 text-center py-8">暂无配置，请尝试刷新</div>
+          <div className="text-sm text-slate-500 dark:text-slate-400 text-center py-8">
+            暂无配置，请尝试刷新
+          </div>
         ) : (
           <div className="p-6 space-y-6">
             <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5">

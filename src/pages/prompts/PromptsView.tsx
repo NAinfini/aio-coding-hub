@@ -198,9 +198,13 @@ export function PromptsView({ workspaceId, cliKey, isActiveWorkspace = true }: P
             {loading ? "加载中…" : `共 ${items.length} 条`}
           </span>
           {isActiveWorkspace ? (
-            <span className="text-xs text-slate-500 dark:text-slate-400">启用后会写入 {fileHint}</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              启用后会写入 {fileHint}
+            </span>
           ) : (
-            <span className="text-xs text-slate-500 dark:text-slate-400">非当前工作区：仅写入数据库，不触发同步</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              非当前工作区：仅写入数据库，不触发同步
+            </span>
           )}
         </div>
 

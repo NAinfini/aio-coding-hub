@@ -200,7 +200,9 @@ function OutcomePill({ pass }: { pass: boolean | null }) {
     <span
       className={cn(
         "rounded px-1.5 py-0.5 text-[10px] font-semibold",
-        pass ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
+        pass
+          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+          : "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
       )}
     >
       {pass ? "通过" : "不通过"}
@@ -927,7 +929,9 @@ export function ClaudeModelValidationDialog({
                 </div>
                 <div>
                   <div className="text-xs text-slate-500 dark:text-slate-400">服务商</div>
-                  <div className="font-semibold text-slate-900 dark:text-slate-100">{provider.name}</div>
+                  <div className="font-semibold text-slate-900 dark:text-slate-100">
+                    {provider.name}
+                  </div>
                 </div>
               </div>
               <div className="h-8 w-px bg-slate-200 dark:bg-slate-700" />
@@ -1058,7 +1062,9 @@ export function ClaudeModelValidationDialog({
                 <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 px-4 py-3">
                   <div className="flex items-center gap-2">
                     <History className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-                    <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">历史记录</span>
+                    <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                      历史记录
+                    </span>
                   </div>
                   <div className="flex items-center gap-1">
                     <Button
@@ -1449,7 +1455,9 @@ export function ClaudeModelValidationDialog({
                         {"\n"}
                       </span>
                       {activeResult?.raw_excerpt || (
-                        <span className="text-slate-600 dark:text-slate-400 italic">// 暂无 SSE 数据</span>
+                        <span className="text-slate-600 dark:text-slate-400 italic">
+                          // 暂无 SSE 数据
+                        </span>
                       )}
                     </pre>
                   </div>
@@ -1473,7 +1481,9 @@ export function ClaudeModelValidationDialog({
               <div className="absolute inset-0 flex items-center justify-center p-4">
                 <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-card">
                   <div className="border-b border-slate-200 dark:border-slate-700 px-5 py-4">
-                    <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">确认清空历史？</div>
+                    <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                      确认清空历史？
+                    </div>
                     <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">
                       将清空{" "}
                       <span className="font-medium text-slate-900 dark:text-slate-100">

@@ -37,7 +37,8 @@ const SCOPE_ITEMS: ScopeItem[] = [
   { key: "model", label: "模型" },
 ];
 
-const FILTER_LABEL_CLASS = "w-16 shrink-0 pt-1.5 text-right text-xs font-medium text-slate-600 dark:text-slate-400";
+const FILTER_LABEL_CLASS =
+  "w-16 shrink-0 pt-1.5 text-right text-xs font-medium text-slate-600 dark:text-slate-400";
 const FILTER_OPTIONS_CLASS = "min-w-0 flex flex-1 flex-wrap items-center gap-2";
 const FILTER_OPTION_BUTTON_CLASS = "w-24 whitespace-nowrap";
 
@@ -55,9 +56,13 @@ function StatCard({
   return (
     <Card padding="md" className={cn("flex h-full flex-col", className)}>
       <div className="text-xs font-medium text-slate-500 dark:text-slate-400">{title}</div>
-      <div className="mt-1.5 text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">{value}</div>
+      <div className="mt-1.5 text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">
+        {value}
+      </div>
       {hint ? (
-        <div className="mt-auto pt-1.5 text-[11px] leading-4 text-slate-500 dark:text-slate-400">{hint}</div>
+        <div className="mt-auto pt-1.5 text-[11px] leading-4 text-slate-500 dark:text-slate-400">
+          {hint}
+        </div>
       ) : null}
     </Card>
   );
@@ -88,14 +93,19 @@ function TokenBreakdown({
     <div className="space-y-0.5">
       <div>{formatInteger(totalTokens)}</div>
       <div className="text-[10px] leading-4 text-slate-500 dark:text-slate-400">
-        输入 <span className="text-slate-700 dark:text-slate-300">{formatInteger(inputTokens)}</span>
+        输入{" "}
+        <span className="text-slate-700 dark:text-slate-300">{formatInteger(inputTokens)}</span>
       </div>
       <div className="text-[10px] leading-4 text-slate-500 dark:text-slate-400">
-        输出 <span className="text-slate-700 dark:text-slate-300">{formatInteger(outputTokens)}</span>
+        输出{" "}
+        <span className="text-slate-700 dark:text-slate-300">{formatInteger(outputTokens)}</span>
       </div>
       {totalTokensWithCache != null && Number.isFinite(totalTokensWithCache) ? (
         <div className="text-[10px] leading-4 text-slate-500 dark:text-slate-400">
-          含缓存 <span className="text-slate-700 dark:text-slate-300">{formatInteger(totalTokensWithCache)}</span>
+          含缓存{" "}
+          <span className="text-slate-700 dark:text-slate-300">
+            {formatInteger(totalTokensWithCache)}
+          </span>
         </div>
       ) : null}
     </div>
@@ -116,13 +126,20 @@ function CacheBreakdown({
   return (
     <div className="space-y-0.5 text-[10px] leading-4">
       <div className="text-slate-500 dark:text-slate-400">
-        创建 <span className="text-slate-700 dark:text-slate-300">{formatInteger(cacheCreationInputTokens)}</span>
+        创建{" "}
+        <span className="text-slate-700 dark:text-slate-300">
+          {formatInteger(cacheCreationInputTokens)}
+        </span>
       </div>
       <div className="text-slate-500 dark:text-slate-400">
-        读取 <span className="text-slate-700 dark:text-slate-300">{formatInteger(cacheReadInputTokens)}</span>
+        读取{" "}
+        <span className="text-slate-700 dark:text-slate-300">
+          {formatInteger(cacheReadInputTokens)}
+        </span>
       </div>
       <div className="text-slate-500 dark:text-slate-400">
-        命中率 <span className="text-slate-700 dark:text-slate-300">{formatPercent(hitRate, 2)}</span>
+        命中率{" "}
+        <span className="text-slate-700 dark:text-slate-300">{formatPercent(hitRate, 2)}</span>
       </div>
     </div>
   );
@@ -341,7 +358,9 @@ export function UsagePage() {
               <div className="w-16 shrink-0" aria-hidden="true" />
               <div className="min-w-0 flex flex-1 flex-col gap-3 md:flex-row md:items-end">
                 <div className="flex flex-col gap-1.5">
-                  <div className="text-xs font-medium text-slate-600 dark:text-slate-400">开始日期</div>
+                  <div className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                    开始日期
+                  </div>
                   <input
                     type="date"
                     value={customStartDate}
@@ -351,7 +370,9 @@ export function UsagePage() {
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <div className="text-xs font-medium text-slate-600 dark:text-slate-400">结束日期</div>
+                  <div className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                    结束日期
+                  </div>
                   <input
                     type="date"
                     value={customEndDate}
@@ -377,7 +398,9 @@ export function UsagePage() {
                       已应用：{customApplied.startDate} → {customApplied.endDate}
                     </span>
                   ) : (
-                    <span className="text-xs text-slate-500 dark:text-slate-400">请选择日期范围后点击"应用"</span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400">
+                      请选择日期范围后点击"应用"
+                    </span>
                   )}
                 </div>
               </div>
@@ -430,7 +453,10 @@ export function UsagePage() {
       </div>
 
       {errorText ? (
-        <Card padding="md" className="shrink-0 border-rose-200 dark:border-rose-700 bg-rose-50 dark:bg-rose-900/30">
+        <Card
+          padding="md"
+          className="shrink-0 border-rose-200 dark:border-rose-700 bg-rose-50 dark:bg-rose-900/30"
+        >
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <div className="text-sm font-semibold text-rose-900 dark:text-rose-400">加载失败</div>
@@ -526,10 +552,18 @@ export function UsagePage() {
               <table className="w-full border-separate border-spacing-0 text-left text-sm">
                 <thead>
                   <tr className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                    <th className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/60 px-3 py-2.5">#</th>
-                    <th className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/60 px-3 py-2.5">名称</th>
-                    <th className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/60 px-3 py-2.5">请求数</th>
-                    <th className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/60 px-3 py-2.5">成功率</th>
+                    <th className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/60 px-3 py-2.5">
+                      #
+                    </th>
+                    <th className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/60 px-3 py-2.5">
+                      名称
+                    </th>
+                    <th className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/60 px-3 py-2.5">
+                      请求数
+                    </th>
+                    <th className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/60 px-3 py-2.5">
+                      成功率
+                    </th>
                     <th className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/60 px-3 py-2.5">
                       总 Token
                     </th>
@@ -658,7 +692,9 @@ export function UsagePage() {
                           {index + 1}
                         </td>
                         <td className="border-b border-slate-100 dark:border-slate-700 px-3 py-3">
-                          <div className="font-medium text-slate-900 dark:text-slate-100">{row.name}</div>
+                          <div className="font-medium text-slate-900 dark:text-slate-100">
+                            {row.name}
+                          </div>
                         </td>
                         <td className="border-b border-slate-100 dark:border-slate-700 px-3 py-3 font-mono text-xs tabular-nums text-slate-700 dark:text-slate-300">
                           {formatInteger(row.requests_total)}

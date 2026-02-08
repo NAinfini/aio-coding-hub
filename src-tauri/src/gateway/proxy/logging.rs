@@ -145,7 +145,7 @@ fn request_log_insert_from_args(
 
     let duration_ms = duration_ms.min(i64::MAX as u128) as i64;
     let ttfb_ms = ttfb_ms.and_then(|v| {
-        if v >= duration_ms as u128 {
+        if v > duration_ms as u128 {
             return None;
         }
         Some(v.min(i64::MAX as u128) as i64)
@@ -376,5 +376,22 @@ mod tests {
         assert_eq!(insert.cache_creation_5m_input_tokens, Some(6));
         assert_eq!(insert.cache_creation_1h_input_tokens, Some(7));
         assert_eq!(insert.usage_json, Some("{\"input_tokens\":1}".to_string()));
+    }
+
+    #[test]
+    fn request_log_insert_keeps_ttfb_when_equal_to_duration_and_filters_only_greater() {
+        let mut equal_args = base_args();
+        equal_args.duration_ms = 123;
+        equal_args.ttfb_ms = Some(123);
+
+        let equal_insert = request_log_insert_from_args(equal_args).expect("insert");
+        assert_eq!(equal_insert.ttfb_ms, Some(123));
+
+        let mut greater_args = base_args();
+        greater_args.duration_ms = 123;
+        greater_args.ttfb_ms = Some(124);
+
+        let greater_insert = request_log_insert_from_args(greater_args).expect("insert");
+        assert_eq!(greater_insert.ttfb_ms, None);
     }
 }

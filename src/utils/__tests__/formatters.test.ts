@@ -36,8 +36,9 @@ describe("utils/formatters", () => {
   it("sanitizeTtfbMs", () => {
     expect(sanitizeTtfbMs(null, 1)).toBeNull();
     expect(sanitizeTtfbMs(10, null)).toBeNull();
-    expect(sanitizeTtfbMs(10, 10)).toBeNull();
+    expect(sanitizeTtfbMs(10, 10)).toBe(10);
     expect(sanitizeTtfbMs(9, 10)).toBe(9);
+    expect(sanitizeTtfbMs(11, 10)).toBeNull();
   });
 
   it("formatInteger / percent", () => {

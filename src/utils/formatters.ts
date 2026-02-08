@@ -29,7 +29,7 @@ export function sanitizeTtfbMs(
 
   const t = Math.max(0, ttfbMs);
   const d = Math.max(0, durationMs);
-  if (t >= d) return null;
+  if (t > d) return null;
   return t;
 }
 

@@ -11,6 +11,8 @@ import {
   ReferenceArea,
   ReferenceLine,
 } from "recharts";
+import type { TooltipProps } from "recharts";
+import type { ValueType, NameType } from "recharts/types/component/DefaultTooltipContent";
 import type { CustomDateRangeApplied } from "../hooks/useCustomDateRange";
 import type { UsagePeriod, UsageProviderCacheRateTrendRowV1 } from "../services/usage";
 import { useTheme } from "../hooks/useTheme";
@@ -40,6 +42,12 @@ type PointMeta = {
   denomTokens: number;
   cacheReadTokens: number;
   requestsSuccess: number;
+};
+
+type TooltipItem = PointMeta & {
+  name: string;
+  color: string;
+  value: number;
 };
 
 function toMmDd(dayKey: string) {
@@ -295,31 +303,33 @@ export function UsageProviderCacheRateTrendChart({
     return xLabels.filter((_, i) => i % interval === 0);
   }, [xLabels, period]);
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  const CustomTooltip = ({ active, payload, label }: TooltipProps<ValueType, NameType>) => {
     if (!active || !payload || payload.length === 0) return null;
 
-    const items = payload
-      .map((entry: any) => {
+    const items: TooltipItem[] = payload
+      .map((entry) => {
         const providerKey = entry.dataKey;
-        const meta = entry.payload[`${providerKey}_meta`] as PointMeta | undefined;
+        const meta = (entry.payload as ChartDataPoint | undefined)?.[`${providerKey}_meta`] as
+          | PointMeta
+          | undefined;
         const value = entry.value;
-        if (value == null || !Number.isFinite(value) || !meta) return null;
+        if (value == null || !Number.isFinite(value as number) || !meta) return null;
 
         return {
-          name: entry.name,
-          color: entry.color,
-          value,
+          name: entry.name as string,
+          color: entry.color ?? "",
+          value: value as number,
           ...meta,
         };
       })
-      .filter((v: any) => v != null);
+      .filter((v): v is TooltipItem => v != null);
 
     const warnItems = items
-      .filter((item: any) => item.value < WARN_THRESHOLD)
-      .sort((a: any, b: any) => a.value - b.value);
+      .filter((item) => item.value < WARN_THRESHOLD)
+      .sort((a, b) => a.value - b.value);
     const okItems = items
-      .filter((item: any) => item.value >= WARN_THRESHOLD)
-      .sort((a: any, b: any) => b.denomTokens - a.denomTokens);
+      .filter((item) => item.value >= WARN_THRESHOLD)
+      .sort((a, b) => b.denomTokens - a.denomTokens);
 
     const MAX_ITEMS = 12;
     const renderItems = warnItems.length > 0 ? warnItems : okItems;
@@ -348,7 +358,7 @@ export function UsageProviderCacheRateTrendChart({
             供应商: {items.length}
           </div>
         )}
-        {sliced.map((item: any, idx: number) => {
+        {sliced.map((item: TooltipItem, idx: number) => {
           const isWarn = item.value < WARN_THRESHOLD;
           const valueColor = isWarn ? "#b91c1c" : isDark ? "#e2e8f0" : "#0f172a";
 

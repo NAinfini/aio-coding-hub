@@ -102,7 +102,10 @@ export function WorkspacesPage() {
   const deleteMutation = useWorkspaceDeleteMutation();
   const applyMutation = useWorkspaceApplyMutation();
 
-  const items: WorkspaceSummary[] = workspacesQuery.data?.items ?? [];
+  const items = useMemo<WorkspaceSummary[]>(
+    () => workspacesQuery.data?.items ?? [],
+    [workspacesQuery.data?.items]
+  );
   const activeWorkspaceId: number | null = workspacesQuery.data?.active_id ?? null;
   const loading = workspacesQuery.isFetching;
 

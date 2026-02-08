@@ -103,19 +103,19 @@ export function SkillsMarketPage() {
   const currentCli = useMemo(() => cliFromKeyOrDefault(activeCli), [activeCli]);
 
   const reposQuery = useSkillReposListQuery({ enabled: tauriRuntime });
-  const repos = reposQuery.data ?? [];
+  const repos = useMemo(() => reposQuery.data ?? [], [reposQuery.data]);
   const enabledRepoCount = useMemo(() => repos.filter((r) => r.enabled).length, [repos]);
 
   const workspacesQuery = useWorkspacesListQuery(activeCli, { enabled: tauriRuntime });
   const activeWorkspaceId = workspacesQuery.data?.active_id ?? null;
 
   const installedQuery = useSkillsInstalledListQuery(activeWorkspaceId, { enabled: tauriRuntime });
-  const installed = installedQuery.data ?? [];
+  const installed = useMemo(() => installedQuery.data ?? [], [installedQuery.data]);
 
   const availableQuery = useSkillsDiscoverAvailableQuery(false, {
     enabled: tauriRuntime && enabledRepoCount > 0,
   });
-  const available = availableQuery.data ?? [];
+  const available = useMemo(() => availableQuery.data ?? [], [availableQuery.data]);
 
   const discoverMutation = useSkillsDiscoverAvailableMutation();
   const repoUpsertMutation = useSkillRepoUpsertMutation();

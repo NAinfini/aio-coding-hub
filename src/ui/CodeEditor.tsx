@@ -32,6 +32,9 @@ export function CodeEditor({
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
 
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
   useEffect(() => {
     if (!editorRef.current) return;
 
@@ -85,10 +88,10 @@ export function CodeEditor({
       languageExtension,
       EditorState.readOnly.of(readOnly),
       placeholder && !readOnly ? placeholderExt(placeholder) : [],
-      !readOnly && onChange
+      !readOnly
         ? EditorView.updateListener.of((update) => {
             if (!update.docChanged) return;
-            onChange(update.state.doc.toString());
+            onChangeRef.current?.(update.state.doc.toString());
           })
         : [],
       readOnly
@@ -116,6 +119,9 @@ export function CodeEditor({
       view.destroy();
       viewRef.current = null;
     };
+    // value is intentionally omitted: initial doc only; synced via the second useEffect.
+    // onChange is accessed via onChangeRef to avoid recreating the editor on callback changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [language, readOnly, minHeight, height, placeholder]);
 
   useEffect(() => {

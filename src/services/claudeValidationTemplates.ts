@@ -202,15 +202,16 @@ export function buildClaudeValidationRequestJson(
   nextBody.model = normalizedModel;
 
   const existingMetadata = isPlainObject(nextBody.metadata)
-    ? { ...(nextBody.metadata as any) }
+    ? { ...(nextBody.metadata as Record<string, unknown>) }
     : {};
   existingMetadata.user_id = metadataUserId;
   nextBody.metadata = existingMetadata;
 
   const expect = (template.request as { expect?: ClaudeValidationExpect }).expect;
   const headerOverrides = template.request.headers as unknown;
-  const roundtrip = (template.request as any)?.roundtrip as unknown;
-  const constraints = (template.request as any)?.constraints as unknown;
+  const requestRecord = template.request as unknown as Record<string, unknown>;
+  const roundtrip = requestRecord.roundtrip as unknown;
+  const constraints = requestRecord.constraints as unknown;
 
   const wrapper: Record<string, unknown> = {
     template_key: template.key,
@@ -250,10 +251,11 @@ export function getClaudeTemplateApplicability(
   const normalizedModel = model.trim();
   if (!normalizedModel) return { applicable: true, reason: null };
 
-  const constraints = (template.request as any)?.constraints as unknown;
+  const requestRecord = template.request as unknown as Record<string, unknown>;
+  const constraints = requestRecord.constraints as unknown;
   if (!isPlainObject(constraints)) return { applicable: true, reason: null };
 
-  const onlyModelIncludes = (constraints as any).onlyModelIncludes as unknown;
+  const onlyModelIncludes = constraints.onlyModelIncludes as unknown;
   if (Array.isArray(onlyModelIncludes) && onlyModelIncludes.length > 0) {
     const m = normalizedModel.toLowerCase();
     const needles = onlyModelIncludes
@@ -426,12 +428,13 @@ export function evaluateClaudeValidation(
 
   const checksOut: ClaudeValidationEvaluation["checks"] = {};
 
+  const evaluationRecord = template.evaluation as unknown as Record<string, unknown>;
   const requireCacheDetail = template.evaluation.requireCacheDetail;
-  const requireCacheReadHit = Boolean((template.evaluation as any).requireCacheReadHit);
+  const requireCacheReadHit = Boolean(evaluationRecord.requireCacheReadHit);
   const requireModelConsistency = template.evaluation.requireModelConsistency;
   const requireThinkingOutput = template.evaluation.requireThinkingOutput;
   const requireSignature = template.evaluation.requireSignature;
-  const requireSignatureRoundtrip = Boolean((template.evaluation as any).requireSignatureRoundtrip);
+  const requireSignatureRoundtrip = Boolean(evaluationRecord.requireSignatureRoundtrip);
   const signatureMinChars = (() => {
     const v = template.evaluation.signatureMinChars;
     return typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0;
@@ -865,7 +868,7 @@ export function evaluateClaudeValidation(
 
   // Cross-provider signature roundtrip check
   const requireCrossProviderSignatureRoundtrip = Boolean(
-    (template.evaluation as any).requireCrossProviderSignatureRoundtrip
+    evaluationRecord.requireCrossProviderSignatureRoundtrip
   );
   const crossProviderEnabled =
     get<boolean>(signalsRaw, "roundtrip_cross_provider_enabled") === true;
@@ -910,7 +913,7 @@ export function evaluateClaudeValidation(
   }
 
   // Thinking preserved check (cross-step thinking consistency)
-  const requireThinkingPreserved = Boolean((template.evaluation as any).requireThinkingPreserved);
+  const requireThinkingPreserved = Boolean(evaluationRecord.requireThinkingPreserved);
   const roundtripStep3CrossThinkingChars = (() => {
     const v = get<number>(signalsRaw, "roundtrip_step3_cross_thinking_chars");
     if (typeof v === "number" && Number.isFinite(v)) return v;

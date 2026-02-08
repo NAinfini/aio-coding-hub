@@ -258,9 +258,9 @@ export function RequestLogDetailDialog({
                   <pre className="mt-3 max-h-[240px] overflow-auto rounded-lg bg-slate-950 p-3 text-xs text-slate-100">
                     {(() => {
                       try {
-                        const parsed = JSON.parse(selectedLog.usage_json ?? "");
-                        if (parsed && typeof parsed === "object") {
-                          delete (parsed as any).cache_creation_1h_input_tokens;
+                        const parsed: unknown = JSON.parse(selectedLog.usage_json ?? "");
+                        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                          delete (parsed as Record<string, unknown>).cache_creation_1h_input_tokens;
                         }
                         return JSON.stringify(parsed, null, 2);
                       } catch {

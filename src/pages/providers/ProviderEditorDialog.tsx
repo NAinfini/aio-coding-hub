@@ -315,6 +315,10 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
       daily_reset_time: props.provider.daily_reset_time ?? "00:00:00",
       enabled: props.provider.enabled,
     });
+    // Only reset form when dialog opens or provider identity changes.
+    // Intentionally omitting props.provider fields to avoid resetting user edits
+    // when the provider object reference changes from a background query refetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cliKey, editingProviderId, mode, open, reset]);
 
   const setBaseUrlRowsFromUser: Dispatch<SetStateAction<BaseUrlRow[]>> = (action) => {

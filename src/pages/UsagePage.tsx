@@ -223,8 +223,11 @@ export function UsagePage() {
 
   const tauriAvailable: boolean | null = shouldLoad ? tauriRuntime : null;
   const summary: UsageSummary | null = summaryQuery.data ?? null;
-  const rows: UsageLeaderboardRow[] = leaderboardQuery.data ?? [];
-  const cacheTrendRows = cacheTrendQuery.data ?? [];
+  const rows = useMemo<UsageLeaderboardRow[]>(
+    () => leaderboardQuery.data ?? [],
+    [leaderboardQuery.data]
+  );
+  const cacheTrendRows = useMemo(() => cacheTrendQuery.data ?? [], [cacheTrendQuery.data]);
   const cacheTrendProviderCount = useMemo(
     () => new Set(cacheTrendRows.map((row) => row.key)).size,
     [cacheTrendRows]

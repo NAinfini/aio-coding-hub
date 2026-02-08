@@ -263,7 +263,10 @@ export function ProvidersView({ activeCli, setActiveCli }: ProvidersViewProps) {
   }, [activeCli]);
 
   const providersQuery = useProvidersListQuery(activeCli);
-  const providers: ProviderSummary[] = providersQuery.data ?? [];
+  const providers = useMemo<ProviderSummary[]>(
+    () => providersQuery.data ?? [],
+    [providersQuery.data]
+  );
   const providersLoading = providersQuery.isFetching;
 
   const providersRef = useRef(providers);
@@ -272,7 +275,10 @@ export function ProvidersView({ activeCli, setActiveCli }: ProvidersViewProps) {
   }, [providers]);
 
   const circuitQuery = useGatewayCircuitStatusQuery(activeCli);
-  const circuitRows: GatewayProviderCircuitStatus[] = circuitQuery.data ?? [];
+  const circuitRows = useMemo<GatewayProviderCircuitStatus[]>(
+    () => circuitQuery.data ?? [],
+    [circuitQuery.data]
+  );
   const circuitLoading = circuitQuery.isFetching;
   const circuitByProviderId = useMemo(() => {
     const next: Record<number, GatewayProviderCircuitStatus> = {};

@@ -385,7 +385,7 @@ describe("pages/WorkspacesPage", () => {
       { id: 2, cli_key: "claude", name: "W2", created_at: 2, updated_at: 2 },
     ] as any[];
 
-    let workspacesState: any = {
+    const workspacesState: any = {
       data: { items: itemsA, active_id: 1 },
       isFetching: false,
       error: null,

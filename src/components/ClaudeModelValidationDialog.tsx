@@ -253,18 +253,27 @@ export function ClaudeModelValidationDialog({
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
 
   const modelPricesQuery = useModelPricesListQuery("claude", { enabled: open });
-  const modelPrices: ModelPriceSummary[] = open ? (modelPricesQuery.data ?? []) : [];
+  const modelPrices = useMemo<ModelPriceSummary[]>(
+    () => (open ? (modelPricesQuery.data ?? []) : []),
+    [open, modelPricesQuery.data]
+  );
   const modelPricesLoading = open ? modelPricesQuery.isFetching : false;
   const modelOptions = useMemo(() => sortClaudeModelsFromPrices(modelPrices), [modelPrices]);
 
   // Cross-provider signature validation
   const allClaudeProvidersQuery = useProvidersListQuery("claude", { enabled: open });
-  const allClaudeProviders: ProviderSummary[] = open ? (allClaudeProvidersQuery.data ?? []) : [];
+  const allClaudeProviders = useMemo<ProviderSummary[]>(
+    () => (open ? (allClaudeProvidersQuery.data ?? []) : []),
+    [open, allClaudeProvidersQuery.data]
+  );
   const [crossProviderId, setCrossProviderId] = useState<number | null>(null);
 
   // Check if any template requires cross-provider validation
   const hasCrossProviderTemplate = useMemo(
-    () => templates.some((t) => (t as any).requiresCrossProvider === true),
+    () =>
+      templates.some(
+        (t) => (t as unknown as Record<string, unknown>).requiresCrossProvider === true
+      ),
     [templates]
   );
 
@@ -308,11 +317,13 @@ export function ClaudeModelValidationDialog({
     setSuiteProgress(null);
   }, [open]);
 
+  const providerId = provider?.id ?? null;
+
   useEffect(() => {
-    if (!open || !provider) return;
+    if (!open || providerId == null) return;
     let cancelled = false;
 
-    claudeProviderGetApiKeyPlaintext(provider.id)
+    claudeProviderGetApiKeyPlaintext(providerId)
       .then((key) => {
         if (cancelled) return;
         setApiKeyPlaintext(typeof key === "string" && key.trim() ? key : null);
@@ -325,7 +336,7 @@ export function ClaudeModelValidationDialog({
     return () => {
       cancelled = true;
     };
-  }, [open, provider?.id]);
+  }, [open, providerId]);
 
   function handleOpenChange(nextOpen: boolean) {
     // 防止确认弹层打开时误关主 Dialog（ESC/点遮罩/点右上角关闭等）。
@@ -392,11 +403,10 @@ export function ClaudeModelValidationDialog({
 
   useEffect(() => {
     if (!open) return;
-    const providerId = provider?.id ?? null;
     if (!providerId) return;
     void refreshHistory({ selectLatest: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, provider?.id]);
+  }, [open, providerId]);
 
   useEffect(() => {
     if (!open || !provider) return;
@@ -488,7 +498,9 @@ export function ClaudeModelValidationDialog({
       .filter((t) => t.applicability.applicable)
       .map((t) => t.template.key);
     const suiteRequiresCrossProvider = templateApplicability.some(
-      (t) => t.applicability.applicable && (t.template as any).requiresCrossProvider === true
+      (t) =>
+        t.applicability.applicable &&
+        (t.template as unknown as Record<string, unknown>).requiresCrossProvider === true
     );
 
     if (skippedTemplates.length > 0) {
@@ -580,18 +592,17 @@ export function ClaudeModelValidationDialog({
           null
         );
         try {
-          const parsedForSend = JSON.parse(reqTextToSendWrapper);
+          const parsedForSend: unknown = JSON.parse(reqTextToSendWrapper);
           const bodyForSend =
-            parsedForSend && typeof parsedForSend === "object" && "body" in parsedForSend
-              ? (parsedForSend as any).body
+            isPlainObject(parsedForSend) && "body" in parsedForSend
+              ? parsedForSend.body
               : parsedForSend;
 
-          if (bodyForSend && typeof bodyForSend === "object") {
-            const nextBody = { ...(bodyForSend as any) };
-            const nextMetadata =
-              nextBody.metadata && typeof nextBody.metadata === "object"
-                ? { ...(nextBody.metadata as any) }
-                : {};
+          if (isPlainObject(bodyForSend)) {
+            const nextBody: Record<string, unknown> = { ...bodyForSend };
+            const nextMetadata: Record<string, unknown> = isPlainObject(nextBody.metadata)
+              ? { ...(nextBody.metadata as Record<string, unknown>) }
+              : {};
 
             const existingUserId =
               typeof nextMetadata.user_id === "string" ? nextMetadata.user_id.trim() : "";
@@ -605,13 +616,12 @@ export function ClaudeModelValidationDialog({
             }
             nextBody.metadata = nextMetadata;
 
-            if (parsedForSend && typeof parsedForSend === "object" && "body" in parsedForSend) {
-              const nextParsed = { ...(parsedForSend as any) };
-              const nextHeaders =
-                nextParsed.headers && typeof nextParsed.headers === "object"
-                  ? { ...(nextParsed.headers as any) }
-                  : {};
-              // 用于历史聚合显示：同一次“综合验证”共享同一个 suite_run_id。
+            if (isPlainObject(parsedForSend) && "body" in parsedForSend) {
+              const nextParsed: Record<string, unknown> = { ...parsedForSend };
+              const nextHeaders: Record<string, unknown> = isPlainObject(nextParsed.headers)
+                ? { ...(nextParsed.headers as Record<string, unknown>) }
+                : {};
+              // 用于历史聚合显示：同一次"综合验证"共享同一个 suite_run_id。
               nextParsed.suite_run_id = suiteRunId;
               nextParsed.suite_step_index = idx + 1;
               nextParsed.suite_step_total = suiteTemplateKeys.length;
@@ -620,15 +630,14 @@ export function ClaudeModelValidationDialog({
 
               // Add cross_provider_id to roundtrip config if template requires it
               const templateRequiresCrossProvider =
-                (stepTemplate as any).requiresCrossProvider === true;
+                (stepTemplate as unknown as Record<string, unknown>).requiresCrossProvider === true;
               if (
                 templateRequiresCrossProvider &&
                 crossProviderId &&
-                nextParsed.roundtrip &&
-                typeof nextParsed.roundtrip === "object"
+                isPlainObject(nextParsed.roundtrip)
               ) {
                 nextParsed.roundtrip = {
-                  ...nextParsed.roundtrip,
+                  ...(nextParsed.roundtrip as Record<string, unknown>),
                   cross_provider_id: crossProviderId,
                 };
               }
@@ -1112,9 +1121,14 @@ export function ClaudeModelValidationDialog({
                     <div className="custom-scrollbar h-full overflow-y-auto p-3 space-y-2">
                       {historyGroups.map((group) => {
                         const active = group.key === selectedHistoryKey;
-                        const mentionsBedrock = group.runs.some((r) =>
-                          Boolean((r.run.parsed_result?.signals as any)?.mentions_amazon_bedrock)
-                        );
+                        const mentionsBedrock = group.runs.some((r) => {
+                          const signals = r.run.parsed_result?.signals;
+                          return Boolean(
+                            signals &&
+                            typeof signals === "object" &&
+                            (signals as Record<string, unknown>).mentions_amazon_bedrock
+                          );
+                        });
 
                         return (
                           <div

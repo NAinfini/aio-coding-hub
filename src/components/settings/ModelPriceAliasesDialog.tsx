@@ -147,7 +147,6 @@ export function ModelPriceAliasesDialog({
       onOpenChange(false);
     } catch (err) {
       toast("保存失败：请检查规则内容（例如 wildcard 只能包含一个 *）");
-      // eslint-disable-next-line no-console
       console.error("[ModelPriceAliasesDialog] save error", err);
     }
   }

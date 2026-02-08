@@ -148,8 +148,8 @@ function extractBodyAndHeadersFromRequestValue(requestValue: unknown): {
   }
 
   if ("body" in requestValue) {
-    const headersValue = (requestValue as any).headers;
-    const body = (requestValue as any).body;
+    const headersValue = requestValue.headers;
+    const body = requestValue.body;
     return { headersValue, body };
   }
 
@@ -193,9 +193,9 @@ export function buildClaudeModelValidationRequestSnapshotTextFromWrapper(input: 
   const { headersValue, body } = extractBodyAndHeadersFromRequestValue(value);
   const headers = buildRequestHeadersFromUnknown(headersValue, input.apiKeyPlaintext ?? null);
 
-  const forwarded = parseForwardedPathAndQuery(isPlainObject(value) ? (value as any).path : null);
+  const forwarded = parseForwardedPathAndQuery(isPlainObject(value) ? value.path : null);
   const query =
-    normalizeQuery(isPlainObject(value) ? (value as any).query : null) ?? forwarded.queryFromPath;
+    normalizeQuery(isPlainObject(value) ? value.query : null) ?? forwarded.queryFromPath;
 
   const url =
     buildTargetUrlFromWrapper({

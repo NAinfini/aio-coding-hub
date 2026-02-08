@@ -386,7 +386,7 @@ describe("pages/providers/SortModesView", () => {
 
     // delete: ok=false -> tauri-only toast
     fireEvent.click(screen.getByRole("button", { name: "删除" }));
-    let deleteDialog = within(screen.getByRole("dialog"));
+    const deleteDialog = within(screen.getByRole("dialog"));
     vi.mocked(sortModeDelete).mockResolvedValueOnce(false as any);
     fireEvent.click(deleteDialog.getByRole("button", { name: "确认删除" }));
     await waitFor(() =>

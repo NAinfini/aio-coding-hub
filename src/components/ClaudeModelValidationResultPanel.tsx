@@ -10,6 +10,7 @@ import {
   getClaudeValidationOutputExpectation,
 } from "../services/claudeValidationTemplates";
 import { cn } from "../utils/cn";
+import type { LucideIcon } from "lucide-react";
 import {
   CheckCircle2,
   ChevronDown,
@@ -174,7 +175,7 @@ function MetricCard({
 }: {
   label: string;
   value: React.ReactNode;
-  icon?: any;
+  icon?: LucideIcon;
   subValue?: string;
 }) {
   return (
@@ -191,7 +192,7 @@ function MetricCard({
   );
 }
 
-function SectionHeader({ title, icon: Icon }: { title: string; icon: any }) {
+function SectionHeader({ title, icon: Icon }: { title: string; icon: LucideIcon }) {
   return (
     <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-700 pb-2 mb-3">
       <div className="rounded p-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400">

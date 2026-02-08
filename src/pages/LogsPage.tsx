@@ -87,7 +87,7 @@ export function LogsPage() {
     },
   });
 
-  const requestLogs = requestLogsQuery.data ?? [];
+  const requestLogs = useMemo(() => requestLogsQuery.data ?? [], [requestLogsQuery.data]);
   const requestLogsLoading = requestLogsQuery.isLoading;
   const requestLogsRefreshing =
     (requestLogsQuery.isFetching && !requestLogsQuery.isLoading) || incrementalPollQuery.isFetching;

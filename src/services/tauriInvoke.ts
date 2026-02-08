@@ -5,7 +5,11 @@ export type InvokeTauriOptions = {
 };
 
 export function hasTauriRuntime() {
-  return typeof window !== "undefined" && typeof (window as any).__TAURI_INTERNALS__ === "object";
+  // __TAURI_INTERNALS__ is injected by the Tauri runtime at window level; no TS declaration exists.
+  return (
+    typeof window !== "undefined" &&
+    typeof (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ === "object"
+  );
 }
 
 function normalizeTimeoutMs(value: number | null | undefined) {

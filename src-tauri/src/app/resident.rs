@@ -116,6 +116,28 @@ pub fn show_main_window(app: &tauri::AppHandle) {
     let _ = window.show();
     let _ = window.unminimize();
     let _ = window.set_focus();
+
+    #[cfg(target_os = "macos")]
+    set_dock_visibility(app, true);
+}
+
+#[cfg(target_os = "macos")]
+fn set_dock_visibility(app: &tauri::AppHandle, visible: bool) {
+    use tauri::ActivationPolicy;
+
+    let policy = if visible {
+        ActivationPolicy::Regular
+    } else {
+        ActivationPolicy::Accessory
+    };
+
+    if let Err(err) = app.set_dock_visibility(visible) {
+        tracing::warn!("设置 Dock 可见性失败: {err}");
+    }
+
+    if let Err(err) = app.set_activation_policy(policy) {
+        tracing::warn!("设置激活策略失败: {err}");
+    }
 }
 
 #[cfg(desktop)]
@@ -133,6 +155,9 @@ fn toggle_main_window(app: &tauri::AppHandle) {
     }
 
     let _ = window.hide();
+
+    #[cfg(target_os = "macos")]
+    set_dock_visibility(app, false);
 }
 
 #[cfg(desktop)]
@@ -150,6 +175,9 @@ pub fn on_window_event(window: &tauri::Window, event: &tauri::WindowEvent) {
     let resident = window.state::<ResidentState>();
     if resident.tray_enabled() {
         let _ = window.hide();
+
+        #[cfg(target_os = "macos")]
+        set_dock_visibility(window.app_handle(), false);
     } else {
         let _ = window.minimize();
     }

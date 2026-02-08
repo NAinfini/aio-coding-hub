@@ -559,7 +559,7 @@ describe("pages/HomePage", () => {
 
     // open pending dialog and cancel via button
     fireEvent.click(screen.getByRole("button", { name: "request-switch-claude-2" }));
-    let dialog = within(screen.getByRole("dialog"));
+    const dialog = within(screen.getByRole("dialog"));
     fireEvent.click(dialog.getByRole("button", { name: "取消" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 

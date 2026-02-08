@@ -89,7 +89,14 @@ describe("services/cost", () => {
 
     expect(tauriInvoke).toHaveBeenCalledWith(
       "cost_summary_v1",
-      expect.objectContaining({ period: "custom", startTs: 1, endTs: 2, cliKey: "claude" })
+      expect.objectContaining({
+        params: expect.objectContaining({
+          period: "custom",
+          startTs: 1,
+          endTs: 2,
+          cliKey: "claude",
+        }),
+      })
     );
     expect(tauriInvoke).toHaveBeenCalledWith(
       "cost_backfill_missing_v1",

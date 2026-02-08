@@ -1,7 +1,7 @@
 // Usage: Runtime log console. Shows in-memory app logs (time / level / title) with optional on-demand details.
 // Request log details are persisted separately and should not be displayed here.
 
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import {
   clearConsoleLogs,
   formatConsoleLogDetails,
@@ -10,6 +10,7 @@ import {
   type ConsoleLogEntry,
   useConsoleLogs,
 } from "../services/consoleLog";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../ui/Button";
@@ -17,8 +18,6 @@ import { Card } from "../ui/Card";
 import { PageHeader } from "../ui/PageHeader";
 import { Switch } from "../ui/Switch";
 import { cn } from "../utils/cn";
-
-const DEFAULT_RENDER_LIMIT = 200;
 
 function levelText(level: ConsoleLogEntry["level"]) {
   switch (level) {
@@ -48,7 +47,18 @@ function getLevelBadgeStyles(level: ConsoleLogEntry["level"]) {
 
 const ROW_GRID_CLASS = "grid grid-cols-[150px_72px_1fr_20px] gap-2";
 
-const ConsoleLogRow = memo(function ConsoleLogRow({ entry }: { entry: ConsoleLogEntry }) {
+type ConsoleLogRowProps = {
+  entry: ConsoleLogEntry;
+  /** Callback ref from virtualizer for dynamic size measurement */
+  measureRef: (node: HTMLElement | null) => void;
+  dataIndex: number;
+};
+
+const ConsoleLogRow = memo(function ConsoleLogRow({
+  entry,
+  measureRef,
+  dataIndex,
+}: ConsoleLogRowProps) {
   const hasDetails = entry.details !== undefined;
   const [detailsText, setDetailsText] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -86,12 +96,20 @@ const ConsoleLogRow = memo(function ConsoleLogRow({ entry }: { entry: ConsoleLog
 
   if (!hasDetails) {
     return (
-      <div className="group border-b border-white/5 transition-colors duration-200">{row}</div>
+      <div
+        ref={measureRef}
+        data-index={dataIndex}
+        className="group border-b border-white/5 transition-colors duration-200"
+      >
+        {row}
+      </div>
     );
   }
 
   return (
     <details
+      ref={measureRef}
+      data-index={dataIndex}
       className="group border-b border-white/5 transition-colors duration-200"
       onToggle={(e) => {
         const nextOpen = e.currentTarget.open;
@@ -125,33 +143,48 @@ const ConsoleLogRow = memo(function ConsoleLogRow({ entry }: { entry: ConsoleLog
   );
 });
 
+// Estimated row height for collapsed console log entries (px)
+const ESTIMATED_ROW_HEIGHT = 48;
+
 export function ConsolePage() {
   const logs = useConsoleLogs();
   const [autoScroll, setAutoScroll] = useState(true);
   const [debugEnabled, setDebugEnabled] = useState(() => getConsoleDebugEnabled());
-  const [renderAll, setRenderAll] = useState(false);
   const logsContainerRef = useRef<HTMLDivElement | null>(null);
 
   const visibleLogs = debugEnabled ? logs : logs.filter((entry) => entry.level !== "debug");
   const hiddenCount = logs.length - visibleLogs.length;
 
-  const displayLogs = useMemo(() => {
-    if (renderAll) return visibleLogs;
-    return visibleLogs.slice(-DEFAULT_RENDER_LIMIT);
-  }, [renderAll, visibleLogs]);
+  const virtualizer = useVirtualizer({
+    count: visibleLogs.length,
+    getScrollElement: () => logsContainerRef.current,
+    estimateSize: () => ESTIMATED_ROW_HEIGHT,
+    overscan: 10,
+  });
 
-  const lastDisplayLogId = displayLogs.length > 0 ? displayLogs[displayLogs.length - 1]?.id : null;
+  const virtualItems = virtualizer.getVirtualItems();
 
-  function scrollToBottom() {
+  // Auto-scroll to bottom when new logs arrive
+  const prevCountRef = useRef(visibleLogs.length);
+  useEffect(() => {
+    if (!autoScroll) {
+      prevCountRef.current = visibleLogs.length;
+      return;
+    }
+    if (visibleLogs.length > 0) {
+      virtualizer.scrollToIndex(visibleLogs.length - 1, { align: "end" });
+    }
+    prevCountRef.current = visibleLogs.length;
+  }, [autoScroll, visibleLogs.length, virtualizer]);
+
+  // Detect user scroll to auto-disable/enable auto-scroll
+  const handleScroll = useCallback(() => {
     const el = logsContainerRef.current;
     if (!el) return;
-    el.scrollTop = el.scrollHeight;
-  }
-
-  useEffect(() => {
-    if (!autoScroll) return;
-    requestAnimationFrame(() => scrollToBottom());
-  }, [autoScroll, lastDisplayLogId]);
+    // Consider "at bottom" if within 50px of the end
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
+    setAutoScroll(atBottom);
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -159,24 +192,6 @@ export function ConsolePage() {
         title="控制台"
         actions={
           <div className="flex flex-wrap items-center gap-3">
-            {visibleLogs.length > DEFAULT_RENDER_LIMIT ? (
-              <Button
-                onClick={() => {
-                  const next = !renderAll;
-                  setRenderAll(next);
-                  toast(
-                    next
-                      ? `已显示全部日志（${visibleLogs.length}）`
-                      : `已仅显示最近 ${DEFAULT_RENDER_LIMIT} 条日志`
-                  );
-                }}
-                variant="secondary"
-              >
-                {renderAll
-                  ? `仅显示最近 ${DEFAULT_RENDER_LIMIT} 条`
-                  : `显示全部（${visibleLogs.length}）`}
-              </Button>
-            ) : null}
             <div className="flex items-center gap-2">
               <span className="text-sm text-slate-600 dark:text-slate-400">自动滚动</span>
               <Switch checked={autoScroll} onCheckedChange={setAutoScroll} size="sm" />
@@ -213,15 +228,9 @@ export function ConsolePage() {
               <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                 日志{" "}
                 <span className="ml-1.5 inline-flex items-center rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-medium text-accent">
-                  {displayLogs.length}
+                  {visibleLogs.length}
                 </span>
               </div>
-              {!renderAll && visibleLogs.length > DEFAULT_RENDER_LIMIT ? (
-                <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                  <span className="inline-block h-1 w-1 rounded-full bg-slate-400 dark:bg-slate-500"></span>
-                  共 {visibleLogs.length} 条，仅显示最近 {DEFAULT_RENDER_LIMIT} 条
-                </div>
-              ) : null}
               {!debugEnabled && hiddenCount > 0 ? (
                 <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
                   <span className="inline-block h-1 w-1 rounded-full bg-slate-400 dark:bg-slate-500"></span>
@@ -250,13 +259,14 @@ export function ConsolePage() {
 
         <div
           ref={logsContainerRef}
+          onScroll={handleScroll}
           className={cn(
             "custom-scrollbar max-h-[70vh] overflow-auto",
             "bg-gradient-to-b from-slate-950 to-slate-900 font-mono text-[12px] leading-relaxed text-slate-200",
             "shadow-inner"
           )}
         >
-          {displayLogs.length === 0 ? (
+          {visibleLogs.length === 0 ? (
             <div className="flex flex-col items-center justify-center px-4 py-16 text-center">
               <div className="mb-3 rounded-full bg-slate-800/50 p-4 border border-slate-700/50">
                 <svg
@@ -281,10 +291,31 @@ export function ConsolePage() {
               </p>
             </div>
           ) : (
-            <div>
-              {displayLogs.map((entry) => (
-                <ConsoleLogRow key={entry.id} entry={entry} />
-              ))}
+            <div
+              style={{
+                height: virtualizer.getTotalSize(),
+                width: "100%",
+                position: "relative",
+              }}
+            >
+              <div
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  transform: `translateY(${virtualItems[0]?.start ?? 0}px)`,
+                }}
+              >
+                {virtualItems.map((virtualRow) => (
+                  <ConsoleLogRow
+                    key={visibleLogs[virtualRow.index].id}
+                    entry={visibleLogs[virtualRow.index]}
+                    measureRef={virtualizer.measureElement}
+                    dataIndex={virtualRow.index}
+                  />
+                ))}
+              </div>
             </div>
           )}
         </div>

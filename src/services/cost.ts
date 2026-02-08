@@ -47,7 +47,6 @@ export type CostScatterCliProviderModelRowV1 = {
   total_cost_usd: number;
   total_duration_ms: number;
 };
-
 export type CostTopRequestRowV1 = {
   log_id: number;
   trace_id: string;
@@ -75,132 +74,74 @@ export type CostBackfillReportV1 = {
   max_rows: number;
 };
 
-export async function costSummaryV1(
-  period: CostPeriod,
-  input?: {
-    startTs?: number | null;
-    endTs?: number | null;
-    cliKey?: CliKey | null;
-    providerId?: number | null;
-    model?: string | null;
-  }
-) {
-  return invokeTauriOrNull<CostSummaryV1>("cost_summary_v1", {
+type CostQueryInput = {
+  startTs?: number | null;
+  endTs?: number | null;
+  cliKey?: CliKey | null;
+  providerId?: number | null;
+  model?: string | null;
+};
+
+function buildParams(period: CostPeriod, input?: CostQueryInput) {
+  return {
     period,
     startTs: input?.startTs ?? null,
     endTs: input?.endTs ?? null,
     cliKey: input?.cliKey ?? null,
     providerId: input?.providerId ?? null,
     model: input?.model ?? null,
-  });
+  };
 }
 
-export async function costTrendV1(
-  period: CostPeriod,
-  input?: {
-    startTs?: number | null;
-    endTs?: number | null;
-    cliKey?: CliKey | null;
-    providerId?: number | null;
-    model?: string | null;
-  }
-) {
+export async function costSummaryV1(period: CostPeriod, input?: CostQueryInput) {
+  return invokeTauriOrNull<CostSummaryV1>("cost_summary_v1", {
+    params: buildParams(period, input),
+  });
+}
+export async function costTrendV1(period: CostPeriod, input?: CostQueryInput) {
   return invokeTauriOrNull<CostTrendRowV1[]>("cost_trend_v1", {
-    period,
-    startTs: input?.startTs ?? null,
-    endTs: input?.endTs ?? null,
-    cliKey: input?.cliKey ?? null,
-    providerId: input?.providerId ?? null,
-    model: input?.model ?? null,
+    params: buildParams(period, input),
   });
 }
 
 export async function costBreakdownProviderV1(
   period: CostPeriod,
-  input?: {
-    startTs?: number | null;
-    endTs?: number | null;
-    cliKey?: CliKey | null;
-    providerId?: number | null;
-    model?: string | null;
-    limit?: number | null;
-  }
+  input?: CostQueryInput & { limit?: number | null }
 ) {
   return invokeTauriOrNull<CostProviderBreakdownRowV1[]>("cost_breakdown_provider_v1", {
-    period,
-    startTs: input?.startTs ?? null,
-    endTs: input?.endTs ?? null,
-    cliKey: input?.cliKey ?? null,
-    providerId: input?.providerId ?? null,
-    model: input?.model ?? null,
+    params: buildParams(period, input),
     limit: input?.limit ?? null,
   });
 }
 
 export async function costBreakdownModelV1(
   period: CostPeriod,
-  input?: {
-    startTs?: number | null;
-    endTs?: number | null;
-    cliKey?: CliKey | null;
-    providerId?: number | null;
-    model?: string | null;
-    limit?: number | null;
-  }
+  input?: CostQueryInput & { limit?: number | null }
 ) {
   return invokeTauriOrNull<CostModelBreakdownRowV1[]>("cost_breakdown_model_v1", {
-    period,
-    startTs: input?.startTs ?? null,
-    endTs: input?.endTs ?? null,
-    cliKey: input?.cliKey ?? null,
-    providerId: input?.providerId ?? null,
-    model: input?.model ?? null,
+    params: buildParams(period, input),
     limit: input?.limit ?? null,
   });
 }
 
 export async function costTopRequestsV1(
   period: CostPeriod,
-  input?: {
-    startTs?: number | null;
-    endTs?: number | null;
-    cliKey?: CliKey | null;
-    providerId?: number | null;
-    model?: string | null;
-    limit?: number | null;
-  }
+  input?: CostQueryInput & { limit?: number | null }
 ) {
   return invokeTauriOrNull<CostTopRequestRowV1[]>("cost_top_requests_v1", {
-    period,
-    startTs: input?.startTs ?? null,
-    endTs: input?.endTs ?? null,
-    cliKey: input?.cliKey ?? null,
-    providerId: input?.providerId ?? null,
-    model: input?.model ?? null,
+    params: buildParams(period, input),
     limit: input?.limit ?? null,
   });
 }
 
 export async function costScatterCliProviderModelV1(
   period: CostPeriod,
-  input?: {
-    startTs?: number | null;
-    endTs?: number | null;
-    cliKey?: CliKey | null;
-    providerId?: number | null;
-    model?: string | null;
-    limit?: number | null;
-  }
+  input?: CostQueryInput & { limit?: number | null }
 ) {
   return invokeTauriOrNull<CostScatterCliProviderModelRowV1[]>(
     "cost_scatter_cli_provider_model_v1",
     {
-      period,
-      startTs: input?.startTs ?? null,
-      endTs: input?.endTs ?? null,
-      cliKey: input?.cliKey ?? null,
-      providerId: input?.providerId ?? null,
-      model: input?.model ?? null,
+      params: buildParams(period, input),
       limit: input?.limit ?? null,
     }
   );
@@ -208,22 +149,10 @@ export async function costScatterCliProviderModelV1(
 
 export async function costBackfillMissingV1(
   period: CostPeriod,
-  input?: {
-    startTs?: number | null;
-    endTs?: number | null;
-    cliKey?: CliKey | null;
-    providerId?: number | null;
-    model?: string | null;
-    maxRows?: number | null;
-  }
+  input?: CostQueryInput & { maxRows?: number | null }
 ) {
   return invokeTauriOrNull<CostBackfillReportV1>("cost_backfill_missing_v1", {
-    period,
-    startTs: input?.startTs ?? null,
-    endTs: input?.endTs ?? null,
-    cliKey: input?.cliKey ?? null,
-    providerId: input?.providerId ?? null,
-    model: input?.model ?? null,
+    params: buildParams(period, input),
     maxRows: input?.maxRows ?? null,
   });
 }

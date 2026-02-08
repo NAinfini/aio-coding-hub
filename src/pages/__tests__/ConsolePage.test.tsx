@@ -29,6 +29,25 @@ vi.mock("../../services/consoleLog", async () => {
   };
 });
 
+// Mock useVirtualizer so all items render in jsdom (no layout engine)
+vi.mock("@tanstack/react-virtual", () => ({
+  useVirtualizer: ({ count }: { count: number }) => {
+    const items = Array.from({ length: count }, (_, i) => ({
+      index: i,
+      key: String(i),
+      start: i * 48,
+      size: 48,
+      end: (i + 1) * 48,
+    }));
+    return {
+      getVirtualItems: () => items,
+      getTotalSize: () => count * 48,
+      measureElement: () => {},
+      scrollToIndex: () => {},
+    };
+  },
+}));
+
 function renderWithProviders(element: ReactElement) {
   const client = createTestQueryClient();
   return render(
@@ -63,12 +82,9 @@ describe("pages/ConsolePage", () => {
     expect(screen.getByRole("heading", { level: 1, name: "控制台" })).toBeInTheDocument();
     expect(screen.getByText("已隐藏 1 条调试日志")).toBeInTheDocument();
 
-    // Show all / show recent
-    fireEvent.click(screen.getByRole("button", { name: "显示全部（202）" }));
-    expect(toast).toHaveBeenCalled();
+    // With virtualization, all visible logs are rendered (no "show all" button needed).
+    // The badge should show the total visible count (202 = 203 total - 1 debug).
     expect(screen.getByText("202")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "仅显示最近 200 条" }));
-    expect(toast).toHaveBeenCalled();
 
     // Toggle debug switch (second switch)
     const switches = screen.getAllByRole("switch");

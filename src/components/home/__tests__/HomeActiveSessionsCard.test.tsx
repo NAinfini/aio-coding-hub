@@ -62,6 +62,7 @@ describe("components/home/HomeActiveSessionsCard", () => {
     expect(screen.getByText("活跃 Session")).toBeInTheDocument();
     expect(screen.queryByText("+2 个")).not.toBeInTheDocument();
     expect(screen.getByText("0000")).toBeInTheDocument();
+    expect(screen.getByText("$0")).toBeInTheDocument();
     expect(screen.getAllByText("未知").length).toBeGreaterThan(0);
   });
 });

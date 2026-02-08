@@ -8,7 +8,7 @@ import { cliBadgeTone, cliShortLabel } from "../../constants/clis";
 import type { ProviderLimitUsageRow } from "../../services/providerLimitUsage";
 import { Card } from "../../ui/Card";
 import { cn } from "../../utils/cn";
-import { formatPercent, formatUsdShort } from "../../utils/formatters";
+import { formatPercent, formatUsdRaw } from "../../utils/formatters";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 
 /** Format a unix timestamp (seconds) to a short local date-time string like "1/27 14:00" */
@@ -155,7 +155,7 @@ function LimitItem({ display }: { display: LimitDisplay }) {
         <div className="flex items-center gap-1">
           {display.warning && <AlertTriangle className="h-3 w-3 text-amber-500" />}
           <span className="font-mono text-slate-700 dark:text-slate-300">
-            {formatUsdShort(display.usage)} / {formatUsdShort(display.limit)}
+            {formatUsdRaw(display.usage)} / {formatUsdRaw(display.limit)}
           </span>
           <span className="text-slate-400 dark:text-slate-500">
             ({formatPercent(display.percent, 0)})

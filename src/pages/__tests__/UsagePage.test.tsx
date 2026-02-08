@@ -203,6 +203,7 @@ describe("pages/UsagePage", () => {
     expect(screen.getByRole("tab", { name: "用量" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "缓存走势图" })).toBeInTheDocument();
     expect(screen.getByText("Provider-1")).toBeInTheDocument();
+    expect(screen.getAllByText("$1.23").length).toBeGreaterThan(0);
     expect(screen.getByText("总计")).toBeInTheDocument();
     expect(screen.getByText("缓存 / 命中率")).toBeInTheDocument();
   });

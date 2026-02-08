@@ -38,8 +38,7 @@ import {
   formatDurationMsShort,
   formatInteger,
   formatPercent,
-  formatUsd,
-  formatUsdShort,
+  formatUsdRaw,
 } from "../../utils/formatters";
 import { pickTopSlices, toDateLabel } from "../../utils/chartHelpers";
 import {
@@ -200,13 +199,13 @@ function TrendAreaChart({
           axisLine={false}
           tickLine={false}
           tick={{ ...axisStyle }}
-          tickFormatter={formatUsdShort}
+          tickFormatter={formatUsdRaw}
           width={50}
         />
         <Tooltip
           contentStyle={tooltipStyle}
           labelStyle={{ fontWeight: 600, marginBottom: 4 }}
-          formatter={(value: number) => [formatUsd(value), "Cost"]}
+          formatter={(value: number) => [formatUsdRaw(value), "Cost"]}
           cursor={{ stroke: cursorStroke, strokeWidth: 1 }}
         />
         <Area
@@ -256,7 +255,7 @@ function DonutChart({
             />
           ))}
           <Label
-            value={formatUsdShort(total)}
+            value={formatUsdRaw(total)}
             position="center"
             style={{
               fontSize: 14,
@@ -268,7 +267,7 @@ function DonutChart({
         <Tooltip
           contentStyle={tooltipStyle}
           formatter={(value: number, name: string) => [
-            `${formatUsd(value)} (${((value / total) * 100).toFixed(1)}%)`,
+            `${formatUsdRaw(value)} (${((value / total) * 100).toFixed(1)}%)`,
             name,
           ]}
         />
@@ -329,7 +328,7 @@ function CostScatterChart({ data, isDark }: { data: ScatterPoint[]; isDark: bool
           {cliLabel} · {providerText} · {modelText}
         </div>
         <div style={{ fontSize: 11, color: isDark ? "#94a3b8" : "#64748b" }}>
-          总成本：{formatUsd(meta.total_cost_usd)}
+          总成本：{formatUsdRaw(meta.total_cost_usd)}
         </div>
         <div style={{ fontSize: 11, color: isDark ? "#94a3b8" : "#64748b" }}>
           总耗时：{formatDurationMs(meta.total_duration_ms)}
@@ -340,7 +339,7 @@ function CostScatterChart({ data, isDark }: { data: ScatterPoint[]; isDark: bool
         <div style={{ fontSize: 11, color: isDark ? "#cbd5e1" : "#94a3b8" }}>
           {avgCostUsd == null
             ? "均值：—"
-            : `均值：${formatUsd(avgCostUsd)} / ${formatDurationMs(avgDurationMs ?? 0)}`}
+            : `均值：${formatUsdRaw(avgCostUsd)} / ${formatDurationMs(avgDurationMs ?? 0)}`}
         </div>
       </div>
     );
@@ -363,7 +362,7 @@ function CostScatterChart({ data, isDark }: { data: ScatterPoint[]; isDark: bool
           axisLine={{ stroke: axisLineStroke }}
           tickLine={false}
           tick={{ ...axisStyle }}
-          tickFormatter={formatUsdShort}
+          tickFormatter={formatUsdRaw}
         />
         <YAxis
           type="number"
@@ -594,7 +593,7 @@ export function HomeCostPanel() {
     return [
       {
         title: "总花费（已计算）",
-        value: formatUsd(summary.total_cost_usd),
+        value: formatUsdRaw(summary.total_cost_usd),
         hint: successHint,
         testId: "home-cost-total-cost",
       },
@@ -801,7 +800,7 @@ export function HomeCostPanel() {
                         value={String(row.provider_id)}
                       >
                         {cliShortLabel(row.cli_key)} · {row.provider_name} (
-                        {formatUsd(row.cost_usd)})
+                        {formatUsdRaw(row.cost_usd)})
                       </option>
                     ))}
                   </select>
@@ -832,7 +831,7 @@ export function HomeCostPanel() {
                     <option value="all">全部</option>
                     {modelOptions.map((row) => (
                       <option key={row.model} value={row.model}>
-                        {row.model} ({formatUsd(row.cost_usd)})
+                        {row.model} ({formatUsdRaw(row.cost_usd)})
                       </option>
                     ))}
                   </select>

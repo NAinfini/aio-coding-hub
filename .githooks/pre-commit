@@ -49,7 +49,7 @@ if [ "${#partially_staged[@]}" -gt 0 ]; then
 fi
 
 if [ "${#prettier_targets[@]}" -gt 0 ]; then
-  pnpm exec prettier --write -- "${prettier_targets[@]}"
+  pnpm format
   git add -- "${prettier_targets[@]}"
 fi
 

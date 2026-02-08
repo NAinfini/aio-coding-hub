@@ -145,6 +145,7 @@ describe("components/home/HomeCostPanel", () => {
     render(<HomeCostPanel />);
 
     expect(screen.getByText("总花费（已计算）")).toBeInTheDocument();
+    expect(screen.getByText("$12.34")).toBeInTheDocument();
     expect(screen.getByText("成本覆盖率")).toBeInTheDocument();
     expect(screen.getByText("花费占比")).toBeInTheDocument();
     // Check that recharts containers are rendered (we mock ResponsiveContainer)

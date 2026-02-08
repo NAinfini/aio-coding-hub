@@ -31,6 +31,42 @@ use crate::gateway::util::{now_unix_seconds, strip_hop_headers};
 use axum::body::{Body, Bytes};
 use axum::http::{header, HeaderValue};
 
+async fn read_response_body_with_optional_limit(
+    mut resp: reqwest::Response,
+    max_bytes: Option<u64>,
+) -> Result<Bytes, reqwest::Error> {
+    let Some(max_bytes) = max_bytes else {
+        return resp.bytes().await;
+    };
+
+    let limit = max_bytes.min(usize::MAX as u64) as usize;
+    if limit == 0 {
+        return Ok(Bytes::new());
+    }
+
+    let mut out = Vec::with_capacity(limit.min(16 * 1024));
+
+    loop {
+        let Some(chunk) = resp.chunk().await? else {
+            break;
+        };
+
+        if out.len() >= limit {
+            break;
+        }
+
+        let remaining = limit - out.len();
+        if chunk.len() > remaining {
+            out.extend_from_slice(&chunk[..remaining]);
+            break;
+        }
+
+        out.extend_from_slice(&chunk);
+    }
+
+    Ok(Bytes::from(out))
+}
+
 pub(super) struct UpstreamRequestState<'a> {
     pub(super) upstream_body_bytes: &'a mut Bytes,
     pub(super) strip_request_content_encoding: &'a mut bool,
@@ -125,8 +161,17 @@ pub(super) async fn handle_non_success_response(
             resp.as_ref().and_then(|r| r.content_length()),
         )
     {
-        if let Some(resp) = resp.take() {
-            if let Ok(bytes) = resp.bytes().await {
+        if let Some(r) = resp.take() {
+            let read_result = if r.content_length().is_none() {
+                read_response_body_with_optional_limit(
+                    r,
+                    Some(upstream_client_error_rules::max_body_read_bytes()),
+                )
+                .await
+            } else {
+                r.bytes().await
+            };
+            if let Ok(bytes) = read_result {
                 let mut headers_for_scan = response_headers.clone();
                 strip_hop_headers(&mut headers_for_scan);
                 let body_for_scan = maybe_gunzip_response_body_bytes_with_limit(

@@ -153,4 +153,61 @@ mod tests {
         assert_eq!(code, "GW_UPSTREAM_4XX");
         assert!(matches!(decision, FailoverDecision::RetrySameProvider));
     }
+
+    #[test]
+    fn upstream_5xx_retries_same_provider() {
+        let (category, code, decision) =
+            classify_upstream_status(reqwest::StatusCode::INTERNAL_SERVER_ERROR);
+        assert!(matches!(category, ErrorCategory::ProviderError));
+        assert_eq!(code, "GW_UPSTREAM_5XX");
+        assert!(matches!(decision, FailoverDecision::RetrySameProvider));
+
+        let (category, code, decision) = classify_upstream_status(reqwest::StatusCode::BAD_GATEWAY);
+        assert!(matches!(category, ErrorCategory::ProviderError));
+        assert_eq!(code, "GW_UPSTREAM_5XX");
+        assert!(matches!(decision, FailoverDecision::RetrySameProvider));
+
+        let (category, code, decision) =
+            classify_upstream_status(reqwest::StatusCode::SERVICE_UNAVAILABLE);
+        assert!(matches!(category, ErrorCategory::ProviderError));
+        assert_eq!(code, "GW_UPSTREAM_5XX");
+        assert!(matches!(decision, FailoverDecision::RetrySameProvider));
+    }
+
+    #[test]
+    fn upstream_401_403_switches_provider() {
+        let (category, code, decision) =
+            classify_upstream_status(reqwest::StatusCode::UNAUTHORIZED);
+        assert!(matches!(category, ErrorCategory::ProviderError));
+        assert_eq!(code, "GW_UPSTREAM_4XX");
+        assert!(matches!(decision, FailoverDecision::SwitchProvider));
+
+        let (category, code, decision) = classify_upstream_status(reqwest::StatusCode::FORBIDDEN);
+        assert!(matches!(category, ErrorCategory::ProviderError));
+        assert_eq!(code, "GW_UPSTREAM_4XX");
+        assert!(matches!(decision, FailoverDecision::SwitchProvider));
+    }
+
+    #[test]
+    fn upstream_408_429_retries_same_provider() {
+        let (category, code, decision) =
+            classify_upstream_status(reqwest::StatusCode::REQUEST_TIMEOUT);
+        assert!(matches!(category, ErrorCategory::ProviderError));
+        assert_eq!(code, "GW_UPSTREAM_4XX");
+        assert!(matches!(decision, FailoverDecision::RetrySameProvider));
+
+        let (category, code, decision) =
+            classify_upstream_status(reqwest::StatusCode::TOO_MANY_REQUESTS);
+        assert!(matches!(category, ErrorCategory::ProviderError));
+        assert_eq!(code, "GW_UPSTREAM_4XX");
+        assert!(matches!(decision, FailoverDecision::RetrySameProvider));
+    }
+
+    #[test]
+    fn upstream_400_retries_same_provider() {
+        let (category, code, decision) = classify_upstream_status(reqwest::StatusCode::BAD_REQUEST);
+        assert!(matches!(category, ErrorCategory::ProviderError));
+        assert_eq!(code, "GW_UPSTREAM_4XX");
+        assert!(matches!(decision, FailoverDecision::RetrySameProvider));
+    }
 }

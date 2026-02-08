@@ -39,11 +39,22 @@ fn limit_usd_to_femto(limit_usd: f64) -> Option<i128> {
     if !limit_usd.is_finite() || limit_usd < 0.0 {
         return None;
     }
+    if limit_usd == 0.0 {
+        return Some(0);
+    }
+
     let limit_femto = (limit_usd * USD_FEMTO_DENOM).round();
     if !limit_femto.is_finite() {
         return None;
     }
-    Some(limit_femto as i128)
+
+    let limit_femto = limit_femto as i128;
+    if limit_femto <= 0 {
+        // Ensure tiny positive limits never collapse to zero due to rounding.
+        return Some(1);
+    }
+
+    Some(limit_femto)
 }
 
 fn limit_exceeded(limit_usd: f64, spent_femto: i64) -> bool {
@@ -594,5 +605,187 @@ mod tests {
         )
         .expect("next available");
         assert_eq!(next, 1_000 + 1 + window_secs);
+    }
+
+    #[test]
+    fn rolling_next_available_returns_none_when_under_limit() {
+        let window_secs = 10;
+        let window_start = 100;
+        let limit_femto: i128 = 200;
+
+        let buckets = vec![(100, 50), (101, 49)];
+        let next = compute_next_available_rolling_from_buckets(
+            &buckets,
+            window_start,
+            window_secs,
+            limit_femto,
+        );
+        assert!(next.is_none());
+    }
+
+    #[test]
+    fn rolling_next_available_ignores_buckets_before_window_start() {
+        let window_secs = 10;
+        let window_start = 200;
+        let limit_femto: i128 = 100;
+
+        // Buckets before window_start should be ignored
+        let buckets = vec![(100, 1000), (150, 1000), (200, 50), (201, 50)];
+        let next = compute_next_available_rolling_from_buckets(
+            &buckets,
+            window_start,
+            window_secs,
+            limit_femto,
+        )
+        .expect("next available");
+        // First bucket at 200 pushes over limit
+        assert_eq!(next, 200 + 1 + window_secs);
+    }
+
+    #[test]
+    fn rolling_next_available_handles_zero_or_negative_limit() {
+        let buckets = vec![(100, 50)];
+        assert!(compute_next_available_rolling_from_buckets(&buckets, 100, 10, 0).is_none());
+        assert!(compute_next_available_rolling_from_buckets(&buckets, 100, 10, -1).is_none());
+    }
+
+    #[test]
+    fn rolling_next_available_handles_zero_or_negative_window() {
+        let buckets = vec![(100, 50)];
+        assert!(compute_next_available_rolling_from_buckets(&buckets, 100, 0, 100).is_none());
+        assert!(compute_next_available_rolling_from_buckets(&buckets, 100, -1, 100).is_none());
+    }
+
+    #[test]
+    fn limit_usd_to_femto_conversion() {
+        assert_eq!(limit_usd_to_femto(1.0), Some(1_000_000_000_000_000));
+        assert_eq!(limit_usd_to_femto(0.001), Some(1_000_000_000_000));
+        assert_eq!(limit_usd_to_femto(0.0), Some(0));
+    }
+
+    #[test]
+    fn limit_usd_to_femto_tiny_positive_never_rounds_to_zero() {
+        assert_eq!(limit_usd_to_femto(1e-18), Some(1));
+    }
+
+    #[test]
+    fn limit_usd_to_femto_handles_invalid_inputs() {
+        assert!(limit_usd_to_femto(f64::NAN).is_none());
+        assert!(limit_usd_to_femto(f64::INFINITY).is_none());
+        assert!(limit_usd_to_femto(f64::NEG_INFINITY).is_none());
+        assert!(limit_usd_to_femto(-1.0).is_none());
+    }
+
+    #[test]
+    fn limit_exceeded_checks_correctly() {
+        // 1 USD limit = 1_000_000_000_000_000 femto
+        let limit_usd = 1.0;
+        let limit_femto = 1_000_000_000_000_000_i64;
+
+        // Exactly at limit - should be exceeded
+        assert!(limit_exceeded(limit_usd, limit_femto));
+
+        // Under limit
+        assert!(!limit_exceeded(limit_usd, limit_femto - 1));
+
+        // Over limit
+        assert!(limit_exceeded(limit_usd, limit_femto + 1));
+
+        // Negative spent should not exceed
+        assert!(!limit_exceeded(limit_usd, -100));
+
+        // Zero limit is explicitly treated as immediate limit hit
+        assert!(limit_exceeded(0.0, 0));
+    }
+
+    #[test]
+    fn limit_exceeded_handles_invalid_limit() {
+        // Invalid limits should never be "exceeded" (fail open)
+        assert!(!limit_exceeded(f64::NAN, 1_000_000));
+        assert!(!limit_exceeded(-1.0, 1_000_000));
+    }
+
+    #[test]
+    fn update_earliest_selects_minimum() {
+        let mut earliest: Option<i64> = None;
+
+        update_earliest(&mut earliest, 100);
+        assert_eq!(earliest, Some(100));
+
+        update_earliest(&mut earliest, 200);
+        assert_eq!(earliest, Some(100)); // Should keep 100
+
+        update_earliest(&mut earliest, 50);
+        assert_eq!(earliest, Some(50)); // Should update to 50
+    }
+
+    #[test]
+    fn update_earliest_ignores_non_positive() {
+        let mut earliest: Option<i64> = Some(100);
+        update_earliest(&mut earliest, 0);
+        assert_eq!(earliest, Some(100));
+
+        update_earliest(&mut earliest, -50);
+        assert_eq!(earliest, Some(100));
+    }
+
+    #[test]
+    fn update_latest_selects_maximum() {
+        let mut latest: Option<i64> = None;
+
+        update_latest(&mut latest, 100);
+        assert_eq!(latest, Some(100));
+
+        update_latest(&mut latest, 50);
+        assert_eq!(latest, Some(100)); // Should keep 100
+
+        update_latest(&mut latest, 200);
+        assert_eq!(latest, Some(200)); // Should update to 200
+    }
+
+    #[test]
+    fn update_latest_ignores_non_positive() {
+        let mut latest: Option<i64> = Some(100);
+        update_latest(&mut latest, 0);
+        assert_eq!(latest, Some(100));
+
+        update_latest(&mut latest, -50);
+        assert_eq!(latest, Some(100));
+    }
+
+    #[test]
+    fn parse_reset_time_hms_lossy_valid_inputs() {
+        assert_eq!(parse_reset_time_hms_lossy("00:00:00"), (0, 0, 0));
+        assert_eq!(parse_reset_time_hms_lossy("12:30:45"), (12, 30, 45));
+        assert_eq!(parse_reset_time_hms_lossy("23:59:59"), (23, 59, 59));
+        assert_eq!(parse_reset_time_hms_lossy("  09:15:30  "), (9, 15, 30));
+    }
+
+    #[test]
+    fn parse_reset_time_hms_lossy_partial_inputs() {
+        assert_eq!(parse_reset_time_hms_lossy("12"), (12, 0, 0));
+        assert_eq!(parse_reset_time_hms_lossy("12:30"), (12, 30, 0));
+    }
+
+    #[test]
+    fn parse_reset_time_hms_lossy_invalid_inputs() {
+        // Invalid hour (> 23) should default to 0
+        assert_eq!(parse_reset_time_hms_lossy("25:30:00"), (0, 30, 0));
+        // Invalid minute (> 59) should default to 0
+        assert_eq!(parse_reset_time_hms_lossy("12:60:00"), (12, 0, 0));
+        // Invalid second (> 59) should default to 0
+        assert_eq!(parse_reset_time_hms_lossy("12:30:60"), (12, 30, 0));
+        // Non-numeric should default to 0
+        assert_eq!(parse_reset_time_hms_lossy("abc:def:ghi"), (0, 0, 0));
+        // Empty string
+        assert_eq!(parse_reset_time_hms_lossy(""), (0, 0, 0));
+    }
+
+    #[test]
+    fn min_start_ts_returns_minimum() {
+        assert_eq!(min_start_ts(&[Some(100), Some(50), Some(200)]), Some(50));
+        assert_eq!(min_start_ts(&[None, Some(100), None]), Some(100));
+        assert_eq!(min_start_ts(&[None, None, None]), None);
+        assert_eq!(min_start_ts(&[]), None);
     }
 }

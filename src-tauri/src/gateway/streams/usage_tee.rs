@@ -116,8 +116,13 @@ where
                 if this.first_byte_ms.is_none() {
                     this.first_byte_ms = Some(this.ctx.started.elapsed().as_millis());
                 }
+                // Reuse existing Box allocation via Sleep::reset() to avoid heap churn per chunk
                 if let Some(d) = this.idle_timeout {
-                    this.idle_sleep = Some(Box::pin(tokio::time::sleep(d)));
+                    if let Some(ref mut sleep) = this.idle_sleep {
+                        sleep.as_mut().reset(tokio::time::Instant::now() + d);
+                    } else {
+                        this.idle_sleep = Some(Box::pin(tokio::time::sleep(d)));
+                    }
                 }
                 this.tracker.ingest_chunk(chunk.as_ref());
                 Poll::Ready(Some(Ok(chunk)))

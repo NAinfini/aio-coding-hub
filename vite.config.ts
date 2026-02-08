@@ -12,7 +12,26 @@ export default defineConfig(async () => ({
   //
   // 1. prevent Vite from obscuring rust errors
   clearScreen: false,
-  // 2. tauri expects a fixed port, fail if that port is not available
+  // 2. code splitting for vendor libraries
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "vendor-react": ["react", "react-dom", "react-router-dom"],
+          "vendor-query": ["@tanstack/react-query"],
+          "vendor-charts": ["recharts"],
+          "vendor-codemirror": [
+            "codemirror",
+            "@codemirror/language",
+            "@codemirror/state",
+            "@codemirror/view",
+          ],
+          "vendor-dnd": ["@dnd-kit/core", "@dnd-kit/sortable", "@dnd-kit/utilities"],
+        },
+      },
+    },
+  },
+  // 3. tauri expects a fixed port, fail if that port is not available
   server: {
     port: 1420,
     strictPort: true,

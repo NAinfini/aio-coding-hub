@@ -91,6 +91,11 @@ export function formatUsd(value: number | null | undefined) {
   }
 }
 
+export function formatUsdRaw(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  return `$${String(value)}`;
+}
+
 export function formatUsdShort(value: number | null | undefined) {
   if (value == null || !Number.isFinite(value)) return "—";
   const v = Math.max(0, value);

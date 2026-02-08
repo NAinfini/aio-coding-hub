@@ -88,6 +88,7 @@ describe("home/RequestLogDetailDialog", () => {
 
     expect(screen.getByText("/v1/messages")).toBeInTheDocument();
     expect(screen.getByText("GW_STREAM_ABORTED")).toBeInTheDocument();
+    expect(screen.getByText(/成本 \$0.12/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "复制 trace_id" }));
     await waitFor(() => {

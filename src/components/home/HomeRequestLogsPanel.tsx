@@ -18,8 +18,7 @@ import {
   formatRelativeTimeFromUnixSeconds,
   formatTokensPerSecond,
   formatTokensPerSecondShort,
-  formatUsd,
-  formatUsdCompact,
+  formatUsdRaw,
   sanitizeTtfbMs,
 } from "../../utils/formatters";
 import {
@@ -203,6 +202,7 @@ export function HomeRequestLogsPanel({
                 Number.isFinite(costMultiplier) &&
                 costMultiplier > 0 &&
                 Math.abs(costMultiplier - 1) > 0.0001;
+              const rawCostUsdText = formatUsdRaw(log.cost_usd);
 
               const cacheWrite = (() => {
                 if (log.cache_creation_5m_input_tokens != null) {
@@ -396,13 +396,13 @@ export function HomeRequestLogsPanel({
                           </div>
                           <div
                             className="flex items-center gap-1 h-4"
-                            title={log.cost_usd != null ? formatUsd(log.cost_usd) : undefined}
+                            title={rawCostUsdText === "—" ? undefined : rawCostUsdText}
                           >
                             <span className="text-slate-400 dark:text-slate-500 shrink-0">
                               花费
                             </span>
                             <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300 truncate">
-                              {formatUsdCompact(log.cost_usd)}
+                              {rawCostUsdText}
                             </span>
                           </div>
 

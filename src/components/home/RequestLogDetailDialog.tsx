@@ -15,7 +15,7 @@ import {
   formatDurationMs,
   formatRelativeTimeFromUnixSeconds,
   formatTokensPerSecond,
-  formatUsd,
+  formatUsdRaw,
   sanitizeTtfbMs,
 } from "../../utils/formatters";
 import { ProviderChainView } from "../ProviderChainView";
@@ -103,7 +103,7 @@ export function RequestLogDetailDialog({
                     耗时 {formatDurationMs(selectedLog.duration_ms)}
                   </span>
                   <span className="rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-0.5">
-                    成本 {formatUsd(selectedLog.cost_usd)}
+                    成本 {formatUsdRaw(selectedLog.cost_usd)}
                     {(() => {
                       const m = selectedLog.cost_multiplier;
                       const show = Number.isFinite(m) && m > 0 && Math.abs(m - 1) > 0.0001;

@@ -100,6 +100,63 @@ describe("pages/skills/SkillsView", () => {
     await waitFor(() => expect(tauriRevealItemInDir).toHaveBeenCalledWith("/tmp/local-skill"));
   });
 
+  it("requires explicit selection before batch import", async () => {
+    const localSkills = [
+      { dir_name: "local-skill", name: "Local Skill", description: "d", path: "/tmp/local-skill" },
+    ] as any[];
+
+    vi.mocked(useSkillsInstalledListQuery).mockReturnValue({
+      data: [],
+      isFetching: false,
+      error: null,
+    } as any);
+    vi.mocked(useSkillsLocalListQuery).mockReturnValue({
+      data: localSkills,
+      isFetching: false,
+      error: null,
+    } as any);
+    vi.mocked(useSkillSetEnabledMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
+    vi.mocked(useSkillUninstallMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+      variables: null,
+    } as any);
+    vi.mocked(useSkillImportLocalMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+      variables: null,
+    } as any);
+
+    const batchMutation = { isPending: false, mutateAsync: vi.fn() };
+    batchMutation.mutateAsync.mockResolvedValue({ imported: [], skipped: [], failed: [] });
+    vi.mocked(useSkillsImportLocalBatchMutation).mockReturnValue(batchMutation as any);
+
+    render(<SkillsView workspaceId={1} cliKey="claude" isActiveWorkspace />);
+
+    fireEvent.click(screen.getByRole("button", { name: "导入已有" }));
+    const batchDialog = within(screen.getByRole("dialog"));
+    const confirmButton = batchDialog.getByRole("button", { name: "确认导入" });
+
+    expect(confirmButton).toBeDisabled();
+    fireEvent.click(confirmButton);
+    expect(batchMutation.mutateAsync).not.toHaveBeenCalled();
+
+    fireEvent.click(batchDialog.getByRole("button", { name: "全选" }));
+    expect(confirmButton).not.toBeDisabled();
+
+    fireEvent.click(batchDialog.getByRole("button", { name: "清空" }));
+    expect(confirmButton).toBeDisabled();
+
+    fireEvent.click(batchDialog.getByRole("button", { name: "全选" }));
+    expect(confirmButton).not.toBeDisabled();
+
+    fireEvent.click(confirmButton);
+    await waitFor(() => expect(batchMutation.mutateAsync).toHaveBeenCalledWith(["local-skill"]));
+  });
+
   it("renders read-only local section when workspace is not active", () => {
     vi.mocked(useSkillsInstalledListQuery).mockReturnValue({
       data: [],

@@ -3,6 +3,12 @@
 /// Limit how much of the upstream error body we scan (defensive against huge error payloads).
 const MAX_SCAN_BYTES: usize = 64 * 1024;
 
+/// Maximum body size to read when content_length is unknown.
+///
+/// Keep this aligned with `MAX_SCAN_BYTES` so scan behavior is consistent regardless of whether
+/// upstream returns `content-length`.
+const MAX_BODY_READ_BYTES: u64 = MAX_SCAN_BYTES as u64;
+
 /// Returns whether we should attempt to scan the upstream error body to detect non-retryable
 /// client input errors.
 ///
@@ -30,6 +36,12 @@ pub(super) fn should_attempt_non_retryable_match(
     }
 
     true
+}
+
+/// Returns the maximum number of bytes to read from an upstream error body when
+/// content_length is unknown.
+pub(super) fn max_body_read_bytes() -> u64 {
+    MAX_BODY_READ_BYTES
 }
 
 struct Rule {

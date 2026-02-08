@@ -23,8 +23,7 @@ import {
   formatInteger,
   formatPercent,
   formatTokensPerSecond,
-  formatUsd,
-  formatUsdShort,
+  formatUsdRaw,
 } from "../utils/formatters";
 import { cn } from "../utils/cn";
 import { computeCacheHitRate } from "../utils/cacheRateMetrics";
@@ -430,7 +429,7 @@ export function UsagePage() {
               />
               <StatCard
                 title="总消耗金额"
-                value={formatUsdShort(totalCostUsd > 0 ? totalCostUsd : null)}
+                value={formatUsdRaw(totalCostUsd > 0 ? totalCostUsd : null)}
                 hint={rows.length > 0 ? `来自 ${rows.length} 个${tableTitle}` : undefined}
               />
               <StatCard
@@ -727,7 +726,7 @@ export function UsagePage() {
                           {formatTokensPerSecond(row.avg_output_tokens_per_second)}
                         </td>
                         <td className="border-b border-slate-100 dark:border-slate-700 px-3 py-3 font-mono text-xs tabular-nums text-slate-700 dark:text-slate-300">
-                          {formatUsd(row.cost_usd)}
+                          {formatUsdRaw(row.cost_usd)}
                         </td>
                       </tr>
                     ))

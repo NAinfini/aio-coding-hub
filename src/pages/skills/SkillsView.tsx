@@ -26,6 +26,11 @@ import { Switch } from "../../ui/Switch";
 import { cn } from "../../utils/cn";
 import { formatActionFailureToast } from "../../utils/errors";
 
+const TOAST_TAURI_ONLY = "仅在 Tauri Desktop 环境可用";
+const TOAST_LOCAL_IMPORT_REQUIRES_ACTIVE = "仅当前工作区可导入本机 Skill。请先切换该工作区为当前。";
+const TOAST_BATCH_SELECT_BEFORE_CONFIRM = "请先选择要导入的本机 Skill";
+const TOAST_BATCH_SELECT_AT_LEAST_ONE = "请至少选择一个本机 Skill";
+
 function formatUnixSeconds(ts: number) {
   try {
     return new Date(ts * 1000).toLocaleString();
@@ -59,6 +64,48 @@ export type SkillsViewProps = {
   isActiveWorkspace?: boolean;
 };
 
+function useBatchImportSelection(localSkills: LocalSkillSummary[]) {
+  const [selectedLocalDirNames, setSelectedLocalDirNames] = useState<string[]>([]);
+  const [hasSelectionInteracted, setHasSelectionInteracted] = useState(false);
+
+  const normalizedSelectedLocalDirNames = useMemo(
+    () => Array.from(new Set(selectedLocalDirNames.map((item) => item.trim()))).filter(Boolean),
+    [selectedLocalDirNames]
+  );
+
+  function resetSelectionState() {
+    setSelectedLocalDirNames([]);
+    setHasSelectionInteracted(false);
+  }
+
+  function toggleSelection(dirName: string) {
+    setHasSelectionInteracted(true);
+    setSelectedLocalDirNames((prev) =>
+      prev.includes(dirName) ? prev.filter((item) => item !== dirName) : [...prev, dirName]
+    );
+  }
+
+  function selectAll() {
+    setHasSelectionInteracted(true);
+    setSelectedLocalDirNames(localSkills.map((skill) => skill.dir_name));
+  }
+
+  function clearAll() {
+    setHasSelectionInteracted(true);
+    setSelectedLocalDirNames([]);
+  }
+
+  return {
+    selectedLocalDirNames,
+    normalizedSelectedLocalDirNames,
+    hasSelectionInteracted,
+    resetSelectionState,
+    toggleSelection,
+    selectAll,
+    clearAll,
+  };
+}
+
 export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: SkillsViewProps) {
   const canOperateLocal = useMemo(() => isActiveWorkspace, [isActiveWorkspace]);
 
@@ -88,8 +135,16 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
 
   const [importTarget, setImportTarget] = useState<LocalSkillSummary | null>(null);
   const [batchImportOpen, setBatchImportOpen] = useState(false);
-  const [selectedLocalDirNames, setSelectedLocalDirNames] = useState<string[]>([]);
   const [batchImportIssues, setBatchImportIssues] = useState<SkillImportIssue[]>([]);
+  const {
+    selectedLocalDirNames,
+    normalizedSelectedLocalDirNames,
+    hasSelectionInteracted: hasBatchSelectionInteracted,
+    resetSelectionState,
+    toggleSelection: toggleBatchSelection,
+    selectAll: selectAllLocalSkills,
+    clearAll: clearLocalSkillSelections,
+  } = useBatchImportSelection(localSkills);
 
   useEffect(() => {
     if (!installedQuery.error) return;
@@ -115,7 +170,7 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
     try {
       const next = await toggleMutation.mutateAsync({ skillId: skill.id, enabled });
       if (!next) {
-        toast("仅在 Tauri Desktop 环境可用");
+        toast(TOAST_TAURI_ONLY);
         return;
       }
       if (enabled) {
@@ -144,7 +199,7 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
     try {
       const ok = await uninstallMutation.mutateAsync(target.id);
       if (!ok) {
-        toast("仅在 Tauri Desktop 环境可用");
+        toast(TOAST_TAURI_ONLY);
         return;
       }
       toast("已卸载");
@@ -165,14 +220,14 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
     if (!importTarget) return;
     if (importMutation.isPending) return;
     if (!canOperateLocal) {
-      toast("仅当前工作区可导入本机 Skill。请先切换该工作区为当前。");
+      toast(TOAST_LOCAL_IMPORT_REQUIRES_ACTIVE);
       return;
     }
     const target = importTarget;
     try {
       const next = await importMutation.mutateAsync(target.dir_name);
       if (!next) {
-        toast("仅在 Tauri Desktop 环境可用");
+        toast(TOAST_TAURI_ONLY);
         return;
       }
 
@@ -198,43 +253,32 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
 
   function openBatchImportDialog() {
     setBatchImportIssues([]);
-    setSelectedLocalDirNames(localSkills.map((skill) => skill.dir_name));
+    resetSelectionState();
     setBatchImportOpen(true);
-  }
-
-  function toggleBatchSelection(dirName: string) {
-    setSelectedLocalDirNames((prev) =>
-      prev.includes(dirName) ? prev.filter((item) => item !== dirName) : [...prev, dirName]
-    );
-  }
-
-  function selectAllLocalSkills() {
-    setSelectedLocalDirNames(localSkills.map((skill) => skill.dir_name));
-  }
-
-  function clearLocalSkillSelections() {
-    setSelectedLocalDirNames([]);
   }
 
   async function confirmBatchImportLocalSkills() {
     if (importingBatch) return;
     if (!canOperateLocal) {
-      toast("仅当前工作区可导入本机 Skill。请先切换该工作区为当前。");
+      toast(TOAST_LOCAL_IMPORT_REQUIRES_ACTIVE);
       return;
     }
 
-    const deduped = Array.from(new Set(selectedLocalDirNames.map((item) => item.trim()))).filter(
-      Boolean
-    );
+    if (!hasBatchSelectionInteracted) {
+      toast(TOAST_BATCH_SELECT_BEFORE_CONFIRM);
+      return;
+    }
+
+    const deduped = normalizedSelectedLocalDirNames;
     if (deduped.length === 0) {
-      toast("请至少选择一个本机 Skill");
+      toast(TOAST_BATCH_SELECT_AT_LEAST_ONE);
       return;
     }
 
     try {
       const report = await importBatchMutation.mutateAsync(deduped);
       if (!report) {
-        toast("仅在 Tauri Desktop 环境可用");
+        toast(TOAST_TAURI_ONLY);
         return;
       }
 
@@ -431,7 +475,10 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
         description="支持多选导入；冲突项会跳过并展示原因，导入流程不中断。"
         onOpenChange={(open) => {
           setBatchImportOpen(open);
-          if (!open) setBatchImportIssues([]);
+          if (!open) {
+            setBatchImportIssues([]);
+            resetSelectionState();
+          }
         }}
       >
         <div className="space-y-3">
@@ -505,7 +552,11 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
             <Button
               variant="primary"
               onClick={() => void confirmBatchImportLocalSkills()}
-              disabled={importingBatch}
+              disabled={
+                importingBatch ||
+                !hasBatchSelectionInteracted ||
+                normalizedSelectedLocalDirNames.length === 0
+              }
             >
               {importingBatch ? "导入中…" : "确认导入"}
             </Button>

@@ -7,11 +7,16 @@ use crate::shared::error::AppResult;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::Connection;
+use std::env;
 use std::path::PathBuf;
 use std::time::Duration;
 
 const DB_FILE_NAME: &str = "aio-coding-hub.db";
 const BUSY_TIMEOUT: Duration = Duration::from_millis(2000);
+const POOL_MAX_SIZE: u32 = 8;
+const POOL_MIN_IDLE: u32 = 1;
+const POOL_CONNECTION_TIMEOUT: Duration = Duration::from_secs(5);
+const PRAGMA_SYNCHRONOUS_DEFAULT: &str = "NORMAL";
 
 #[derive(Clone)]
 pub(crate) struct Db {
@@ -57,8 +62,12 @@ pub fn init<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> AppResult<Db> {
         configure_connection(conn)
     });
 
-    let pool =
-        Pool::new(manager).map_err(|e| format!("DB_ERROR: failed to create db pool: {e}"))?;
+    let pool = Pool::builder()
+        .max_size(POOL_MAX_SIZE)
+        .min_idle(Some(POOL_MIN_IDLE))
+        .connection_timeout(POOL_CONNECTION_TIMEOUT)
+        .build(manager)
+        .map_err(|e| format!("DB_ERROR: failed to create db pool: {e}"))?;
     let mut conn = pool
         .get()
         .map_err(|e| format!("DB_ERROR: failed to get startup connection: {e}"))?;
@@ -70,12 +79,26 @@ pub fn init<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> AppResult<Db> {
 }
 
 fn configure_connection(conn: &Connection) -> rusqlite::Result<()> {
-    conn.execute_batch(
+    let synchronous = env::var("AIO_DB_PRAGMA_SYNCHRONOUS")
+        .ok()
+        .and_then(|raw| {
+            let normalized = raw.trim().to_ascii_uppercase();
+            match normalized.as_str() {
+                "OFF" | "NORMAL" | "FULL" | "EXTRA" => Some(normalized),
+                _ => None,
+            }
+        })
+        .unwrap_or_else(|| PRAGMA_SYNCHRONOUS_DEFAULT.to_string());
+
+    conn.execute_batch(&format!(
         r#"
 PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
+PRAGMA synchronous = {synchronous};
+PRAGMA temp_store = MEMORY;
+PRAGMA mmap_size = 268435456;
 "#,
-    )?;
+    ))?;
 
     Ok(())
 }

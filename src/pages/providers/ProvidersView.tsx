@@ -40,7 +40,7 @@ import { Card } from "../../ui/Card";
 import { Dialog } from "../../ui/Dialog";
 import { Switch } from "../../ui/Switch";
 import { cn } from "../../utils/cn";
-import { formatCountdownSeconds, formatUnixSeconds, formatUsdShort } from "../../utils/formatters";
+import { formatCountdownSeconds, formatUnixSeconds, formatUsdRaw } from "../../utils/formatters";
 import { providerBaseUrlSummary } from "./baseUrl";
 import { ProviderEditorDialog } from "./ProviderEditorDialog";
 import { FlaskConical } from "lucide-react";
@@ -82,18 +82,16 @@ function SortableProviderCard({
   const hasClaudeModels = claudeModelsCount > 0;
 
   const limitChips = [
-    provider.limit_5h_usd != null ? `5h ≤ ${formatUsdShort(provider.limit_5h_usd)}` : null,
+    provider.limit_5h_usd != null ? `5h ≤ ${formatUsdRaw(provider.limit_5h_usd)}` : null,
     provider.limit_daily_usd != null
-      ? `日 ≤ ${formatUsdShort(provider.limit_daily_usd)}（${
+      ? `日 ≤ ${formatUsdRaw(provider.limit_daily_usd)}（${
           provider.daily_reset_mode === "fixed" ? `固定 ${provider.daily_reset_time}` : "滚动 24h"
         }）`
       : null,
-    provider.limit_weekly_usd != null ? `周 ≤ ${formatUsdShort(provider.limit_weekly_usd)}` : null,
-    provider.limit_monthly_usd != null
-      ? `月 ≤ ${formatUsdShort(provider.limit_monthly_usd)}`
-      : null,
+    provider.limit_weekly_usd != null ? `周 ≤ ${formatUsdRaw(provider.limit_weekly_usd)}` : null,
+    provider.limit_monthly_usd != null ? `月 ≤ ${formatUsdRaw(provider.limit_monthly_usd)}` : null,
     provider.limit_total_usd != null
-      ? `总 ≤ ${formatUsdShort(provider.limit_total_usd)}（无重置）`
+      ? `总 ≤ ${formatUsdRaw(provider.limit_total_usd)}（无重置）`
       : null,
   ].filter((v): v is string => Boolean(v));
   const hasLimits = limitChips.length > 0;

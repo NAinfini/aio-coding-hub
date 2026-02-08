@@ -92,6 +92,7 @@ describe("components/home/HomeProviderLimitPanel", () => {
     expect(screen.getByText("Weekly")).toBeInTheDocument();
     expect(screen.getByText("Monthly")).toBeInTheDocument();
     expect(screen.getByText("Total")).toBeInTheDocument();
+    expect(screen.getByText("$8 / $10")).toBeInTheDocument();
 
     expect(screen.getByText("已禁用")).toBeInTheDocument();
     expect(screen.getAllByText("接近限额").length).toBeGreaterThan(0);

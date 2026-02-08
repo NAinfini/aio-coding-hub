@@ -71,7 +71,7 @@ describe("components/home/HomeRequestLogsPanel", () => {
         cache_read_input_tokens: 0,
         cache_creation_input_tokens: 0,
         cache_creation_5m_input_tokens: 0,
-        cost_usd: 0.12,
+        cost_usd: 0.123456,
         cost_multiplier: 1,
         created_at_ms: null,
         created_at: Math.floor(Date.now() / 1000),
@@ -98,6 +98,8 @@ describe("components/home/HomeRequestLogsPanel", () => {
     );
 
     expect(screen.getByText("使用记录（最近 50 条）")).toBeInTheDocument();
+    expect(screen.getByText("$0.123456")).toBeInTheDocument();
+    expect(screen.getByText("$0.123456").closest("div")?.getAttribute("title")).toBe("$0.123456");
 
     fireEvent.click(screen.getByRole("button", { name: "刷新" }));
     expect(onRefreshRequestLogs).toHaveBeenCalled();

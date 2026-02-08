@@ -15,6 +15,7 @@ import {
   formatUnixSeconds,
   formatUsd,
   formatUsdCompact,
+  formatUsdRaw,
   formatUsdShort,
   sanitizeTtfbMs,
 } from "../formatters";
@@ -57,6 +58,8 @@ describe("utils/formatters", () => {
   it("USD formatting", () => {
     expect(formatUsd(null)).toBe("—");
     expect(formatUsd(0)).toBe("$0.000000");
+    expect(formatUsdRaw(0.12)).toBe("$0.12");
+    expect(formatUsdRaw(null)).toBe("—");
     expect(formatUsdShort(1.2)).toBe("$1.20");
   });
 

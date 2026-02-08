@@ -1,8 +1,10 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createTestQueryClient } from "../test/utils/reactQuery";
 import App from "../App";
+
+const DEFAULT_HASH = "#/";
 
 function renderApp() {
   const client = createTestQueryClient();
@@ -13,16 +15,22 @@ function renderApp() {
   );
 }
 
+async function renderRouteAndFindHeading(hash: string, headingName: string) {
+  window.location.hash = hash;
+  renderApp();
+  return screen.findByRole("heading", { level: 1, name: headingName });
+}
+
 describe("App (smoke)", () => {
-  it("renders home route by default", () => {
-    window.location.hash = "#/";
-    renderApp();
-    expect(screen.getByRole("heading", { level: 1, name: "首页" })).toBeInTheDocument();
+  afterEach(() => {
+    window.location.hash = DEFAULT_HASH;
   });
 
-  it("renders settings route via hash", () => {
-    window.location.hash = "#/settings";
-    renderApp();
-    expect(screen.getByRole("heading", { level: 1, name: "设置" })).toBeInTheDocument();
+  it("renders home route by default", async () => {
+    expect(await renderRouteAndFindHeading("#/", "首页")).toBeInTheDocument();
+  });
+
+  it("renders settings route via hash", async () => {
+    expect(await renderRouteAndFindHeading("#/settings", "设置")).toBeInTheDocument();
   });
 });

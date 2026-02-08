@@ -35,6 +35,10 @@ pub struct RequestLogRouteHop {
     pub provider_id: i64,
     pub provider_name: String,
     pub ok: bool,
+    pub attempts: i64,
+    /// 该 provider 是否被跳过（熔断/限流等，请求未实际发送）
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub skipped: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -43,6 +47,10 @@ pub struct RequestLogRouteHop {
     pub decision: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
+}
+
+fn is_false(v: &bool) -> bool {
+    !v
 }
 
 #[derive(Debug, Clone, Serialize)]

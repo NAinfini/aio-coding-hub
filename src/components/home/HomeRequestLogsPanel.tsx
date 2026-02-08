@@ -212,8 +212,8 @@ const RequestLogCard = memo(function RequestLogCard({
                   {routeMeta.hasRoute && routeMeta.tooltipText ? (
                     showCustomTooltip ? (
                       <Tooltip
-                        content={routeMeta.tooltipText}
-                        contentClassName="max-w-[520px] break-words font-mono"
+                        content={routeMeta.tooltipContent}
+                        contentClassName="max-w-[400px] break-words"
                         placement="top"
                       >
                         <span className="text-[10px] text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-help">

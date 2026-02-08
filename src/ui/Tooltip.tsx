@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { cn } from "../utils/cn";
 
 export type TooltipProps = {
-  content: string;
+  content: React.ReactNode;
   children: React.ReactNode;
   className?: string;
   contentClassName?: string;

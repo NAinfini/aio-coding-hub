@@ -6,6 +6,7 @@ import { GatewayErrorCodes } from "../../constants/gatewayErrorCodes";
 import type { CliKey } from "../../services/providers";
 import type { RequestLogRouteHop } from "../../services/requestLogs";
 import { Tooltip } from "../../ui/Tooltip";
+import { RouteTooltipContent } from "./RouteTooltipContent";
 
 const ERROR_CODE_LABELS: Record<string, string> = {
   [GatewayErrorCodes.ALL_PROVIDERS_UNAVAILABLE]: "全部不可用",
@@ -126,9 +127,11 @@ export function buildRequestRouteMeta(input: {
       hasRoute: false,
       label: "链路",
       tooltipText: null as string | null,
+      tooltipContent: null as React.ReactNode,
     };
   }
 
+  // 纯文本 fallback（用于 title 属性）
   const tooltipText = hops
     .map((hop, idx) => {
       const rawProviderName = hop.provider_name?.trim();
@@ -136,19 +139,39 @@ export function buildRequestRouteMeta(input: {
         !rawProviderName || rawProviderName === "Unknown" ? "未知" : rawProviderName;
       const status = hop.status ?? (idx === hops.length - 1 ? input.status : null) ?? null;
       const statusText = status == null ? "—" : String(status);
-      if (hop.ok) return `${providerName}(${statusText})`;
+      const attemptsSuffix = hop.attempts && hop.attempts > 1 ? ` x${hop.attempts}` : "";
+      if (hop.ok) return `${providerName}(${statusText})${attemptsSuffix}`;
       const errorCode = hop.error_code ?? null;
       const errorLabel = errorCode ? getErrorCodeLabel(errorCode) : "失败";
-      return `${providerName}(${statusText} ${errorLabel})`;
+      return `${providerName}(${statusText} ${errorLabel})${attemptsSuffix}`;
     })
-    .join("→");
+    .join(" -> ");
 
-  const shouldShowFailoverCount = input.hasFailover && input.attemptCount > 1;
-  const label = shouldShowFailoverCount ? `链路[降级*${input.attemptCount}]` : "链路";
+  // 标签: 区分"降级"（切换 provider）、"重试"（同一 provider 多次尝试）、"跳过"（有 provider 被 skip）
+  // skipped 的 provider 不在 hops 中，通过 attemptCount 与 hop attempts 差值推算
+  const totalHopAttempts = hops.reduce((sum, h) => sum + (h.attempts ?? 1), 0);
+  const skippedCount = input.attemptCount - totalHopAttempts;
+  const hasRetry = hops.some((h) => (h.attempts ?? 1) > 1);
+
+  let label = "链路";
+  if (input.hasFailover) {
+    // 真正切换了 provider（route 中有多个 hop）
+    label = `链路[降级*${input.attemptCount}]`;
+  } else if (skippedCount > 0 && hasRetry) {
+    label = `链路[跳过*${skippedCount}+重试]`;
+  } else if (skippedCount > 0) {
+    label = `链路[跳过*${skippedCount}]`;
+  } else if (hasRetry) {
+    label = `链路[重试*${input.attemptCount}]`;
+  }
+
+  // 富文本 tooltip 内容
+  const tooltipContent = <RouteTooltipContent hops={hops} finalStatus={input.status} />;
 
   return {
     hasRoute: true,
     label,
     tooltipText,
+    tooltipContent,
   };
 }

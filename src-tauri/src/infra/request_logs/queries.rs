@@ -112,8 +112,9 @@ pub(super) fn final_provider_from_attempts(attempts: &[AttemptRow]) -> (i64, Str
 }
 
 pub(super) fn route_from_attempts(attempts: &[AttemptRow]) -> Vec<RequestLogRouteHop> {
-    let mut out = Vec::new();
+    let mut out: Vec<RequestLogRouteHop> = Vec::new();
     let mut last_provider_id: i64 = 0;
+    let mut last_hop_attempt_count: i64 = 0;
     for attempt in attempts {
         if attempt.provider_id <= 0 {
             continue;
@@ -122,9 +123,15 @@ pub(super) fn route_from_attempts(attempts: &[AttemptRow]) -> Vec<RequestLogRout
             continue;
         }
         if attempt.provider_id == last_provider_id {
+            // 同一 provider 连续尝试，累加计数
+            last_hop_attempt_count += 1;
+            if let Some(hop) = out.last_mut() {
+                hop.attempts = last_hop_attempt_count;
+            }
             continue;
         }
         last_provider_id = attempt.provider_id;
+        last_hop_attempt_count = 1;
 
         let ok = attempts
             .iter()
@@ -161,6 +168,8 @@ pub(super) fn route_from_attempts(attempts: &[AttemptRow]) -> Vec<RequestLogRout
             provider_id: attempt.provider_id,
             provider_name: attempt.provider_name.clone(),
             ok,
+            attempts: 1,
+            skipped: false,
             status,
             error_code,
             decision,
@@ -174,10 +183,11 @@ fn row_to_summary(row: &rusqlite::Row<'_>) -> Result<RequestLogSummary, rusqlite
     let attempts_json: String = row.get("attempts_json")?;
     let attempts = parse_attempts(&attempts_json);
     let attempt_count = attempts.len() as i64;
-    let has_failover = attempt_count > 1 || attempts.iter().any(|a| a.outcome == "skipped");
     let (start_provider_id, start_provider_name) = start_provider_from_attempts(&attempts);
     let (final_provider_id, final_provider_name) = final_provider_from_attempts(&attempts);
     let route = route_from_attempts(&attempts);
+    // has_failover: 真正切换过 provider（route 中有多个 hop，skipped 已被过滤）
+    let has_failover = route.len() > 1;
     let session_reuse = attempts
         .iter()
         .any(|row| row.session_reuse.unwrap_or(false));
@@ -421,7 +431,7 @@ mod tests {
     };
 
     #[test]
-    fn route_ignores_skipped_attempts() {
+    fn route_excludes_skipped_attempts() {
         let attempts = parse_attempts(
             r#"[
                 {"provider_id":1,"provider_name":"A","outcome":"skipped","status":null,"error_code":"GW_PROVIDER_RATE_LIMITED","decision":"skip","reason":"provider skipped by rate limit"},
@@ -429,8 +439,12 @@ mod tests {
             ]"#,
         );
         let route = route_from_attempts(&attempts);
+        // skipped 的 provider 不出现在 route 中
         assert_eq!(route.len(), 1);
         assert_eq!(route[0].provider_id, 2);
+        assert!(!route[0].skipped);
+        assert!(route[0].ok);
+        assert_eq!(route[0].attempts, 1);
     }
 
     #[test]
@@ -449,5 +463,41 @@ mod tests {
         let (final_id, final_name) = final_provider_from_attempts(&attempts);
         assert_eq!(final_id, 2);
         assert_eq!(final_name, "B");
+    }
+
+    #[test]
+    fn route_counts_consecutive_same_provider_attempts() {
+        let attempts = parse_attempts(
+            r#"[
+                {"provider_id":1,"provider_name":"A","outcome":"failed","status":500,"error_code":"GW_UPSTREAM_5XX","decision":"retry","reason":"status=500"},
+                {"provider_id":1,"provider_name":"A","outcome":"failed","status":500,"error_code":"GW_UPSTREAM_5XX","decision":"retry","reason":"status=500"},
+                {"provider_id":1,"provider_name":"A","outcome":"failed","status":500,"error_code":"GW_UPSTREAM_5XX","decision":"failover","reason":"status=500"},
+                {"provider_id":2,"provider_name":"B","outcome":"success","status":200,"error_code":null,"decision":"success","reason":null}
+            ]"#,
+        );
+        let route = route_from_attempts(&attempts);
+        assert_eq!(route.len(), 2);
+        assert_eq!(route[0].provider_id, 1);
+        assert_eq!(route[0].attempts, 3);
+        assert_eq!(route[0].provider_name, "A");
+        assert!(!route[0].ok);
+        assert_eq!(route[1].provider_id, 2);
+        assert_eq!(route[1].attempts, 1);
+        assert_eq!(route[1].provider_name, "B");
+        assert!(route[1].ok);
+    }
+
+    #[test]
+    fn route_single_provider_single_attempt() {
+        let attempts = parse_attempts(
+            r#"[
+                {"provider_id":1,"provider_name":"A","outcome":"success","status":200,"error_code":null,"decision":"success","reason":null}
+            ]"#,
+        );
+        let route = route_from_attempts(&attempts);
+        assert_eq!(route.len(), 1);
+        assert_eq!(route[0].provider_id, 1);
+        assert_eq!(route[0].attempts, 1);
+        assert!(route[0].ok);
     }
 }

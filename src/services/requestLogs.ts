@@ -36,6 +36,9 @@ export type RequestLogRouteHop = {
   provider_id: number;
   provider_name: string;
   ok: boolean;
+  attempts?: number;
+  /** 该 provider 是否被跳过（熔断/限流等，请求未实际发送） */
+  skipped?: boolean;
   status?: number | null;
   error_code?: string | null;
   decision?: string | null;

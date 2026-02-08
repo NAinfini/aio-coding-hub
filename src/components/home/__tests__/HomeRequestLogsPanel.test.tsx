@@ -349,4 +349,91 @@ describe("components/home/HomeRequestLogsPanel", () => {
 
     expect(screen.getAllByText("加载中…").length).toBeGreaterThan(0);
   });
+
+  it("renders rich tooltip with attempt counts for failover routes", () => {
+    const nowMs = Date.now();
+    const requestLogs: RequestLogSummary[] = [
+      {
+        id: 20,
+        trace_id: "t20",
+        cli_key: "claude",
+        method: "POST",
+        path: "/v1/messages",
+        requested_model: "claude-3-opus",
+        status: 200,
+        error_code: null,
+        duration_ms: 3000,
+        ttfb_ms: 200,
+        attempt_count: 4,
+        has_failover: true,
+        start_provider_id: 1,
+        start_provider_name: "ProvA",
+        final_provider_id: 2,
+        final_provider_name: "ProvB",
+        route: [
+          {
+            provider_id: 1,
+            provider_name: "ProvA",
+            ok: false,
+            attempts: 3,
+            status: 500,
+            error_code: "GW_UPSTREAM_5XX",
+            decision: "failover",
+            reason: "status=500",
+          },
+          {
+            provider_id: 2,
+            provider_name: "ProvB",
+            ok: true,
+            attempts: 1,
+            status: 200,
+          },
+        ],
+        session_reuse: false,
+        input_tokens: 100,
+        output_tokens: 200,
+        total_tokens: 300,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0,
+        cache_creation_5m_input_tokens: 0,
+        cost_usd: 0.05,
+        cost_multiplier: 1,
+        created_at_ms: null,
+        created_at: Math.floor(nowMs / 1000),
+      },
+    ];
+
+    render(
+      <MemoryRouter>
+        <HomeRequestLogsPanel
+          showCustomTooltip={true}
+          traces={[]}
+          requestLogs={requestLogs}
+          requestLogsLoading={false}
+          requestLogsRefreshing={false}
+          requestLogsAvailable={true}
+          onRefreshRequestLogs={vi.fn()}
+          selectedLogId={null}
+          onSelectLogId={vi.fn()}
+        />
+      </MemoryRouter>
+    );
+
+    // 标签文本应包含降级计数
+    expect(screen.getByText("链路[降级*4]")).toBeInTheDocument();
+
+    // 鼠标悬停触发 tooltip 显示富文本内容
+    const routeLabel = screen.getByText("链路[降级*4]");
+    fireEvent.mouseEnter(routeLabel.closest("span")!.parentElement!);
+
+    // tooltip 路径概览中应显示 provider 名称
+    // ProvA 出现在 tooltip 路径概览 + tooltip 详情行（卡片中 final_provider 是 ProvB）
+    expect(screen.getAllByText("ProvA").length).toBeGreaterThanOrEqual(2);
+    // ProvB 同时出现在卡片 provider 区域和 tooltip 中
+    expect(screen.getAllByText("ProvB").length).toBeGreaterThanOrEqual(2);
+    // 失败3次的标签
+    expect(screen.getByText("失败3次")).toBeInTheDocument();
+    // 成功的标签
+    expect(screen.getByText("成功")).toBeInTheDocument();
+  });
 });

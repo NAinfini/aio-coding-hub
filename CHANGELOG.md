@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.23.0](https://github.com/dyndynjyxa/aio-coding-hub/compare/aio-coding-hub-v0.22.0...aio-coding-hub-v0.23.0) (2026-02-08)
+
+
+### Features
+
+* **app:** 优化页面路由懒加载和加载反馈体验 ([504256e](https://github.com/dyndynjyxa/aio-coding-hub/commit/504256e11ed517797405f8bb4ab3d353607cb1ae))
+* mac最小化优化 ([1f11a5d](https://github.com/dyndynjyxa/aio-coding-hub/commit/1f11a5df9623f8cab90bb40f5c499c5d3569f01d))
+* **route:** 支持展示同一 provider 的连续尝试次数及跳过状态 ([6659157](https://github.com/dyndynjyxa/aio-coding-hub/commit/6659157a12c3809b1e4d8de7bf95b95afe6ed383))
+
+
+### Bug Fixes
+
+* **gateway:** finalize failed requests and align error codes ([871de9c](https://github.com/dyndynjyxa/aio-coding-hub/commit/871de9c9c9e06ed6cb03026ceb21dfc4b0ba18d3))
+* **skills:** 移除批量导入功能并改为刷新本机列表 ([45b9618](https://github.com/dyndynjyxa/aio-coding-hub/commit/45b961847b458f72f2bc062bdcdfef93c8722da8))
+
 ## [0.22.0](https://github.com/dyndynjyxa/aio-coding-hub/compare/aio-coding-hub-v0.21.0...aio-coding-hub-v0.22.0) (2026-02-07)
 
 

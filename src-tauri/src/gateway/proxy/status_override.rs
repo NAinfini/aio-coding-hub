@@ -1,19 +1,24 @@
+use super::GatewayErrorCode;
+
 pub(in crate::gateway) fn status_override_for_error_code(error_code: Option<&str>) -> Option<u16> {
-    match error_code {
-        Some("GW_REQUEST_ABORTED") | Some("GW_STREAM_ABORTED") => Some(499),
-        Some("GW_UPSTREAM_TIMEOUT") | Some("GW_STREAM_IDLE_TIMEOUT") => Some(524),
-        Some("GW_STREAM_ERROR")
-        | Some("GW_UPSTREAM_READ_ERROR")
-        | Some("GW_UPSTREAM_CONNECT_FAILED")
-        | Some("GW_UPSTREAM_BODY_READ_ERROR")
-        | Some("GW_UPSTREAM_ALL_FAILED") => Some(502),
-        Some("GW_ALL_PROVIDERS_UNAVAILABLE") | Some("GW_NO_ENABLED_PROVIDER") => Some(503),
-        Some("GW_CLI_PROXY_DISABLED") => Some(403),
-        Some("GW_INVALID_CLI_KEY") => Some(400),
-        Some("GW_BODY_TOO_LARGE") => Some(413),
-        Some("GW_RESPONSE_BUILD_ERROR")
-        | Some("GW_INTERNAL_ERROR")
-        | Some("GW_HTTP_CLIENT_INIT") => Some(500),
+    let code = error_code.and_then(GatewayErrorCode::from_str)?;
+    match code {
+        GatewayErrorCode::RequestAborted | GatewayErrorCode::StreamAborted => Some(499),
+        GatewayErrorCode::UpstreamTimeout | GatewayErrorCode::StreamIdleTimeout => Some(524),
+        GatewayErrorCode::StreamError
+        | GatewayErrorCode::UpstreamReadError
+        | GatewayErrorCode::UpstreamConnectFailed
+        | GatewayErrorCode::UpstreamBodyReadError
+        | GatewayErrorCode::UpstreamAllFailed => Some(502),
+        GatewayErrorCode::AllProvidersUnavailable | GatewayErrorCode::NoEnabledProvider => {
+            Some(503)
+        }
+        GatewayErrorCode::CliProxyDisabled => Some(403),
+        GatewayErrorCode::InvalidCliKey => Some(400),
+        GatewayErrorCode::BodyTooLarge => Some(413),
+        GatewayErrorCode::ResponseBuildError
+        | GatewayErrorCode::InternalError
+        | GatewayErrorCode::HttpClientInit => Some(500),
         _ => None,
     }
 }
@@ -26,41 +31,47 @@ pub(in crate::gateway) fn effective_status(
 }
 
 pub(in crate::gateway) fn is_client_abort(error_code: Option<&str>) -> bool {
-    matches!(error_code, Some("GW_REQUEST_ABORTED" | "GW_STREAM_ABORTED"))
+    error_code
+        .and_then(GatewayErrorCode::from_str)
+        .map(GatewayErrorCode::is_client_abort)
+        .unwrap_or(false)
 }
 
 #[cfg(test)]
 mod tests {
     use super::{effective_status, is_client_abort, status_override_for_error_code};
+    use crate::gateway::proxy::GatewayErrorCode;
 
     #[test]
     fn status_override_maps_cch_codes() {
         assert_eq!(
-            status_override_for_error_code(Some("GW_REQUEST_ABORTED")),
+            status_override_for_error_code(Some(GatewayErrorCode::RequestAborted.as_str())),
             Some(499)
         );
         assert_eq!(
-            status_override_for_error_code(Some("GW_STREAM_ABORTED")),
+            status_override_for_error_code(Some(GatewayErrorCode::StreamAborted.as_str())),
             Some(499)
         );
         assert_eq!(
-            status_override_for_error_code(Some("GW_UPSTREAM_TIMEOUT")),
+            status_override_for_error_code(Some(GatewayErrorCode::UpstreamTimeout.as_str())),
             Some(524)
         );
         assert_eq!(
-            status_override_for_error_code(Some("GW_STREAM_IDLE_TIMEOUT")),
+            status_override_for_error_code(Some(GatewayErrorCode::StreamIdleTimeout.as_str())),
             Some(524)
         );
         assert_eq!(
-            status_override_for_error_code(Some("GW_UPSTREAM_READ_ERROR")),
+            status_override_for_error_code(Some(GatewayErrorCode::UpstreamReadError.as_str())),
             Some(502)
         );
         assert_eq!(
-            status_override_for_error_code(Some("GW_STREAM_ERROR")),
+            status_override_for_error_code(Some(GatewayErrorCode::StreamError.as_str())),
             Some(502)
         );
         assert_eq!(
-            status_override_for_error_code(Some("GW_ALL_PROVIDERS_UNAVAILABLE")),
+            status_override_for_error_code(Some(
+                GatewayErrorCode::AllProvidersUnavailable.as_str()
+            )),
             Some(503)
         );
     }
@@ -68,24 +79,33 @@ mod tests {
     #[test]
     fn effective_status_overrides_even_when_original_is_200() {
         assert_eq!(
-            effective_status(Some(200), Some("GW_STREAM_IDLE_TIMEOUT")),
+            effective_status(
+                Some(200),
+                Some(GatewayErrorCode::StreamIdleTimeout.as_str())
+            ),
             Some(524)
         );
         assert_eq!(
-            effective_status(Some(200), Some("GW_STREAM_ABORTED")),
+            effective_status(Some(200), Some(GatewayErrorCode::StreamAborted.as_str())),
             Some(499)
         );
         assert_eq!(
-            effective_status(Some(404), Some("GW_UPSTREAM_4XX")),
+            effective_status(Some(404), Some(GatewayErrorCode::Upstream4xx.as_str())),
             Some(404)
         );
     }
 
     #[test]
     fn client_abort_detection() {
-        assert!(is_client_abort(Some("GW_REQUEST_ABORTED")));
-        assert!(is_client_abort(Some("GW_STREAM_ABORTED")));
-        assert!(!is_client_abort(Some("GW_UPSTREAM_TIMEOUT")));
+        assert!(is_client_abort(Some(
+            GatewayErrorCode::RequestAborted.as_str()
+        )));
+        assert!(is_client_abort(Some(
+            GatewayErrorCode::StreamAborted.as_str()
+        )));
+        assert!(!is_client_abort(Some(
+            GatewayErrorCode::UpstreamTimeout.as_str()
+        )));
         assert!(!is_client_abort(None));
     }
 }

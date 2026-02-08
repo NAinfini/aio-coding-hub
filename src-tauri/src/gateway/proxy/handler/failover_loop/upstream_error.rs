@@ -11,7 +11,7 @@ use super::super::super::http_util::{
 use super::super::super::is_claude_count_tokens_request;
 use super::super::super::provider_router;
 use super::super::super::upstream_client_error_rules;
-use super::super::super::ErrorCategory;
+use super::super::super::{ErrorCategory, GatewayErrorCode};
 use super::attempt_record::{
     record_system_failure_and_decide, record_system_failure_and_decide_no_cooldown,
     RecordSystemFailureArgs,
@@ -155,11 +155,12 @@ pub(super) async fn handle_non_success_response(
     let mut abort_body_bytes: Option<Bytes> = None;
     let mut abort_response_headers: Option<axum::http::HeaderMap> = None;
     let mut matched_rule_id: Option<&'static str> = None;
+    let mut matched_429_concurrency_limit = false;
     if !is_count_tokens
-        && upstream_client_error_rules::should_attempt_non_retryable_match(
+        && (upstream_client_error_rules::should_attempt_non_retryable_match(
             status,
             resp.as_ref().and_then(|r| r.content_length()),
-        )
+        ) || status.as_u16() == 429)
     {
         if let Some(r) = resp.take() {
             let read_result = if r.content_length().is_none() {
@@ -179,12 +180,18 @@ pub(super) async fn handle_non_success_response(
                     &mut headers_for_scan,
                     MAX_NON_SSE_BODY_BYTES,
                 );
+                if status.as_u16() == 429 {
+                    matched_429_concurrency_limit =
+                        upstream_client_error_rules::match_429_concurrency_limit(
+                            body_for_scan.as_ref(),
+                        );
+                }
                 matched_rule_id = upstream_client_error_rules::match_non_retryable_client_error(
                     ctx.cli_key.as_str(),
                     status,
                     body_for_scan.as_ref(),
                 );
-                if matched_rule_id.is_some() {
+                if matched_rule_id.is_some() || matched_429_concurrency_limit {
                     category = ErrorCategory::NonRetryableClientError;
                     decision = FailoverDecision::Abort;
                     abort_body_bytes = Some(body_for_scan);
@@ -239,9 +246,13 @@ pub(super) async fn handle_non_success_response(
         *circuit_snapshot = snap;
     }
 
-    let reason = match matched_rule_id {
-        Some(rule_id) => format!("status={} rule={rule_id}", status.as_u16()),
-        None => format!("status={}", status.as_u16()),
+    let reason = if matched_429_concurrency_limit {
+        format!("status={} rule=429_concurrency_limit", status.as_u16())
+    } else {
+        match matched_rule_id {
+            Some(rule_id) => format!("status={} rule={rule_id}", status.as_u16()),
+            None => format!("status={}", status.as_u16()),
+        }
     };
     let outcome = format!(
         "upstream_error: status={} category={} code={} decision={}",
@@ -428,7 +439,7 @@ pub(super) async fn handle_non_success_response(
                 return LoopControl::Return(error_response(
                     axum::http::StatusCode::BAD_GATEWAY,
                     trace_id.clone(),
-                    "GW_UPSTREAM_READ_ERROR",
+                    GatewayErrorCode::UpstreamReadError.as_str(),
                     "failed to stream upstream error body".to_string(),
                     attempts.clone(),
                 ));

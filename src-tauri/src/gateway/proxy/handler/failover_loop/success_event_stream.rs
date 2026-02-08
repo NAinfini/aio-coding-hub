@@ -85,7 +85,7 @@ pub(super) async fn handle_success_event_stream(
                 initial_first_byte_ms = ttfb_ms;
             }
             FirstChunkProbe::ReadError(err) => {
-                let error_code = "GW_STREAM_ERROR";
+                let error_code = GatewayErrorCode::StreamError.as_str();
                 let decision = if retry_index < max_attempts_per_provider {
                     FailoverDecision::RetrySameProvider
                 } else {
@@ -121,7 +121,7 @@ pub(super) async fn handle_success_event_stream(
                 .await;
             }
             FirstChunkProbe::Timeout => {
-                let error_code = "GW_UPSTREAM_TIMEOUT";
+                let error_code = GatewayErrorCode::UpstreamTimeout.as_str();
                 let decision = if retry_index < max_attempts_per_provider {
                     FailoverDecision::RetrySameProvider
                 } else {
@@ -164,7 +164,7 @@ pub(super) async fn handle_success_event_stream(
             && initial_first_byte_ms.is_none()
             && probe_is_empty_event_stream
         {
-            let error_code = "GW_STREAM_ERROR";
+            let error_code = GatewayErrorCode::StreamError.as_str();
             let decision = if retry_index < max_attempts_per_provider {
                 FailoverDecision::RetrySameProvider
             } else {
@@ -362,8 +362,11 @@ pub(super) async fn handle_success_event_stream(
         return LoopControl::Return(match builder.body(body) {
             Ok(r) => r,
             Err(_) => {
-                let mut fallback =
-                    (StatusCode::INTERNAL_SERVER_ERROR, "GW_RESPONSE_BUILD_ERROR").into_response();
+                let mut fallback = (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    GatewayErrorCode::ResponseBuildError.as_str(),
+                )
+                    .into_response();
                 fallback.headers_mut().insert(
                     "x-trace-id",
                     HeaderValue::from_str(common.trace_id.as_str())

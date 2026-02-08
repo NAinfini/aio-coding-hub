@@ -321,6 +321,7 @@ pub struct SseUsageTracker {
     last_generic: Option<UsageMetrics>,
     last_model: Option<String>,
     completion_seen: bool,
+    terminal_error_seen: bool,
 }
 
 fn trim_ascii(bytes: &[u8]) -> &[u8] {
@@ -349,11 +350,16 @@ impl SseUsageTracker {
             last_generic: None,
             last_model: None,
             completion_seen: false,
+            terminal_error_seen: false,
         }
     }
 
     pub fn completion_seen(&self) -> bool {
         self.completion_seen
+    }
+
+    pub fn terminal_error_seen(&self) -> bool {
+        self.terminal_error_seen
     }
 
     pub fn ingest_chunk(&mut self, chunk: &[u8]) {
@@ -441,8 +447,17 @@ impl SseUsageTracker {
     }
 
     fn ingest_event(&mut self, event: &[u8], data: &Value) {
-        if let Some("response.completed") = data.get("type").and_then(|v| v.as_str()) {
-            self.completion_seen = true;
+        if event == b"error" {
+            self.terminal_error_seen = true;
+        }
+
+        if let Some(event_type) = data.get("type").and_then(|v| v.as_str()) {
+            if event_type == "response.completed" {
+                self.completion_seen = true;
+            }
+            if event_type == "error" || event_type == "response.error" {
+                self.terminal_error_seen = true;
+            }
         }
 
         if let Some(model) = extract_model_from_json_value(data) {

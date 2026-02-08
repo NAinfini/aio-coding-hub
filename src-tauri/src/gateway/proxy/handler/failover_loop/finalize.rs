@@ -3,6 +3,7 @@
 use super::super::super::abort_guard::RequestAbortGuard;
 use super::super::super::caches::CachedGatewayError;
 use super::super::super::errors::{error_response, error_response_with_retry_after};
+use super::super::super::GatewayErrorCode;
 use super::{emit_request_event_and_enqueue_request_log, RequestEndArgs, RequestEndDeps};
 use crate::gateway::events::FailoverAttempt;
 use crate::gateway::manager::GatewayAppState;
@@ -75,7 +76,7 @@ pub(super) async fn all_providers_unavailable(input: AllUnavailableInput<'_>) ->
     let resp = error_response_with_retry_after(
         StatusCode::SERVICE_UNAVAILABLE,
         trace_id.clone(),
-        "GW_ALL_PROVIDERS_UNAVAILABLE",
+        GatewayErrorCode::AllProvidersUnavailable.as_str(),
         message.clone(),
         vec![],
         retry_after_seconds,
@@ -92,7 +93,7 @@ pub(super) async fn all_providers_unavailable(input: AllUnavailableInput<'_>) ->
         excluded_from_stats: false,
         status: Some(StatusCode::SERVICE_UNAVAILABLE.as_u16()),
         error_category: None,
-        error_code: Some("GW_ALL_PROVIDERS_UNAVAILABLE"),
+        error_code: Some(GatewayErrorCode::AllProvidersUnavailable.as_str()),
         duration_ms,
         event_ttfb_ms: None,
         log_ttfb_ms: None,
@@ -116,7 +117,7 @@ pub(super) async fn all_providers_unavailable(input: AllUnavailableInput<'_>) ->
                 CachedGatewayError {
                     trace_id: trace_id.clone(),
                     status: StatusCode::SERVICE_UNAVAILABLE,
-                    error_code: "GW_ALL_PROVIDERS_UNAVAILABLE",
+                    error_code: GatewayErrorCode::AllProvidersUnavailable.as_str(),
                     message: message.clone(),
                     retry_after_seconds: Some(retry_after_seconds),
                     expires_at_unix: now_unix.saturating_add(retry_after_seconds as i64),
@@ -129,7 +130,7 @@ pub(super) async fn all_providers_unavailable(input: AllUnavailableInput<'_>) ->
                 CachedGatewayError {
                     trace_id: trace_id.clone(),
                     status: StatusCode::SERVICE_UNAVAILABLE,
-                    error_code: "GW_ALL_PROVIDERS_UNAVAILABLE",
+                    error_code: GatewayErrorCode::AllProvidersUnavailable.as_str(),
                     message,
                     retry_after_seconds: Some(retry_after_seconds),
                     expires_at_unix: now_unix.saturating_add(retry_after_seconds as i64),
@@ -182,7 +183,7 @@ pub(super) async fn all_providers_failed(input: AllFailedInput<'_>) -> Response 
         special_settings,
     } = input;
 
-    let final_error_code = last_error_code.unwrap_or("GW_UPSTREAM_ALL_FAILED");
+    let final_error_code = last_error_code.unwrap_or(GatewayErrorCode::UpstreamAllFailed.as_str());
 
     let resp = error_response(
         StatusCode::BAD_GATEWAY,

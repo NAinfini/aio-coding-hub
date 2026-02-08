@@ -44,6 +44,30 @@ pub(super) fn max_body_read_bytes() -> u64 {
     MAX_BODY_READ_BYTES
 }
 
+/// Returns whether a 429 response body indicates upstream concurrency saturation.
+///
+/// This is intentionally conservative: only match clear concurrency-limit signatures.
+pub(super) fn match_429_concurrency_limit(body: &[u8]) -> bool {
+    if body.is_empty() {
+        return false;
+    }
+
+    let scan = if body.len() > MAX_SCAN_BYTES {
+        &body[..MAX_SCAN_BYTES]
+    } else {
+        body
+    };
+
+    let haystack_lower = String::from_utf8_lossy(scan).to_ascii_lowercase();
+
+    let has_direct_phrase = haystack_lower.contains("concurrency limit exceeded")
+        || haystack_lower.contains("too many concurrent requests");
+    let has_structured_fields = haystack_lower.contains("currentconcurrency")
+        && haystack_lower.contains("concurrencylimit");
+
+    has_direct_phrase || has_structured_fields
+}
+
 struct Rule {
     id: &'static str,
     any_of: &'static [&'static str],
@@ -231,7 +255,7 @@ pub(super) fn match_non_retryable_client_error(
 
 #[cfg(test)]
 mod tests {
-    use super::match_non_retryable_client_error;
+    use super::{match_429_concurrency_limit, match_non_retryable_client_error};
 
     #[test]
     fn matches_prompt_limit() {
@@ -258,5 +282,24 @@ mod tests {
             match_non_retryable_client_error("claude", reqwest::StatusCode::PAYMENT_REQUIRED, body),
             None
         );
+    }
+
+    #[test]
+    fn matches_429_concurrency_limit_by_phrase() {
+        let body =
+            b"{\"error\":\"Concurrency limit exceeded\",\"message\":\"Too many concurrent requests. Limit: 5\"}";
+        assert!(match_429_concurrency_limit(body));
+    }
+
+    #[test]
+    fn matches_429_concurrency_limit_by_structured_fields() {
+        let body = b"{\"error\":\"x\",\"currentConcurrency\":5,\"concurrencyLimit\":5}";
+        assert!(match_429_concurrency_limit(body));
+    }
+
+    #[test]
+    fn does_not_match_429_concurrency_limit_for_generic_rate_limit() {
+        let body = b"{\"error\":\"rate limit\",\"message\":\"too many requests per minute\"}";
+        assert!(!match_429_concurrency_limit(body));
     }
 }

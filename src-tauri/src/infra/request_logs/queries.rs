@@ -85,7 +85,12 @@ pub(super) fn parse_attempts(attempts_json: &str) -> Vec<AttemptRow> {
 }
 
 pub(super) fn start_provider_from_attempts(attempts: &[AttemptRow]) -> (i64, String) {
-    match attempts.first() {
+    let first = attempts
+        .iter()
+        .find(|a| a.outcome != "skipped")
+        .or_else(|| attempts.first());
+
+    match first {
         Some(a) => (a.provider_id, a.provider_name.clone()),
         None => (0, "Unknown".to_string()),
     }
@@ -96,6 +101,7 @@ pub(super) fn final_provider_from_attempts(attempts: &[AttemptRow]) -> (i64, Str
         .iter()
         .rev()
         .find(|a| a.outcome == "success")
+        .or_else(|| attempts.iter().rev().find(|a| a.outcome != "skipped"))
         .or_else(|| attempts.last());
 
     match picked {
@@ -109,6 +115,9 @@ pub(super) fn route_from_attempts(attempts: &[AttemptRow]) -> Vec<RequestLogRout
     let mut last_provider_id: i64 = 0;
     for attempt in attempts {
         if attempt.provider_id <= 0 {
+            continue;
+        }
+        if attempt.outcome == "skipped" {
             continue;
         }
         if attempt.provider_id == last_provider_id {
@@ -402,4 +411,43 @@ pub fn get_by_trace_id(
     .optional()
     .map_err(|e| format!("DB_ERROR: failed to query request_log: {e}"))
     .map_err(Into::into)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        final_provider_from_attempts, parse_attempts, route_from_attempts,
+        start_provider_from_attempts,
+    };
+
+    #[test]
+    fn route_ignores_skipped_attempts() {
+        let attempts = parse_attempts(
+            r#"[
+                {"provider_id":1,"provider_name":"A","outcome":"skipped","status":null,"error_code":"GW_PROVIDER_RATE_LIMITED","decision":"skip","reason":"provider skipped by rate limit"},
+                {"provider_id":2,"provider_name":"B","outcome":"success","status":200,"error_code":null,"decision":"success","reason":null}
+            ]"#,
+        );
+        let route = route_from_attempts(&attempts);
+        assert_eq!(route.len(), 1);
+        assert_eq!(route[0].provider_id, 2);
+    }
+
+    #[test]
+    fn start_and_final_provider_prefer_non_skipped_attempts() {
+        let attempts = parse_attempts(
+            r#"[
+                {"provider_id":1,"provider_name":"A","outcome":"skipped","status":null,"error_code":"GW_PROVIDER_RATE_LIMITED","decision":"skip","reason":"provider skipped by rate limit"},
+                {"provider_id":2,"provider_name":"B","outcome":"failed","status":429,"error_code":"GW_UPSTREAM_4XX","decision":"abort","reason":"status=429"}
+            ]"#,
+        );
+
+        let (start_id, start_name) = start_provider_from_attempts(&attempts);
+        assert_eq!(start_id, 2);
+        assert_eq!(start_name, "B");
+
+        let (final_id, final_name) = final_provider_from_attempts(&attempts);
+        assert_eq!(final_id, 2);
+        assert_eq!(final_name, "B");
+    }
 }

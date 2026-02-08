@@ -8,7 +8,7 @@ use axum::{
 use serde::Serialize;
 
 use super::failover::FailoverDecision;
-use super::ErrorCategory;
+use super::{ErrorCategory, GatewayErrorCode};
 use crate::gateway::events::FailoverAttempt;
 
 #[derive(Debug, Serialize)]
@@ -23,12 +23,21 @@ struct GatewayErrorResponse {
 
 pub(super) fn classify_reqwest_error(err: &reqwest::Error) -> (ErrorCategory, &'static str) {
     if err.is_timeout() {
-        return (ErrorCategory::SystemError, "GW_UPSTREAM_TIMEOUT");
+        return (
+            ErrorCategory::SystemError,
+            GatewayErrorCode::UpstreamTimeout.as_str(),
+        );
     }
     if err.is_connect() {
-        return (ErrorCategory::SystemError, "GW_UPSTREAM_CONNECT_FAILED");
+        return (
+            ErrorCategory::SystemError,
+            GatewayErrorCode::UpstreamConnectFailed.as_str(),
+        );
     }
-    (ErrorCategory::SystemError, "GW_INTERNAL_ERROR")
+    (
+        ErrorCategory::SystemError,
+        GatewayErrorCode::InternalError.as_str(),
+    )
 }
 
 pub(super) fn classify_upstream_status(
@@ -37,7 +46,7 @@ pub(super) fn classify_upstream_status(
     if status.is_server_error() {
         return (
             ErrorCategory::ProviderError,
-            "GW_UPSTREAM_5XX",
+            GatewayErrorCode::Upstream5xx.as_str(),
             FailoverDecision::RetrySameProvider,
         );
     }
@@ -45,37 +54,37 @@ pub(super) fn classify_upstream_status(
     match status.as_u16() {
         401 | 403 => (
             ErrorCategory::ProviderError,
-            "GW_UPSTREAM_4XX",
+            GatewayErrorCode::Upstream4xx.as_str(),
             FailoverDecision::SwitchProvider,
         ),
         402 => (
             // Payment Required / insufficient balance / subscription required.
             // Align with : treat as provider-side limitation and allow failover.
             ErrorCategory::ProviderError,
-            "GW_UPSTREAM_4XX",
+            GatewayErrorCode::Upstream4xx.as_str(),
             FailoverDecision::SwitchProvider,
         ),
         404 => (
             // Resource not found is often provider-specific (path/model support mismatch).
             ErrorCategory::ResourceNotFound,
-            "GW_UPSTREAM_4XX",
+            GatewayErrorCode::Upstream4xx.as_str(),
             FailoverDecision::SwitchProvider,
         ),
         408 | 429 => (
             ErrorCategory::ProviderError,
-            "GW_UPSTREAM_4XX",
+            GatewayErrorCode::Upstream4xx.as_str(),
             FailoverDecision::RetrySameProvider,
         ),
         _ if status.is_client_error() => (
             // Default: allow retry + failover for upstream 4xx.
             // Non-retryable client input errors are detected separately by scanning upstream error bodies.
             ErrorCategory::ProviderError,
-            "GW_UPSTREAM_4XX",
+            GatewayErrorCode::Upstream4xx.as_str(),
             FailoverDecision::RetrySameProvider,
         ),
         _ => (
             ErrorCategory::ProviderError,
-            "GW_INTERNAL_ERROR",
+            GatewayErrorCode::InternalError.as_str(),
             FailoverDecision::Abort,
         ),
     }
@@ -126,14 +135,14 @@ pub(super) fn error_response_with_retry_after(
 #[cfg(test)]
 mod tests {
     use super::{classify_upstream_status, FailoverDecision};
-    use crate::gateway::proxy::ErrorCategory;
+    use crate::gateway::proxy::{ErrorCategory, GatewayErrorCode};
 
     #[test]
     fn upstream_402_switches_provider() {
         let (category, code, decision) =
             classify_upstream_status(reqwest::StatusCode::PAYMENT_REQUIRED);
         assert!(matches!(category, ErrorCategory::ProviderError));
-        assert_eq!(code, "GW_UPSTREAM_4XX");
+        assert_eq!(code, GatewayErrorCode::Upstream4xx.as_str());
         assert!(matches!(decision, FailoverDecision::SwitchProvider));
     }
 
@@ -141,7 +150,7 @@ mod tests {
     fn upstream_404_switches_provider() {
         let (category, code, decision) = classify_upstream_status(reqwest::StatusCode::NOT_FOUND);
         assert!(matches!(category, ErrorCategory::ResourceNotFound));
-        assert_eq!(code, "GW_UPSTREAM_4XX");
+        assert_eq!(code, GatewayErrorCode::Upstream4xx.as_str());
         assert!(matches!(decision, FailoverDecision::SwitchProvider));
     }
 
@@ -150,7 +159,7 @@ mod tests {
         let (category, code, decision) =
             classify_upstream_status(reqwest::StatusCode::UNPROCESSABLE_ENTITY);
         assert!(matches!(category, ErrorCategory::ProviderError));
-        assert_eq!(code, "GW_UPSTREAM_4XX");
+        assert_eq!(code, GatewayErrorCode::Upstream4xx.as_str());
         assert!(matches!(decision, FailoverDecision::RetrySameProvider));
     }
 
@@ -159,18 +168,18 @@ mod tests {
         let (category, code, decision) =
             classify_upstream_status(reqwest::StatusCode::INTERNAL_SERVER_ERROR);
         assert!(matches!(category, ErrorCategory::ProviderError));
-        assert_eq!(code, "GW_UPSTREAM_5XX");
+        assert_eq!(code, GatewayErrorCode::Upstream5xx.as_str());
         assert!(matches!(decision, FailoverDecision::RetrySameProvider));
 
         let (category, code, decision) = classify_upstream_status(reqwest::StatusCode::BAD_GATEWAY);
         assert!(matches!(category, ErrorCategory::ProviderError));
-        assert_eq!(code, "GW_UPSTREAM_5XX");
+        assert_eq!(code, GatewayErrorCode::Upstream5xx.as_str());
         assert!(matches!(decision, FailoverDecision::RetrySameProvider));
 
         let (category, code, decision) =
             classify_upstream_status(reqwest::StatusCode::SERVICE_UNAVAILABLE);
         assert!(matches!(category, ErrorCategory::ProviderError));
-        assert_eq!(code, "GW_UPSTREAM_5XX");
+        assert_eq!(code, GatewayErrorCode::Upstream5xx.as_str());
         assert!(matches!(decision, FailoverDecision::RetrySameProvider));
     }
 
@@ -179,12 +188,12 @@ mod tests {
         let (category, code, decision) =
             classify_upstream_status(reqwest::StatusCode::UNAUTHORIZED);
         assert!(matches!(category, ErrorCategory::ProviderError));
-        assert_eq!(code, "GW_UPSTREAM_4XX");
+        assert_eq!(code, GatewayErrorCode::Upstream4xx.as_str());
         assert!(matches!(decision, FailoverDecision::SwitchProvider));
 
         let (category, code, decision) = classify_upstream_status(reqwest::StatusCode::FORBIDDEN);
         assert!(matches!(category, ErrorCategory::ProviderError));
-        assert_eq!(code, "GW_UPSTREAM_4XX");
+        assert_eq!(code, GatewayErrorCode::Upstream4xx.as_str());
         assert!(matches!(decision, FailoverDecision::SwitchProvider));
     }
 
@@ -193,13 +202,13 @@ mod tests {
         let (category, code, decision) =
             classify_upstream_status(reqwest::StatusCode::REQUEST_TIMEOUT);
         assert!(matches!(category, ErrorCategory::ProviderError));
-        assert_eq!(code, "GW_UPSTREAM_4XX");
+        assert_eq!(code, GatewayErrorCode::Upstream4xx.as_str());
         assert!(matches!(decision, FailoverDecision::RetrySameProvider));
 
         let (category, code, decision) =
             classify_upstream_status(reqwest::StatusCode::TOO_MANY_REQUESTS);
         assert!(matches!(category, ErrorCategory::ProviderError));
-        assert_eq!(code, "GW_UPSTREAM_4XX");
+        assert_eq!(code, GatewayErrorCode::Upstream4xx.as_str());
         assert!(matches!(decision, FailoverDecision::RetrySameProvider));
     }
 
@@ -207,7 +216,7 @@ mod tests {
     fn upstream_400_retries_same_provider() {
         let (category, code, decision) = classify_upstream_status(reqwest::StatusCode::BAD_REQUEST);
         assert!(matches!(category, ErrorCategory::ProviderError));
-        assert_eq!(code, "GW_UPSTREAM_4XX");
+        assert_eq!(code, GatewayErrorCode::Upstream4xx.as_str());
         assert!(matches!(decision, FailoverDecision::RetrySameProvider));
     }
 }

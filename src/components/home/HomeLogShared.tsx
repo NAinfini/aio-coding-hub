@@ -2,32 +2,38 @@
 // - Import helpers/components from this module for Home "request logs" list and "realtime traces" cards.
 // - Designed to keep status badge / error_code label / session reuse tooltip consistent across the Home page.
 
+import { GatewayErrorCodes } from "../../constants/gatewayErrorCodes";
 import type { CliKey } from "../../services/providers";
+import type { RequestLogRouteHop } from "../../services/requestLogs";
 import { Tooltip } from "../../ui/Tooltip";
-import { RefreshCw } from "lucide-react";
 
 const ERROR_CODE_LABELS: Record<string, string> = {
-  GW_ALL_PROVIDERS_UNAVAILABLE: "全部不可用",
-  GW_UPSTREAM_ALL_FAILED: "全部失败",
-  GW_NO_ENABLED_PROVIDER: "无供应商",
-  GW_UPSTREAM_TIMEOUT: "上游超时",
-  GW_UPSTREAM_CONNECT_FAILED: "连接失败",
-  GW_UPSTREAM_5XX: "上游5XX",
-  GW_UPSTREAM_4XX: "上游4XX",
-  GW_UPSTREAM_READ_ERROR: "读取错误",
-  GW_STREAM_ERROR: "流错误",
-  GW_STREAM_ABORTED: "流中断",
-  GW_STREAM_IDLE_TIMEOUT: "流空闲超时",
-  GW_REQUEST_ABORTED: "请求中断",
-  GW_INTERNAL_ERROR: "内部错误",
-  GW_BODY_TOO_LARGE: "请求过大",
-  GW_INVALID_CLI_KEY: "无效CLI",
-  GW_INVALID_BASE_URL: "无效URL",
-  GW_PORT_IN_USE: "端口占用",
-  GW_RESPONSE_BUILD_ERROR: "响应构建错误",
+  [GatewayErrorCodes.ALL_PROVIDERS_UNAVAILABLE]: "全部不可用",
+  [GatewayErrorCodes.UPSTREAM_ALL_FAILED]: "全部失败",
+  [GatewayErrorCodes.NO_ENABLED_PROVIDER]: "无供应商",
+  [GatewayErrorCodes.UPSTREAM_TIMEOUT]: "上游超时",
+  [GatewayErrorCodes.UPSTREAM_CONNECT_FAILED]: "连接失败",
+  [GatewayErrorCodes.UPSTREAM_5XX]: "上游5XX",
+  [GatewayErrorCodes.UPSTREAM_4XX]: "上游4XX",
+  [GatewayErrorCodes.UPSTREAM_READ_ERROR]: "读取错误",
+  [GatewayErrorCodes.STREAM_ERROR]: "流错误",
+  [GatewayErrorCodes.STREAM_ABORTED]: "流中断",
+  [GatewayErrorCodes.STREAM_IDLE_TIMEOUT]: "流空闲超时",
+  [GatewayErrorCodes.REQUEST_ABORTED]: "请求中断",
+  [GatewayErrorCodes.INTERNAL_ERROR]: "内部错误",
+  [GatewayErrorCodes.BODY_TOO_LARGE]: "请求过大",
+  [GatewayErrorCodes.INVALID_CLI_KEY]: "无效CLI",
+  [GatewayErrorCodes.INVALID_BASE_URL]: "无效URL",
+  [GatewayErrorCodes.PORT_IN_USE]: "端口占用",
+  [GatewayErrorCodes.RESPONSE_BUILD_ERROR]: "响应构建错误",
+  [GatewayErrorCodes.PROVIDER_RATE_LIMITED]: "供应商限额",
+  [GatewayErrorCodes.PROVIDER_CIRCUIT_OPEN]: "供应商熔断",
 };
 
-const CLIENT_ABORT_ERROR_CODES = new Set(["GW_STREAM_ABORTED", "GW_REQUEST_ABORTED"]);
+const CLIENT_ABORT_ERROR_CODES: ReadonlySet<string> = new Set([
+  GatewayErrorCodes.STREAM_ABORTED,
+  GatewayErrorCodes.REQUEST_ABORTED,
+]);
 
 const SESSION_REUSE_TOOLTIP =
   "同一 session_id 在 5 分钟 TTL 内优先复用上一次成功 provider，减少抖动/提升缓存命中";
@@ -108,28 +114,41 @@ export function computeEffectiveInputTokens(
   return inputTokens;
 }
 
-export function FailoverBadge({
-  attemptCount,
-  showCustomTooltip,
-}: {
+export function buildRequestRouteMeta(input: {
+  route: RequestLogRouteHop[] | null | undefined;
+  status: number | null;
+  hasFailover: boolean;
   attemptCount: number;
-  showCustomTooltip: boolean;
 }) {
-  const label = `降级×${attemptCount}`;
-  const tip = `本次请求经历了 ${attemptCount} 次尝试（含供应商切换/重试），最终成功`;
-  const className =
-    "inline-flex items-center gap-0.5 rounded-full bg-amber-50 border border-amber-200/60 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:border-amber-700/60 dark:text-amber-400 shrink-0";
-  return showCustomTooltip ? (
-    <Tooltip content={tip}>
-      <span className={className}>
-        <RefreshCw className="h-2.5 w-2.5" />
-        {label}
-      </span>
-    </Tooltip>
-  ) : (
-    <span className={className} title={tip}>
-      <RefreshCw className="h-2.5 w-2.5" />
-      {label}
-    </span>
-  );
+  const hops = input.route ?? [];
+  if (hops.length === 0) {
+    return {
+      hasRoute: false,
+      label: "链路",
+      tooltipText: null as string | null,
+    };
+  }
+
+  const tooltipText = hops
+    .map((hop, idx) => {
+      const rawProviderName = hop.provider_name?.trim();
+      const providerName =
+        !rawProviderName || rawProviderName === "Unknown" ? "未知" : rawProviderName;
+      const status = hop.status ?? (idx === hops.length - 1 ? input.status : null) ?? null;
+      const statusText = status == null ? "—" : String(status);
+      if (hop.ok) return `${providerName}(${statusText})`;
+      const errorCode = hop.error_code ?? null;
+      const errorLabel = errorCode ? getErrorCodeLabel(errorCode) : "失败";
+      return `${providerName}(${statusText} ${errorLabel})`;
+    })
+    .join("→");
+
+  const shouldShowFailoverCount = input.hasFailover && input.attemptCount > 1;
+  const label = shouldShowFailoverCount ? `链路[降级*${input.attemptCount}]` : "链路";
+
+  return {
+    hasRoute: true,
+    label,
+    tooltipText,
+  };
 }

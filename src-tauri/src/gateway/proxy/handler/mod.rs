@@ -8,13 +8,13 @@ use super::request_end::{
     emit_request_event_and_enqueue_request_log, emit_request_event_and_spawn_request_log,
     RequestEndArgs, RequestEndDeps,
 };
-use super::ErrorCategory;
 use super::{
     cli_proxy_guard::cli_proxy_enabled_cached,
     errors::{error_response, error_response_with_retry_after},
     failover::{select_next_provider_id_from_order, should_reuse_provider},
     is_claude_count_tokens_request,
 };
+use super::{ErrorCategory, GatewayErrorCode};
 
 use crate::{providers, session_manager, settings, usage};
 use axum::{
@@ -64,7 +64,7 @@ pub(in crate::gateway) async fn proxy_impl(
                     emit_gateway_log(
                         &state.app,
                         "warn",
-                        "GW_CLI_PROXY_GUARD_ERROR",
+                        GatewayErrorCode::CliProxyGuardError.as_str(),
                         format!(
                             "CLI 代理开关状态读取失败（按未开启处理）cli={cli_key} trace_id={trace_id} err={err}"
                         ),
@@ -81,7 +81,7 @@ pub(in crate::gateway) async fn proxy_impl(
             let resp = error_response(
                 StatusCode::FORBIDDEN,
                 trace_id.clone(),
-                "GW_CLI_PROXY_DISABLED",
+                GatewayErrorCode::CliProxyDisabled.as_str(),
                 message,
                 vec![],
             );
@@ -108,7 +108,7 @@ pub(in crate::gateway) async fn proxy_impl(
                 excluded_from_stats: true,
                 status: Some(StatusCode::FORBIDDEN.as_u16()),
                 error_category: Some(ErrorCategory::NonRetryableClientError.as_str()),
-                error_code: Some("GW_CLI_PROXY_DISABLED"),
+                error_code: Some(GatewayErrorCode::CliProxyDisabled.as_str()),
                 duration_ms,
                 event_ttfb_ms: None,
                 log_ttfb_ms: None,
@@ -139,7 +139,7 @@ pub(in crate::gateway) async fn proxy_impl(
             let resp = error_response(
                 StatusCode::PAYLOAD_TOO_LARGE,
                 trace_id.clone(),
-                "GW_BODY_TOO_LARGE",
+                GatewayErrorCode::BodyTooLarge.as_str(),
                 format!("failed to read request body: {err}"),
                 vec![],
             );
@@ -155,7 +155,7 @@ pub(in crate::gateway) async fn proxy_impl(
                 excluded_from_stats: false,
                 status: Some(StatusCode::PAYLOAD_TOO_LARGE.as_u16()),
                 error_category: None,
-                error_code: Some("GW_BODY_TOO_LARGE"),
+                error_code: Some(GatewayErrorCode::BodyTooLarge.as_str()),
                 duration_ms,
                 event_ttfb_ms: None,
                 log_ttfb_ms: None,
@@ -409,7 +409,7 @@ pub(in crate::gateway) async fn proxy_impl(
         let resp = error_response(
             StatusCode::BAD_REQUEST,
             trace_id.clone(),
-            "GW_INVALID_CLI_KEY",
+            GatewayErrorCode::InvalidCliKey.as_str(),
             err,
             vec![],
         );
@@ -425,7 +425,7 @@ pub(in crate::gateway) async fn proxy_impl(
             excluded_from_stats: false,
             status: Some(StatusCode::BAD_REQUEST.as_u16()),
             error_category: None,
-            error_code: Some("GW_INVALID_CLI_KEY"),
+            error_code: Some(GatewayErrorCode::InvalidCliKey.as_str()),
             duration_ms,
             event_ttfb_ms: None,
             log_ttfb_ms: None,
@@ -518,7 +518,7 @@ pub(in crate::gateway) async fn proxy_impl(
         let resp = error_response(
             StatusCode::SERVICE_UNAVAILABLE,
             trace_id.clone(),
-            "GW_NO_ENABLED_PROVIDER",
+            GatewayErrorCode::NoEnabledProvider.as_str(),
             message,
             vec![],
         );
@@ -533,7 +533,7 @@ pub(in crate::gateway) async fn proxy_impl(
             excluded_from_stats: false,
             status: Some(StatusCode::SERVICE_UNAVAILABLE.as_u16()),
             error_category: None,
-            error_code: Some("GW_NO_ENABLED_PROVIDER"),
+            error_code: Some(GatewayErrorCode::NoEnabledProvider.as_str()),
             duration_ms,
             event_ttfb_ms: None,
             log_ttfb_ms: None,

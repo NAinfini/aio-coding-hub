@@ -35,7 +35,7 @@ use super::super::{
         build_response, has_gzip_content_encoding, has_non_identity_content_encoding,
         is_event_stream, maybe_gunzip_response_body_bytes_with_limit,
     },
-    ErrorCategory,
+    ErrorCategory, GatewayErrorCode,
 };
 
 use crate::usage;
@@ -174,7 +174,7 @@ pub(super) async fn run(mut input: RequestContext) -> Response {
                 retry_index: None,
                 session_reuse: None,
                 error_category: Some("circuit_breaker"),
-                error_code: Some("GW_PROVIDER_CIRCUIT_OPEN"),
+                error_code: Some(GatewayErrorCode::ProviderCircuitOpen.as_str()),
                 decision: Some("skip"),
                 reason: Some("provider skipped by circuit breaker".to_string()),
                 attempt_started_ms: Some(started.elapsed().as_millis()),
@@ -204,7 +204,7 @@ pub(super) async fn run(mut input: RequestContext) -> Response {
                 retry_index: None,
                 session_reuse: None,
                 error_category: Some("rate_limit"),
-                error_code: Some("GW_PROVIDER_RATE_LIMITED"),
+                error_code: Some(GatewayErrorCode::ProviderRateLimited.as_str()),
                 decision: Some("skip"),
                 reason: Some("provider skipped by rate limit".to_string()),
                 attempt_started_ms: Some(started.elapsed().as_millis()),
@@ -283,7 +283,7 @@ pub(super) async fn run(mut input: RequestContext) -> Response {
                 Ok(u) => u,
                 Err(err) => {
                     let category = ErrorCategory::SystemError;
-                    let error_code = "GW_INTERNAL_ERROR";
+                    let error_code = GatewayErrorCode::InternalError.as_str();
                     let decision = FailoverDecision::SwitchProvider;
 
                     let outcome = format!(

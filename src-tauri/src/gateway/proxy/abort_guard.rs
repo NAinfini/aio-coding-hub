@@ -6,7 +6,7 @@ use std::time::Instant;
 use super::request_end::{
     emit_request_event_and_spawn_request_log, RequestEndArgs, RequestEndDeps,
 };
-use super::ErrorCategory;
+use super::{ErrorCategory, GatewayErrorCode};
 
 pub(super) struct RequestAbortGuard {
     app: tauri::AppHandle,
@@ -76,7 +76,7 @@ impl Drop for RequestAbortGuard {
             excluded_from_stats: false,
             status: None,
             error_category: Some(ErrorCategory::ClientAbort.as_str()),
-            error_code: Some("GW_REQUEST_ABORTED"),
+            error_code: Some(GatewayErrorCode::RequestAborted.as_str()),
             duration_ms,
             event_ttfb_ms: None,
             log_ttfb_ms: None,

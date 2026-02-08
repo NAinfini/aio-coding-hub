@@ -1,3 +1,4 @@
+import { GatewayErrorCodes } from "../constants/gatewayErrorCodes";
 import { logToConsole, shouldLogToConsole } from "./consoleLog";
 import { hasTauriRuntime } from "./tauriInvoke";
 import { ingestTraceAttempt, ingestTraceRequest, ingestTraceStart } from "./traceStore";
@@ -247,8 +248,8 @@ export async function listenGatewayEvents(): Promise<() => void> {
     if (!payload) return;
 
     const title =
-      payload.error_code === "GW_PORT_IN_USE"
-        ? "端口被占用，已自动切换（GW_PORT_IN_USE）"
+      payload.error_code === GatewayErrorCodes.PORT_IN_USE
+        ? `端口被占用，已自动切换（${GatewayErrorCodes.PORT_IN_USE}）`
         : `网关日志：${payload.error_code}`;
 
     logToConsole(normalizeLogLevel(payload.level), title, {

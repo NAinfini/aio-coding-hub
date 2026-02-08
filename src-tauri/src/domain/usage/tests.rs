@@ -108,3 +108,19 @@ fn parse_codex_response_completed_marks_completion_seen() {
     assert_eq!(extract.metrics.output_tokens, Some(2));
     assert_eq!(extract.metrics.total_tokens, Some(3));
 }
+
+#[test]
+fn parse_sse_error_event_marks_terminal_error_seen() {
+    let sse = b"event: error\ndata: {\"error\":{\"message\":\"upstream failed\"}}\n\n";
+    let mut tracker = SseUsageTracker::new("claude");
+    tracker.ingest_chunk(sse);
+    assert!(tracker.terminal_error_seen());
+}
+
+#[test]
+fn parse_response_error_type_marks_terminal_error_seen() {
+    let sse = b"data: {\"type\":\"response.error\",\"error\":{\"message\":\"broken\"}}\n\n";
+    let mut tracker = SseUsageTracker::new("codex");
+    tracker.ingest_chunk(sse);
+    assert!(tracker.terminal_error_seen());
+}

@@ -1,6 +1,6 @@
 //! Usage: Handle successful non-SSE upstream responses inside `failover_loop::run`.
 
-use super::super::super::provider_router;
+use super::super::super::{provider_router, GatewayErrorCode};
 use super::*;
 
 pub(super) async fn handle_success_non_stream(
@@ -207,9 +207,11 @@ pub(super) async fn handle_success_non_stream(
                 return LoopControl::Return(match builder.body(body) {
                     Ok(r) => r,
                     Err(_) => {
-                        let mut fallback =
-                            (StatusCode::INTERNAL_SERVER_ERROR, "GW_RESPONSE_BUILD_ERROR")
-                                .into_response();
+                        let mut fallback = (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            GatewayErrorCode::ResponseBuildError.as_str(),
+                        )
+                            .into_response();
                         fallback.headers_mut().insert(
                             "x-trace-id",
                             HeaderValue::from_str(common.trace_id.as_str())
@@ -247,9 +249,9 @@ pub(super) async fn handle_success_non_stream(
         Ok(b) => b,
         Err(kind) => {
             let error_code = if kind == "timeout" {
-                "GW_UPSTREAM_TIMEOUT"
+                GatewayErrorCode::UpstreamTimeout.as_str()
             } else {
-                "GW_UPSTREAM_READ_ERROR"
+                GatewayErrorCode::UpstreamReadError.as_str()
             };
             let decision = if retry_index < max_attempts_per_provider {
                 FailoverDecision::RetrySameProvider
@@ -362,8 +364,11 @@ pub(super) async fn handle_success_non_stream(
     let out = match builder.body(body) {
         Ok(r) => r,
         Err(_) => {
-            let mut fallback =
-                (StatusCode::INTERNAL_SERVER_ERROR, "GW_RESPONSE_BUILD_ERROR").into_response();
+            let mut fallback = (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                GatewayErrorCode::ResponseBuildError.as_str(),
+            )
+                .into_response();
             fallback.headers_mut().insert(
                 "x-trace-id",
                 HeaderValue::from_str(common.trace_id.as_str())

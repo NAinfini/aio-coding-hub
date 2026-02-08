@@ -1,3 +1,4 @@
+use super::proxy::GatewayErrorCode;
 use axum::http::{header, HeaderMap, HeaderValue};
 use std::borrow::Cow;
 use std::collections::hash_map::DefaultHasher;
@@ -334,7 +335,8 @@ pub(super) fn build_target_url(
     forwarded_path: &str,
     query: Option<&str>,
 ) -> Result<reqwest::Url, String> {
-    let mut url = reqwest::Url::parse(base_url).map_err(|e| format!("GW_INVALID_BASE_URL: {e}"))?;
+    let mut url = reqwest::Url::parse(base_url)
+        .map_err(|e| format!("{}: {e}", GatewayErrorCode::InvalidBaseUrl.as_str()))?;
 
     let base_path = url.path().trim_end_matches('/');
     let forwarded_path = if base_path.ends_with("/v1")

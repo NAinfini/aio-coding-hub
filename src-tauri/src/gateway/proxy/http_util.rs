@@ -7,6 +7,8 @@ use axum::{
 };
 use std::io::Read;
 
+use super::GatewayErrorCode;
+
 pub(super) fn is_event_stream(headers: &HeaderMap) -> bool {
     headers
         .get(header::CONTENT_TYPE)
@@ -103,8 +105,11 @@ pub(super) fn build_response(
     match builder.body(body) {
         Ok(r) => r,
         Err(_) => {
-            let mut fallback =
-                (StatusCode::INTERNAL_SERVER_ERROR, "GW_RESPONSE_BUILD_ERROR").into_response();
+            let mut fallback = (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                GatewayErrorCode::ResponseBuildError.as_str(),
+            )
+                .into_response();
             fallback.headers_mut().insert(
                 "x-trace-id",
                 HeaderValue::from_str(trace_id).unwrap_or(HeaderValue::from_static("unknown")),

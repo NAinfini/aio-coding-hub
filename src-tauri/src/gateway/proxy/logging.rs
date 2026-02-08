@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use super::super::events::{emit_gateway_log, GatewayAttemptEvent};
 use super::super::util::now_unix_seconds;
+use super::GatewayErrorCode;
 
 const LOG_ENQUEUE_MAX_WAIT: Duration = Duration::from_millis(100);
 
@@ -71,7 +72,7 @@ pub(super) async fn enqueue_attempt_log_with_backpressure(
             emit_gateway_log(
                 app,
                 "warn",
-                "GW_ATTEMPT_LOG_CHANNEL_CLOSED",
+                GatewayErrorCode::AttemptLogChannelClosed.as_str(),
                 format!(
                     "attempt log channel closed; using write-through fallback trace_id={} cli={}",
                     attempt.trace_id, attempt.cli_key
@@ -84,7 +85,7 @@ pub(super) async fn enqueue_attempt_log_with_backpressure(
                 emit_gateway_log(
                     app,
                     "warn",
-                    "GW_ATTEMPT_LOG_ENQUEUE_TIMEOUT",
+                    GatewayErrorCode::AttemptLogEnqueueTimeout.as_str(),
                     format!(
                         "attempt log enqueue timed out ({}ms); used try_send fallback trace_id={} cli={}",
                         LOG_ENQUEUE_MAX_WAIT.as_millis(),
@@ -98,7 +99,7 @@ pub(super) async fn enqueue_attempt_log_with_backpressure(
             emit_gateway_log(
                 app,
                 "error",
-                "GW_ATTEMPT_LOG_DROPPED",
+                GatewayErrorCode::AttemptLogDropped.as_str(),
                 format!(
                     "attempt log dropped (queue full after {}ms) trace_id={} cli={}",
                     LOG_ENQUEUE_MAX_WAIT.as_millis(),
@@ -203,7 +204,7 @@ pub(super) async fn enqueue_request_log_with_backpressure(
             emit_gateway_log(
                 app,
                 "warn",
-                "GW_REQUEST_LOG_CHANNEL_CLOSED",
+                GatewayErrorCode::RequestLogChannelClosed.as_str(),
                 format!(
                     "request log channel closed; using write-through fallback trace_id={} cli={}",
                     trace_id, cli_key
@@ -217,7 +218,7 @@ pub(super) async fn enqueue_request_log_with_backpressure(
                     emit_gateway_log(
                         app,
                         "warn",
-                        "GW_REQUEST_LOG_ENQUEUE_TIMEOUT",
+                        GatewayErrorCode::RequestLogEnqueueTimeout.as_str(),
                         format!(
                             "request log enqueue timed out ({}ms); used try_send fallback trace_id={} cli={}",
                             LOG_ENQUEUE_MAX_WAIT.as_millis(),
@@ -235,7 +236,7 @@ pub(super) async fn enqueue_request_log_with_backpressure(
                             emit_gateway_log(
                                 app,
                                 "warn",
-                                "GW_REQUEST_LOG_WRITE_THROUGH_ON_BACKPRESSURE",
+                                GatewayErrorCode::RequestLogWriteThroughOnBackpressure.as_str(),
                                 format!(
                                     "request log enqueue timed out ({}ms) and channel full; using write-through fallback trace_id={} cli={} status={}",
                                     LOG_ENQUEUE_MAX_WAIT.as_millis(),
@@ -249,7 +250,7 @@ pub(super) async fn enqueue_request_log_with_backpressure(
                             emit_gateway_log(
                                 app,
                                 "error",
-                                "GW_REQUEST_LOG_WRITE_THROUGH_RATE_LIMITED",
+                                GatewayErrorCode::RequestLogWriteThroughRateLimited.as_str(),
                                 format!(
                                     "request log write-through rate limited: max_per_sec={} (dropping important logs) trace_id={} cli={} status={}",
                                     REQUEST_LOG_WRITE_THROUGH_MAX_PER_SEC,
@@ -267,7 +268,7 @@ pub(super) async fn enqueue_request_log_with_backpressure(
             emit_gateway_log(
                 app,
                 "error",
-                "GW_REQUEST_LOG_DROPPED",
+                GatewayErrorCode::RequestLogDropped.as_str(),
                 format!(
                     "request log dropped (queue full after {}ms) trace_id={} cli={}",
                     LOG_ENQUEUE_MAX_WAIT.as_millis(),

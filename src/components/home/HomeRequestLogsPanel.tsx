@@ -22,11 +22,11 @@ import {
   sanitizeTtfbMs,
 } from "../../utils/formatters";
 import {
+  buildRequestRouteMeta,
   computeEffectiveInputTokens,
   computeStatusBadge,
   getErrorCodeLabel,
   SessionReuseBadge,
-  FailoverBadge,
 } from "./HomeLogShared";
 import {
   Clock,
@@ -163,22 +163,12 @@ export function HomeRequestLogsPanel({
                   ? "未知"
                   : log.final_provider_name;
 
-              const providerChainText = (() => {
-                const hops = log.route ?? [];
-                if (hops.length === 0) return null;
-                const parts = hops.map((hop, idx) => {
-                  const raw = hop.provider_name?.trim();
-                  const name = !raw || raw === "Unknown" ? "未知" : raw;
-                  const status =
-                    hop.status ?? (idx === hops.length - 1 ? log.status : null) ?? null;
-                  const statusText = status == null ? "—" : String(status);
-                  if (hop.ok) return `${name}(${statusText})`;
-                  const code = hop.error_code ?? null;
-                  const label = code ? getErrorCodeLabel(code) : "失败";
-                  return `${name}(${statusText} ${label})`;
-                });
-                return parts.join("→");
-              })();
+              const routeMeta = buildRequestRouteMeta({
+                route: log.route,
+                status: log.status,
+                hasFailover: log.has_failover,
+                attemptCount: log.attempt_count,
+              });
 
               const providerTitle = providerText;
 
@@ -297,12 +287,6 @@ export function HomeRequestLogsPanel({
                         )}
 
                         <span className="flex items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500 ml-auto shrink-0">
-                          {log.has_failover && log.attempt_count > 1 && !statusBadge.isError && (
-                            <FailoverBadge
-                              attemptCount={log.attempt_count}
-                              showCustomTooltip={showCustomTooltip}
-                            />
-                          )}
                           {log.session_reuse && (
                             <SessionReuseBadge showCustomTooltip={showCustomTooltip} />
                           )}
@@ -326,23 +310,23 @@ export function HomeRequestLogsPanel({
                           </div>
                           <div className="flex items-center h-4">
                             <div className="flex items-center gap-1 min-w-0 w-full">
-                              {providerChainText ? (
+                              {routeMeta.hasRoute && routeMeta.tooltipText ? (
                                 showCustomTooltip ? (
                                   <Tooltip
-                                    content={providerChainText}
+                                    content={routeMeta.tooltipText}
                                     contentClassName="max-w-[520px] break-words font-mono"
                                     placement="top"
                                   >
                                     <span className="text-[10px] text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-help">
-                                      链路
+                                      {routeMeta.label}
                                     </span>
                                   </Tooltip>
                                 ) : (
                                   <span
                                     className="text-[10px] text-slate-400 dark:text-slate-500 cursor-help"
-                                    title={providerChainText}
+                                    title={routeMeta.tooltipText}
                                   >
-                                    链路
+                                    {routeMeta.label}
                                   </span>
                                 )
                               ) : null}

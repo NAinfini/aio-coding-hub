@@ -1,6 +1,6 @@
 //! Usage: Shared stream finalize helpers (cooldown/circuit/session).
 
-use super::super::proxy::{provider_router, ErrorCategory};
+use super::super::proxy::{provider_router, ErrorCategory, GatewayErrorCode};
 use super::super::util::now_unix_seconds;
 use super::StreamFinalizeCtx;
 
@@ -8,7 +8,7 @@ pub(super) fn finalize_circuit_and_session(
     ctx: &StreamFinalizeCtx,
     error_code: Option<&'static str>,
 ) -> Option<&'static str> {
-    let effective_error_category = if error_code == Some("GW_STREAM_ABORTED") {
+    let effective_error_category = if error_code == Some(GatewayErrorCode::StreamAborted.as_str()) {
         Some(ErrorCategory::ClientAbort.as_str())
     } else {
         ctx.error_category

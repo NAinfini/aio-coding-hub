@@ -3,6 +3,7 @@
 mod abort_guard;
 mod caches;
 mod cli_proxy_guard;
+mod error_code;
 mod errors;
 mod failover;
 mod forwarder;
@@ -18,6 +19,7 @@ mod types;
 mod upstream_client_error_rules;
 
 pub(super) use caches::{ProviderBaseUrlPingCache, RecentErrorCache};
+pub(super) use error_code::GatewayErrorCode;
 pub(in crate::gateway) use logging::spawn_enqueue_request_log_with_backpressure;
 pub(super) use types::ErrorCategory;
 

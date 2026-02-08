@@ -10,7 +10,7 @@ use tokio::sync::oneshot;
 use super::codex_session_id::CodexSessionIdCache;
 use super::events::GatewayLogEvent;
 use super::listen;
-use super::proxy::{ProviderBaseUrlPingCache, RecentErrorCache};
+use super::proxy::{GatewayErrorCode, ProviderBaseUrlPingCache, RecentErrorCache};
 use super::routes::build_router;
 use super::util::now_unix_seconds;
 use super::{GatewayProviderCircuitStatus, GatewayStatus};
@@ -196,7 +196,7 @@ impl GatewayManager {
 
             let payload = GatewayLogEvent {
                 level: "warn",
-                error_code: "GW_PORT_IN_USE",
+                error_code: GatewayErrorCode::PortInUse.as_str(),
                 message: format!("端口 {requested_port} 被占用，已自动切换到 {port}"),
                 requested_port,
                 bound_port: port,
@@ -211,7 +211,7 @@ impl GatewayManager {
                 env!("CARGO_PKG_VERSION")
             ))
             .build()
-            .map_err(|e| format!("GW_HTTP_CLIENT_INIT: {e}"))?;
+            .map_err(|e| format!("{}: {e}", GatewayErrorCode::HttpClientInit.as_str()))?;
 
         let (log_tx, log_task) = request_logs::start_buffered_writer(app.clone(), db.clone());
         let (attempt_log_tx, attempt_log_task) =

@@ -6,6 +6,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
+use super::super::proxy::GatewayErrorCode;
 use super::request_end::emit_request_event_and_spawn_request_log;
 use super::StreamFinalizeCtx;
 
@@ -71,7 +72,7 @@ where
         let this = self.as_mut().get_mut();
         if let Some(total) = this.total_timeout {
             if this.ctx.started.elapsed() >= total {
-                this.finalize(Some("GW_UPSTREAM_TIMEOUT"));
+                this.finalize(Some(GatewayErrorCode::UpstreamTimeout.as_str()));
                 return Poll::Ready(None);
             }
         }
@@ -82,7 +83,7 @@ where
             Poll::Pending => {
                 if let Some(timer) = this.total_sleep.as_mut() {
                     if timer.as_mut().poll(cx).is_ready() {
-                        this.finalize(Some("GW_UPSTREAM_TIMEOUT"));
+                        this.finalize(Some(GatewayErrorCode::UpstreamTimeout.as_str()));
                         return Poll::Ready(None);
                     }
                 }
@@ -99,7 +100,7 @@ where
                 Poll::Ready(Some(Ok(chunk)))
             }
             Poll::Ready(Some(Err(err))) => {
-                this.finalize(Some("GW_STREAM_ERROR"));
+                this.finalize(Some(GatewayErrorCode::StreamError.as_str()));
                 Poll::Ready(Some(Err(err)))
             }
         }
@@ -113,7 +114,7 @@ where
 {
     fn drop(&mut self) {
         if !self.finalized {
-            self.finalize(Some("GW_STREAM_ABORTED"));
+            self.finalize(Some(GatewayErrorCode::StreamAborted.as_str()));
         }
     }
 }

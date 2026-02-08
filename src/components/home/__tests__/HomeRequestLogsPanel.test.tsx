@@ -245,7 +245,7 @@ describe("components/home/HomeRequestLogsPanel", () => {
 
     // spot-check some conditional text rendering paths
     expect(screen.getAllByText("未知").length).toBeGreaterThan(0);
-    expect(screen.getByText("链路")).toBeInTheDocument();
+    expect(screen.getByText("链路[降级*2]")).toBeInTheDocument();
     expect(screen.getByText("会话复用")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "日志" }));
@@ -273,6 +273,61 @@ describe("components/home/HomeRequestLogsPanel", () => {
     expect(screen.getAllByText("仅在 Tauri Desktop 环境可用").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "刷新" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "日志" })).toBeDisabled();
+  });
+
+  it("shows plain 链路 when route exists without failover", () => {
+    const onRefreshRequestLogs = vi.fn();
+    const requestLogs: RequestLogSummary[] = [
+      {
+        id: 11,
+        trace_id: "t11",
+        cli_key: "claude",
+        method: "POST",
+        path: "/v1/messages",
+        requested_model: "claude-3-5-sonnet",
+        status: 200,
+        error_code: null,
+        duration_ms: 123,
+        ttfb_ms: 12,
+        attempt_count: 1,
+        has_failover: false,
+        start_provider_id: 1,
+        start_provider_name: "P1",
+        final_provider_id: 1,
+        final_provider_name: "P1",
+        route: [{ provider_id: 1, provider_name: "P1", ok: true, status: 200 }],
+        session_reuse: false,
+        input_tokens: 1,
+        output_tokens: 2,
+        total_tokens: 3,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0,
+        cache_creation_5m_input_tokens: 0,
+        cost_usd: 0.01,
+        cost_multiplier: 1,
+        created_at_ms: null,
+        created_at: Math.floor(Date.now() / 1000),
+      },
+    ];
+
+    render(
+      <MemoryRouter>
+        <HomeRequestLogsPanel
+          showCustomTooltip={false}
+          traces={[]}
+          requestLogs={requestLogs}
+          requestLogsLoading={false}
+          requestLogsRefreshing={false}
+          requestLogsAvailable={true}
+          onRefreshRequestLogs={onRefreshRequestLogs}
+          selectedLogId={null}
+          onSelectLogId={vi.fn()}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText("链路")).toBeInTheDocument();
+    expect(screen.queryByText(/链路\[降级\*/)).not.toBeInTheDocument();
   });
 
   it("renders loading/refreshing empty state variants", () => {

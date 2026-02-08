@@ -70,7 +70,7 @@ pub(super) async fn handle_thinking_signature_rectifier_400(
                 let resp = error_response(
                     StatusCode::BAD_GATEWAY,
                     trace_id.clone(),
-                    "GW_UPSTREAM_BODY_READ_ERROR",
+                    GatewayErrorCode::UpstreamBodyReadError.as_str(),
                     format!("failed to read upstream error body: {err}"),
                     attempts.clone(),
                 );
@@ -84,7 +84,7 @@ pub(super) async fn handle_thinking_signature_rectifier_400(
                     excluded_from_stats: false,
                     status: Some(StatusCode::BAD_GATEWAY.as_u16()),
                     error_category: Some(ErrorCategory::SystemError.as_str()),
-                    error_code: Some("GW_UPSTREAM_BODY_READ_ERROR"),
+                    error_code: Some(GatewayErrorCode::UpstreamBodyReadError.as_str()),
                     duration_ms,
                     event_ttfb_ms: None,
                     log_ttfb_ms: None,

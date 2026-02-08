@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { HomeRequestLogsPanel } from "../components/home/HomeRequestLogsPanel";
 import { RequestLogDetailDialog } from "../components/home/RequestLogDetailDialog";
 import { CLI_FILTER_ITEMS, type CliFilterKey } from "../constants/clis";
+import { GatewayErrorCodes } from "../constants/gatewayErrorCodes";
 import { hasTauriRuntime } from "../services/tauriInvoke";
 import { useDocumentVisibility } from "../hooks/useDocumentVisibility";
 import { Card } from "../ui/Card";
@@ -190,7 +191,7 @@ export function LogsPage() {
                 <Input
                   value={errorCodeFilter}
                   onChange={(e) => setErrorCodeFilter(e.target.value)}
-                  placeholder="例：GW_UPSTREAM_TIMEOUT"
+                  placeholder={`例：${GatewayErrorCodes.UPSTREAM_TIMEOUT}`}
                   mono
                   disabled={requestLogsAvailable === false}
                 />

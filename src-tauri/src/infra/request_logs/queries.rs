@@ -1,6 +1,7 @@
 //! Usage: Request log queries and attempts decoding.
 
 use crate::db;
+use crate::shared::error::db_err;
 use rusqlite::{params, OptionalExtension};
 use serde::Deserialize;
 
@@ -226,15 +227,15 @@ pub fn list_recent(
     let sql = format!("SELECT{}FROM request_logs WHERE cli_key = ?1 ORDER BY created_at_ms DESC, id DESC LIMIT ?2", REQUEST_LOG_SUMMARY_FIELDS);
     let mut stmt = conn
         .prepare(&sql)
-        .map_err(|e| format!("DB_ERROR: failed to prepare query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare query: {e}"))?;
 
     let rows = stmt
         .query_map(params![cli_key, limit as i64], row_to_summary)
-        .map_err(|e| format!("DB_ERROR: failed to list request_logs: {e}"))?;
+        .map_err(|e| db_err!("failed to list request_logs: {e}"))?;
 
     let mut items = Vec::new();
     for row in rows {
-        items.push(row.map_err(|e| format!("DB_ERROR: failed to read request_log row: {e}"))?);
+        items.push(row.map_err(|e| db_err!("failed to read request_log row: {e}"))?);
     }
     Ok(items)
 }
@@ -251,15 +252,15 @@ pub fn list_recent_all(
     );
     let mut stmt = conn
         .prepare(&sql)
-        .map_err(|e| format!("DB_ERROR: failed to prepare query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare query: {e}"))?;
 
     let rows = stmt
         .query_map(params![limit as i64], row_to_summary)
-        .map_err(|e| format!("DB_ERROR: failed to list request_logs: {e}"))?;
+        .map_err(|e| db_err!("failed to list request_logs: {e}"))?;
 
     let mut items = Vec::new();
     for row in rows {
-        items.push(row.map_err(|e| format!("DB_ERROR: failed to read request_log row: {e}"))?);
+        items.push(row.map_err(|e| db_err!("failed to read request_log row: {e}"))?);
     }
     Ok(items)
 }
@@ -280,15 +281,15 @@ pub fn list_after_id(
     );
     let mut stmt = conn
         .prepare(&sql)
-        .map_err(|e| format!("DB_ERROR: failed to prepare query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare query: {e}"))?;
 
     let rows = stmt
         .query_map(params![cli_key, after_id, limit as i64], row_to_summary)
-        .map_err(|e| format!("DB_ERROR: failed to list request_logs: {e}"))?;
+        .map_err(|e| db_err!("failed to list request_logs: {e}"))?;
 
     let mut items = Vec::new();
     for row in rows {
-        items.push(row.map_err(|e| format!("DB_ERROR: failed to read request_log row: {e}"))?);
+        items.push(row.map_err(|e| db_err!("failed to read request_log row: {e}"))?);
     }
     Ok(items)
 }
@@ -307,15 +308,15 @@ pub fn list_after_id_all(
     );
     let mut stmt = conn
         .prepare(&sql)
-        .map_err(|e| format!("DB_ERROR: failed to prepare query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare query: {e}"))?;
 
     let rows = stmt
         .query_map(params![after_id, limit as i64], row_to_summary)
-        .map_err(|e| format!("DB_ERROR: failed to list request_logs: {e}"))?;
+        .map_err(|e| db_err!("failed to list request_logs: {e}"))?;
 
     let mut items = Vec::new();
     for row in rows {
-        items.push(row.map_err(|e| format!("DB_ERROR: failed to read request_log row: {e}"))?);
+        items.push(row.map_err(|e| db_err!("failed to read request_log row: {e}"))?);
     }
     Ok(items)
 }
@@ -359,7 +360,7 @@ pub fn get_by_id(db: &db::Db, log_id: i64) -> crate::shared::error::AppResult<Re
         })
     })
     .optional()
-    .map_err(|e| format!("DB_ERROR: failed to query request_log: {e}"))?
+    .map_err(|e| db_err!("failed to query request_log: {e}"))?
     .ok_or_else(|| "DB_NOT_FOUND: request_log not found".to_string().into())
 }
 
@@ -409,8 +410,7 @@ pub fn get_by_trace_id(
         })
     })
     .optional()
-    .map_err(|e| format!("DB_ERROR: failed to query request_log: {e}"))
-    .map_err(Into::into)
+    .map_err(|e| db_err!("failed to query request_log: {e}"))
 }
 
 #[cfg(test)]

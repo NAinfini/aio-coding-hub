@@ -1,4 +1,5 @@
 use crate::db;
+use crate::shared::error::db_err;
 use rusqlite::{params_from_iter, Connection, OptionalExtension};
 use std::collections::HashMap;
 
@@ -198,7 +199,7 @@ ORDER BY {order_by_fields}, denom_tokens DESC
 
     let mut stmt = conn
         .prepare(&sql)
-        .map_err(|e| format!("DB_ERROR: failed to prepare provider cache trend query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare provider cache trend query: {e}"))?;
 
     let rows = stmt
         .query_map(
@@ -229,11 +230,11 @@ ORDER BY {order_by_fields}, denom_tokens DESC
                 })
             },
         )
-        .map_err(|e| format!("DB_ERROR: failed to run provider cache trend query: {e}"))?;
+        .map_err(|e| db_err!("failed to run provider cache trend query: {e}"))?;
 
     let mut items = Vec::new();
     for row in rows {
-        items.push(row.map_err(|e| format!("DB_ERROR: failed to read cache trend row: {e}"))?);
+        items.push(row.map_err(|e| db_err!("failed to read cache trend row: {e}"))?);
     }
 
     let fallback_sql = format!(
@@ -250,7 +251,7 @@ LIMIT 1
     );
     let mut stmt_fallback_name = conn
         .prepare(&fallback_sql)
-        .map_err(|e| format!("DB_ERROR: failed to prepare provider name fallback query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare provider name fallback query: {e}"))?;
 
     let mut name_cache: HashMap<(String, i64), Option<String>> = HashMap::new();
 
@@ -274,9 +275,7 @@ LIMIT 1
                     let attempts_json: Option<String> = stmt_fallback_name
                         .query_row(params_from_iter(fallback_params), |r| r.get(0))
                         .optional()
-                        .map_err(|e| {
-                            format!("DB_ERROR: failed to query provider name fallback: {e}")
-                        })?;
+                        .map_err(|e| db_err!("failed to query provider name fallback: {e}"))?;
 
                     if let Some(attempts_json) = attempts_json {
                         let extracted = extract_final_provider(&row.cli_key, &attempts_json);

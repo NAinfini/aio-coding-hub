@@ -16,6 +16,7 @@ use super::{
 };
 use super::{ErrorCategory, GatewayErrorCode};
 
+use crate::shared::mutex_ext::MutexExt;
 use crate::{providers, session_manager, settings, usage};
 use axum::{
     body::{to_bytes, Body, Bytes},
@@ -355,10 +356,7 @@ pub(in crate::gateway) async fn proxy_impl(
 
     let mut strip_request_content_encoding_seed = false;
     if cli_key == "codex" && enable_codex_session_id_completion {
-        let mut cache = state
-            .codex_session_cache
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
+        let mut cache = state.codex_session_cache.lock_or_recover();
         let result = codex_session_id::complete_codex_session_identifiers(
             &mut cache,
             created_at,

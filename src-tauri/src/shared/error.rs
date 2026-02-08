@@ -4,6 +4,17 @@ use std::sync::Arc;
 
 pub type AppResult<T> = Result<T, AppError>;
 
+/// Creates an `AppError` with the `DB_ERROR` code.
+///
+/// Usage: `db_err!("failed to query providers: {}", e)`
+macro_rules! db_err {
+    ($($arg:tt)*) => {
+        $crate::shared::error::AppError::new("DB_ERROR", format!($($arg)*))
+    };
+}
+
+pub(crate) use db_err;
+
 #[derive(Debug, Clone, thiserror::Error)]
 #[error("{code}: {message}")]
 pub struct AppError {

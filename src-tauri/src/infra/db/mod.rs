@@ -3,6 +3,7 @@
 mod migrations;
 
 use crate::app_paths;
+use crate::shared::error::db_err;
 use crate::shared::error::AppResult;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
@@ -29,8 +30,7 @@ impl Db {
     ) -> AppResult<r2d2::PooledConnection<SqliteConnectionManager>> {
         self.pool
             .get()
-            .map_err(|e| format!("DB_ERROR: failed to get connection from pool: {e}"))
-            .map_err(Into::into)
+            .map_err(|e| db_err!("failed to get connection from pool: {e}"))
     }
 }
 
@@ -67,10 +67,10 @@ pub fn init<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> AppResult<Db> {
         .min_idle(Some(POOL_MIN_IDLE))
         .connection_timeout(POOL_CONNECTION_TIMEOUT)
         .build(manager)
-        .map_err(|e| format!("DB_ERROR: failed to create db pool: {e}"))?;
+        .map_err(|e| db_err!("failed to create db pool: {e}"))?;
     let mut conn = pool
         .get()
-        .map_err(|e| format!("DB_ERROR: failed to get startup connection: {e}"))?;
+        .map_err(|e| db_err!("failed to get startup connection: {e}"))?;
 
     migrations::apply_migrations(&mut conn)
         .map_err(|e| format!("sqlite migration failed at {path_hint}: {e}"))?;
@@ -101,4 +101,33 @@ PRAGMA mmap_size = 268435456;
     ))?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sql_placeholders_zero_returns_empty() {
+        assert_eq!(sql_placeholders(0), "");
+    }
+
+    #[test]
+    fn sql_placeholders_one_returns_single_question_mark() {
+        assert_eq!(sql_placeholders(1), "?");
+    }
+
+    #[test]
+    fn sql_placeholders_three_returns_comma_separated() {
+        assert_eq!(sql_placeholders(3), "?,?,?");
+    }
+
+    #[test]
+    fn sql_placeholders_large_count() {
+        let result = sql_placeholders(5);
+        assert_eq!(result, "?,?,?,?,?");
+        // Verify no trailing comma
+        assert!(!result.ends_with(','));
+        assert!(!result.starts_with(','));
+    }
 }

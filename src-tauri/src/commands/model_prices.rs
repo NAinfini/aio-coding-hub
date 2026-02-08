@@ -50,12 +50,14 @@ pub(crate) async fn model_prices_sync_basellm(
         move || {
             cost_stats::backfill_missing_v1(
                 &db_for_backfill,
-                "allTime",
-                None,
-                None,
-                Some("claude"),
-                None,
-                None,
+                &cost_stats::CostQueryParams {
+                    period: "allTime".to_string(),
+                    start_ts: None,
+                    end_ts: None,
+                    cli_key: Some("claude".to_string()),
+                    provider_id: None,
+                    model: None,
+                },
                 5000,
             )
         },

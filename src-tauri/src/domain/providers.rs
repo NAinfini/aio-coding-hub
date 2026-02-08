@@ -1,6 +1,7 @@
 //! Usage: Provider configuration persistence and gateway selection helpers.
 
 use crate::db;
+use crate::shared::error::db_err;
 use crate::shared::sqlite::enabled_to_int;
 use crate::shared::time::now_unix_seconds;
 use rusqlite::{params, params_from_iter, Connection, OptionalExtension};
@@ -410,7 +411,7 @@ WHERE id = ?1
         row_to_summary,
     )
     .optional()
-    .map_err(|e| format!("DB_ERROR: failed to query provider: {e}"))?
+    .map_err(|e| db_err!("failed to query provider: {e}"))?
     .ok_or_else(|| crate::shared::error::AppError::from("DB_NOT_FOUND: provider not found"))
 }
 
@@ -437,23 +438,23 @@ pub fn names_by_id(
 
     let mut stmt = conn
         .prepare(&sql)
-        .map_err(|e| format!("DB_ERROR: failed to prepare query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare query: {e}"))?;
 
     let mut rows = stmt
         .query(params_from_iter(ids.iter()))
-        .map_err(|e| format!("DB_ERROR: failed to query provider names: {e}"))?;
+        .map_err(|e| db_err!("failed to query provider names: {e}"))?;
 
     let mut out: HashMap<i64, String> = HashMap::new();
     while let Some(row) = rows
         .next()
-        .map_err(|e| format!("DB_ERROR: failed to read provider row: {e}"))?
+        .map_err(|e| db_err!("failed to read provider row: {e}"))?
     {
         let id: i64 = row
             .get(0)
-            .map_err(|e| format!("DB_ERROR: invalid provider id: {e}"))?;
+            .map_err(|e| db_err!("invalid provider id: {e}"))?;
         let name: String = row
             .get(1)
-            .map_err(|e| format!("DB_ERROR: invalid provider name: {e}"))?;
+            .map_err(|e| db_err!("invalid provider name: {e}"))?;
         out.insert(id, name);
     }
 
@@ -495,18 +496,56 @@ SELECT
 	ORDER BY sort_order ASC, id DESC
 "#,
         )
-        .map_err(|e| format!("DB_ERROR: failed to prepare query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare query: {e}"))?;
 
     let rows = stmt
         .query_map(params![cli_key], row_to_summary)
-        .map_err(|e| format!("DB_ERROR: failed to list providers: {e}"))?;
+        .map_err(|e| db_err!("failed to list providers: {e}"))?;
 
     let mut items = Vec::new();
     for row in rows {
-        items.push(row.map_err(|e| format!("DB_ERROR: failed to read provider row: {e}"))?);
+        items.push(row.map_err(|e| db_err!("failed to read provider row: {e}"))?);
     }
 
     Ok(items)
+}
+
+/// Map a database row to `ProviderForGateway`. Both gateway query functions share
+/// the same column set, so this single mapper eliminates duplication.
+fn map_gateway_provider_row(
+    row: &rusqlite::Row<'_>,
+    cli_key: &str,
+) -> Result<ProviderForGateway, rusqlite::Error> {
+    let base_url_fallback: String = row.get("base_url")?;
+    let base_urls_json: String = row.get("base_urls_json")?;
+    let base_url_mode_raw: String = row.get("base_url_mode")?;
+    let claude_models_json: String = row.get("claude_models_json")?;
+    let daily_reset_mode_raw: String = row.get("daily_reset_mode")?;
+    let daily_reset_time_raw: String = row.get("daily_reset_time")?;
+    let base_url_mode =
+        ProviderBaseUrlMode::parse(&base_url_mode_raw).unwrap_or(ProviderBaseUrlMode::Order);
+    let daily_reset_mode =
+        DailyResetMode::parse(&daily_reset_mode_raw).unwrap_or(DailyResetMode::Fixed);
+    let daily_reset_time = normalize_reset_time_hms_lossy(&daily_reset_time_raw);
+    Ok(ProviderForGateway {
+        id: row.get("id")?,
+        name: row.get("name")?,
+        base_urls: base_urls_from_row(&base_url_fallback, &base_urls_json),
+        base_url_mode,
+        api_key_plaintext: row.get("api_key_plaintext")?,
+        claude_models: if cli_key == "claude" {
+            claude_models_from_json(&claude_models_json)
+        } else {
+            ClaudeModels::default()
+        },
+        limit_5h_usd: row.get("limit_5h_usd")?,
+        limit_daily_usd: row.get("limit_daily_usd")?,
+        daily_reset_mode,
+        daily_reset_time,
+        limit_weekly_usd: row.get("limit_weekly_usd")?,
+        limit_monthly_usd: row.get("limit_monthly_usd")?,
+        limit_total_usd: row.get("limit_total_usd")?,
+    })
 }
 
 fn list_enabled_for_gateway_in_sort_mode(
@@ -514,6 +553,7 @@ fn list_enabled_for_gateway_in_sort_mode(
     cli_key: &str,
     mode_id: i64,
 ) -> crate::shared::error::AppResult<Vec<ProviderForGateway>> {
+    let cli_key_owned = cli_key.to_string();
     let mut stmt = conn
         .prepare(
             r#"
@@ -541,46 +581,17 @@ WHERE mp.mode_id = ?1
 ORDER BY mp.sort_order ASC
 "#,
         )
-        .map_err(|e| format!("DB_ERROR: failed to prepare gateway sort_mode query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare gateway sort_mode query: {e}"))?;
 
     let rows = stmt
         .query_map(params![mode_id, cli_key], |row| {
-            let base_url_fallback: String = row.get("base_url")?;
-            let base_urls_json: String = row.get("base_urls_json")?;
-            let base_url_mode_raw: String = row.get("base_url_mode")?;
-            let claude_models_json: String = row.get("claude_models_json")?;
-            let daily_reset_mode_raw: String = row.get("daily_reset_mode")?;
-            let daily_reset_time_raw: String = row.get("daily_reset_time")?;
-            let base_url_mode = ProviderBaseUrlMode::parse(&base_url_mode_raw)
-                .unwrap_or(ProviderBaseUrlMode::Order);
-            let daily_reset_mode =
-                DailyResetMode::parse(&daily_reset_mode_raw).unwrap_or(DailyResetMode::Fixed);
-            let daily_reset_time = normalize_reset_time_hms_lossy(&daily_reset_time_raw);
-            Ok(ProviderForGateway {
-                id: row.get("id")?,
-                name: row.get("name")?,
-                base_urls: base_urls_from_row(&base_url_fallback, &base_urls_json),
-                base_url_mode,
-                api_key_plaintext: row.get("api_key_plaintext")?,
-                claude_models: if cli_key == "claude" {
-                    claude_models_from_json(&claude_models_json)
-                } else {
-                    ClaudeModels::default()
-                },
-                limit_5h_usd: row.get("limit_5h_usd")?,
-                limit_daily_usd: row.get("limit_daily_usd")?,
-                daily_reset_mode,
-                daily_reset_time,
-                limit_weekly_usd: row.get("limit_weekly_usd")?,
-                limit_monthly_usd: row.get("limit_monthly_usd")?,
-                limit_total_usd: row.get("limit_total_usd")?,
-            })
+            map_gateway_provider_row(row, &cli_key_owned)
         })
-        .map_err(|e| format!("DB_ERROR: failed to list gateway sort_mode providers: {e}"))?;
+        .map_err(|e| db_err!("failed to list gateway sort_mode providers: {e}"))?;
 
     let mut items = Vec::new();
     for row in rows {
-        items.push(row.map_err(|e| format!("DB_ERROR: failed to read gateway provider row: {e}"))?);
+        items.push(row.map_err(|e| db_err!("failed to read gateway provider row: {e}"))?);
     }
     Ok(items)
 }
@@ -589,6 +600,7 @@ fn list_enabled_for_gateway_default(
     conn: &Connection,
     cli_key: &str,
 ) -> crate::shared::error::AppResult<Vec<ProviderForGateway>> {
+    let cli_key_owned = cli_key.to_string();
     let mut stmt = conn
         .prepare(
             r#"
@@ -613,46 +625,17 @@ WHERE cli_key = ?1
 ORDER BY sort_order ASC, id DESC
 "#,
         )
-        .map_err(|e| format!("DB_ERROR: failed to prepare gateway provider query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare gateway provider query: {e}"))?;
 
     let rows = stmt
         .query_map(params![cli_key], |row| {
-            let base_url_fallback: String = row.get("base_url")?;
-            let base_urls_json: String = row.get("base_urls_json")?;
-            let base_url_mode_raw: String = row.get("base_url_mode")?;
-            let claude_models_json: String = row.get("claude_models_json")?;
-            let daily_reset_mode_raw: String = row.get("daily_reset_mode")?;
-            let daily_reset_time_raw: String = row.get("daily_reset_time")?;
-            let base_url_mode = ProviderBaseUrlMode::parse(&base_url_mode_raw)
-                .unwrap_or(ProviderBaseUrlMode::Order);
-            let daily_reset_mode =
-                DailyResetMode::parse(&daily_reset_mode_raw).unwrap_or(DailyResetMode::Fixed);
-            let daily_reset_time = normalize_reset_time_hms_lossy(&daily_reset_time_raw);
-            Ok(ProviderForGateway {
-                id: row.get("id")?,
-                name: row.get("name")?,
-                base_urls: base_urls_from_row(&base_url_fallback, &base_urls_json),
-                base_url_mode,
-                api_key_plaintext: row.get("api_key_plaintext")?,
-                claude_models: if cli_key == "claude" {
-                    claude_models_from_json(&claude_models_json)
-                } else {
-                    ClaudeModels::default()
-                },
-                limit_5h_usd: row.get("limit_5h_usd")?,
-                limit_daily_usd: row.get("limit_daily_usd")?,
-                daily_reset_mode,
-                daily_reset_time,
-                limit_weekly_usd: row.get("limit_weekly_usd")?,
-                limit_monthly_usd: row.get("limit_monthly_usd")?,
-                limit_total_usd: row.get("limit_total_usd")?,
-            })
+            map_gateway_provider_row(row, &cli_key_owned)
         })
-        .map_err(|e| format!("DB_ERROR: failed to list gateway providers: {e}"))?;
+        .map_err(|e| db_err!("failed to list gateway providers: {e}"))?;
 
     let mut items = Vec::new();
     for row in rows {
-        items.push(row.map_err(|e| format!("DB_ERROR: failed to read gateway provider row: {e}"))?);
+        items.push(row.map_err(|e| db_err!("failed to read gateway provider row: {e}"))?);
     }
     Ok(items)
 }
@@ -671,7 +654,7 @@ pub(crate) fn list_enabled_for_gateway_using_active_mode(
             |row| row.get::<_, Option<i64>>(0),
         )
         .optional()
-        .map_err(|e| format!("DB_ERROR: failed to query sort_mode_active: {e}"))?
+        .map_err(|e| db_err!("failed to query sort_mode_active: {e}"))?
         .flatten();
 
     if let Some(mode_id) = active_mode_id {
@@ -711,7 +694,7 @@ fn next_sort_order(conn: &Connection, cli_key: &str) -> crate::shared::error::Ap
         params![cli_key],
         |row| row.get::<_, i64>(0),
     )
-    .map_err(|e| format!("DB_ERROR: failed to query next sort_order: {e}").into())
+    .map_err(|e| db_err!("failed to query next sort_order: {e}"))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -858,11 +841,11 @@ INSERT INTO providers(
                 rusqlite::Error::SqliteFailure(err, _)
                     if err.code == rusqlite::ErrorCode::ConstraintViolation =>
                 {
-                    format!(
-                        "DB_CONSTRAINT: provider already exists for cli_key={cli_key}, name={name}"
-                    )
+                    crate::shared::error::AppError::new("DB_CONSTRAINT", format!(
+                        "provider already exists for cli_key={cli_key}, name={name}"
+                    ))
                 }
-                other => format!("DB_ERROR: failed to insert provider: {other}"),
+                other => db_err!("failed to insert provider: {other}"),
             })?;
 
             let id = conn.last_insert_rowid();
@@ -871,7 +854,7 @@ INSERT INTO providers(
         Some(id) => {
             let tx = conn
                 .transaction()
-                .map_err(|e| format!("DB_ERROR: failed to start transaction: {e}"))?;
+                .map_err(|e| db_err!("failed to start transaction: {e}"))?;
 
             let existing: Option<(String, String, i64, String, String, String)> = tx
                 .query_row(
@@ -880,7 +863,7 @@ INSERT INTO providers(
                     |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)),
                 )
                 .optional()
-                .map_err(|e| format!("DB_ERROR: failed to query provider: {e}"))?;
+                .map_err(|e| db_err!("failed to query provider: {e}"))?;
 
             let Some((
                 existing_cli_key,
@@ -993,14 +976,18 @@ WHERE id = ?18
                 ],
             )
             .map_err(|e| match e {
-                rusqlite::Error::SqliteFailure(err, _) if err.code == rusqlite::ErrorCode::ConstraintViolation => {
-                    format!("DB_CONSTRAINT: provider name already exists for cli_key={cli_key}, name={name}")
+                rusqlite::Error::SqliteFailure(err, _)
+                    if err.code == rusqlite::ErrorCode::ConstraintViolation =>
+                {
+                    crate::shared::error::AppError::new(
+                        "DB_CONSTRAINT",
+                        format!("provider name already exists for cli_key={cli_key}, name={name}"),
+                    )
                 }
-                other => format!("DB_ERROR: failed to update provider: {other}"),
+                other => db_err!("failed to update provider: {other}"),
             })?;
 
-            tx.commit()
-                .map_err(|e| format!("DB_ERROR: failed to commit: {e}"))?;
+            tx.commit().map_err(|e| db_err!("failed to commit: {e}"))?;
 
             get_by_id(&conn, id)
         }
@@ -1019,7 +1006,7 @@ pub fn set_enabled(
             "UPDATE providers SET enabled = ?1, updated_at = ?2 WHERE id = ?3",
             params![enabled_to_int(enabled), now, provider_id],
         )
-        .map_err(|e| format!("DB_ERROR: failed to update provider: {e}"))?;
+        .map_err(|e| db_err!("failed to update provider: {e}"))?;
 
     if changed == 0 {
         return Err("DB_NOT_FOUND: provider not found".to_string().into());
@@ -1032,7 +1019,7 @@ pub fn delete(db: &db::Db, provider_id: i64) -> crate::shared::error::AppResult<
     let conn = db.open_connection()?;
     let changed = conn
         .execute("DELETE FROM providers WHERE id = ?1", params![provider_id])
-        .map_err(|e| format!("DB_ERROR: failed to delete provider: {e}"))?;
+        .map_err(|e| db_err!("failed to delete provider: {e}"))?;
 
     if changed == 0 {
         return Err("DB_NOT_FOUND: provider not found".to_string().into());
@@ -1058,19 +1045,18 @@ pub fn reorder(
     let mut conn = db.open_connection()?;
     let tx = conn
         .transaction()
-        .map_err(|e| format!("DB_ERROR: failed to start transaction: {e}"))?;
+        .map_err(|e| db_err!("failed to start transaction: {e}"))?;
 
     let mut existing_ids = Vec::new();
     {
         let mut stmt = tx
             .prepare("SELECT id FROM providers WHERE cli_key = ?1 ORDER BY sort_order ASC, id DESC")
-            .map_err(|e| format!("DB_ERROR: failed to prepare existing id list: {e}"))?;
+            .map_err(|e| db_err!("failed to prepare existing id list: {e}"))?;
         let rows = stmt
             .query_map(params![cli_key], |row| row.get::<_, i64>(0))
-            .map_err(|e| format!("DB_ERROR: failed to query existing id list: {e}"))?;
+            .map_err(|e| db_err!("failed to query existing id list: {e}"))?;
         for row in rows {
-            existing_ids
-                .push(row.map_err(|e| format!("DB_ERROR: failed to read existing id: {e}"))?);
+            existing_ids.push(row.map_err(|e| db_err!("failed to read existing id: {e}"))?);
         }
     }
 
@@ -1099,11 +1085,11 @@ pub fn reorder(
             "UPDATE providers SET sort_order = ?1, updated_at = ?2 WHERE id = ?3",
             params![sort_order, now, id],
         )
-        .map_err(|e| format!("DB_ERROR: failed to update sort_order for provider {id}: {e}"))?;
+        .map_err(|e| db_err!("failed to update sort_order for provider {id}: {e}"))?;
     }
 
     tx.commit()
-        .map_err(|e| format!("DB_ERROR: failed to commit transaction: {e}"))?;
+        .map_err(|e| db_err!("failed to commit transaction: {e}"))?;
 
     list_by_cli(db, cli_key)
 }

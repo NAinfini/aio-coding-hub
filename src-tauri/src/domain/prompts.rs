@@ -2,6 +2,7 @@
 
 use crate::db;
 use crate::prompt_sync;
+use crate::shared::error::db_err;
 use crate::shared::sqlite::enabled_to_int;
 use crate::shared::time::now_unix_seconds;
 use crate::workspaces;
@@ -77,7 +78,7 @@ WHERE p.id = ?1
         row_to_summary,
     )
     .optional()
-    .map_err(|e| format!("DB_ERROR: failed to query prompt: {e}"))?
+    .map_err(|e| db_err!("failed to query prompt: {e}"))?
     .ok_or_else(|| crate::shared::error::AppError::from("DB_NOT_FOUND: prompt not found"))
 }
 
@@ -106,15 +107,15 @@ WHERE p.workspace_id = ?1
 ORDER BY p.id DESC
 "#,
         )
-        .map_err(|e| format!("DB_ERROR: failed to prepare query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare query: {e}"))?;
 
     let rows = stmt
         .query_map(params![workspace_id], row_to_summary)
-        .map_err(|e| format!("DB_ERROR: failed to list prompts: {e}"))?;
+        .map_err(|e| db_err!("failed to list prompts: {e}"))?;
 
     let mut items = Vec::new();
     for row in rows {
-        items.push(row.map_err(|e| format!("DB_ERROR: failed to read prompt row: {e}"))?);
+        items.push(row.map_err(|e| db_err!("failed to read prompt row: {e}"))?);
     }
 
     Ok(items)
@@ -156,7 +157,7 @@ LIMIT 1
         row_default_lookup,
     )
     .optional()
-    .map_err(|e| format!("DB_ERROR: failed to query default prompt: {e}").into())
+    .map_err(|e| db_err!("failed to query default prompt: {e}"))
 }
 
 fn count_prompts_by_workspace(
@@ -168,7 +169,7 @@ fn count_prompts_by_workspace(
         params![workspace_id],
         |row| row.get::<_, i64>(0),
     )
-    .map_err(|e| format!("DB_ERROR: failed to count prompts: {e}").into())
+    .map_err(|e| db_err!("failed to count prompts: {e}"))
 }
 
 pub fn default_sync_from_files(
@@ -246,7 +247,7 @@ pub fn default_sync_from_files(
                     "UPDATE prompts SET content = ?1, updated_at = ?2 WHERE id = ?3",
                     params![file_content, now, id],
                 )
-                .map_err(|e| format!("DB_ERROR: failed to update default prompt: {e}"))?;
+                .map_err(|e| db_err!("failed to update default prompt: {e}"))?;
 
                 items.push(DefaultPromptSyncItem {
                     cli_key: cli_key.to_string(),
@@ -307,7 +308,7 @@ INSERT INTO prompts(
 "#,
                     params![workspace_id, file_content, now],
                 )
-                .map_err(|e| format!("DB_ERROR: failed to insert default prompt: {e}"))?;
+                .map_err(|e| db_err!("failed to insert default prompt: {e}"))?;
 
                 items.push(DefaultPromptSyncItem {
                     cli_key: cli_key.to_string(),
@@ -329,7 +330,7 @@ fn clear_enabled_for_workspace(
         "UPDATE prompts SET enabled = 0 WHERE workspace_id = ?1 AND enabled = 1",
         params![workspace_id],
     )
-    .map_err(|e| format!("DB_ERROR: failed to clear enabled prompts: {e}"))?;
+    .map_err(|e| db_err!("failed to clear enabled prompts: {e}"))?;
     Ok(())
 }
 
@@ -365,7 +366,7 @@ pub fn upsert(
         None => {
             let tx = conn
                 .transaction()
-                .map_err(|e| format!("DB_ERROR: failed to start transaction: {e}"))?;
+                .map_err(|e| db_err!("failed to start transaction: {e}"))?;
 
             let should_sync = workspaces::is_active_workspace(&tx, workspace_id)?;
             let touched_files = enabled && should_sync;
@@ -391,17 +392,27 @@ INSERT INTO prompts(
   updated_at
 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
 "#,
-                params![workspace_id, name, content, enabled_to_int(enabled), now, now],
+                params![
+                    workspace_id,
+                    name,
+                    content,
+                    enabled_to_int(enabled),
+                    now,
+                    now
+                ],
             )
             .map_err(|e| match e {
                 rusqlite::Error::SqliteFailure(err, _)
                     if err.code == rusqlite::ErrorCode::ConstraintViolation =>
                 {
-                    format!(
-                        "DB_CONSTRAINT: prompt already exists for workspace_id={workspace_id}, name={name}"
+                    crate::shared::error::AppError::new(
+                        "DB_CONSTRAINT",
+                        format!(
+                            "prompt already exists for workspace_id={workspace_id}, name={name}"
+                        ),
                     )
                 }
-                other => format!("DB_ERROR: failed to insert prompt: {other}"),
+                other => db_err!("failed to insert prompt: {other}"),
             })?;
 
             let id = tx.last_insert_rowid();
@@ -419,7 +430,7 @@ INSERT INTO prompts(
                     let _ = prompt_sync::restore_target_bytes(app, &cli_key, prev_target_bytes);
                     let _ = prompt_sync::restore_manifest_bytes(app, &cli_key, prev_manifest_bytes);
                 }
-                return Err(format!("DB_ERROR: failed to commit: {err}").into());
+                return Err(db_err!("failed to commit: {err}"));
             }
 
             Ok(get_by_id(&conn, id)?)
@@ -434,7 +445,7 @@ INSERT INTO prompts(
 
             let tx = conn
                 .transaction()
-                .map_err(|e| format!("DB_ERROR: failed to start transaction: {e}"))?;
+                .map_err(|e| db_err!("failed to start transaction: {e}"))?;
 
             let should_sync = workspaces::is_active_workspace(&tx, workspace_id)?;
             let needs_file_apply = enabled && should_sync;
@@ -465,9 +476,9 @@ WHERE id = ?5
             )
             .map_err(|e| match e {
                 rusqlite::Error::SqliteFailure(err, _) if err.code == rusqlite::ErrorCode::ConstraintViolation => {
-                    format!("DB_CONSTRAINT: prompt name already exists for workspace_id={workspace_id}, name={name}")
+                    crate::shared::error::AppError::new("DB_CONSTRAINT", format!("prompt name already exists for workspace_id={workspace_id}, name={name}"))
                 }
-                other => format!("DB_ERROR: failed to update prompt: {other}"),
+                other => db_err!("failed to update prompt: {other}"),
             })?;
 
             if touched_files {
@@ -496,7 +507,7 @@ WHERE id = ?5
                     let _ = prompt_sync::restore_target_bytes(app, &cli_key, prev_target_bytes);
                     let _ = prompt_sync::restore_manifest_bytes(app, &cli_key, prev_manifest_bytes);
                 }
-                return Err(format!("DB_ERROR: failed to commit: {err}").into());
+                return Err(db_err!("failed to commit: {err}"));
             }
 
             Ok(get_by_id(&conn, id)?)
@@ -519,7 +530,7 @@ pub fn set_enabled(
 
     let tx = conn
         .transaction()
-        .map_err(|e| format!("DB_ERROR: failed to start transaction: {e}"))?;
+        .map_err(|e| db_err!("failed to start transaction: {e}"))?;
 
     let needs_file_apply = enabled && should_sync;
     let needs_file_restore = should_sync && before.enabled && !enabled;
@@ -538,7 +549,7 @@ pub fn set_enabled(
                 "UPDATE prompts SET enabled = 1, updated_at = ?1 WHERE id = ?2",
                 params![now, prompt_id],
             )
-            .map_err(|e| format!("DB_ERROR: failed to enable prompt: {e}"))?;
+            .map_err(|e| db_err!("failed to enable prompt: {e}"))?;
 
         if changed == 0 {
             return Err("DB_NOT_FOUND: prompt not found".to_string().into());
@@ -549,7 +560,7 @@ pub fn set_enabled(
                 "UPDATE prompts SET enabled = 0, updated_at = ?1 WHERE id = ?2",
                 params![now, prompt_id],
             )
-            .map_err(|e| format!("DB_ERROR: failed to disable prompt: {e}"))?;
+            .map_err(|e| db_err!("failed to disable prompt: {e}"))?;
 
         if changed == 0 {
             return Err("DB_NOT_FOUND: prompt not found".to_string().into());
@@ -582,7 +593,7 @@ pub fn set_enabled(
             let _ = prompt_sync::restore_target_bytes(app, cli_key, prev_target_bytes);
             let _ = prompt_sync::restore_manifest_bytes(app, cli_key, prev_manifest_bytes);
         }
-        return Err(format!("DB_ERROR: failed to commit: {err}").into());
+        return Err(db_err!("failed to commit: {err}"));
     }
 
     get_by_id(&conn, prompt_id)
@@ -602,7 +613,7 @@ pub fn delete(
 
     let tx = conn
         .transaction()
-        .map_err(|e| format!("DB_ERROR: failed to start transaction: {e}"))?;
+        .map_err(|e| db_err!("failed to start transaction: {e}"))?;
 
     let mut prev_target_bytes: Option<Vec<u8>> = None;
     let mut prev_manifest_bytes: Option<Vec<u8>> = None;
@@ -620,7 +631,7 @@ pub fn delete(
 
     let changed = tx
         .execute("DELETE FROM prompts WHERE id = ?1", params![prompt_id])
-        .map_err(|e| format!("DB_ERROR: failed to delete prompt: {e}"))?;
+        .map_err(|e| db_err!("failed to delete prompt: {e}"))?;
 
     if changed == 0 {
         return Err("DB_NOT_FOUND: prompt not found".to_string().into());
@@ -631,7 +642,7 @@ pub fn delete(
             let _ = prompt_sync::restore_target_bytes(app, cli_key, prev_target_bytes);
             let _ = prompt_sync::restore_manifest_bytes(app, cli_key, prev_manifest_bytes);
         }
-        return Err(format!("DB_ERROR: failed to commit: {err}").into());
+        return Err(db_err!("failed to commit: {err}"));
     }
 
     Ok(())
@@ -658,7 +669,7 @@ LIMIT 1
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .optional()
-        .map_err(|e| format!("DB_ERROR: failed to query enabled prompt: {e}"))?;
+        .map_err(|e| db_err!("failed to query enabled prompt: {e}"))?;
 
     match enabled {
         Some((prompt_id, content)) => {

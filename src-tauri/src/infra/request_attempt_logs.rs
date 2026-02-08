@@ -1,5 +1,6 @@
 //! Usage: Attempt log persistence (sqlite buffered writer, queries, and cleanup).
 
+use crate::shared::error::db_err;
 use crate::shared::time::now_unix_seconds;
 use crate::{db, settings};
 use rusqlite::{params, ErrorCode};
@@ -275,7 +276,7 @@ pub fn cleanup_expired(db: &db::Db, retention_days: u32) -> crate::shared::error
             "DELETE FROM request_attempt_logs WHERE created_at < ?1",
             params![cutoff],
         )
-        .map_err(|e| format!("DB_ERROR: failed to cleanup request_attempt_logs: {e}"))?;
+        .map_err(|e| db_err!("failed to cleanup request_attempt_logs: {e}"))?;
 
     Ok(changed as u64)
 }
@@ -338,15 +339,15 @@ ORDER BY attempt_index ASC, id ASC
 LIMIT ?2
 "#,
         )
-        .map_err(|e| format!("DB_ERROR: failed to prepare attempt query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare attempt query: {e}"))?;
 
     let rows = stmt
         .query_map(params![trace_id, limit as i64], row_to_log)
-        .map_err(|e| format!("DB_ERROR: failed to query request_attempt_logs: {e}"))?;
+        .map_err(|e| db_err!("failed to query request_attempt_logs: {e}"))?;
 
     let mut out = Vec::new();
     for row in rows {
-        out.push(row.map_err(|e| format!("DB_ERROR: failed to read attempt row: {e}"))?);
+        out.push(row.map_err(|e| db_err!("failed to read attempt row: {e}"))?);
     }
     Ok(out)
 }

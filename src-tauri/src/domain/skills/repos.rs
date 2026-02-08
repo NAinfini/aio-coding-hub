@@ -1,6 +1,7 @@
 use super::git_url::{canonical_git_url_key, normalize_repo_branch};
 use super::types::SkillRepoSummary;
 use crate::db;
+use crate::shared::error::db_err;
 use crate::shared::sqlite::enabled_to_int;
 use crate::shared::time::now_unix_seconds;
 use rusqlite::{params, Connection, OptionalExtension};
@@ -34,7 +35,7 @@ WHERE id = ?1
         row_to_repo,
     )
     .optional()
-    .map_err(|e| format!("DB_ERROR: failed to query repo: {e}"))?
+    .map_err(|e| db_err!("failed to query repo: {e}"))?
     .ok_or_else(|| "DB_NOT_FOUND: skill repo not found".to_string())
 }
 
@@ -54,15 +55,15 @@ FROM skill_repos
 ORDER BY updated_at DESC, id DESC
 "#,
         )
-        .map_err(|e| format!("DB_ERROR: failed to prepare repo list query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare repo list query: {e}"))?;
 
     let rows = stmt
         .query_map([], row_to_repo)
-        .map_err(|e| format!("DB_ERROR: failed to query repos: {e}"))?;
+        .map_err(|e| db_err!("failed to query repos: {e}"))?;
 
     let mut out = Vec::new();
     for row in rows {
-        out.push(row.map_err(|e| format!("DB_ERROR: failed to read repo row: {e}"))?);
+        out.push(row.map_err(|e| db_err!("failed to read repo row: {e}"))?);
     }
 
     // De-dup repos by canonical git URL for a clearer UX.
@@ -117,7 +118,7 @@ FROM skill_repos
 ORDER BY updated_at DESC, id DESC
 "#,
                 )
-                .map_err(|e| format!("DB_ERROR: failed to prepare repo lookup: {e}"))?;
+                .map_err(|e| db_err!("failed to prepare repo lookup: {e}"))?;
 
             let rows = stmt
                 .query_map([], |row| {
@@ -127,12 +128,12 @@ ORDER BY updated_at DESC, id DESC
                         row.get::<_, String>(2)?,
                     ))
                 })
-                .map_err(|e| format!("DB_ERROR: failed to query repos: {e}"))?;
+                .map_err(|e| db_err!("failed to query repos: {e}"))?;
 
             let mut matches = Vec::new();
             for row in rows {
                 let (id, existing_url, existing_branch) =
-                    row.map_err(|e| format!("DB_ERROR: failed to read repo row: {e}"))?;
+                    row.map_err(|e| db_err!("failed to read repo row: {e}"))?;
                 let key = canonical_git_url_key(&existing_url);
                 let key = if key.is_empty() {
                     existing_url.trim().to_ascii_lowercase()
@@ -167,7 +168,7 @@ WHERE id = ?5
 "#,
                     params![git_url, branch, enabled_to_int(enabled), now, target_id],
                 )
-                .map_err(|e| format!("DB_ERROR: failed to update skill repo: {e}"))?;
+                .map_err(|e| db_err!("failed to update skill repo: {e}"))?;
 
                 return Ok(get_repo_by_id(&conn, target_id)?);
             }
@@ -184,7 +185,7 @@ INSERT INTO skill_repos(
 "#,
                 params![git_url, branch, enabled_to_int(enabled), now, now],
             )
-            .map_err(|e| format!("DB_ERROR: failed to insert skill repo: {e}"))?;
+            .map_err(|e| db_err!("failed to insert skill repo: {e}"))?;
 
             let id = conn.last_insert_rowid();
             Ok(get_repo_by_id(&conn, id)?)
@@ -202,7 +203,7 @@ WHERE id = ?5
 "#,
                 params![git_url, branch, enabled_to_int(enabled), now, id],
             )
-            .map_err(|e| format!("DB_ERROR: failed to update skill repo: {e}"))?;
+            .map_err(|e| db_err!("failed to update skill repo: {e}"))?;
             Ok(get_repo_by_id(&conn, id)?)
         }
     }
@@ -212,7 +213,7 @@ pub fn repo_delete(db: &db::Db, repo_id: i64) -> crate::shared::error::AppResult
     let conn = db.open_connection()?;
     let changed = conn
         .execute("DELETE FROM skill_repos WHERE id = ?1", params![repo_id])
-        .map_err(|e| format!("DB_ERROR: failed to delete skill repo: {e}"))?;
+        .map_err(|e| db_err!("failed to delete skill repo: {e}"))?;
     if changed == 0 {
         return Err("DB_NOT_FOUND: skill repo not found".to_string().into());
     }

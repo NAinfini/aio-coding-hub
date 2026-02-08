@@ -6,6 +6,7 @@ use super::skill_md::parse_skill_md;
 use super::types::InstalledSkillSummary;
 use super::util::validate_relative_subdir;
 use crate::db;
+use crate::shared::error::db_err;
 use crate::shared::text::normalize_name;
 use crate::shared::time::now_unix_seconds;
 use crate::workspaces;
@@ -82,7 +83,7 @@ LIMIT 1
             |row| row.get(0),
         )
         .optional()
-        .map_err(|e| format!("DB_ERROR: failed to query skill by source: {e}"))?;
+        .map_err(|e| db_err!("failed to query skill by source: {e}"))?;
     if existing_id.is_some() {
         return Err("SKILL_ALREADY_INSTALLED: skill already installed"
             .to_string()
@@ -107,7 +108,7 @@ LIMIT 1
 
     let tx = conn
         .transaction()
-        .map_err(|e| format!("DB_ERROR: failed to start transaction: {e}"))?;
+        .map_err(|e| db_err!("failed to start transaction: {e}"))?;
 
     let skill_key = generate_unique_skill_key(&tx, &name)?;
     let ssot_root = ssot_skills_root(app)?;
@@ -142,7 +143,7 @@ INSERT INTO skills(
             now
         ],
     )
-    .map_err(|e| format!("DB_ERROR: failed to insert skill: {e}"))?;
+    .map_err(|e| db_err!("failed to insert skill: {e}"))?;
 
     let skill_id = tx.last_insert_rowid();
 
@@ -156,7 +157,7 @@ ON CONFLICT(workspace_id, skill_id) DO UPDATE SET
 "#,
             params![workspace_id, skill_id, now],
         )
-        .map_err(|e| format!("DB_ERROR: failed to enable skill for workspace: {e}"))?;
+        .map_err(|e| db_err!("failed to enable skill for workspace: {e}"))?;
     }
 
     // FS: copy to SSOT first.
@@ -179,7 +180,7 @@ ON CONFLICT(workspace_id, skill_id) DO UPDATE SET
     if let Err(err) = tx.commit() {
         let _ = remove_from_cli(app, &cli_key, &skill_key);
         let _ = std::fs::remove_dir_all(&ssot_dir);
-        return Err(format!("DB_ERROR: failed to commit: {err}").into());
+        return Err(db_err!("failed to commit: {err}"));
     }
 
     get_skill_by_id_for_workspace(&conn, workspace_id, skill_id)
@@ -206,7 +207,7 @@ pub fn set_enabled(
             |_row| Ok(()),
         )
         .optional()
-        .map_err(|e| format!("DB_ERROR: failed to query workspace_skill_enabled: {e}"))?
+        .map_err(|e| db_err!("failed to query workspace_skill_enabled: {e}"))?
         .is_some();
 
     if was_enabled == enabled {
@@ -231,7 +232,7 @@ pub fn set_enabled(
 
     let tx = conn
         .transaction()
-        .map_err(|e| format!("DB_ERROR: failed to start transaction: {e}"))?;
+        .map_err(|e| db_err!("failed to start transaction: {e}"))?;
 
     if enabled {
         tx.execute(
@@ -243,13 +244,13 @@ ON CONFLICT(workspace_id, skill_id) DO UPDATE SET
 "#,
             params![workspace_id, skill_id, now],
         )
-        .map_err(|e| format!("DB_ERROR: failed to enable skill: {e}"))?;
+        .map_err(|e| db_err!("failed to enable skill: {e}"))?;
     } else {
         tx.execute(
             "DELETE FROM workspace_skill_enabled WHERE workspace_id = ?1 AND skill_id = ?2",
             params![workspace_id, skill_id],
         )
-        .map_err(|e| format!("DB_ERROR: failed to disable skill: {e}"))?;
+        .map_err(|e| db_err!("failed to disable skill: {e}"))?;
     }
 
     if let Err(err) = tx.commit() {
@@ -260,7 +261,7 @@ ON CONFLICT(workspace_id, skill_id) DO UPDATE SET
                 let _ = sync_to_cli(app, &cli_key, &current.skill_key, &ssot_dir);
             }
         }
-        return Err(format!("DB_ERROR: failed to commit: {err}").into());
+        return Err(db_err!("failed to commit: {err}"));
     }
 
     get_skill_by_id_for_workspace(&conn, workspace_id, skill_id)
@@ -299,7 +300,7 @@ pub fn uninstall(
 
     let changed = conn
         .execute("DELETE FROM skills WHERE id = ?1", params![skill_id])
-        .map_err(|e| format!("DB_ERROR: failed to delete skill: {e}"))?;
+        .map_err(|e| db_err!("failed to delete skill: {e}"))?;
     if changed == 0 {
         return Err("DB_NOT_FOUND: skill not found".to_string().into());
     }
@@ -327,16 +328,16 @@ WHERE e.workspace_id = ?1
 ORDER BY s.skill_key ASC
 "#,
         )
-        .map_err(|e| format!("DB_ERROR: failed to prepare enabled skills query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare enabled skills query: {e}"))?;
 
     let rows = stmt
         .query_map([workspace_id], |row| row.get::<_, String>(0))
-        .map_err(|e| format!("DB_ERROR: failed to query enabled skills: {e}"))?;
+        .map_err(|e| db_err!("failed to query enabled skills: {e}"))?;
 
     let mut enabled_set = HashSet::new();
     let mut enabled_list: Vec<String> = Vec::new();
     for row in rows {
-        let key = row.map_err(|e| format!("DB_ERROR: failed to read enabled skill row: {e}"))?;
+        let key = row.map_err(|e| db_err!("failed to read enabled skill row: {e}"))?;
         if enabled_set.insert(key.clone()) {
             enabled_list.push(key);
         }

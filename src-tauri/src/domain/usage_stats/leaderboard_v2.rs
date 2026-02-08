@@ -1,4 +1,5 @@
 use crate::db;
+use crate::shared::error::db_err;
 use rusqlite::{params_from_iter, Connection, OptionalExtension};
 
 use super::{
@@ -170,7 +171,7 @@ GROUP BY cli_key
             );
             let mut stmt = conn
                 .prepare(&sql)
-                .map_err(|e| format!("DB_ERROR: failed to prepare cli leaderboard query: {e}"))?;
+                .map_err(|e| db_err!("failed to prepare cli leaderboard query: {e}"))?;
 
             let rows = stmt
                 .query_map(params_from_iter(where_params.clone()), |row| {
@@ -217,11 +218,11 @@ GROUP BY cli_key
 
                     Ok(agg.into_leaderboard_row(key.clone(), key))
                 })
-                .map_err(|e| format!("DB_ERROR: failed to run cli leaderboard query: {e}"))?;
+                .map_err(|e| db_err!("failed to run cli leaderboard query: {e}"))?;
 
             let mut items = Vec::new();
             for row in rows {
-                items.push(row.map_err(|e| format!("DB_ERROR: failed to read cli row: {e}"))?);
+                items.push(row.map_err(|e| db_err!("failed to read cli row: {e}"))?);
             }
             items
         }
@@ -299,7 +300,7 @@ GROUP BY COALESCE(NULLIF(requested_model, ''), 'Unknown')
             );
             let mut stmt = conn
                 .prepare(&sql)
-                .map_err(|e| format!("DB_ERROR: failed to prepare model leaderboard query: {e}"))?;
+                .map_err(|e| db_err!("failed to prepare model leaderboard query: {e}"))?;
 
             let rows = stmt
                 .query_map(params_from_iter(where_params.clone()), |row| {
@@ -346,11 +347,11 @@ GROUP BY COALESCE(NULLIF(requested_model, ''), 'Unknown')
 
                     Ok(agg.into_leaderboard_row(key.clone(), key))
                 })
-                .map_err(|e| format!("DB_ERROR: failed to run model leaderboard query: {e}"))?;
+                .map_err(|e| db_err!("failed to run model leaderboard query: {e}"))?;
 
             let mut items = Vec::new();
             for row in rows {
-                items.push(row.map_err(|e| format!("DB_ERROR: failed to read model row: {e}"))?);
+                items.push(row.map_err(|e| db_err!("failed to read model row: {e}"))?);
             }
             items
         }
@@ -437,9 +438,9 @@ GROUP BY r.cli_key, r.final_provider_id
                 provider_where_clause = provider_where_clause
             );
 
-            let mut stmt = conn.prepare(&sql).map_err(|e| {
-                format!("DB_ERROR: failed to prepare provider leaderboard query: {e}")
-            })?;
+            let mut stmt = conn
+                .prepare(&sql)
+                .map_err(|e| db_err!("failed to prepare provider leaderboard query: {e}"))?;
 
             let rows = stmt
                 .query_map(params_from_iter(provider_where_params.clone()), |row| {
@@ -493,7 +494,7 @@ GROUP BY r.cli_key, r.final_provider_id
 
                     Ok((cli_key, provider_id, provider_name, agg))
                 })
-                .map_err(|e| format!("DB_ERROR: failed to run provider leaderboard query: {e}"))?;
+                .map_err(|e| db_err!("failed to run provider leaderboard query: {e}"))?;
 
             let fallback_name_sql = format!(
                 r#"
@@ -507,15 +508,15 @@ LIMIT 1
 "#,
                 provider_fallback_where_clause = provider_fallback_where_clause
             );
-            let mut stmt_fallback_name = conn.prepare(&fallback_name_sql).map_err(|e| {
-                format!("DB_ERROR: failed to prepare provider name fallback query: {e}")
-            })?;
+            let mut stmt_fallback_name = conn
+                .prepare(&fallback_name_sql)
+                .map_err(|e| db_err!("failed to prepare provider name fallback query: {e}"))?;
 
             let mut items = Vec::new();
             for row in rows {
-                items.push(row.map_err(|e| {
-                    format!("DB_ERROR: failed to read provider leaderboard row: {e}")
-                })?);
+                items.push(
+                    row.map_err(|e| db_err!("failed to read provider leaderboard row: {e}"))?,
+                );
             }
 
             let mut out = Vec::new();
@@ -533,9 +534,7 @@ LIMIT 1
                     let attempts_json: Option<String> = stmt_fallback_name
                         .query_row(params_from_iter(fallback_params), |row| row.get(0))
                         .optional()
-                        .map_err(|e| {
-                            format!("DB_ERROR: failed to query provider name fallback: {e}")
-                        })?;
+                        .map_err(|e| db_err!("failed to query provider name fallback: {e}"))?;
 
                     if let Some(attempts_json) = attempts_json {
                         let extracted = extract_final_provider(&cli_key, &attempts_json);

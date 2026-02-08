@@ -1,4 +1,5 @@
 use crate::db;
+use crate::shared::error::db_err;
 use crate::shared::time::now_unix_seconds;
 use rusqlite::{params, OptionalExtension};
 use serde::Serialize;
@@ -29,7 +30,7 @@ fn ensure_provider_is_claude(
             |row| row.get(0),
         )
         .optional()
-        .map_err(|e| format!("DB_ERROR: failed to query provider cli_key: {e}"))?;
+        .map_err(|e| db_err!("failed to query provider cli_key: {e}"))?;
 
     let Some(cli_key) = cli_key else {
         return Err("DB_NOT_FOUND: provider not found".to_string().into());
@@ -69,7 +70,7 @@ pub fn insert_run_and_prune(
 
     let tx = conn
         .transaction()
-        .map_err(|e| format!("DB_ERROR: failed to start transaction: {e}"))?;
+        .map_err(|e| db_err!("failed to start transaction: {e}"))?;
 
     let now = now_unix_seconds();
     tx.execute(
@@ -83,7 +84,7 @@ INSERT INTO claude_model_validation_runs(
 "#,
         params![provider_id, now, request_json, result_json],
     )
-    .map_err(|e| format!("DB_ERROR: failed to insert claude_model_validation_run: {e}"))?;
+    .map_err(|e| db_err!("failed to insert claude_model_validation_run: {e}"))?;
 
     let inserted_id = tx.last_insert_rowid();
 
@@ -101,10 +102,10 @@ WHERE provider_id = ?1
 "#,
         params![provider_id, keep as i64],
     )
-    .map_err(|e| format!("DB_ERROR: failed to prune claude_model_validation_runs: {e}"))?;
+    .map_err(|e| db_err!("failed to prune claude_model_validation_runs: {e}"))?;
 
     tx.commit()
-        .map_err(|e| format!("DB_ERROR: failed to commit transaction: {e}"))?;
+        .map_err(|e| db_err!("failed to commit transaction: {e}"))?;
 
     Ok(inserted_id)
 }
@@ -135,7 +136,7 @@ ORDER BY id DESC
 LIMIT ?2
 "#,
         )
-        .map_err(|e| format!("DB_ERROR: failed to prepare history list query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare history list query: {e}"))?;
 
     let rows = stmt
         .query_map(params![provider_id, fetch_limit as i64], |row| {
@@ -147,11 +148,11 @@ LIMIT ?2
                 result_json: row.get(4)?,
             })
         })
-        .map_err(|e| format!("DB_ERROR: failed to list claude_model_validation_runs: {e}"))?;
+        .map_err(|e| db_err!("failed to list claude_model_validation_runs: {e}"))?;
 
     let mut items = Vec::new();
     for row in rows {
-        let item = row.map_err(|e| format!("DB_ERROR: failed to read history row: {e}"))?;
+        let item = row.map_err(|e| db_err!("failed to read history row: {e}"))?;
         // 用户要求：历史需要保留失败步骤用于诊断与回溯（suite 每一步都可查看）。
         items.push(item);
     }
@@ -166,7 +167,7 @@ pub fn clear_provider(db: &db::Db, provider_id: i64) -> crate::shared::error::Ap
         "DELETE FROM claude_model_validation_runs WHERE provider_id = ?1",
         params![provider_id],
     )
-    .map_err(|e| format!("DB_ERROR: failed to clear claude_model_validation_runs: {e}"))?;
+    .map_err(|e| db_err!("failed to clear claude_model_validation_runs: {e}"))?;
 
     Ok(true)
 }

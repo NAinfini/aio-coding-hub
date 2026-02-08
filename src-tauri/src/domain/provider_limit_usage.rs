@@ -2,6 +2,7 @@
 
 use crate::db;
 use crate::providers::DailyResetMode;
+use crate::shared::error::db_err;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
 
@@ -60,7 +61,7 @@ fn compute_ts_5h(conn: &Connection, provider_id: i64) -> crate::shared::error::A
         .query_row("SELECT CAST(strftime('%s', 'now') AS INTEGER)", [], |row| {
             row.get::<_, i64>(0)
         })
-        .map_err(|e| format!("DB_ERROR: failed to get current timestamp: {e}"))?;
+        .map_err(|e| db_err!("failed to get current timestamp: {e}"))?;
 
     // Read stored window_5h_start_ts
     let stored_window: Option<i64> = conn
@@ -69,7 +70,7 @@ fn compute_ts_5h(conn: &Connection, provider_id: i64) -> crate::shared::error::A
             params![provider_id],
             |row| row.get(0),
         )
-        .map_err(|e| format!("DB_ERROR: failed to read window_5h_start_ts: {e}"))?;
+        .map_err(|e| db_err!("failed to read window_5h_start_ts: {e}"))?;
 
     // Check if stored window is still valid (not expired)
     if let Some(start_ts) = stored_window {
@@ -97,7 +98,7 @@ fn compute_ts_5h(conn: &Connection, provider_id: i64) -> crate::shared::error::A
             |row| row.get(0),
         )
         .optional()
-        .map_err(|e| format!("DB_ERROR: failed to query first request timestamp: {e}"))?
+        .map_err(|e| db_err!("failed to query first request timestamp: {e}"))?
         .flatten();
 
     // Return first request timestamp if exists, otherwise use now
@@ -118,7 +119,7 @@ fn compute_ts_daily(
                 [],
                 |row| row.get::<_, i64>(0),
             )
-            .map_err(|e| format!("DB_ERROR: failed to compute rolling daily timestamp: {e}").into())
+            .map_err(|e| db_err!("failed to compute rolling daily timestamp: {e}"))
         }
         DailyResetMode::Fixed => {
             // Fixed: start of day based on daily_reset_time in local timezone
@@ -134,9 +135,7 @@ fn compute_ts_daily(
                 reset_time = daily_reset_time
             );
             conn.query_row(&sql, [], |row| row.get::<_, i64>(0))
-                .map_err(|e| {
-                    format!("DB_ERROR: failed to compute fixed daily timestamp: {e}").into()
-                })
+                .map_err(|e| db_err!("failed to compute fixed daily timestamp: {e}"))
         }
     }
 }
@@ -154,7 +153,7 @@ fn compute_ts_weekly(conn: &Connection) -> crate::shared::error::AppResult<i64> 
         [],
         |row| row.get::<_, i64>(0),
     )
-    .map_err(|e| format!("DB_ERROR: failed to compute weekly timestamp: {e}").into())
+    .map_err(|e| db_err!("failed to compute weekly timestamp: {e}"))
 }
 
 /// Computes the start timestamp for the monthly window (1st of month 00:00:00 local time)
@@ -164,7 +163,7 @@ fn compute_ts_monthly(conn: &Connection) -> crate::shared::error::AppResult<i64>
         [],
         |row| row.get::<_, i64>(0),
     )
-    .map_err(|e| format!("DB_ERROR: failed to compute monthly timestamp: {e}").into())
+    .map_err(|e| db_err!("failed to compute monthly timestamp: {e}"))
 }
 
 /// Aggregates cost_usd from request_logs for a specific provider within a time window
@@ -185,7 +184,7 @@ fn aggregate_cost_for_provider(
     conn.query_row(sql, params![provider_id, start_ts], |row| {
         row.get::<_, i64>(0)
     })
-    .map_err(|e| format!("DB_ERROR: failed to aggregate cost: {e}").into())
+    .map_err(|e| db_err!("failed to aggregate cost: {e}"))
 }
 
 pub fn list_v1(
@@ -227,7 +226,7 @@ pub fn list_v1(
 
     let mut stmt = conn
         .prepare(sql)
-        .map_err(|e| format!("DB_ERROR: failed to prepare providers query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare providers query: {e}"))?;
 
     let rows = stmt
         .query_map(params![cli_key], |row| {
@@ -248,7 +247,7 @@ pub fn list_v1(
                 row.get::<_, Option<f64>>("limit_total_usd")?,
             ))
         })
-        .map_err(|e| format!("DB_ERROR: failed to query providers: {e}"))?;
+        .map_err(|e| db_err!("failed to query providers: {e}"))?;
 
     let mut out = Vec::new();
 
@@ -265,7 +264,7 @@ pub fn list_v1(
             limit_weekly_usd,
             limit_monthly_usd,
             limit_total_usd,
-        ) = row.map_err(|e| format!("DB_ERROR: failed to read provider row: {e}"))?;
+        ) = row.map_err(|e| db_err!("failed to read provider row: {e}"))?;
 
         // Parse daily reset mode for computation
         let daily_reset_mode = match daily_reset_mode_raw.as_str() {

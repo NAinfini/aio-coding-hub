@@ -4,6 +4,7 @@ use super::repo_cache::ensure_repo_cache;
 use super::skill_md::{find_skill_md_files, parse_skill_md};
 use super::types::AvailableSkillSummary;
 use crate::db;
+use crate::shared::error::db_err;
 use crate::shared::text::normalize_name;
 use std::collections::{BTreeMap, HashSet};
 
@@ -74,19 +75,18 @@ WHERE enabled = 1
 ORDER BY updated_at DESC, id DESC
 "#,
         )
-        .map_err(|e| format!("DB_ERROR: failed to prepare repo query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare repo query: {e}"))?;
 
     let rows = stmt
         .query_map([], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
         })
-        .map_err(|e| format!("DB_ERROR: failed to query enabled repos: {e}"))?;
+        .map_err(|e| db_err!("failed to query enabled repos: {e}"))?;
 
     let mut repos = Vec::new();
     let mut seen_repos = HashSet::new();
     for row in rows {
-        let (git_url, branch) =
-            row.map_err(|e| format!("DB_ERROR: failed to read repo row: {e}"))?;
+        let (git_url, branch) = row.map_err(|e| db_err!("failed to read repo row: {e}"))?;
         let key = canonical_git_url_key(&git_url);
         let key = if key.is_empty() {
             git_url.trim().to_ascii_lowercase()

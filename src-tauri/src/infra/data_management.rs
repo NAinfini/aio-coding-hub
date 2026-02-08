@@ -2,6 +2,7 @@
 
 use crate::app_paths;
 use crate::db;
+use crate::shared::error::db_err;
 use rusqlite::TransactionBehavior;
 use serde::Serialize;
 use std::io;
@@ -77,18 +78,18 @@ pub fn request_logs_clear_all(
 
     let tx = conn
         .transaction_with_behavior(TransactionBehavior::Immediate)
-        .map_err(|e| format!("DB_ERROR: failed to start transaction: {e}"))?;
+        .map_err(|e| db_err!("failed to start transaction: {e}"))?;
 
     let request_attempt_logs_deleted = tx
         .execute("DELETE FROM request_attempt_logs", [])
-        .map_err(|e| format!("DB_ERROR: failed to clear request_attempt_logs: {e}"))?;
+        .map_err(|e| db_err!("failed to clear request_attempt_logs: {e}"))?;
 
     let request_logs_deleted = tx
         .execute("DELETE FROM request_logs", [])
-        .map_err(|e| format!("DB_ERROR: failed to clear request_logs: {e}"))?;
+        .map_err(|e| db_err!("failed to clear request_logs: {e}"))?;
 
     tx.commit()
-        .map_err(|e| format!("DB_ERROR: failed to commit transaction: {e}"))?;
+        .map_err(|e| db_err!("failed to commit transaction: {e}"))?;
 
     // Best-effort: reclaim disk usage (WAL truncate + vacuum).
     let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");

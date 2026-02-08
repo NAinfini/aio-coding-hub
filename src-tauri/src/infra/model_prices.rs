@@ -1,6 +1,7 @@
 //! Usage: Model price persistence (sqlite CRUD helpers).
 
 use crate::db;
+use crate::shared::error::db_err;
 use crate::shared::time::now_unix_seconds;
 use rusqlite::{params, OptionalExtension};
 use serde::Serialize;
@@ -53,15 +54,15 @@ WHERE cli_key = ?1
 ORDER BY model ASC, id DESC
 "#,
         )
-        .map_err(|e| format!("DB_ERROR: failed to prepare model_prices list: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare model_prices list: {e}"))?;
 
     let rows = stmt
         .query_map(params![cli_key], row_to_summary)
-        .map_err(|e| format!("DB_ERROR: failed to list model_prices: {e}"))?;
+        .map_err(|e| db_err!("failed to list model_prices: {e}"))?;
 
     let mut items = Vec::new();
     for row in rows {
-        items.push(row.map_err(|e| format!("DB_ERROR: failed to read model_price row: {e}"))?);
+        items.push(row.map_err(|e| db_err!("failed to read model_price row: {e}"))?);
     }
     Ok(items)
 }
@@ -105,7 +106,7 @@ ON CONFLICT(cli_key, model) DO UPDATE SET
 "#,
         params![cli_key, model, normalized_price, now],
     )
-    .map_err(|e| format!("DB_ERROR: failed to upsert model_price: {e}"))?;
+    .map_err(|e| db_err!("failed to upsert model_price: {e}"))?;
 
     conn.query_row(
         r#"
@@ -123,6 +124,6 @@ WHERE cli_key = ?1 AND model = ?2
         row_to_summary,
     )
     .optional()
-    .map_err(|e| format!("DB_ERROR: failed to query model_price: {e}"))?
+    .map_err(|e| db_err!("failed to query model_price: {e}"))?
     .ok_or_else(|| "DB_NOT_FOUND: model_price not found".to_string().into())
 }

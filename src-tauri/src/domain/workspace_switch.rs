@@ -4,6 +4,7 @@ use crate::claude_plugins;
 use crate::db;
 use crate::mcp_sync;
 use crate::prompt_sync;
+use crate::shared::error::db_err;
 use crate::shared::time::now_unix_seconds;
 use crate::{mcp, prompts, skills, workspaces};
 use rusqlite::{params, Connection, OptionalExtension};
@@ -119,15 +120,15 @@ WHERE e.workspace_id = ?1
 ORDER BY s.server_key ASC
 "#,
         )
-        .map_err(|e| format!("DB_ERROR: failed to prepare enabled mcp query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare enabled mcp query: {e}"))?;
 
     let rows = stmt
         .query_map([workspace_id], |row| row.get::<_, String>(0))
-        .map_err(|e| format!("DB_ERROR: failed to query enabled mcp servers: {e}"))?;
+        .map_err(|e| db_err!("failed to query enabled mcp servers: {e}"))?;
 
     let mut out = Vec::new();
     for row in rows {
-        out.push(row.map_err(|e| format!("DB_ERROR: failed to read enabled mcp row: {e}"))?);
+        out.push(row.map_err(|e| db_err!("failed to read enabled mcp row: {e}"))?);
     }
     Ok(out)
 }
@@ -151,15 +152,15 @@ WHERE e.workspace_id = ?1
 ORDER BY s.skill_key ASC
 "#,
         )
-        .map_err(|e| format!("DB_ERROR: failed to prepare enabled skills query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare enabled skills query: {e}"))?;
 
     let rows = stmt
         .query_map([workspace_id], |row| row.get::<_, String>(0))
-        .map_err(|e| format!("DB_ERROR: failed to query enabled skills: {e}"))?;
+        .map_err(|e| db_err!("failed to query enabled skills: {e}"))?;
 
     let mut out = Vec::new();
     for row in rows {
-        out.push(row.map_err(|e| format!("DB_ERROR: failed to read enabled skill row: {e}"))?);
+        out.push(row.map_err(|e| db_err!("failed to read enabled skill row: {e}"))?);
     }
     Ok(out)
 }

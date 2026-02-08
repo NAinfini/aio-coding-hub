@@ -1,3 +1,4 @@
+use crate::shared::error::db_err;
 use rusqlite::{params, Connection};
 
 use super::{UsagePeriodV2, UsageRange};
@@ -50,7 +51,7 @@ pub(super) fn compute_start_ts(
 
     let ts = conn
         .query_row(sql, [], |row| row.get::<_, i64>(0))
-        .map_err(|e| format!("DB_ERROR: failed to compute range start ts: {e}"))?;
+        .map_err(|e| db_err!("failed to compute range start ts: {e}"))?;
 
     Ok(Some(ts))
 }
@@ -68,7 +69,7 @@ pub(super) fn compute_start_ts_last_n_days(conn: &Connection, days: u32) -> Resu
             params![modifier],
             |row| row.get::<_, i64>(0),
         )
-        .map_err(|e| format!("DB_ERROR: failed to compute last-days start ts: {e}"))?;
+        .map_err(|e| db_err!("failed to compute last-days start ts: {e}"))?;
 
     Ok(ts)
 }

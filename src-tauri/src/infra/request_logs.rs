@@ -1,5 +1,6 @@
 //! Usage: Request log persistence (sqlite buffered writer, queries, and cleanup).
 
+use crate::shared::error::db_err;
 use crate::shared::time::now_unix_seconds;
 use crate::{cost, db, model_price_aliases, settings};
 use rusqlite::{params, params_from_iter, ErrorCode, OptionalExtension};
@@ -522,38 +523,38 @@ GROUP BY cli_key, session_id
     let conn = db.open_connection()?;
     let mut stmt = conn
         .prepare(&sql)
-        .map_err(|e| format!("DB_ERROR: failed to prepare session aggregate query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare session aggregate query: {e}"))?;
 
     let mut rows = stmt
         .query(params_from_iter(ids.iter()))
-        .map_err(|e| format!("DB_ERROR: failed to query session aggregates: {e}"))?;
+        .map_err(|e| db_err!("failed to query session aggregates: {e}"))?;
 
     let mut out: HashMap<(String, String), SessionStatsAggregate> = HashMap::new();
     while let Some(row) = rows
         .next()
-        .map_err(|e| format!("DB_ERROR: failed to read session aggregate row: {e}"))?
+        .map_err(|e| db_err!("failed to read session aggregate row: {e}"))?
     {
         let cli_key: String = row
             .get("cli_key")
-            .map_err(|e| format!("DB_ERROR: invalid session aggregate cli_key: {e}"))?;
+            .map_err(|e| db_err!("invalid session aggregate cli_key: {e}"))?;
         let session_id: String = row
             .get("session_id")
-            .map_err(|e| format!("DB_ERROR: invalid session aggregate session_id: {e}"))?;
+            .map_err(|e| db_err!("invalid session aggregate session_id: {e}"))?;
         let request_count: i64 = row
             .get("request_count")
-            .map_err(|e| format!("DB_ERROR: invalid session aggregate request_count: {e}"))?;
+            .map_err(|e| db_err!("invalid session aggregate request_count: {e}"))?;
         let total_input_tokens: i64 = row
             .get("total_input_tokens")
-            .map_err(|e| format!("DB_ERROR: invalid session aggregate total_input_tokens: {e}"))?;
+            .map_err(|e| db_err!("invalid session aggregate total_input_tokens: {e}"))?;
         let total_output_tokens: i64 = row
             .get("total_output_tokens")
-            .map_err(|e| format!("DB_ERROR: invalid session aggregate total_output_tokens: {e}"))?;
-        let total_cost_usd_femto: i64 = row.get("total_cost_usd_femto").map_err(|e| {
-            format!("DB_ERROR: invalid session aggregate total_cost_usd_femto: {e}")
-        })?;
+            .map_err(|e| db_err!("invalid session aggregate total_output_tokens: {e}"))?;
+        let total_cost_usd_femto: i64 = row
+            .get("total_cost_usd_femto")
+            .map_err(|e| db_err!("invalid session aggregate total_cost_usd_femto: {e}"))?;
         let total_duration_ms: i64 = row
             .get("total_duration_ms")
-            .map_err(|e| format!("DB_ERROR: invalid session aggregate total_duration_ms: {e}"))?;
+            .map_err(|e| db_err!("invalid session aggregate total_duration_ms: {e}"))?;
 
         out.insert(
             (cli_key, session_id),

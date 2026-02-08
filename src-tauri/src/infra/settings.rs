@@ -352,29 +352,46 @@ fn migrate_disable_upstream_timeouts(
     changed
 }
 
-fn migrate_add_gateway_rectifiers(
+/// Generic schema migration helper for versions that only bump `schema_version`.
+///
+/// Returns `true` if the settings were modified (i.e. migration was applied).
+/// Migrations that need additional field changes (e.g. `migrate_disable_upstream_timeouts`)
+/// should NOT use this helper.
+fn migrate_bump_schema_version(
     settings: &mut AppSettings,
     schema_version_present: bool,
+    target_version: u32,
 ) -> bool {
-    // v8: Add CCH v0.4.1-aligned gateway rectifier toggles (default disabled).
-    if schema_version_present && settings.schema_version >= SCHEMA_VERSION_ADD_GATEWAY_RECTIFIERS {
+    if schema_version_present && settings.schema_version >= target_version {
         return false;
     }
 
     let mut changed = false;
 
-    // If schema_version is missing, force a write to persist schema_version so we don't keep "migrating"
-    // on every startup.
+    // If schema_version is missing, force a write to persist schema_version so we don't keep
+    // "migrating" on every startup.
     if !schema_version_present {
         changed = true;
     }
 
-    if settings.schema_version != SCHEMA_VERSION_ADD_GATEWAY_RECTIFIERS {
-        settings.schema_version = SCHEMA_VERSION_ADD_GATEWAY_RECTIFIERS;
+    if settings.schema_version != target_version {
+        settings.schema_version = target_version;
         changed = true;
     }
 
     changed
+}
+
+fn migrate_add_gateway_rectifiers(
+    settings: &mut AppSettings,
+    schema_version_present: bool,
+) -> bool {
+    // v8: Add CCH v0.4.1-aligned gateway rectifier toggles (default disabled).
+    migrate_bump_schema_version(
+        settings,
+        schema_version_present,
+        SCHEMA_VERSION_ADD_GATEWAY_RECTIFIERS,
+    )
 }
 
 fn migrate_add_circuit_breaker_notice(
@@ -382,26 +399,11 @@ fn migrate_add_circuit_breaker_notice(
     schema_version_present: bool,
 ) -> bool {
     // v9: Add circuit breaker notice toggle (default disabled).
-    if schema_version_present
-        && settings.schema_version >= SCHEMA_VERSION_ADD_CIRCUIT_BREAKER_NOTICE
-    {
-        return false;
-    }
-
-    let mut changed = false;
-
-    // If schema_version is missing, force a write to persist schema_version so we don't keep "migrating"
-    // on every startup.
-    if !schema_version_present {
-        changed = true;
-    }
-
-    if settings.schema_version != SCHEMA_VERSION_ADD_CIRCUIT_BREAKER_NOTICE {
-        settings.schema_version = SCHEMA_VERSION_ADD_CIRCUIT_BREAKER_NOTICE;
-        changed = true;
-    }
-
-    changed
+    migrate_bump_schema_version(
+        settings,
+        schema_version_present,
+        SCHEMA_VERSION_ADD_CIRCUIT_BREAKER_NOTICE,
+    )
 }
 
 fn migrate_add_provider_base_url_ping_cache_ttl(
@@ -409,26 +411,11 @@ fn migrate_add_provider_base_url_ping_cache_ttl(
     schema_version_present: bool,
 ) -> bool {
     // v10: Add provider ping cache ttl (seconds), default 60.
-    if schema_version_present
-        && settings.schema_version >= SCHEMA_VERSION_ADD_PROVIDER_BASE_URL_PING_CACHE_TTL
-    {
-        return false;
-    }
-
-    let mut changed = false;
-
-    // If schema_version is missing, force a write to persist schema_version so we don't keep "migrating"
-    // on every startup.
-    if !schema_version_present {
-        changed = true;
-    }
-
-    if settings.schema_version != SCHEMA_VERSION_ADD_PROVIDER_BASE_URL_PING_CACHE_TTL {
-        settings.schema_version = SCHEMA_VERSION_ADD_PROVIDER_BASE_URL_PING_CACHE_TTL;
-        changed = true;
-    }
-
-    changed
+    migrate_bump_schema_version(
+        settings,
+        schema_version_present,
+        SCHEMA_VERSION_ADD_PROVIDER_BASE_URL_PING_CACHE_TTL,
+    )
 }
 
 fn migrate_add_codex_session_id_completion(
@@ -436,26 +423,11 @@ fn migrate_add_codex_session_id_completion(
     schema_version_present: bool,
 ) -> bool {
     // v11: Add Codex Session ID completion toggle (default disabled).
-    if schema_version_present
-        && settings.schema_version >= SCHEMA_VERSION_ADD_CODEX_SESSION_ID_COMPLETION
-    {
-        return false;
-    }
-
-    let mut changed = false;
-
-    // If schema_version is missing, force a write to persist schema_version so we don't keep "migrating"
-    // on every startup.
-    if !schema_version_present {
-        changed = true;
-    }
-
-    if settings.schema_version != SCHEMA_VERSION_ADD_CODEX_SESSION_ID_COMPLETION {
-        settings.schema_version = SCHEMA_VERSION_ADD_CODEX_SESSION_ID_COMPLETION;
-        changed = true;
-    }
-
-    changed
+    migrate_bump_schema_version(
+        settings,
+        schema_version_present,
+        SCHEMA_VERSION_ADD_CODEX_SESSION_ID_COMPLETION,
+    )
 }
 
 fn migrate_add_gateway_network_settings(
@@ -463,26 +435,11 @@ fn migrate_add_gateway_network_settings(
     schema_version_present: bool,
 ) -> bool {
     // v12: Add gateway listen mode + WSL network settings (default disabled / all CLI enabled).
-    if schema_version_present
-        && settings.schema_version >= SCHEMA_VERSION_ADD_GATEWAY_NETWORK_SETTINGS
-    {
-        return false;
-    }
-
-    let mut changed = false;
-
-    // If schema_version is missing, force a write to persist schema_version so we don't keep "migrating"
-    // on every startup.
-    if !schema_version_present {
-        changed = true;
-    }
-
-    if settings.schema_version != SCHEMA_VERSION_ADD_GATEWAY_NETWORK_SETTINGS {
-        settings.schema_version = SCHEMA_VERSION_ADD_GATEWAY_NETWORK_SETTINGS;
-        changed = true;
-    }
-
-    changed
+    migrate_bump_schema_version(
+        settings,
+        schema_version_present,
+        SCHEMA_VERSION_ADD_GATEWAY_NETWORK_SETTINGS,
+    )
 }
 
 fn migrate_add_response_fixer_limits(
@@ -490,25 +447,11 @@ fn migrate_add_response_fixer_limits(
     schema_version_present: bool,
 ) -> bool {
     // v13: Add response fixer config limits (max_json_depth / max_fix_size).
-    if schema_version_present && settings.schema_version >= SCHEMA_VERSION_ADD_RESPONSE_FIXER_LIMITS
-    {
-        return false;
-    }
-
-    let mut changed = false;
-
-    // If schema_version is missing, force a write to persist schema_version so we don't keep "migrating"
-    // on every startup.
-    if !schema_version_present {
-        changed = true;
-    }
-
-    if settings.schema_version != SCHEMA_VERSION_ADD_RESPONSE_FIXER_LIMITS {
-        settings.schema_version = SCHEMA_VERSION_ADD_RESPONSE_FIXER_LIMITS;
-        changed = true;
-    }
-
-    changed
+    migrate_bump_schema_version(
+        settings,
+        schema_version_present,
+        SCHEMA_VERSION_ADD_RESPONSE_FIXER_LIMITS,
+    )
 }
 
 fn migrate_add_cli_proxy_startup_recovery(
@@ -516,26 +459,11 @@ fn migrate_add_cli_proxy_startup_recovery(
     schema_version_present: bool,
 ) -> bool {
     // v14: Add CLI proxy startup recovery toggle (default enabled).
-    if schema_version_present
-        && settings.schema_version >= SCHEMA_VERSION_ADD_CLI_PROXY_STARTUP_RECOVERY
-    {
-        return false;
-    }
-
-    let mut changed = false;
-
-    // If schema_version is missing, force a write to persist schema_version so we don't keep "migrating"
-    // on every startup.
-    if !schema_version_present {
-        changed = true;
-    }
-
-    if settings.schema_version != SCHEMA_VERSION_ADD_CLI_PROXY_STARTUP_RECOVERY {
-        settings.schema_version = SCHEMA_VERSION_ADD_CLI_PROXY_STARTUP_RECOVERY;
-        changed = true;
-    }
-
-    changed
+    migrate_bump_schema_version(
+        settings,
+        schema_version_present,
+        SCHEMA_VERSION_ADD_CLI_PROXY_STARTUP_RECOVERY,
+    )
 }
 
 fn settings_path(app: &tauri::AppHandle) -> AppResult<PathBuf> {
@@ -860,4 +788,363 @@ pub fn write(app: &tauri::AppHandle, settings: &AppSettings) -> AppResult<AppSet
     }
 
     Ok(settings.clone())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // -- sanitize_failover_settings --
+
+    #[test]
+    fn sanitize_failover_resets_zero_attempts_to_default() {
+        let mut s = AppSettings {
+            failover_max_attempts_per_provider: 0,
+            failover_max_providers_to_try: 3,
+            ..Default::default()
+        };
+        assert!(sanitize_failover_settings(&mut s));
+        assert_eq!(
+            s.failover_max_attempts_per_provider,
+            DEFAULT_FAILOVER_MAX_ATTEMPTS_PER_PROVIDER
+        );
+    }
+
+    #[test]
+    fn sanitize_failover_resets_zero_providers_to_default() {
+        let mut s = AppSettings {
+            failover_max_attempts_per_provider: 3,
+            failover_max_providers_to_try: 0,
+            ..Default::default()
+        };
+        assert!(sanitize_failover_settings(&mut s));
+        assert_eq!(
+            s.failover_max_providers_to_try,
+            DEFAULT_FAILOVER_MAX_PROVIDERS_TO_TRY
+        );
+    }
+
+    #[test]
+    fn sanitize_failover_clamps_excessive_attempts() {
+        let mut s = AppSettings {
+            failover_max_attempts_per_provider: 999,
+            failover_max_providers_to_try: 1,
+            ..Default::default()
+        };
+        assert!(sanitize_failover_settings(&mut s));
+        assert_eq!(
+            s.failover_max_attempts_per_provider,
+            MAX_FAILOVER_MAX_ATTEMPTS_PER_PROVIDER
+        );
+    }
+
+    #[test]
+    fn sanitize_failover_clamps_total_product() {
+        // 20 * 20 = 400 > MAX_FAILOVER_TOTAL_ATTEMPTS (100)
+        let mut s = AppSettings {
+            failover_max_attempts_per_provider: 20,
+            failover_max_providers_to_try: 20,
+            ..Default::default()
+        };
+        assert!(sanitize_failover_settings(&mut s));
+        // attempts_per_provider should be clamped to 100/20 = 5
+        assert_eq!(s.failover_max_attempts_per_provider, 5);
+    }
+
+    #[test]
+    fn sanitize_failover_no_change_for_valid_values() {
+        let mut s = AppSettings::default();
+        assert!(!sanitize_failover_settings(&mut s));
+    }
+
+    // -- sanitize_circuit_breaker_settings --
+
+    #[test]
+    fn sanitize_circuit_breaker_resets_zero_threshold() {
+        let mut s = AppSettings {
+            circuit_breaker_failure_threshold: 0,
+            ..Default::default()
+        };
+        assert!(sanitize_circuit_breaker_settings(&mut s));
+        assert_eq!(
+            s.circuit_breaker_failure_threshold,
+            DEFAULT_CIRCUIT_BREAKER_FAILURE_THRESHOLD
+        );
+    }
+
+    #[test]
+    fn sanitize_circuit_breaker_clamps_excessive_duration() {
+        let mut s = AppSettings {
+            circuit_breaker_open_duration_minutes: 99999,
+            ..Default::default()
+        };
+        assert!(sanitize_circuit_breaker_settings(&mut s));
+        assert_eq!(
+            s.circuit_breaker_open_duration_minutes,
+            MAX_CIRCUIT_BREAKER_OPEN_DURATION_MINUTES
+        );
+    }
+
+    #[test]
+    fn sanitize_circuit_breaker_no_change_for_valid_values() {
+        let mut s = AppSettings::default();
+        assert!(!sanitize_circuit_breaker_settings(&mut s));
+    }
+
+    // -- sanitize_provider_cooldown_seconds --
+
+    #[test]
+    fn sanitize_cooldown_clamps_excessive_value() {
+        let mut s = AppSettings {
+            provider_cooldown_seconds: MAX_PROVIDER_COOLDOWN_SECONDS + 1,
+            ..Default::default()
+        };
+        assert!(sanitize_provider_cooldown_seconds(&mut s));
+        assert_eq!(s.provider_cooldown_seconds, MAX_PROVIDER_COOLDOWN_SECONDS);
+    }
+
+    #[test]
+    fn sanitize_cooldown_allows_zero() {
+        let mut s = AppSettings {
+            provider_cooldown_seconds: 0,
+            ..Default::default()
+        };
+        assert!(!sanitize_provider_cooldown_seconds(&mut s));
+        assert_eq!(s.provider_cooldown_seconds, 0);
+    }
+
+    // -- sanitize_provider_base_url_ping_cache_ttl_seconds --
+
+    #[test]
+    fn sanitize_ping_cache_ttl_resets_zero_to_default() {
+        let mut s = AppSettings {
+            provider_base_url_ping_cache_ttl_seconds: 0,
+            ..Default::default()
+        };
+        assert!(sanitize_provider_base_url_ping_cache_ttl_seconds(&mut s));
+        assert_eq!(
+            s.provider_base_url_ping_cache_ttl_seconds,
+            DEFAULT_PROVIDER_BASE_URL_PING_CACHE_TTL_SECONDS
+        );
+    }
+
+    #[test]
+    fn sanitize_ping_cache_ttl_clamps_excessive_value() {
+        let mut s = AppSettings {
+            provider_base_url_ping_cache_ttl_seconds: MAX_PROVIDER_BASE_URL_PING_CACHE_TTL_SECONDS
+                + 1,
+            ..Default::default()
+        };
+        assert!(sanitize_provider_base_url_ping_cache_ttl_seconds(&mut s));
+        assert_eq!(
+            s.provider_base_url_ping_cache_ttl_seconds,
+            MAX_PROVIDER_BASE_URL_PING_CACHE_TTL_SECONDS
+        );
+    }
+
+    // -- sanitize_upstream_timeouts --
+
+    #[test]
+    fn sanitize_upstream_timeouts_clamps_excessive_values() {
+        let mut s = AppSettings {
+            upstream_first_byte_timeout_seconds: MAX_UPSTREAM_FIRST_BYTE_TIMEOUT_SECONDS + 1,
+            upstream_stream_idle_timeout_seconds: MAX_UPSTREAM_STREAM_IDLE_TIMEOUT_SECONDS + 1,
+            upstream_request_timeout_non_streaming_seconds:
+                MAX_UPSTREAM_REQUEST_TIMEOUT_NON_STREAMING_SECONDS + 1,
+            ..Default::default()
+        };
+        assert!(sanitize_upstream_timeouts(&mut s));
+        assert_eq!(
+            s.upstream_first_byte_timeout_seconds,
+            MAX_UPSTREAM_FIRST_BYTE_TIMEOUT_SECONDS
+        );
+        assert_eq!(
+            s.upstream_stream_idle_timeout_seconds,
+            MAX_UPSTREAM_STREAM_IDLE_TIMEOUT_SECONDS
+        );
+        assert_eq!(
+            s.upstream_request_timeout_non_streaming_seconds,
+            MAX_UPSTREAM_REQUEST_TIMEOUT_NON_STREAMING_SECONDS
+        );
+    }
+
+    #[test]
+    fn sanitize_upstream_timeouts_allows_zero_disabled() {
+        let mut s = AppSettings {
+            upstream_first_byte_timeout_seconds: 0,
+            upstream_stream_idle_timeout_seconds: 0,
+            upstream_request_timeout_non_streaming_seconds: 0,
+            ..Default::default()
+        };
+        assert!(!sanitize_upstream_timeouts(&mut s));
+    }
+
+    // -- sanitize_response_fixer_limits --
+
+    #[test]
+    fn sanitize_response_fixer_resets_zero_depth_to_default() {
+        let mut s = AppSettings {
+            response_fixer_max_json_depth: 0,
+            ..Default::default()
+        };
+        assert!(sanitize_response_fixer_limits(&mut s));
+        assert_eq!(
+            s.response_fixer_max_json_depth,
+            DEFAULT_RESPONSE_FIXER_MAX_JSON_DEPTH
+        );
+    }
+
+    #[test]
+    fn sanitize_response_fixer_clamps_excessive_depth() {
+        let mut s = AppSettings {
+            response_fixer_max_json_depth: MAX_RESPONSE_FIXER_MAX_JSON_DEPTH + 1,
+            ..Default::default()
+        };
+        assert!(sanitize_response_fixer_limits(&mut s));
+        assert_eq!(
+            s.response_fixer_max_json_depth,
+            MAX_RESPONSE_FIXER_MAX_JSON_DEPTH
+        );
+    }
+
+    #[test]
+    fn sanitize_response_fixer_resets_zero_size_to_default() {
+        let mut s = AppSettings {
+            response_fixer_max_fix_size: 0,
+            ..Default::default()
+        };
+        assert!(sanitize_response_fixer_limits(&mut s));
+        assert_eq!(
+            s.response_fixer_max_fix_size,
+            DEFAULT_RESPONSE_FIXER_MAX_FIX_SIZE
+        );
+    }
+
+    // -- parse_settings_json --
+
+    #[test]
+    fn parse_settings_json_detects_schema_version_present() {
+        let json = r#"{"schema_version": 14, "preferred_port": 37123}"#;
+        let (settings, schema_version_present) = parse_settings_json(json).unwrap();
+        assert!(schema_version_present);
+        assert_eq!(settings.schema_version, 14);
+        assert_eq!(settings.preferred_port, 37123);
+    }
+
+    #[test]
+    fn parse_settings_json_detects_schema_version_absent() {
+        let json = r#"{"preferred_port": 37123}"#;
+        let (settings, schema_version_present) = parse_settings_json(json).unwrap();
+        assert!(!schema_version_present);
+        // schema_version defaults via serde
+        assert_eq!(settings.preferred_port, 37123);
+    }
+
+    #[test]
+    fn parse_settings_json_uses_defaults_for_missing_fields() {
+        let json = r#"{}"#;
+        let (settings, _) = parse_settings_json(json).unwrap();
+        assert_eq!(settings.preferred_port, DEFAULT_GATEWAY_PORT);
+        assert_eq!(settings.log_retention_days, DEFAULT_LOG_RETENTION_DAYS);
+        assert!(settings.tray_enabled);
+        assert!(!settings.auto_start);
+    }
+
+    #[test]
+    fn parse_settings_json_rejects_invalid_json() {
+        assert!(parse_settings_json("not json").is_err());
+    }
+
+    // -- migrate_bump_schema_version --
+
+    #[test]
+    fn migrate_bump_skips_when_already_at_target() {
+        let mut s = AppSettings {
+            schema_version: 10,
+            ..Default::default()
+        };
+        assert!(!migrate_bump_schema_version(&mut s, true, 10));
+        assert_eq!(s.schema_version, 10);
+    }
+
+    #[test]
+    fn migrate_bump_skips_when_above_target() {
+        let mut s = AppSettings {
+            schema_version: 12,
+            ..Default::default()
+        };
+        assert!(!migrate_bump_schema_version(&mut s, true, 10));
+        assert_eq!(s.schema_version, 12);
+    }
+
+    #[test]
+    fn migrate_bump_applies_when_below_target() {
+        let mut s = AppSettings {
+            schema_version: 8,
+            ..Default::default()
+        };
+        assert!(migrate_bump_schema_version(&mut s, true, 10));
+        assert_eq!(s.schema_version, 10);
+    }
+
+    #[test]
+    fn migrate_bump_forces_write_when_schema_version_absent() {
+        let mut s = AppSettings {
+            schema_version: 10,
+            ..Default::default()
+        };
+        // schema_version_present = false forces a write even if version matches
+        assert!(migrate_bump_schema_version(&mut s, false, 10));
+    }
+
+    // -- migrate_disable_upstream_timeouts --
+
+    #[test]
+    fn migrate_disable_upstream_timeouts_resets_nonzero_values() {
+        let mut s = AppSettings {
+            schema_version: 5,
+            upstream_first_byte_timeout_seconds: 30,
+            upstream_stream_idle_timeout_seconds: 60,
+            upstream_request_timeout_non_streaming_seconds: 120,
+            ..Default::default()
+        };
+        assert!(migrate_disable_upstream_timeouts(&mut s, true));
+        assert_eq!(s.upstream_first_byte_timeout_seconds, 0);
+        assert_eq!(s.upstream_stream_idle_timeout_seconds, 0);
+        assert_eq!(s.upstream_request_timeout_non_streaming_seconds, 0);
+        assert_eq!(s.schema_version, SCHEMA_VERSION_DISABLE_UPSTREAM_TIMEOUTS);
+    }
+
+    #[test]
+    fn migrate_disable_upstream_timeouts_skips_when_already_migrated() {
+        let mut s = AppSettings {
+            schema_version: SCHEMA_VERSION_DISABLE_UPSTREAM_TIMEOUTS,
+            upstream_first_byte_timeout_seconds: 30,
+            ..Default::default()
+        };
+        assert!(!migrate_disable_upstream_timeouts(&mut s, true));
+        // Value should NOT be reset since migration is already applied
+        assert_eq!(s.upstream_first_byte_timeout_seconds, 30);
+    }
+
+    // -- GatewayListenMode --
+
+    #[test]
+    fn gateway_listen_mode_default_is_localhost() {
+        assert_eq!(GatewayListenMode::default(), GatewayListenMode::Localhost);
+    }
+
+    // -- AppSettings default --
+
+    #[test]
+    fn app_settings_default_has_current_schema_version() {
+        let s = AppSettings::default();
+        assert_eq!(s.schema_version, SCHEMA_VERSION);
+    }
+
+    #[test]
+    fn app_settings_default_has_expected_port() {
+        let s = AppSettings::default();
+        assert_eq!(s.preferred_port, DEFAULT_GATEWAY_PORT);
+    }
 }

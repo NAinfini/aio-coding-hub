@@ -104,3 +104,127 @@ pub(crate) fn parse_custom_listen_address(
         .to_string()
         .into())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // -- is_wildcard_host --
+
+    #[test]
+    fn wildcard_host_detects_ipv4_any() {
+        assert!(is_wildcard_host("0.0.0.0"));
+    }
+
+    #[test]
+    fn wildcard_host_detects_ipv6_any() {
+        assert!(is_wildcard_host("::"));
+    }
+
+    #[test]
+    fn wildcard_host_rejects_localhost() {
+        assert!(!is_wildcard_host("127.0.0.1"));
+    }
+
+    #[test]
+    fn wildcard_host_trims_whitespace() {
+        assert!(is_wildcard_host("  0.0.0.0  "));
+    }
+
+    // -- format_host_port --
+
+    #[test]
+    fn format_host_port_ipv4() {
+        assert_eq!(format_host_port("127.0.0.1", 8080), "127.0.0.1:8080");
+    }
+
+    #[test]
+    fn format_host_port_ipv6_wraps_in_brackets() {
+        assert_eq!(format_host_port("::1", 8080), "[::1]:8080");
+    }
+
+    #[test]
+    fn format_host_port_hostname() {
+        assert_eq!(format_host_port("localhost", 3000), "localhost:3000");
+    }
+
+    // -- parse_custom_listen_address --
+
+    #[test]
+    fn parse_empty_defaults_to_wildcard() {
+        let result = parse_custom_listen_address("").unwrap();
+        assert_eq!(result.host, "0.0.0.0");
+        assert!(result.port.is_none());
+    }
+
+    #[test]
+    fn parse_whitespace_only_defaults_to_wildcard() {
+        let result = parse_custom_listen_address("   ").unwrap();
+        assert_eq!(result.host, "0.0.0.0");
+        assert!(result.port.is_none());
+    }
+
+    #[test]
+    fn parse_host_only() {
+        let result = parse_custom_listen_address("192.168.1.1").unwrap();
+        assert_eq!(result.host, "192.168.1.1");
+        assert!(result.port.is_none());
+    }
+
+    #[test]
+    fn parse_host_and_port() {
+        let result = parse_custom_listen_address("192.168.1.1:8080").unwrap();
+        assert_eq!(result.host, "192.168.1.1");
+        assert_eq!(result.port, Some(8080));
+    }
+
+    #[test]
+    fn parse_rejects_port_below_1024() {
+        assert!(parse_custom_listen_address("127.0.0.1:80").is_err());
+    }
+
+    #[test]
+    fn parse_rejects_url_with_scheme() {
+        assert!(parse_custom_listen_address("http://127.0.0.1:8080").is_err());
+    }
+
+    #[test]
+    fn parse_rejects_url_with_path() {
+        assert!(parse_custom_listen_address("127.0.0.1/path").is_err());
+    }
+
+    #[test]
+    fn parse_ipv6_bracket_notation_host_only() {
+        let result = parse_custom_listen_address("[::1]").unwrap();
+        assert_eq!(result.host, "::1");
+        assert!(result.port.is_none());
+    }
+
+    #[test]
+    fn parse_ipv6_bracket_notation_with_port() {
+        let result = parse_custom_listen_address("[::1]:8080").unwrap();
+        assert_eq!(result.host, "::1");
+        assert_eq!(result.port, Some(8080));
+    }
+
+    #[test]
+    fn parse_ipv6_bracket_rejects_low_port() {
+        assert!(parse_custom_listen_address("[::1]:80").is_err());
+    }
+
+    #[test]
+    fn parse_ipv6_bracket_rejects_missing_closing_bracket() {
+        assert!(parse_custom_listen_address("[::1").is_err());
+    }
+
+    #[test]
+    fn parse_ipv6_bracket_rejects_empty_host() {
+        assert!(parse_custom_listen_address("[]").is_err());
+    }
+
+    #[test]
+    fn parse_bare_ipv6_rejects_ambiguous_colons() {
+        // Bare IPv6 without brackets should be rejected
+        assert!(parse_custom_listen_address("::1:8080:extra").is_err());
+    }
+}

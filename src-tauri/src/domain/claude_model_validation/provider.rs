@@ -1,3 +1,4 @@
+use crate::shared::error::db_err;
 use crate::{blocking, db};
 use rusqlite::{params, OptionalExtension};
 use std::collections::HashSet;
@@ -63,7 +64,7 @@ WHERE id = ?1
                     },
                 )
                 .optional()
-                .map_err(|e| format!("DB_ERROR: failed to query provider: {e}"))?;
+                .map_err(|e| db_err!("failed to query provider: {e}"))?;
 
             let Some((id, cli_key, name, base_url_fallback, base_urls_json, api_key_plaintext)) =
                 row

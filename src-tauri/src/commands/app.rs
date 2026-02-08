@@ -94,3 +94,63 @@ pub(crate) fn app_frontend_error_report(
 
     Ok(true)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sanitize_text_returns_none_for_none_input() {
+        assert!(sanitize_text(None, 100).is_none());
+    }
+
+    #[test]
+    fn sanitize_text_returns_none_for_empty_string() {
+        assert!(sanitize_text(Some("".to_string()), 100).is_none());
+    }
+
+    #[test]
+    fn sanitize_text_returns_none_for_whitespace_only() {
+        assert!(sanitize_text(Some("   \t\n  ".to_string()), 100).is_none());
+    }
+
+    #[test]
+    fn sanitize_text_trims_whitespace() {
+        assert_eq!(
+            sanitize_text(Some("  hello  ".to_string()), 100),
+            Some("hello".to_string())
+        );
+    }
+
+    #[test]
+    fn sanitize_text_truncates_to_max_len() {
+        assert_eq!(
+            sanitize_text(Some("abcdefgh".to_string()), 3),
+            Some("abc".to_string())
+        );
+    }
+
+    #[test]
+    fn sanitize_text_truncates_after_trimming() {
+        // Whitespace is trimmed first, then truncation applies to the trimmed result.
+        assert_eq!(
+            sanitize_text(Some("  abcdefgh  ".to_string()), 5),
+            Some("abcde".to_string())
+        );
+    }
+
+    #[test]
+    fn sanitize_text_handles_multibyte_chars_by_char_count() {
+        // Truncation is by char count, not byte count.
+        let cjk = Some("\u{4f60}\u{597d}\u{4e16}\u{754c}".to_string()); // 4 CJK chars
+        assert_eq!(sanitize_text(cjk, 2), Some("\u{4f60}\u{597d}".to_string()));
+    }
+
+    #[test]
+    fn sanitize_text_returns_full_string_when_within_limit() {
+        assert_eq!(
+            sanitize_text(Some("short".to_string()), 100),
+            Some("short".to_string())
+        );
+    }
+}

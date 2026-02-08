@@ -7,6 +7,7 @@ use super::types::{
 };
 use super::util::validate_dir_name;
 use crate::db;
+use crate::shared::error::db_err;
 use crate::shared::text::normalize_name;
 use crate::shared::time::now_unix_seconds;
 use crate::workspaces;
@@ -149,7 +150,7 @@ pub fn import_local(
 
     let tx = conn
         .transaction()
-        .map_err(|e| format!("DB_ERROR: failed to start transaction: {e}"))?;
+        .map_err(|e| db_err!("failed to start transaction: {e}"))?;
 
     tx.execute(
         r#"
@@ -177,7 +178,7 @@ INSERT INTO skills(
             now
         ],
     )
-    .map_err(|e| format!("DB_ERROR: failed to insert imported skill: {e}"))?;
+    .map_err(|e| db_err!("failed to insert imported skill: {e}"))?;
 
     let skill_id = tx.last_insert_rowid();
 
@@ -190,7 +191,7 @@ ON CONFLICT(workspace_id, skill_id) DO UPDATE SET
 "#,
         params![workspace_id, skill_id, now],
     )
-    .map_err(|e| format!("DB_ERROR: failed to enable imported skill for workspace: {e}"))?;
+    .map_err(|e| db_err!("failed to enable imported skill for workspace: {e}"))?;
 
     if let Err(err) = copy_dir_recursive(&local_dir, &ssot_dir) {
         let _ = std::fs::remove_dir_all(&ssot_dir);
@@ -207,7 +208,7 @@ ON CONFLICT(workspace_id, skill_id) DO UPDATE SET
     if let Err(err) = tx.commit() {
         let _ = std::fs::remove_dir_all(&ssot_dir);
         remove_marker(&local_dir);
-        return Err(format!("DB_ERROR: failed to commit: {err}").into());
+        return Err(db_err!("failed to commit: {err}"));
     }
 
     get_skill_by_id(&conn, skill_id)

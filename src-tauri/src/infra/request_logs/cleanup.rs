@@ -1,6 +1,7 @@
 //! Usage: Request log retention cleanup.
 
 use crate::db;
+use crate::shared::error::db_err;
 use crate::shared::time::now_unix_seconds;
 use rusqlite::params;
 
@@ -18,7 +19,7 @@ pub fn cleanup_expired(db: &db::Db, retention_days: u32) -> crate::shared::error
             "DELETE FROM request_logs WHERE created_at < ?1",
             params![cutoff],
         )
-        .map_err(|e| format!("DB_ERROR: failed to cleanup request_logs: {e}"))?;
+        .map_err(|e| db_err!("failed to cleanup request_logs: {e}"))?;
 
     Ok(changed as u64)
 }

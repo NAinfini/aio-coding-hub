@@ -1,4 +1,5 @@
 use crate::db;
+use crate::shared::error::db_err;
 use rusqlite::{params, Connection};
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -222,7 +223,7 @@ AND (?1 IS NULL OR created_at >= ?1)
 AND (?2 IS NULL OR cli_key = ?2)
 "#,
         )
-        .map_err(|e| format!("DB_ERROR: failed to prepare provider leaderboard query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare provider leaderboard query: {e}"))?;
 
     let rows = stmt
         .query_map(params![start_ts, cli_key], |row| {
@@ -283,12 +284,12 @@ AND (?2 IS NULL OR cli_key = ?2)
                 },
             ))
         })
-        .map_err(|e| format!("DB_ERROR: failed to run provider leaderboard query: {e}"))?;
+        .map_err(|e| db_err!("failed to run provider leaderboard query: {e}"))?;
 
     let mut agg: HashMap<ProviderKey, ProviderAgg> = HashMap::new();
     for row in rows {
         let (key, add) =
-            row.map_err(|e| format!("DB_ERROR: failed to read provider leaderboard row: {e}"))?;
+            row.map_err(|e| db_err!("failed to read provider leaderboard row: {e}"))?;
 
         if !has_valid_provider_key(&key) {
             continue;
@@ -378,7 +379,7 @@ ORDER BY total_tokens DESC, day DESC
 LIMIT ?3
 "#,
         )
-        .map_err(|e| format!("DB_ERROR: failed to prepare day leaderboard query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare day leaderboard query: {e}"))?;
 
     let rows = stmt
         .query_map(params![start_ts, cli_key, limit as i64], |row| {
@@ -402,11 +403,11 @@ LIMIT ?3
                     .unwrap_or(0),
             })
         })
-        .map_err(|e| format!("DB_ERROR: failed to run day leaderboard query: {e}"))?;
+        .map_err(|e| db_err!("failed to run day leaderboard query: {e}"))?;
 
     let mut out = Vec::new();
     for row in rows {
-        out.push(row.map_err(|e| format!("DB_ERROR: failed to read day row: {e}"))?);
+        out.push(row.map_err(|e| db_err!("failed to read day row: {e}"))?);
     }
     Ok(out)
 }

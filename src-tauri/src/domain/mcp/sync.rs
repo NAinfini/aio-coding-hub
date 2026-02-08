@@ -1,6 +1,7 @@
 //! Usage: Sync enabled MCP servers to supported CLI config files.
 
 use crate::mcp_sync;
+use crate::shared::error::db_err;
 use crate::workspaces;
 use rusqlite::Connection;
 use std::collections::BTreeMap;
@@ -36,7 +37,7 @@ WHERE e.workspace_id = ?1
 ORDER BY s.server_key ASC
 "#,
         )
-        .map_err(|e| format!("DB_ERROR: failed to prepare enabled mcp query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare enabled mcp query: {e}"))?;
 
     let rows = stmt
         .query_map([workspace_id], |row| {
@@ -61,11 +62,11 @@ ORDER BY s.server_key ASC
                 headers,
             })
         })
-        .map_err(|e| format!("DB_ERROR: failed to query enabled mcp servers: {e}"))?;
+        .map_err(|e| db_err!("failed to query enabled mcp servers: {e}"))?;
 
     let mut out = Vec::new();
     for row in rows {
-        out.push(row.map_err(|e| format!("DB_ERROR: failed to read enabled mcp row: {e}"))?);
+        out.push(row.map_err(|e| db_err!("failed to read enabled mcp row: {e}"))?);
     }
     Ok(out)
 }
@@ -95,7 +96,7 @@ WHERE e.workspace_id = ?1
 ORDER BY s.server_key ASC
 "#,
         )
-        .map_err(|e| format!("DB_ERROR: failed to prepare enabled mcp query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare enabled mcp query: {e}"))?;
 
     let rows = stmt
         .query_map([workspace_id], |row| {
@@ -120,11 +121,11 @@ ORDER BY s.server_key ASC
                 headers,
             })
         })
-        .map_err(|e| format!("DB_ERROR: failed to query enabled mcp servers: {e}"))?;
+        .map_err(|e| db_err!("failed to query enabled mcp servers: {e}"))?;
 
     let mut out = Vec::new();
     for row in rows {
-        out.push(row.map_err(|e| format!("DB_ERROR: failed to read enabled mcp row: {e}"))?);
+        out.push(row.map_err(|e| db_err!("failed to read enabled mcp row: {e}"))?);
     }
     Ok(out)
 }

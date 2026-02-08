@@ -1,5 +1,6 @@
 //! Usage: Persist provider circuit breaker state to sqlite (buffered writer + load helpers).
 
+use crate::shared::error::db_err;
 use crate::shared::time::now_unix_seconds;
 use crate::{circuit_breaker, db};
 use rusqlite::{params, params_from_iter};
@@ -77,7 +78,7 @@ fn insert_batch(
     let mut conn = db.open_connection()?;
     let tx = conn
         .transaction()
-        .map_err(|e| format!("DB_ERROR: failed to start transaction: {e}"))?;
+        .map_err(|e| db_err!("failed to start transaction: {e}"))?;
 
     {
         let mut stmt = tx
@@ -97,7 +98,7 @@ ON CONFLICT(provider_id) DO UPDATE SET
   updated_at = excluded.updated_at
 "#,
             )
-            .map_err(|e| format!("DB_ERROR: failed to prepare circuit breaker upsert: {e}"))?;
+            .map_err(|e| db_err!("failed to prepare circuit breaker upsert: {e}"))?;
 
         for item in latest_by_provider.values() {
             let updated_at = if item.updated_at > 0 {
@@ -113,12 +114,12 @@ ON CONFLICT(provider_id) DO UPDATE SET
                 item.open_until,
                 updated_at
             ])
-            .map_err(|e| format!("DB_ERROR: failed to upsert provider_circuit_breaker: {e}"))?;
+            .map_err(|e| db_err!("failed to upsert provider_circuit_breaker: {e}"))?;
         }
     }
 
     tx.commit()
-        .map_err(|e| format!("DB_ERROR: failed to commit transaction: {e}"))?;
+        .map_err(|e| db_err!("failed to commit transaction: {e}"))?;
 
     Ok(())
 }
@@ -139,7 +140,7 @@ SELECT
 FROM provider_circuit_breakers
 "#,
         )
-        .map_err(|e| format!("DB_ERROR: failed to prepare circuit breaker load query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare circuit breaker load query: {e}"))?;
 
     let rows = stmt
         .query_map([], |row| {
@@ -153,12 +154,11 @@ FROM provider_circuit_breakers
                 updated_at: row.get("updated_at")?,
             })
         })
-        .map_err(|e| format!("DB_ERROR: failed to query circuit breaker states: {e}"))?;
+        .map_err(|e| db_err!("failed to query circuit breaker states: {e}"))?;
 
     let mut items = HashMap::new();
     for row in rows {
-        let item =
-            row.map_err(|e| format!("DB_ERROR: failed to read circuit breaker state: {e}"))?;
+        let item = row.map_err(|e| db_err!("failed to read circuit breaker state: {e}"))?;
         items.insert(item.provider_id, item);
     }
 
@@ -173,12 +173,11 @@ pub fn delete_by_provider_id(
         return Ok(0);
     }
     let conn = db.open_connection()?;
-    Ok(conn
-        .execute(
-            "DELETE FROM provider_circuit_breakers WHERE provider_id = ?1",
-            params![provider_id],
-        )
-        .map_err(|e| format!("DB_ERROR: failed to delete circuit breaker state: {e}"))?)
+    conn.execute(
+        "DELETE FROM provider_circuit_breakers WHERE provider_id = ?1",
+        params![provider_id],
+    )
+    .map_err(|e| db_err!("failed to delete circuit breaker state: {e}"))
 }
 
 pub fn delete_by_provider_ids(
@@ -196,7 +195,6 @@ pub fn delete_by_provider_ids(
         format!("DELETE FROM provider_circuit_breakers WHERE provider_id IN ({placeholders})");
 
     let conn = db.open_connection()?;
-    Ok(conn
-        .execute(&sql, params_from_iter(ids.iter()))
-        .map_err(|e| format!("DB_ERROR: failed to delete circuit breaker states: {e}"))?)
+    conn.execute(&sql, params_from_iter(ids.iter()))
+        .map_err(|e| db_err!("failed to delete circuit breaker states: {e}"))
 }

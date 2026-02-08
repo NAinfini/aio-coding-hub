@@ -1,6 +1,7 @@
 //! Usage: MCP server persistence (SQLite) and sync integration hooks.
 
 use crate::db;
+use crate::shared::error::db_err;
 use crate::shared::time::now_unix_seconds;
 use crate::workspaces;
 use rusqlite::{params, Connection, ErrorCode, OptionalExtension};
@@ -20,7 +21,7 @@ fn server_key_exists(conn: &Connection, server_key: &str) -> crate::shared::erro
             |row| row.get(0),
         )
         .optional()
-        .map_err(|e| format!("DB_ERROR: failed to query mcp server_key: {e}"))?;
+        .map_err(|e| db_err!("failed to query mcp server_key: {e}"))?;
     Ok(exists.is_some())
 }
 
@@ -123,7 +124,7 @@ WHERE id = ?1
         row_to_summary,
     )
     .optional()
-    .map_err(|e| format!("DB_ERROR: failed to query mcp server: {e}"))?
+    .map_err(|e| db_err!("failed to query mcp server: {e}"))?
     .ok_or_else(|| crate::shared::error::AppError::from("DB_NOT_FOUND: mcp server not found"))
 }
 
@@ -157,7 +158,7 @@ WHERE s.id = ?2
         row_to_summary,
     )
     .optional()
-    .map_err(|e| format!("DB_ERROR: failed to query mcp server: {e}"))?
+    .map_err(|e| db_err!("failed to query mcp server: {e}"))?
     .ok_or_else(|| crate::shared::error::AppError::from("DB_NOT_FOUND: mcp server not found"))
 }
 
@@ -191,15 +192,15 @@ LEFT JOIN workspace_mcp_enabled e
 ORDER BY s.updated_at DESC, s.id DESC
 "#,
         )
-        .map_err(|e| format!("DB_ERROR: failed to prepare query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare query: {e}"))?;
 
     let rows = stmt
         .query_map([workspace_id], row_to_summary)
-        .map_err(|e| format!("DB_ERROR: failed to list mcp servers: {e}"))?;
+        .map_err(|e| db_err!("failed to list mcp servers: {e}"))?;
 
     let mut items = Vec::new();
     for row in rows {
-        items.push(row.map_err(|e| format!("DB_ERROR: failed to read mcp row: {e}"))?);
+        items.push(row.map_err(|e| db_err!("failed to read mcp row: {e}"))?);
     }
     Ok(items)
 }
@@ -257,7 +258,7 @@ pub fn upsert(
 
     let tx = conn
         .transaction()
-        .map_err(|e| format!("DB_ERROR: failed to start transaction: {e}"))?;
+        .map_err(|e| db_err!("failed to start transaction: {e}"))?;
 
     let resolved_key = match server_id {
         None => {
@@ -276,7 +277,7 @@ pub fn upsert(
                     |row| row.get(0),
                 )
                 .optional()
-                .map_err(|e| format!("DB_ERROR: failed to query mcp server: {e}"))?;
+                .map_err(|e| db_err!("failed to query mcp server: {e}"))?;
 
             let Some(existing_key) = existing_key else {
                 return Err("DB_NOT_FOUND: mcp server not found".to_string().into());
@@ -335,9 +336,12 @@ INSERT INTO mcp_servers(
                 rusqlite::Error::SqliteFailure(err, _)
                     if err.code == ErrorCode::ConstraintViolation =>
                 {
-                    format!("DB_CONSTRAINT: mcp server_key already exists: {resolved_key}")
+                    crate::shared::error::AppError::new(
+                        "DB_CONSTRAINT",
+                        format!("mcp server_key already exists: {resolved_key}"),
+                    )
                 }
-                other => format!("DB_ERROR: failed to insert mcp server: {other}"),
+                other => db_err!("failed to insert mcp server: {other}"),
             })?;
             tx.last_insert_rowid()
         }
@@ -372,7 +376,7 @@ WHERE id = ?11
                     id
                 ],
             )
-            .map_err(|e| format!("DB_ERROR: failed to update mcp server: {e}"))?;
+            .map_err(|e| db_err!("failed to update mcp server: {e}"))?;
             id
         }
     };
@@ -384,7 +388,7 @@ WHERE id = ?11
 
     if let Err(err) = tx.commit() {
         snapshots.restore_all(app);
-        return Err(format!("DB_ERROR: failed to commit: {err}").into());
+        return Err(db_err!("failed to commit: {err}"));
     }
 
     get_by_id(&conn, id)
@@ -401,7 +405,7 @@ pub fn set_enabled(
     let now = now_unix_seconds();
     let tx = conn
         .transaction()
-        .map_err(|e| format!("DB_ERROR: failed to start transaction: {e}"))?;
+        .map_err(|e| db_err!("failed to start transaction: {e}"))?;
 
     let cli_key = workspaces::get_cli_key_by_id(&tx, workspace_id)?;
     validate_cli_key(&cli_key)?;
@@ -423,13 +427,13 @@ ON CONFLICT(workspace_id, server_id) DO UPDATE SET
 "#,
             params![workspace_id, server_id, now],
         )
-        .map_err(|e| format!("DB_ERROR: failed to enable mcp server: {e}"))?;
+        .map_err(|e| db_err!("failed to enable mcp server: {e}"))?;
     } else {
         tx.execute(
             "DELETE FROM workspace_mcp_enabled WHERE workspace_id = ?1 AND server_id = ?2",
             params![workspace_id, server_id],
         )
-        .map_err(|e| format!("DB_ERROR: failed to disable mcp server: {e}"))?;
+        .map_err(|e| db_err!("failed to disable mcp server: {e}"))?;
     }
 
     if should_sync {
@@ -445,7 +449,7 @@ ON CONFLICT(workspace_id, server_id) DO UPDATE SET
         if let Some(backup) = backup {
             backup.restore(app, &cli_key);
         }
-        return Err(format!("DB_ERROR: failed to commit: {err}").into());
+        return Err(db_err!("failed to commit: {err}"));
     }
 
     get_by_id_for_workspace(&conn, workspace_id, server_id)
@@ -459,13 +463,13 @@ pub fn delete(
     let mut conn = db.open_connection()?;
     let tx = conn
         .transaction()
-        .map_err(|e| format!("DB_ERROR: failed to start transaction: {e}"))?;
+        .map_err(|e| db_err!("failed to start transaction: {e}"))?;
 
     let snapshots = CliBackupSnapshots::capture_all(app)?;
 
     let changed = tx
         .execute("DELETE FROM mcp_servers WHERE id = ?1", params![server_id])
-        .map_err(|e| format!("DB_ERROR: failed to delete mcp server: {e}"))?;
+        .map_err(|e| db_err!("failed to delete mcp server: {e}"))?;
     if changed == 0 {
         return Err("DB_NOT_FOUND: mcp server not found".to_string().into());
     }
@@ -477,7 +481,7 @@ pub fn delete(
 
     if let Err(err) = tx.commit() {
         snapshots.restore_all(app);
-        return Err(format!("DB_ERROR: failed to commit: {err}").into());
+        return Err(db_err!("failed to commit: {err}"));
     }
 
     Ok(())
@@ -544,7 +548,7 @@ LIMIT 1
             |row| row.get(0),
         )
         .optional()
-        .map_err(|e| format!("DB_ERROR: failed to query mcp server by name: {e}"))?;
+        .map_err(|e| db_err!("failed to query mcp server by name: {e}"))?;
 
     match existing_id {
         None => {
@@ -581,7 +585,7 @@ INSERT INTO mcp_servers(
                     now
                 ],
             )
-            .map_err(|e| format!("DB_ERROR: failed to insert mcp server: {e}"))?;
+            .map_err(|e| db_err!("failed to insert mcp server: {e}"))?;
 
             Ok((true, tx.last_insert_rowid()))
         }
@@ -616,7 +620,7 @@ WHERE id = ?11
                     id
                 ],
             )
-            .map_err(|e| format!("DB_ERROR: failed to update mcp server: {e}"))?;
+            .map_err(|e| db_err!("failed to update mcp server: {e}"))?;
 
             Ok((false, id))
         }

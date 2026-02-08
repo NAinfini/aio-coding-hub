@@ -2,6 +2,7 @@
 
 use super::context::CommonCtx;
 use crate::providers;
+use crate::shared::error::db_err;
 use rusqlite::{params, Connection};
 
 pub(super) struct ProviderLimitsInput<'a> {
@@ -162,7 +163,7 @@ WHERE excluded_from_stats = 0
             })
         },
     )
-    .map_err(|e| format!("DB_ERROR: failed to sum provider cost windows: {e}").into())
+    .map_err(|e| db_err!("failed to sum provider cost windows: {e}"))
 }
 
 fn fetch_cost_buckets(
@@ -187,7 +188,7 @@ GROUP BY created_at
 ORDER BY created_at ASC
 "#,
         )
-        .map_err(|e| format!("DB_ERROR: failed to prepare provider cost bucket query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare provider cost bucket query: {e}"))?;
 
     let rows = stmt
         .query_map(params![provider_id, start_ts, end_ts], |row| {
@@ -195,11 +196,11 @@ ORDER BY created_at ASC
             let cost: i64 = row.get::<_, Option<i64>>(1)?.unwrap_or(0).max(0);
             Ok((ts, cost))
         })
-        .map_err(|e| format!("DB_ERROR: failed to query provider cost buckets: {e}"))?;
+        .map_err(|e| db_err!("failed to query provider cost buckets: {e}"))?;
 
     let mut out = Vec::new();
     for row in rows {
-        out.push(row.map_err(|e| format!("DB_ERROR: failed to read provider cost bucket: {e}"))?);
+        out.push(row.map_err(|e| db_err!("failed to read provider cost bucket: {e}"))?);
     }
     Ok(out)
 }
@@ -283,7 +284,7 @@ FROM bounds
         params![now_unix, mod_h, mod_m, mod_s],
         |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
     )
-    .map_err(|e| format!("DB_ERROR: failed to compute daily reset bounds: {e}").into())
+    .map_err(|e| db_err!("failed to compute daily reset bounds: {e}"))
 }
 
 fn compute_weekly_bounds(
@@ -303,7 +304,7 @@ FROM w
         params![now_unix],
         |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
     )
-    .map_err(|e| format!("DB_ERROR: failed to compute weekly bounds: {e}").into())
+    .map_err(|e| db_err!("failed to compute weekly bounds: {e}"))
 }
 
 fn compute_monthly_bounds(
@@ -319,7 +320,7 @@ SELECT
         params![now_unix],
         |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
     )
-    .map_err(|e| format!("DB_ERROR: failed to compute monthly bounds: {e}").into())
+    .map_err(|e| db_err!("failed to compute monthly bounds: {e}"))
 }
 
 /// Resolve the fixed 5h window start for a provider.
@@ -335,7 +336,7 @@ fn resolve_fixed_5h_start(
             params![provider_id],
             |row| row.get(0),
         )
-        .map_err(|e| format!("DB_ERROR: failed to read window_5h_start_ts: {e}"))?;
+        .map_err(|e| db_err!("failed to read window_5h_start_ts: {e}"))?;
 
     if let Some(start_ts) = stored {
         let window_end = start_ts.saturating_add(WINDOW_5H_SECS);
@@ -349,7 +350,7 @@ fn resolve_fixed_5h_start(
         "UPDATE providers SET window_5h_start_ts = ?1 WHERE id = ?2",
         params![now_unix, provider_id],
     )
-    .map_err(|e| format!("DB_ERROR: failed to update window_5h_start_ts: {e}"))?;
+    .map_err(|e| db_err!("failed to update window_5h_start_ts: {e}"))?;
 
     Ok(now_unix)
 }

@@ -2,11 +2,24 @@
 
 use crate::cost;
 use crate::db;
+use crate::shared::error::db_err;
 use rusqlite::{params, Connection, OptionalExtension};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 const USD_FEMTO_DENOM: f64 = 1_000_000_000_000_000.0;
 const SQL_MODEL_KEY_EXPR: &str = "COALESCE(NULLIF(TRIM(requested_model), ''), 'Unknown')";
+
+/// Common query parameters shared by all cost analytics endpoints.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CostQueryParams {
+    pub period: String,
+    pub start_ts: Option<i64>,
+    pub end_ts: Option<i64>,
+    pub cli_key: Option<String>,
+    pub provider_id: Option<i64>,
+    pub model: Option<String>,
+}
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CostSummaryV1 {
@@ -161,7 +174,7 @@ fn compute_start_ts(conn: &Connection, period: CostPeriodV1) -> Result<Option<i6
 
     let ts = conn
         .query_row(sql, [], |row| row.get::<_, i64>(0))
-        .map_err(|e| format!("DB_ERROR: failed to compute period start ts: {e}"))?;
+        .map_err(|e| db_err!("failed to compute period start ts: {e}"))?;
     Ok(Some(ts))
 }
 
@@ -199,20 +212,15 @@ fn cost_usd_from_femto(v: i64) -> f64 {
 
 pub fn summary_v1(
     db: &db::Db,
-    period: &str,
-    start_ts: Option<i64>,
-    end_ts: Option<i64>,
-    cli_key: Option<&str>,
-    provider_id: Option<i64>,
-    model: Option<&str>,
+    p: &CostQueryParams,
 ) -> crate::shared::error::AppResult<CostSummaryV1> {
     let conn = db.open_connection()?;
 
-    let period = parse_period_v1(period)?;
-    let (start_ts, end_ts, _) = compute_bounds_v1(&conn, period, start_ts, end_ts)?;
-    let cli_key = normalize_cli_filter(cli_key)?;
-    let provider_id = normalize_provider_id_filter(provider_id)?;
-    let model = normalize_model_filter(model);
+    let period = parse_period_v1(&p.period)?;
+    let (start_ts, end_ts, _) = compute_bounds_v1(&conn, period, p.start_ts, p.end_ts)?;
+    let cli_key = normalize_cli_filter(p.cli_key.as_deref())?;
+    let provider_id = normalize_provider_id_filter(p.provider_id)?;
+    let model = normalize_model_filter(p.model.as_deref());
     let model = model.as_deref();
 
     let sql = format!(
@@ -246,60 +254,52 @@ AND (?5 IS NULL OR {model_key_expr} = ?5)
         model_key_expr = SQL_MODEL_KEY_EXPR
     );
 
-    Ok(conn
-        .query_row(
-            &sql,
-            params![start_ts, end_ts, cli_key, provider_id, model],
-            |row| {
-                let requests_total: i64 = row.get("requests_total")?;
-                let requests_success: i64 =
-                    row.get::<_, Option<i64>>("requests_success")?.unwrap_or(0);
-                let requests_failed: i64 =
-                    row.get::<_, Option<i64>>("requests_failed")?.unwrap_or(0);
-                let cost_covered_success: i64 = row
-                    .get::<_, Option<i64>>("cost_covered_success")?
-                    .unwrap_or(0);
-                let total_cost_usd_femto: i64 = row
-                    .get::<_, Option<i64>>("total_cost_usd_femto")?
-                    .unwrap_or(0)
-                    .max(0);
+    conn.query_row(
+        &sql,
+        params![start_ts, end_ts, cli_key, provider_id, model],
+        |row| {
+            let requests_total: i64 = row.get("requests_total")?;
+            let requests_success: i64 = row.get::<_, Option<i64>>("requests_success")?.unwrap_or(0);
+            let requests_failed: i64 = row.get::<_, Option<i64>>("requests_failed")?.unwrap_or(0);
+            let cost_covered_success: i64 = row
+                .get::<_, Option<i64>>("cost_covered_success")?
+                .unwrap_or(0);
+            let total_cost_usd_femto: i64 = row
+                .get::<_, Option<i64>>("total_cost_usd_femto")?
+                .unwrap_or(0)
+                .max(0);
 
-                let total_cost_usd = cost_usd_from_femto(total_cost_usd_femto);
-                let avg_cost_usd_per_covered_success = if cost_covered_success > 0 {
-                    Some(total_cost_usd / (cost_covered_success as f64))
-                } else {
-                    None
-                };
+            let total_cost_usd = cost_usd_from_femto(total_cost_usd_femto);
+            let avg_cost_usd_per_covered_success = if cost_covered_success > 0 {
+                Some(total_cost_usd / (cost_covered_success as f64))
+            } else {
+                None
+            };
 
-                Ok(CostSummaryV1 {
-                    requests_total: requests_total.max(0),
-                    requests_success: requests_success.max(0),
-                    requests_failed: requests_failed.max(0),
-                    cost_covered_success: cost_covered_success.max(0),
-                    total_cost_usd,
-                    avg_cost_usd_per_covered_success,
-                })
-            },
-        )
-        .map_err(|e| format!("DB_ERROR: failed to query cost summary: {e}"))?)
+            Ok(CostSummaryV1 {
+                requests_total: requests_total.max(0),
+                requests_success: requests_success.max(0),
+                requests_failed: requests_failed.max(0),
+                cost_covered_success: cost_covered_success.max(0),
+                total_cost_usd,
+                avg_cost_usd_per_covered_success,
+            })
+        },
+    )
+    .map_err(|e| db_err!("failed to query cost summary: {e}"))
 }
 
 pub fn trend_v1(
     db: &db::Db,
-    period: &str,
-    start_ts: Option<i64>,
-    end_ts: Option<i64>,
-    cli_key: Option<&str>,
-    provider_id: Option<i64>,
-    model: Option<&str>,
+    p: &CostQueryParams,
 ) -> crate::shared::error::AppResult<Vec<CostTrendRowV1>> {
     let conn = db.open_connection()?;
 
-    let period = parse_period_v1(period)?;
-    let (start_ts, end_ts, bucket) = compute_bounds_v1(&conn, period, start_ts, end_ts)?;
-    let cli_key = normalize_cli_filter(cli_key)?;
-    let provider_id = normalize_provider_id_filter(provider_id)?;
-    let model = normalize_model_filter(model);
+    let period = parse_period_v1(&p.period)?;
+    let (start_ts, end_ts, bucket) = compute_bounds_v1(&conn, period, p.start_ts, p.end_ts)?;
+    let cli_key = normalize_cli_filter(p.cli_key.as_deref())?;
+    let provider_id = normalize_provider_id_filter(p.provider_id)?;
+    let model = normalize_model_filter(p.model.as_deref());
     let model = model.as_deref();
 
     let (select_fields, group_by_fields, order_by_fields) = match bucket {
@@ -341,7 +341,7 @@ ORDER BY {order_by_fields}
 
     let mut stmt = conn
         .prepare(&sql)
-        .map_err(|e| format!("DB_ERROR: failed to prepare cost trend query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare cost trend query: {e}"))?;
     let rows = stmt
         .query_map(
             params![start_ts, end_ts, cli_key, provider_id, model],
@@ -367,11 +367,11 @@ ORDER BY {order_by_fields}
                 })
             },
         )
-        .map_err(|e| format!("DB_ERROR: failed to run cost trend query: {e}"))?;
+        .map_err(|e| db_err!("failed to run cost trend query: {e}"))?;
 
     let mut out = Vec::new();
     for row in rows {
-        out.push(row.map_err(|e| format!("DB_ERROR: failed to read cost trend row: {e}"))?);
+        out.push(row.map_err(|e| db_err!("failed to read cost trend row: {e}"))?);
     }
     Ok(out)
 }
@@ -379,21 +379,16 @@ ORDER BY {order_by_fields}
 #[allow(clippy::too_many_arguments)]
 pub fn breakdown_provider_v1(
     db: &db::Db,
-    period: &str,
-    start_ts: Option<i64>,
-    end_ts: Option<i64>,
-    cli_key: Option<&str>,
-    provider_id: Option<i64>,
-    model: Option<&str>,
+    p: &CostQueryParams,
     limit: usize,
 ) -> crate::shared::error::AppResult<Vec<CostProviderBreakdownRowV1>> {
     let conn = db.open_connection()?;
 
-    let period = parse_period_v1(period)?;
-    let (start_ts, end_ts, _) = compute_bounds_v1(&conn, period, start_ts, end_ts)?;
-    let cli_key = normalize_cli_filter(cli_key)?;
-    let provider_id = normalize_provider_id_filter(provider_id)?;
-    let model = normalize_model_filter(model);
+    let period = parse_period_v1(&p.period)?;
+    let (start_ts, end_ts, _) = compute_bounds_v1(&conn, period, p.start_ts, p.end_ts)?;
+    let cli_key = normalize_cli_filter(p.cli_key.as_deref())?;
+    let provider_id = normalize_provider_id_filter(p.provider_id)?;
+    let model = normalize_model_filter(p.model.as_deref());
     let model = model.as_deref();
     let limit = limit.clamp(1, 200) as i64;
 
@@ -424,7 +419,7 @@ LIMIT ?6
 
     let mut stmt = conn
         .prepare(&sql)
-        .map_err(|e| format!("DB_ERROR: failed to prepare provider breakdown query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare provider breakdown query: {e}"))?;
     let rows = stmt
         .query_map(
             params![start_ts, end_ts, cli_key, provider_id, model, limit],
@@ -452,11 +447,11 @@ LIMIT ?6
                 })
             },
         )
-        .map_err(|e| format!("DB_ERROR: failed to run provider breakdown query: {e}"))?;
+        .map_err(|e| db_err!("failed to run provider breakdown query: {e}"))?;
 
     let mut out = Vec::new();
     for row in rows {
-        out.push(row.map_err(|e| format!("DB_ERROR: failed to read provider row: {e}"))?);
+        out.push(row.map_err(|e| db_err!("failed to read provider row: {e}"))?);
     }
     Ok(out)
 }
@@ -464,21 +459,16 @@ LIMIT ?6
 #[allow(clippy::too_many_arguments)]
 pub fn breakdown_model_v1(
     db: &db::Db,
-    period: &str,
-    start_ts: Option<i64>,
-    end_ts: Option<i64>,
-    cli_key: Option<&str>,
-    provider_id: Option<i64>,
-    model: Option<&str>,
+    p: &CostQueryParams,
     limit: usize,
 ) -> crate::shared::error::AppResult<Vec<CostModelBreakdownRowV1>> {
     let conn = db.open_connection()?;
 
-    let period = parse_period_v1(period)?;
-    let (start_ts, end_ts, _) = compute_bounds_v1(&conn, period, start_ts, end_ts)?;
-    let cli_key = normalize_cli_filter(cli_key)?;
-    let provider_id = normalize_provider_id_filter(provider_id)?;
-    let model = normalize_model_filter(model);
+    let period = parse_period_v1(&p.period)?;
+    let (start_ts, end_ts, _) = compute_bounds_v1(&conn, period, p.start_ts, p.end_ts)?;
+    let cli_key = normalize_cli_filter(p.cli_key.as_deref())?;
+    let provider_id = normalize_provider_id_filter(p.provider_id)?;
+    let model = normalize_model_filter(p.model.as_deref());
     let model = model.as_deref();
     let limit = limit.clamp(1, 200) as i64;
 
@@ -506,7 +496,7 @@ LIMIT ?6
 
     let mut stmt = conn
         .prepare(&sql)
-        .map_err(|e| format!("DB_ERROR: failed to prepare model breakdown query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare model breakdown query: {e}"))?;
     let rows = stmt
         .query_map(
             params![start_ts, end_ts, cli_key, provider_id, model, limit],
@@ -530,11 +520,11 @@ LIMIT ?6
                 })
             },
         )
-        .map_err(|e| format!("DB_ERROR: failed to run model breakdown query: {e}"))?;
+        .map_err(|e| db_err!("failed to run model breakdown query: {e}"))?;
 
     let mut out = Vec::new();
     for row in rows {
-        out.push(row.map_err(|e| format!("DB_ERROR: failed to read model row: {e}"))?);
+        out.push(row.map_err(|e| db_err!("failed to read model row: {e}"))?);
     }
     Ok(out)
 }
@@ -542,21 +532,16 @@ LIMIT ?6
 #[allow(clippy::too_many_arguments)]
 pub fn scatter_cli_provider_model_v1(
     db: &db::Db,
-    period: &str,
-    start_ts: Option<i64>,
-    end_ts: Option<i64>,
-    cli_key: Option<&str>,
-    provider_id: Option<i64>,
-    model: Option<&str>,
+    p: &CostQueryParams,
     limit: usize,
 ) -> crate::shared::error::AppResult<Vec<CostScatterCliProviderModelRowV1>> {
     let conn = db.open_connection()?;
 
-    let period = parse_period_v1(period)?;
-    let (start_ts, end_ts, _) = compute_bounds_v1(&conn, period, start_ts, end_ts)?;
-    let cli_key = normalize_cli_filter(cli_key)?;
-    let provider_id = normalize_provider_id_filter(provider_id)?;
-    let model = normalize_model_filter(model);
+    let period = parse_period_v1(&p.period)?;
+    let (start_ts, end_ts, _) = compute_bounds_v1(&conn, period, p.start_ts, p.end_ts)?;
+    let cli_key = normalize_cli_filter(p.cli_key.as_deref())?;
+    let provider_id = normalize_provider_id_filter(p.provider_id)?;
+    let model = normalize_model_filter(p.model.as_deref());
     let model = model.as_deref();
     let limit = limit.clamp(1, 5000) as i64;
 
@@ -588,7 +573,7 @@ LIMIT ?6
 
     let mut stmt = conn
         .prepare(&sql)
-        .map_err(|e| format!("DB_ERROR: failed to prepare cost scatter query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare cost scatter query: {e}"))?;
     let rows = stmt
         .query_map(
             params![start_ts, end_ts, cli_key, provider_id, model, limit],
@@ -617,11 +602,11 @@ LIMIT ?6
                 })
             },
         )
-        .map_err(|e| format!("DB_ERROR: failed to run cost scatter query: {e}"))?;
+        .map_err(|e| db_err!("failed to run cost scatter query: {e}"))?;
 
     let mut out = Vec::new();
     for row in rows {
-        out.push(row.map_err(|e| format!("DB_ERROR: failed to read cost scatter row: {e}"))?);
+        out.push(row.map_err(|e| db_err!("failed to read cost scatter row: {e}"))?);
     }
     Ok(out)
 }
@@ -629,21 +614,16 @@ LIMIT ?6
 #[allow(clippy::too_many_arguments)]
 pub fn top_requests_v1(
     db: &db::Db,
-    period: &str,
-    start_ts: Option<i64>,
-    end_ts: Option<i64>,
-    cli_key: Option<&str>,
-    provider_id: Option<i64>,
-    model: Option<&str>,
+    p: &CostQueryParams,
     limit: usize,
 ) -> crate::shared::error::AppResult<Vec<CostTopRequestRowV1>> {
     let conn = db.open_connection()?;
 
-    let period = parse_period_v1(period)?;
-    let (start_ts, end_ts, _) = compute_bounds_v1(&conn, period, start_ts, end_ts)?;
-    let cli_key = normalize_cli_filter(cli_key)?;
-    let provider_id = normalize_provider_id_filter(provider_id)?;
-    let model = normalize_model_filter(model);
+    let period = parse_period_v1(&p.period)?;
+    let (start_ts, end_ts, _) = compute_bounds_v1(&conn, period, p.start_ts, p.end_ts)?;
+    let cli_key = normalize_cli_filter(p.cli_key.as_deref())?;
+    let provider_id = normalize_provider_id_filter(p.provider_id)?;
+    let model = normalize_model_filter(p.model.as_deref());
     let model = model.as_deref();
     let limit = limit.clamp(1, 200) as i64;
 
@@ -681,7 +661,7 @@ LIMIT ?6
 
     let mut stmt = conn
         .prepare(&sql)
-        .map_err(|e| format!("DB_ERROR: failed to prepare top requests query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare top requests query: {e}"))?;
     let rows = stmt
         .query_map(
             params![start_ts, end_ts, cli_key, provider_id, model, limit],
@@ -717,11 +697,11 @@ LIMIT ?6
                 })
             },
         )
-        .map_err(|e| format!("DB_ERROR: failed to run top requests query: {e}"))?;
+        .map_err(|e| db_err!("failed to run top requests query: {e}"))?;
 
     let mut out = Vec::new();
     for row in rows {
-        out.push(row.map_err(|e| format!("DB_ERROR: failed to read top request row: {e}"))?);
+        out.push(row.map_err(|e| db_err!("failed to read top request row: {e}"))?);
     }
     Ok(out)
 }
@@ -738,28 +718,23 @@ fn has_any_cost_usage(usage: &cost::CostUsage) -> bool {
 #[allow(clippy::too_many_arguments)]
 pub fn backfill_missing_v1(
     db: &db::Db,
-    period: &str,
-    start_ts: Option<i64>,
-    end_ts: Option<i64>,
-    cli_key: Option<&str>,
-    provider_id: Option<i64>,
-    model: Option<&str>,
+    p: &CostQueryParams,
     max_rows: usize,
 ) -> crate::shared::error::AppResult<CostBackfillReportV1> {
     let mut conn = db.open_connection()?;
 
-    let period = parse_period_v1(period)?;
-    let (start_ts, end_ts, _) = compute_bounds_v1(&conn, period, start_ts, end_ts)?;
-    let cli_key = normalize_cli_filter(cli_key)?;
-    let provider_id = normalize_provider_id_filter(provider_id)?;
-    let model = normalize_model_filter(model);
+    let period = parse_period_v1(&p.period)?;
+    let (start_ts, end_ts, _) = compute_bounds_v1(&conn, period, p.start_ts, p.end_ts)?;
+    let cli_key = normalize_cli_filter(p.cli_key.as_deref())?;
+    let provider_id = normalize_provider_id_filter(p.provider_id)?;
+    let model = normalize_model_filter(p.model.as_deref());
     let model = model.as_deref();
 
     let max_rows = max_rows.clamp(1, 10_000) as i64;
 
     let tx = conn
         .transaction()
-        .map_err(|e| format!("DB_ERROR: failed to start sqlite transaction: {e}"))?;
+        .map_err(|e| db_err!("failed to start sqlite transaction: {e}"))?;
 
     let mut report = CostBackfillReportV1 {
         scanned: 0,
@@ -801,17 +776,17 @@ LIMIT ?6
 "#,
                 model_key_expr = SQL_MODEL_KEY_EXPR
             ))
-            .map_err(|e| format!("DB_ERROR: failed to prepare backfill candidates query: {e}"))?;
+            .map_err(|e| db_err!("failed to prepare backfill candidates query: {e}"))?;
 
         let mut stmt_price = tx
             .prepare("SELECT price_json FROM model_prices WHERE cli_key = ?1 AND model = ?2")
-            .map_err(|e| format!("DB_ERROR: failed to prepare model_prices query: {e}"))?;
+            .map_err(|e| db_err!("failed to prepare model_prices query: {e}"))?;
 
         let mut stmt_update = tx
             .prepare(
                 "UPDATE request_logs SET cost_usd_femto = ?1 WHERE id = ?2 AND cost_usd_femto IS NULL",
             )
-            .map_err(|e| format!("DB_ERROR: failed to prepare backfill update: {e}"))?;
+            .map_err(|e| db_err!("failed to prepare backfill update: {e}"))?;
 
         let rows = stmt_candidates
             .query_map(
@@ -835,7 +810,7 @@ LIMIT ?6
                     ))
                 },
             )
-            .map_err(|e| format!("DB_ERROR: failed to run backfill candidates query: {e}"))?;
+            .map_err(|e| db_err!("failed to run backfill candidates query: {e}"))?;
 
         for row in rows {
             let (
@@ -849,7 +824,7 @@ LIMIT ?6
                 cache_creation_input_tokens,
                 cache_creation_5m_input_tokens,
                 cache_creation_1h_input_tokens,
-            ) = row.map_err(|e| format!("DB_ERROR: failed to read backfill candidate row: {e}"))?;
+            ) = row.map_err(|e| db_err!("failed to read backfill candidate row: {e}"))?;
 
             report.scanned = report.scanned.saturating_add(1);
 
@@ -903,7 +878,7 @@ LIMIT ?6
 
             let changed = stmt_update
                 .execute(params![cost_usd_femto, id])
-                .map_err(|e| format!("DB_ERROR: failed to update cost_usd_femto: {e}"))?;
+                .map_err(|e| db_err!("failed to update cost_usd_femto: {e}"))?;
             if changed > 0 {
                 report.updated = report.updated.saturating_add(1);
             } else {
@@ -915,7 +890,7 @@ LIMIT ?6
     report.capped = report.scanned >= max_rows;
 
     tx.commit()
-        .map_err(|e| format!("DB_ERROR: failed to commit backfill transaction: {e}"))?;
+        .map_err(|e| db_err!("failed to commit backfill transaction: {e}"))?;
 
     Ok(report)
 }

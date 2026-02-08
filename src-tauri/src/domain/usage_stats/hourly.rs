@@ -1,4 +1,5 @@
 use crate::db;
+use crate::shared::error::db_err;
 use rusqlite::params;
 
 use super::{compute_start_ts_last_n_days, UsageHourlyRow};
@@ -47,7 +48,7 @@ pub fn hourly_series(
 	ORDER BY day ASC, hour ASC
 	"#,
         )
-        .map_err(|e| format!("DB_ERROR: failed to prepare hourly series query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare hourly series query: {e}"))?;
 
     let rows = stmt
         .query_map(params![start_ts], |row| {
@@ -63,11 +64,11 @@ pub fn hourly_series(
                 total_tokens: row.get::<_, Option<i64>>("total_tokens")?.unwrap_or(0),
             })
         })
-        .map_err(|e| format!("DB_ERROR: failed to run hourly series query: {e}"))?;
+        .map_err(|e| db_err!("failed to run hourly series query: {e}"))?;
 
     let mut out = Vec::new();
     for row in rows {
-        out.push(row.map_err(|e| format!("DB_ERROR: failed to read hourly row: {e}"))?);
+        out.push(row.map_err(|e| db_err!("failed to read hourly row: {e}"))?);
     }
     Ok(out)
 }

@@ -1,5 +1,6 @@
 use super::types::InstalledSkillSummary;
 use crate::db;
+use crate::shared::error::db_err;
 use crate::shared::time::now_unix_seconds;
 use crate::workspaces;
 use rusqlite::{params, Connection, OptionalExtension};
@@ -46,15 +47,15 @@ LEFT JOIN workspace_skill_enabled e
 ORDER BY s.updated_at DESC, s.id DESC
 "#,
         )
-        .map_err(|e| format!("DB_ERROR: failed to prepare installed list query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare installed list query: {e}"))?;
 
     let rows = stmt
         .query_map([workspace_id], row_to_installed)
-        .map_err(|e| format!("DB_ERROR: failed to list skills: {e}"))?;
+        .map_err(|e| db_err!("failed to list skills: {e}"))?;
 
     let mut out = Vec::new();
     for row in rows {
-        out.push(row.map_err(|e| format!("DB_ERROR: failed to read skill row: {e}"))?);
+        out.push(row.map_err(|e| db_err!("failed to read skill row: {e}"))?);
     }
     Ok(out)
 }
@@ -69,7 +70,7 @@ SELECT source_git_url, source_branch, source_subdir
 FROM skills
 "#,
         )
-        .map_err(|e| format!("DB_ERROR: failed to prepare installed source query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare installed source query: {e}"))?;
     let rows = stmt
         .query_map([], |row| {
             let url: String = row.get(0)?;
@@ -77,11 +78,11 @@ FROM skills
             let subdir: String = row.get(2)?;
             Ok(format!("{}#{}#{}", url, branch, subdir))
         })
-        .map_err(|e| format!("DB_ERROR: failed to query installed sources: {e}"))?;
+        .map_err(|e| db_err!("failed to query installed sources: {e}"))?;
 
     let mut set = HashSet::new();
     for row in rows {
-        set.insert(row.map_err(|e| format!("DB_ERROR: failed to read installed source row: {e}"))?);
+        set.insert(row.map_err(|e| db_err!("failed to read installed source row: {e}"))?);
     }
     Ok(set)
 }
@@ -110,7 +111,7 @@ WHERE id = ?1
         row_to_installed,
     )
     .optional()
-    .map_err(|e| format!("DB_ERROR: failed to query skill: {e}"))?
+    .map_err(|e| db_err!("failed to query skill: {e}"))?
     .ok_or_else(|| crate::shared::error::AppError::from("DB_NOT_FOUND: skill not found"))
 }
 
@@ -141,7 +142,7 @@ WHERE s.id = ?2
         row_to_installed,
     )
     .optional()
-    .map_err(|e| format!("DB_ERROR: failed to query skill: {e}"))?
+    .map_err(|e| db_err!("failed to query skill: {e}"))?
     .ok_or_else(|| crate::shared::error::AppError::from("DB_NOT_FOUND: skill not found"))
 }
 
@@ -156,7 +157,7 @@ pub(super) fn skill_key_exists(
             |row| row.get(0),
         )
         .optional()
-        .map_err(|e| format!("DB_ERROR: failed to query skill_key: {e}"))?;
+        .map_err(|e| db_err!("failed to query skill_key: {e}"))?;
     Ok(exists.is_some())
 }
 

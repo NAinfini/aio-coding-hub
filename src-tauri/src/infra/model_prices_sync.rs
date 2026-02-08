@@ -1,5 +1,6 @@
 //! Usage: Sync model price data from external sources and persist into sqlite.
 
+use crate::shared::error::db_err;
 use crate::shared::time::now_unix_seconds;
 use crate::{app_paths, blocking, db};
 use reqwest::header::{HeaderMap, HeaderValue, IF_MODIFIED_SINCE, IF_NONE_MATCH, LAST_MODIFIED};
@@ -328,7 +329,7 @@ fn load_existing_price_map(
 ) -> crate::shared::error::AppResult<HashMap<String, String>> {
     let mut stmt = tx
         .prepare("SELECT model, price_json FROM model_prices WHERE cli_key = ?1")
-        .map_err(|e| format!("DB_ERROR: failed to prepare existing model_prices query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare existing model_prices query: {e}"))?;
 
     let mut map = HashMap::new();
     let rows = stmt
@@ -337,11 +338,11 @@ fn load_existing_price_map(
             let price_json: String = row.get(1)?;
             Ok((model, price_json))
         })
-        .map_err(|e| format!("DB_ERROR: failed to query existing model_prices: {e}"))?;
+        .map_err(|e| db_err!("failed to query existing model_prices: {e}"))?;
 
     for row in rows {
         let (model, raw_price) =
-            row.map_err(|e| format!("DB_ERROR: failed to read existing model_price row: {e}"))?;
+            row.map_err(|e| db_err!("failed to read existing model_price row: {e}"))?;
         let normalized = match serde_json::from_str::<Value>(&raw_price)
             .ok()
             .and_then(|v| serde_json::to_string(&v).ok())
@@ -369,7 +370,7 @@ fn upsert_rows(
     let mut conn = db.open_connection()?;
     let tx = conn
         .transaction()
-        .map_err(|e| format!("DB_ERROR: failed to start sqlite transaction: {e}"))?;
+        .map_err(|e| db_err!("failed to start sqlite transaction: {e}"))?;
 
     let mut cli_keys: HashSet<String> = HashSet::new();
     for row in &rows {
@@ -397,7 +398,7 @@ ON CONFLICT(cli_key, model) DO UPDATE SET
   updated_at = excluded.updated_at
 "#,
             )
-            .map_err(|e| format!("DB_ERROR: failed to prepare model_prices upsert: {e}"))?;
+            .map_err(|e| db_err!("failed to prepare model_prices upsert: {e}"))?;
 
         for row in rows {
             let normalized_new = match serde_json::from_str::<Value>(&row.price_json)
@@ -424,12 +425,12 @@ ON CONFLICT(cli_key, model) DO UPDATE SET
             }
 
             stmt.execute(params![row.cli_key, row.model, normalized_new, now])
-                .map_err(|e| format!("DB_ERROR: failed to upsert model_price: {e}"))?;
+                .map_err(|e| db_err!("failed to upsert model_price: {e}"))?;
         }
     }
 
     tx.commit()
-        .map_err(|e| format!("DB_ERROR: failed to commit model_prices sync transaction: {e}"))?;
+        .map_err(|e| db_err!("failed to commit model_prices sync transaction: {e}"))?;
 
     Ok(ModelPricesSyncReport {
         status: "updated".to_string(),

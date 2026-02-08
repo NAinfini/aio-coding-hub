@@ -1,6 +1,7 @@
 //! Usage: Sort mode persistence and provider ordering configuration helpers.
 
 use crate::db;
+use crate::shared::error::db_err;
 use crate::shared::time::now_unix_seconds;
 use rusqlite::{params, params_from_iter, Connection, OptionalExtension};
 use serde::Serialize;
@@ -82,7 +83,7 @@ fn ensure_mode_exists(conn: &Connection, mode_id: i64) -> crate::shared::error::
             |row| row.get(0),
         )
         .optional()
-        .map_err(|e| format!("DB_ERROR: failed to query sort_mode: {e}"))?;
+        .map_err(|e| db_err!("failed to query sort_mode: {e}"))?;
 
     if exists.is_none() {
         return Err("DB_NOT_FOUND: sort_mode not found".into());
@@ -114,7 +115,7 @@ WHERE cli_key = ?1
         },
     )
     .optional()
-    .map_err(|e| format!("DB_ERROR: failed to query sort_mode_active: {e}"))?
+    .map_err(|e| db_err!("failed to query sort_mode_active: {e}"))?
     .ok_or_else(|| "DB_NOT_FOUND: sort_mode_active not found".into())
 }
 
@@ -132,15 +133,15 @@ FROM sort_modes
 ORDER BY id ASC
 "#,
         )
-        .map_err(|e| format!("DB_ERROR: failed to prepare sort_modes query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare sort_modes query: {e}"))?;
 
     let rows = stmt
         .query_map([], row_to_mode_summary)
-        .map_err(|e| format!("DB_ERROR: failed to list sort_modes: {e}"))?;
+        .map_err(|e| db_err!("failed to list sort_modes: {e}"))?;
 
     let mut items = Vec::new();
     for row in rows {
-        items.push(row.map_err(|e| format!("DB_ERROR: failed to read sort_mode row: {e}"))?);
+        items.push(row.map_err(|e| db_err!("failed to read sort_mode row: {e}"))?);
     }
     Ok(items)
 }
@@ -164,9 +165,12 @@ INSERT INTO sort_modes(
         rusqlite::Error::SqliteFailure(err, _)
             if err.code == rusqlite::ErrorCode::ConstraintViolation =>
         {
-            format!("DB_CONSTRAINT: sort_mode already exists: name={name}")
+            crate::shared::error::AppError::new(
+                "DB_CONSTRAINT",
+                format!("sort_mode already exists: name={name}"),
+            )
         }
-        other => format!("DB_ERROR: failed to insert sort_mode: {other}"),
+        other => db_err!("failed to insert sort_mode: {other}"),
     })?;
 
     let id = conn.last_insert_rowid();
@@ -183,8 +187,7 @@ WHERE id = ?1
         params![id],
         row_to_mode_summary,
     )
-    .map_err(|e| format!("DB_ERROR: failed to query inserted sort_mode: {e}"))
-    .map_err(Into::into)
+    .map_err(|e| db_err!("failed to query inserted sort_mode: {e}"))
 }
 
 pub fn rename_mode(
@@ -205,9 +208,12 @@ pub fn rename_mode(
         rusqlite::Error::SqliteFailure(err, _)
             if err.code == rusqlite::ErrorCode::ConstraintViolation =>
         {
-            format!("DB_CONSTRAINT: sort_mode already exists: name={name}")
+            crate::shared::error::AppError::new(
+                "DB_CONSTRAINT",
+                format!("sort_mode already exists: name={name}"),
+            )
         }
-        other => format!("DB_ERROR: failed to update sort_mode: {other}"),
+        other => db_err!("failed to update sort_mode: {other}"),
     })?;
 
     conn.query_row(
@@ -223,8 +229,7 @@ WHERE id = ?1
         params![mode_id],
         row_to_mode_summary,
     )
-    .map_err(|e| format!("DB_ERROR: failed to query sort_mode: {e}"))
-    .map_err(Into::into)
+    .map_err(|e| db_err!("failed to query sort_mode: {e}"))
 }
 
 pub fn delete_mode(db: &db::Db, mode_id: i64) -> crate::shared::error::AppResult<()> {
@@ -233,7 +238,7 @@ pub fn delete_mode(db: &db::Db, mode_id: i64) -> crate::shared::error::AppResult
 
     let changed = conn
         .execute("DELETE FROM sort_modes WHERE id = ?1", params![mode_id])
-        .map_err(|e| format!("DB_ERROR: failed to delete sort_mode: {e}"))?;
+        .map_err(|e| db_err!("failed to delete sort_mode: {e}"))?;
     if changed == 0 {
         return Err("DB_NOT_FOUND: sort_mode not found".to_string().into());
     }
@@ -253,7 +258,7 @@ FROM sort_mode_active
 ORDER BY cli_key ASC
 "#,
         )
-        .map_err(|e| format!("DB_ERROR: failed to prepare sort_mode_active query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare sort_mode_active query: {e}"))?;
 
     let rows = stmt
         .query_map([], |row| {
@@ -263,11 +268,11 @@ ORDER BY cli_key ASC
                 updated_at: row.get("updated_at")?,
             })
         })
-        .map_err(|e| format!("DB_ERROR: failed to list sort_mode_active: {e}"))?;
+        .map_err(|e| db_err!("failed to list sort_mode_active: {e}"))?;
 
     let mut items = Vec::new();
     for row in rows {
-        items.push(row.map_err(|e| format!("DB_ERROR: failed to read sort_mode_active row: {e}"))?);
+        items.push(row.map_err(|e| db_err!("failed to read sort_mode_active row: {e}"))?);
     }
     Ok(items)
 }
@@ -299,7 +304,7 @@ ON CONFLICT(cli_key) DO UPDATE SET
 "#,
         params![cli_key, mode_id, now],
     )
-    .map_err(|e| format!("DB_ERROR: failed to upsert sort_mode_active: {e}"))?;
+    .map_err(|e| db_err!("failed to upsert sort_mode_active: {e}"))?;
 
     read_active_row(&conn, cli_key)
 }
@@ -326,7 +331,7 @@ WHERE mode_id = ?1
 ORDER BY sort_order ASC
 "#,
         )
-        .map_err(|e| format!("DB_ERROR: failed to prepare sort_mode_providers query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare sort_mode_providers query: {e}"))?;
 
     let rows = stmt
         .query_map(params![mode_id, cli_key], |row| {
@@ -337,13 +342,11 @@ ORDER BY sort_order ASC
                 enabled: enabled_from_int(enabled_raw),
             })
         })
-        .map_err(|e| format!("DB_ERROR: failed to list sort_mode_providers: {e}"))?;
+        .map_err(|e| db_err!("failed to list sort_mode_providers: {e}"))?;
 
     let mut items = Vec::new();
     for row in rows {
-        items.push(
-            row.map_err(|e| format!("DB_ERROR: failed to read sort_mode_provider row: {e}"))?,
-        );
+        items.push(row.map_err(|e| db_err!("failed to read sort_mode_provider row: {e}"))?);
     }
     Ok(items)
 }
@@ -372,7 +375,7 @@ fn ensure_providers_belong_to_cli(
 
     let mut stmt = conn
         .prepare(&sql)
-        .map_err(|e| format!("DB_ERROR: failed to prepare provider validation query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare provider validation query: {e}"))?;
 
     let mut params_vec: Vec<rusqlite::types::Value> = Vec::with_capacity(unique_ids.len() + 1);
     params_vec.push(rusqlite::types::Value::from(cli_key.to_string()));
@@ -380,11 +383,11 @@ fn ensure_providers_belong_to_cli(
 
     let rows = stmt
         .query_map(params_from_iter(params_vec), |row| row.get::<_, i64>(0))
-        .map_err(|e| format!("DB_ERROR: failed to query provider validation: {e}"))?;
+        .map_err(|e| db_err!("failed to query provider validation: {e}"))?;
 
     let mut found = HashSet::new();
     for row in rows {
-        found.insert(row.map_err(|e| format!("DB_ERROR: failed to read provider id: {e}"))?);
+        found.insert(row.map_err(|e| db_err!("failed to read provider id: {e}"))?);
     }
 
     if found.len() != unique_ids.len() {
@@ -413,7 +416,7 @@ pub fn set_mode_providers_order(
 
     let tx = conn
         .transaction()
-        .map_err(|e| format!("DB_ERROR: failed to start transaction: {e}"))?;
+        .map_err(|e| db_err!("failed to start transaction: {e}"))?;
 
     let mut existing_enabled: HashMap<i64, bool> = HashMap::new();
     {
@@ -428,17 +431,17 @@ WHERE mode_id = ?1
   AND cli_key = ?2
 "#,
             )
-            .map_err(|e| format!("DB_ERROR: failed to prepare sort_mode_providers query: {e}"))?;
+            .map_err(|e| db_err!("failed to prepare sort_mode_providers query: {e}"))?;
         let rows = stmt
             .query_map(params![mode_id, cli_key], |row| {
                 let provider_id: i64 = row.get(0)?;
                 let enabled_raw: i64 = row.get(1)?;
                 Ok((provider_id, enabled_from_int(enabled_raw)))
             })
-            .map_err(|e| format!("DB_ERROR: failed to list sort_mode_providers: {e}"))?;
+            .map_err(|e| db_err!("failed to list sort_mode_providers: {e}"))?;
         for row in rows {
             let (provider_id, enabled) =
-                row.map_err(|e| format!("DB_ERROR: failed to read sort_mode_provider row: {e}"))?;
+                row.map_err(|e| db_err!("failed to read sort_mode_provider row: {e}"))?;
             existing_enabled.insert(provider_id, enabled);
         }
     }
@@ -447,7 +450,7 @@ WHERE mode_id = ?1
         "DELETE FROM sort_mode_providers WHERE mode_id = ?1 AND cli_key = ?2",
         params![mode_id, cli_key],
     )
-    .map_err(|e| format!("DB_ERROR: failed to clear sort_mode_providers: {e}"))?;
+    .map_err(|e| db_err!("failed to clear sort_mode_providers: {e}"))?;
 
     let now = now_unix_seconds();
     for (idx, provider_id) in ordered_provider_ids.iter().enumerate() {
@@ -474,11 +477,11 @@ INSERT INTO sort_mode_providers(
                 now
             ],
         )
-        .map_err(|e| format!("DB_ERROR: failed to insert sort_mode_provider: {e}"))?;
+        .map_err(|e| db_err!("failed to insert sort_mode_provider: {e}"))?;
     }
 
     tx.commit()
-        .map_err(|e| format!("DB_ERROR: failed to commit transaction: {e}"))?;
+        .map_err(|e| db_err!("failed to commit transaction: {e}"))?;
 
     list_mode_providers(db, mode_id, cli_key)
 }
@@ -512,7 +515,7 @@ WHERE mode_id = ?3
 "#,
             params![enabled_to_int(enabled), now, mode_id, cli_key, provider_id],
         )
-        .map_err(|e| format!("DB_ERROR: failed to update sort_mode_provider: {e}"))?;
+        .map_err(|e| db_err!("failed to update sort_mode_provider: {e}"))?;
     if changed == 0 {
         return Err("DB_NOT_FOUND: sort_mode_provider not found".into());
     }
@@ -537,5 +540,5 @@ WHERE mode_id = ?1
             })
         },
     )
-    .map_err(|e| format!("DB_ERROR: failed to read sort_mode_provider: {e}").into())
+    .map_err(|e| db_err!("failed to read sort_mode_provider: {e}"))
 }

@@ -1,6 +1,7 @@
 //! Usage: MCP server import/export parsing and DB import.
 
 use crate::db;
+use crate::shared::error::db_err;
 use crate::shared::time::now_unix_seconds;
 use crate::workspaces;
 use rusqlite::params;
@@ -561,7 +562,7 @@ pub fn import_servers<R: tauri::Runtime>(
 
     let tx = conn
         .transaction()
-        .map_err(|e| format!("DB_ERROR: failed to start transaction: {e}"))?;
+        .map_err(|e| db_err!("failed to start transaction: {e}"))?;
 
     let _cli_key = workspaces::get_cli_key_by_id(&tx, workspace_id)?;
     let snapshots = CliBackupSnapshots::capture_all(app)?;
@@ -604,9 +605,7 @@ ON CONFLICT(workspace_id, server_id) DO UPDATE SET
 "#,
                     params![workspace_id, existing.id, now],
                 )
-                .map_err(|e| {
-                    format!("DB_ERROR: failed to merge enabled imported mcp server: {e}")
-                })?;
+                .map_err(|e| db_err!("failed to merge enabled imported mcp server: {e}"))?;
                 updated += 1;
 
                 let mut merged = existing.clone();
@@ -638,7 +637,7 @@ ON CONFLICT(workspace_id, server_id) DO UPDATE SET
 "#,
                 params![workspace_id, id, now],
             )
-            .map_err(|e| format!("DB_ERROR: failed to enable imported mcp server: {e}"))?;
+            .map_err(|e| db_err!("failed to enable imported mcp server: {e}"))?;
         }
 
         existing_by_name.insert(
@@ -668,7 +667,7 @@ ON CONFLICT(workspace_id, server_id) DO UPDATE SET
 
     if let Err(err) = tx.commit() {
         snapshots.restore_all(app);
-        return Err(format!("DB_ERROR: failed to commit: {err}").into());
+        return Err(db_err!("failed to commit: {err}"));
     }
 
     Ok(McpImportReport {

@@ -1,6 +1,7 @@
 //! Usage: Workspace (profile) persistence and active workspace resolution.
 
 use crate::db;
+use crate::shared::error::db_err;
 use crate::shared::text::normalize_name;
 use crate::shared::time::now_unix_seconds;
 use rusqlite::{params, Connection, OptionalExtension};
@@ -51,7 +52,7 @@ WHERE id = ?1
         row_to_summary,
     )
     .optional()
-    .map_err(|e| format!("DB_ERROR: failed to query workspace: {e}"))?
+    .map_err(|e| db_err!("failed to query workspace: {e}"))?
     .ok_or_else(|| "DB_NOT_FOUND: workspace not found".to_string())
 }
 
@@ -65,7 +66,7 @@ pub fn get_cli_key_by_id(
         |row| row.get::<_, String>(0),
     )
     .optional()
-    .map_err(|e| format!("DB_ERROR: failed to query workspace cli_key: {e}"))?
+    .map_err(|e| db_err!("failed to query workspace cli_key: {e}"))?
     .ok_or_else(|| "DB_NOT_FOUND: workspace not found".to_string().into())
 }
 
@@ -83,7 +84,7 @@ pub fn active_id_by_cli(
             |row| row.get::<_, Option<i64>>(0),
         )
         .optional()
-        .map_err(|e| format!("DB_ERROR: failed to query workspace_active: {e}"))?;
+        .map_err(|e| db_err!("failed to query workspace_active: {e}"))?;
 
     Ok(id.flatten())
 }
@@ -121,15 +122,15 @@ WHERE cli_key = ?1
 ORDER BY updated_at DESC, id DESC
 "#,
         )
-        .map_err(|e| format!("DB_ERROR: failed to prepare workspaces query: {e}"))?;
+        .map_err(|e| db_err!("failed to prepare workspaces query: {e}"))?;
 
     let rows = stmt
         .query_map(params![cli_key], row_to_summary)
-        .map_err(|e| format!("DB_ERROR: failed to list workspaces: {e}"))?;
+        .map_err(|e| db_err!("failed to list workspaces: {e}"))?;
 
     let mut items = Vec::new();
     for row in rows {
-        items.push(row.map_err(|e| format!("DB_ERROR: failed to read workspace row: {e}"))?);
+        items.push(row.map_err(|e| db_err!("failed to read workspace row: {e}"))?);
     }
 
     Ok(WorkspacesListResult { active_id, items })
@@ -157,7 +158,7 @@ pub fn create(
     let mut conn = db.open_connection()?;
     let tx = conn
         .transaction()
-        .map_err(|e| format!("DB_ERROR: failed to start transaction: {e}"))?;
+        .map_err(|e| db_err!("failed to start transaction: {e}"))?;
 
     tx.execute(
         r#"
@@ -175,9 +176,12 @@ INSERT INTO workspaces(
         rusqlite::Error::SqliteFailure(err, _)
             if err.code == rusqlite::ErrorCode::ConstraintViolation =>
         {
-            format!("DB_CONSTRAINT: workspace already exists for cli_key={cli_key}, name={name}")
+            crate::shared::error::AppError::new(
+                "DB_CONSTRAINT",
+                format!("workspace already exists for cli_key={cli_key}, name={name}"),
+            )
         }
-        other => format!("DB_ERROR: failed to insert workspace: {other}"),
+        other => db_err!("failed to insert workspace: {other}"),
     })?;
 
     let id = tx.last_insert_rowid();
@@ -206,7 +210,7 @@ WHERE workspace_id = ?2
 "#,
                 params![id, from_workspace_id, now],
             )
-            .map_err(|e| format!("DB_ERROR: failed to clone prompts: {e}"))?;
+            .map_err(|e| db_err!("failed to clone prompts: {e}"))?;
 
             tx.execute(
                 r#"
@@ -226,7 +230,7 @@ WHERE workspace_id = ?2
 "#,
                 params![id, from_workspace_id, now],
             )
-            .map_err(|e| format!("DB_ERROR: failed to clone mcp enabled: {e}"))?;
+            .map_err(|e| db_err!("failed to clone mcp enabled: {e}"))?;
 
             tx.execute(
                 r#"
@@ -246,7 +250,7 @@ WHERE workspace_id = ?2
 "#,
                 params![id, from_workspace_id, now],
             )
-            .map_err(|e| format!("DB_ERROR: failed to clone skills enabled: {e}"))?;
+            .map_err(|e| db_err!("failed to clone skills enabled: {e}"))?;
         }
     } else {
         tx.execute(
@@ -262,11 +266,11 @@ INSERT INTO prompts(
 "#,
             params![id, "默认", "", now],
         )
-        .map_err(|e| format!("DB_ERROR: failed to seed default prompt: {e}"))?;
+        .map_err(|e| db_err!("failed to seed default prompt: {e}"))?;
     }
 
     if let Err(err) = tx.commit() {
-        return Err(format!("DB_ERROR: failed to commit: {err}").into());
+        return Err(db_err!("failed to commit: {err}"));
     }
 
     Ok(get_by_id(&conn, id)?)
@@ -305,12 +309,15 @@ WHERE id = ?4
         rusqlite::Error::SqliteFailure(err, _)
             if err.code == rusqlite::ErrorCode::ConstraintViolation =>
         {
-            format!(
-                "DB_CONSTRAINT: workspace already exists for cli_key={}, name={}",
-                before.cli_key, name
+            crate::shared::error::AppError::new(
+                "DB_CONSTRAINT",
+                format!(
+                    "workspace already exists for cli_key={}, name={}",
+                    before.cli_key, name
+                ),
             )
         }
-        other => format!("DB_ERROR: failed to rename workspace: {other}"),
+        other => db_err!("failed to rename workspace: {other}"),
     })?;
 
     Ok(get_by_id(&conn, workspace_id)?)
@@ -322,7 +329,7 @@ pub fn delete(db: &db::Db, workspace_id: i64) -> crate::shared::error::AppResult
 
     let tx = conn
         .transaction()
-        .map_err(|e| format!("DB_ERROR: failed to start transaction: {e}"))?;
+        .map_err(|e| db_err!("failed to start transaction: {e}"))?;
 
     let active_id = active_id_by_cli(&tx, &before.cli_key)?;
     if active_id == Some(workspace_id) {
@@ -338,13 +345,13 @@ pub fn delete(db: &db::Db, workspace_id: i64) -> crate::shared::error::AppResult
             "DELETE FROM workspaces WHERE id = ?1",
             params![workspace_id],
         )
-        .map_err(|e| format!("DB_ERROR: failed to delete workspace: {e}"))?;
+        .map_err(|e| db_err!("failed to delete workspace: {e}"))?;
     if changed == 0 {
         return Err("DB_NOT_FOUND: workspace not found".to_string().into());
     }
 
     if let Err(err) = tx.commit() {
-        return Err(format!("DB_ERROR: failed to commit: {err}").into());
+        return Err(db_err!("failed to commit: {err}"));
     }
 
     Ok(true)
@@ -366,7 +373,7 @@ ON CONFLICT(cli_key) DO UPDATE SET
 "#,
         params![cli_key, workspace_id, now],
     )
-    .map_err(|e| format!("DB_ERROR: failed to update workspace_active: {e}"))?;
+    .map_err(|e| db_err!("failed to update workspace_active: {e}"))?;
 
     Ok(())
 }

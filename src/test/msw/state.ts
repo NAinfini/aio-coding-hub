@@ -1,8 +1,15 @@
 // Usage: Shared MSW in-memory state for tests that run through `invoke` -> fetch -> MSW handlers.
 
+import type { AppAboutInfo } from "../../services/appAbout";
 import type { CliProxyResult, CliProxyStatus } from "../../services/cliProxy";
+import type { DbDiskUsage } from "../../services/dataManagement";
 import type { EnvConflict } from "../../services/envConflicts";
-import type { CliKey } from "../../services/providers";
+import type { GatewayStatus } from "../../services/gateway";
+import type { CliKey, ProviderSummary } from "../../services/providers";
+import type { AppSettings } from "../../services/settings";
+import type { SortModeActiveRow, SortModeSummary } from "../../services/sortModes";
+import type { UsageSummary } from "../../services/usage";
+import type { WorkspacesListResult } from "../../services/workspaces";
 
 const DEFAULT_BASE_ORIGIN = "http://127.0.0.1:37123";
 
@@ -12,9 +19,92 @@ const DEFAULT_CLI_PROXY_STATUS: CliProxyStatus[] = [
   { cli_key: "gemini", enabled: false, base_origin: null },
 ];
 
+// Default settings matching the Rust backend defaults.
+const DEFAULT_SETTINGS: AppSettings = {
+  schema_version: 1,
+  preferred_port: 37123,
+  gateway_listen_mode: "localhost",
+  gateway_custom_listen_address: "",
+  wsl_auto_config: false,
+  wsl_target_cli: { claude: true, codex: true, gemini: true },
+  auto_start: false,
+  tray_enabled: true,
+  enable_cli_proxy_startup_recovery: true,
+  log_retention_days: 30,
+  provider_cooldown_seconds: 60,
+  provider_base_url_ping_cache_ttl_seconds: 300,
+  upstream_first_byte_timeout_seconds: 120,
+  upstream_stream_idle_timeout_seconds: 60,
+  upstream_request_timeout_non_streaming_seconds: 120,
+  update_releases_url: "",
+  failover_max_attempts_per_provider: 1,
+  failover_max_providers_to_try: 3,
+  circuit_breaker_failure_threshold: 5,
+  circuit_breaker_open_duration_minutes: 5,
+  enable_circuit_breaker_notice: true,
+  intercept_anthropic_warmup_requests: true,
+  enable_thinking_signature_rectifier: true,
+  enable_codex_session_id_completion: true,
+  enable_response_fixer: true,
+  response_fixer_fix_encoding: true,
+  response_fixer_fix_sse_format: true,
+  response_fixer_fix_truncated_json: true,
+  response_fixer_max_json_depth: 64,
+  response_fixer_max_fix_size: 10485760,
+};
+
+const DEFAULT_GATEWAY_STATUS: GatewayStatus = {
+  running: false,
+  port: null,
+  base_url: null,
+  listen_addr: null,
+};
+
+const DEFAULT_APP_ABOUT: AppAboutInfo = {
+  os: "darwin",
+  arch: "aarch64",
+  profile: "debug",
+  app_version: "0.0.0-test",
+  bundle_type: null,
+  run_mode: "development",
+};
+
+const DEFAULT_DB_DISK_USAGE: DbDiskUsage = {
+  db_bytes: 0,
+  wal_bytes: 0,
+  shm_bytes: 0,
+  total_bytes: 0,
+};
+
+const DEFAULT_USAGE_SUMMARY: UsageSummary = {
+  requests_total: 0,
+  requests_with_usage: 0,
+  requests_success: 0,
+  requests_failed: 0,
+  avg_duration_ms: null,
+  avg_ttfb_ms: null,
+  avg_output_tokens_per_second: null,
+  input_tokens: 0,
+  output_tokens: 0,
+  io_total_tokens: 0,
+  total_tokens: 0,
+  cache_read_input_tokens: 0,
+  cache_creation_input_tokens: 0,
+  cache_creation_5m_input_tokens: 0,
+};
+
 let traceCounter = 0;
 let cliProxyStatusAllState: CliProxyStatus[] = JSON.parse(JSON.stringify(DEFAULT_CLI_PROXY_STATUS));
 let envConflictsState: EnvConflict[] = [];
+let settingsState: AppSettings = clone(DEFAULT_SETTINGS);
+let gatewayStatusState: GatewayStatus = clone(DEFAULT_GATEWAY_STATUS);
+let providersState: Map<CliKey, ProviderSummary[]> = new Map();
+let usageSummaryState: UsageSummary = clone(DEFAULT_USAGE_SUMMARY);
+let appAboutState: AppAboutInfo = clone(DEFAULT_APP_ABOUT);
+let dbDiskUsageState: DbDiskUsage = clone(DEFAULT_DB_DISK_USAGE);
+let sortModesState: SortModeSummary[] = [];
+let sortModeActiveState: SortModeActiveRow[] = [];
+let workspacesState: Map<CliKey, WorkspacesListResult> = new Map();
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
@@ -29,6 +119,15 @@ export function resetMswState() {
   traceCounter = 0;
   cliProxyStatusAllState = clone(DEFAULT_CLI_PROXY_STATUS);
   envConflictsState = [];
+  settingsState = clone(DEFAULT_SETTINGS);
+  gatewayStatusState = clone(DEFAULT_GATEWAY_STATUS);
+  providersState = new Map();
+  usageSummaryState = clone(DEFAULT_USAGE_SUMMARY);
+  appAboutState = clone(DEFAULT_APP_ABOUT);
+  dbDiskUsageState = clone(DEFAULT_DB_DISK_USAGE);
+  sortModesState = [];
+  sortModeActiveState = [];
+  workspacesState = new Map();
 }
 
 export function getCliProxyStatusAllState(): CliProxyStatus[] {
@@ -45,6 +144,99 @@ export function getEnvConflictsState(): EnvConflict[] {
 
 export function setEnvConflictsState(next: EnvConflict[]) {
   envConflictsState = clone(next);
+}
+
+// -- Settings --
+
+export function getSettingsState(): AppSettings {
+  return clone(settingsState);
+}
+
+export function setSettingsState(next: AppSettings) {
+  settingsState = clone(next);
+}
+
+export function mergeSettingsState(partial: Partial<AppSettings>): AppSettings {
+  settingsState = { ...settingsState, ...partial };
+  return clone(settingsState);
+}
+
+// -- Gateway --
+
+export function getGatewayStatusState(): GatewayStatus {
+  return clone(gatewayStatusState);
+}
+
+export function setGatewayStatusState(next: GatewayStatus) {
+  gatewayStatusState = clone(next);
+}
+
+// -- Providers --
+
+export function getProvidersState(cliKey: CliKey): ProviderSummary[] {
+  return clone(providersState.get(cliKey) ?? []);
+}
+
+export function setProvidersState(cliKey: CliKey, next: ProviderSummary[]) {
+  providersState.set(cliKey, clone(next));
+}
+
+// -- Usage --
+
+export function getUsageSummaryState(): UsageSummary {
+  return clone(usageSummaryState);
+}
+
+export function setUsageSummaryState(next: UsageSummary) {
+  usageSummaryState = clone(next);
+}
+
+// -- App About --
+
+export function getAppAboutState(): AppAboutInfo {
+  return clone(appAboutState);
+}
+
+export function setAppAboutState(next: AppAboutInfo) {
+  appAboutState = clone(next);
+}
+
+// -- DB Disk Usage --
+
+export function getDbDiskUsageState(): DbDiskUsage {
+  return clone(dbDiskUsageState);
+}
+
+export function setDbDiskUsageState(next: DbDiskUsage) {
+  dbDiskUsageState = clone(next);
+}
+
+// -- Sort Modes --
+
+export function getSortModesState(): SortModeSummary[] {
+  return clone(sortModesState);
+}
+
+export function setSortModesState(next: SortModeSummary[]) {
+  sortModesState = clone(next);
+}
+
+export function getSortModeActiveState(): SortModeActiveRow[] {
+  return clone(sortModeActiveState);
+}
+
+export function setSortModeActiveState(next: SortModeActiveRow[]) {
+  sortModeActiveState = clone(next);
+}
+
+// -- Workspaces --
+
+export function getWorkspacesState(cliKey: CliKey): WorkspacesListResult {
+  return clone(workspacesState.get(cliKey) ?? { active_id: null, items: [] });
+}
+
+export function setWorkspacesState(cliKey: CliKey, next: WorkspacesListResult) {
+  workspacesState.set(cliKey, clone(next));
 }
 
 export function setCliProxyEnabledState(cliKey: CliKey, enabled: boolean): CliProxyStatus[] {

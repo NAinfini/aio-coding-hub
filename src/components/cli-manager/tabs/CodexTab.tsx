@@ -521,19 +521,6 @@ export function CliManagerCodexTab({
                 </SettingItem>
 
                 <SettingItem
-                  label="web_search_request"
-                  subtitle="稳定：允许模型发起 Web Search 请求。开启写入 web_search_request=true；"
-                >
-                  <Switch
-                    checked={boolOrDefault(codexConfig.features_web_search_request, false)}
-                    onCheckedChange={(checked) =>
-                      void persistCodexConfig({ features_web_search_request: checked })
-                    }
-                    disabled={saving}
-                  />
-                </SettingItem>
-
-                <SettingItem
                   label="unified_exec"
                   subtitle="测试版：使用统一的、基于 PTY 的 exec 工具。开启写入 unified_exec=true；"
                 >

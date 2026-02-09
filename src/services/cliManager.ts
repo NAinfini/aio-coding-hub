@@ -114,7 +114,6 @@ export type CodexConfigState = {
   features_unified_exec: boolean | null;
   features_shell_snapshot: boolean | null;
   features_apply_patch_freeform: boolean | null;
-  features_web_search_request: boolean | null;
   features_shell_tool: boolean | null;
   features_exec_policy: boolean | null;
   features_remote_compaction: boolean | null;
@@ -135,7 +134,6 @@ export type CodexConfigPatch = Partial<{
   features_unified_exec: boolean;
   features_shell_snapshot: boolean;
   features_apply_patch_freeform: boolean;
-  features_web_search_request: boolean;
   features_shell_tool: boolean;
   features_exec_policy: boolean;
   features_remote_compaction: boolean;

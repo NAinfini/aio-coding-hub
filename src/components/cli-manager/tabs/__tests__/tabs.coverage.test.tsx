@@ -95,7 +95,6 @@ describe("cli-manager tabs (coverage)", () => {
           features_unified_exec: true,
           features_shell_snapshot: true,
           features_apply_patch_freeform: true,
-          features_web_search_request: true,
           features_shell_tool: true,
           features_exec_policy: true,
           features_remote_compaction: true,

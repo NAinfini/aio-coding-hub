@@ -24,7 +24,6 @@ pub struct CodexConfigState {
     pub features_unified_exec: Option<bool>,
     pub features_shell_snapshot: Option<bool>,
     pub features_apply_patch_freeform: Option<bool>,
-    pub features_web_search_request: Option<bool>,
     pub features_shell_tool: Option<bool>,
     pub features_exec_policy: Option<bool>,
     pub features_remote_compaction: Option<bool>,
@@ -46,7 +45,6 @@ pub struct CodexConfigPatch {
     pub features_unified_exec: Option<bool>,
     pub features_shell_snapshot: Option<bool>,
     pub features_apply_patch_freeform: Option<bool>,
-    pub features_web_search_request: Option<bool>,
     pub features_shell_tool: Option<bool>,
     pub features_exec_policy: Option<bool>,
     pub features_remote_compaction: Option<bool>,
@@ -549,10 +547,9 @@ enum TableStyle {
     Dotted,
 }
 
-const FEATURES_KEY_ORDER: [&str; 10] = [
+const FEATURES_KEY_ORDER: [&str; 9] = [
     // Keep in sync with the UI order (CliManagerCodexTab / Features section).
     "shell_snapshot",
-    "web_search_request",
     "unified_exec",
     "shell_tool",
     "exec_policy",
@@ -874,7 +871,6 @@ fn make_state_from_bytes(
         features_unified_exec: None,
         features_shell_snapshot: None,
         features_apply_patch_freeform: None,
-        features_web_search_request: None,
         features_shell_tool: None,
         features_exec_policy: None,
         features_remote_compaction: None,
@@ -960,9 +956,6 @@ fn make_state_from_bytes(
             }
             ("features", "apply_patch_freeform") => {
                 state.features_apply_patch_freeform = parse_bool(&raw_value)
-            }
-            ("features", "web_search_request") => {
-                state.features_web_search_request = parse_bool(&raw_value)
             }
             ("features", "shell_tool") => state.features_shell_tool = parse_bool(&raw_value),
             ("features", "exec_policy") => state.features_exec_policy = parse_bool(&raw_value),
@@ -1337,7 +1330,6 @@ fn patch_config_toml(
     let has_any_feature_patch = patch.features_unified_exec.is_some()
         || patch.features_shell_snapshot.is_some()
         || patch.features_apply_patch_freeform.is_some()
-        || patch.features_web_search_request.is_some()
         || patch.features_shell_tool.is_some()
         || patch.features_exec_policy.is_some()
         || patch.features_remote_compaction.is_some()
@@ -1357,9 +1349,6 @@ fn patch_config_toml(
         }
         if let Some(v) = patch.features_apply_patch_freeform {
             items.push(("apply_patch_freeform", v.then(|| "true".to_string())));
-        }
-        if let Some(v) = patch.features_web_search_request {
-            items.push(("web_search_request", v.then(|| "true".to_string())));
         }
         if let Some(v) = patch.features_shell_tool {
             items.push(("shell_tool", v.then(|| "true".to_string())));

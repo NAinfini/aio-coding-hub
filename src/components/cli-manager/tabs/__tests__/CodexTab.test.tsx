@@ -27,7 +27,6 @@ function createCodexConfig(overrides: Partial<any> = {}) {
     model_reasoning_effort: "medium",
     web_search: "cached",
     features_shell_snapshot: false,
-    features_web_search_request: false,
     features_unified_exec: false,
     features_shell_tool: false,
     features_exec_policy: false,

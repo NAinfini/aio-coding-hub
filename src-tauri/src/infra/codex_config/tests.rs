@@ -11,7 +11,6 @@ fn empty_patch() -> CodexConfigPatch {
         features_unified_exec: None,
         features_shell_snapshot: None,
         features_apply_patch_freeform: None,
-        features_web_search_request: None,
         features_shell_tool: None,
         features_exec_policy: None,
         features_remote_compaction: None,
@@ -34,7 +33,6 @@ type = "stdio"
         Some(input.as_bytes().to_vec()),
         CodexConfigPatch {
             features_shell_snapshot: Some(true),
-            features_web_search_request: Some(true),
             ..empty_patch()
         },
     )
@@ -44,7 +42,6 @@ type = "stdio"
     assert!(s.contains("[mcp_servers.exa]"), "{s}");
     assert!(s.contains("[features]"), "{s}");
     assert!(s.contains("shell_snapshot = true"), "{s}");
-    assert!(s.contains("web_search_request = true"), "{s}");
 }
 
 #[test]
@@ -92,7 +89,7 @@ other = "keep"
 #[test]
 fn patch_preserves_existing_features_when_setting_another() {
     let input = r#"[features]
-web_search_request = true
+shell_tool = true
 "#;
 
     let out = patch_config_toml(
@@ -105,7 +102,7 @@ web_search_request = true
     .expect("patch_config_toml");
 
     let s = String::from_utf8(out).expect("utf8");
-    assert!(s.contains("web_search_request = true"), "{s}");
+    assert!(s.contains("shell_tool = true"), "{s}");
     assert!(s.contains("shell_snapshot = true"), "{s}");
 }
 
@@ -173,8 +170,6 @@ fn patch_compacts_blank_lines_in_features_table() {
 
 shell_snapshot = true
 
-web_search_request = true
-
 
 
 [other]
@@ -204,7 +199,6 @@ foo = "bar"
         s.contains(
             "[features]\n\
 shell_snapshot = true\n\
-web_search_request = true\n\
 unified_exec = true\n\
 shell_tool = true\n\n\
 [other]\n"
@@ -212,7 +206,6 @@ shell_tool = true\n\n\
         "{s}"
     );
     assert!(!s.contains("[features]\n\n"), "{s}");
-    assert!(!s.contains("true\n\nweb_search_request"), "{s}");
     assert!(!s.contains("true\n\nshell_tool"), "{s}");
     assert!(!s.contains("true\n\nunified_exec"), "{s}");
 }
@@ -238,7 +231,7 @@ type = "stdio"
     let out = patch_config_toml(
         Some(input.as_bytes().to_vec()),
         CodexConfigPatch {
-            features_web_search_request: Some(true),
+            features_shell_tool: Some(true),
             ..empty_patch()
         },
     )
@@ -251,7 +244,7 @@ type = "stdio"
 preferred_auth_method = \"apikey\"\n\n\
 [features]\n\
 shell_snapshot = true\n\
-web_search_request = true\n\n\
+shell_tool = true\n\n\
 [mcp_servers.exa]\n\
 type = \"stdio\"\n"
         ),

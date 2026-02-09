@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { logToConsole } from "../consoleLog";
 import { hasTauriRuntime, invokeTauriOrNull } from "../tauriInvoke";
-import { cliProxySetEnabled, cliProxyStatusAll, cliProxySyncEnabled } from "../cliProxy";
+import { providerLimitUsageV1 } from "../providerLimitUsage";
 
 vi.mock("../tauriInvoke", async () => {
   const actual = await vi.importActual<typeof import("../tauriInvoke")>("../tauriInvoke");
@@ -20,27 +20,25 @@ vi.mock("../consoleLog", async () => {
   };
 });
 
-describe("services/cliProxy", () => {
+describe("services/providerLimitUsage", () => {
   it("returns null without tauri runtime", async () => {
     vi.mocked(hasTauriRuntime).mockReturnValue(false);
 
-    await expect(cliProxyStatusAll()).resolves.toBeNull();
-    await expect(cliProxySetEnabled({ cli_key: "claude", enabled: true })).resolves.toBeNull();
-
-    expect(logToConsole).not.toHaveBeenCalled();
+    await expect(providerLimitUsageV1("claude")).resolves.toBeNull();
+    await expect(providerLimitUsageV1(null)).resolves.toBeNull();
   });
 
   it("rethrows invoke errors and logs", async () => {
     vi.mocked(hasTauriRuntime).mockReturnValue(true);
-    vi.mocked(invokeTauriOrNull).mockRejectedValueOnce(new Error("cli proxy boom"));
+    vi.mocked(invokeTauriOrNull).mockRejectedValueOnce(new Error("provider limit usage boom"));
 
-    await expect(cliProxyStatusAll()).rejects.toThrow("cli proxy boom");
+    await expect(providerLimitUsageV1("claude")).rejects.toThrow("provider limit usage boom");
     expect(logToConsole).toHaveBeenCalledWith(
       "error",
-      "读取 CLI 代理状态失败",
+      "读取 Provider 限额用量失败",
       expect.objectContaining({
-        cmd: "cli_proxy_status_all",
-        error: expect.stringContaining("cli proxy boom"),
+        cmd: "provider_limit_usage_v1",
+        error: expect.stringContaining("provider limit usage boom"),
       })
     );
   });
@@ -49,25 +47,23 @@ describe("services/cliProxy", () => {
     vi.mocked(hasTauriRuntime).mockReturnValue(true);
     vi.mocked(invokeTauriOrNull).mockResolvedValueOnce(null);
 
-    await expect(cliProxyStatusAll()).rejects.toThrow("IPC_NULL_RESULT: cli_proxy_status_all");
+    await expect(providerLimitUsageV1("claude")).rejects.toThrow(
+      "IPC_NULL_RESULT: provider_limit_usage_v1"
+    );
   });
 
   it("keeps argument mapping unchanged", async () => {
     vi.mocked(hasTauriRuntime).mockReturnValue(true);
     vi.mocked(invokeTauriOrNull).mockResolvedValue([] as any);
 
-    await cliProxyStatusAll();
-    expect(invokeTauriOrNull).toHaveBeenCalledWith("cli_proxy_status_all");
-
-    await cliProxySetEnabled({ cli_key: "claude", enabled: true });
-    expect(invokeTauriOrNull).toHaveBeenCalledWith("cli_proxy_set_enabled", {
+    await providerLimitUsageV1("claude");
+    expect(invokeTauriOrNull).toHaveBeenCalledWith("provider_limit_usage_v1", {
       cliKey: "claude",
-      enabled: true,
     });
 
-    await cliProxySyncEnabled("http://127.0.0.1:37123");
-    expect(invokeTauriOrNull).toHaveBeenCalledWith("cli_proxy_sync_enabled", {
-      baseOrigin: "http://127.0.0.1:37123",
+    await providerLimitUsageV1(null);
+    expect(invokeTauriOrNull).toHaveBeenCalledWith("provider_limit_usage_v1", {
+      cliKey: null,
     });
   });
 });

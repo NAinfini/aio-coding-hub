@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { logToConsole } from "../consoleLog";
-import { envConflictsCheck } from "../envConflicts";
+import { settingsCircuitBreakerNoticeSet } from "../settingsCircuitBreakerNotice";
 import { hasTauriRuntime, invokeTauriOrNull } from "../tauriInvoke";
 
 vi.mock("../tauriInvoke", async () => {
@@ -20,25 +20,25 @@ vi.mock("../consoleLog", async () => {
   };
 });
 
-describe("services/envConflicts", () => {
+describe("services/settingsCircuitBreakerNotice", () => {
   it("returns null without tauri runtime", async () => {
     vi.mocked(hasTauriRuntime).mockReturnValue(false);
 
-    await expect(envConflictsCheck("codex")).resolves.toBeNull();
-    expect(logToConsole).not.toHaveBeenCalled();
+    await expect(settingsCircuitBreakerNoticeSet(true)).resolves.toBeNull();
   });
 
   it("rethrows invoke errors and logs", async () => {
     vi.mocked(hasTauriRuntime).mockReturnValue(true);
-    vi.mocked(invokeTauriOrNull).mockRejectedValueOnce(new Error("env conflicts boom"));
+    vi.mocked(invokeTauriOrNull).mockRejectedValueOnce(new Error("circuit notice boom"));
 
-    await expect(envConflictsCheck("codex")).rejects.toThrow("env conflicts boom");
+    await expect(settingsCircuitBreakerNoticeSet(true)).rejects.toThrow("circuit notice boom");
+
     expect(logToConsole).toHaveBeenCalledWith(
       "error",
-      "检查环境变量冲突失败",
+      "保存熔断提示设置失败",
       expect.objectContaining({
-        cmd: "env_conflicts_check",
-        error: expect.stringContaining("env conflicts boom"),
+        cmd: "settings_circuit_breaker_notice_set",
+        error: expect.stringContaining("circuit notice boom"),
       })
     );
   });
@@ -47,18 +47,8 @@ describe("services/envConflicts", () => {
     vi.mocked(hasTauriRuntime).mockReturnValue(true);
     vi.mocked(invokeTauriOrNull).mockResolvedValueOnce(null);
 
-    await expect(envConflictsCheck("codex")).rejects.toThrow(
-      "IPC_NULL_RESULT: env_conflicts_check"
+    await expect(settingsCircuitBreakerNoticeSet(true)).rejects.toThrow(
+      "IPC_NULL_RESULT: settings_circuit_breaker_notice_set"
     );
-  });
-
-  it("keeps argument mapping unchanged", async () => {
-    vi.mocked(hasTauriRuntime).mockReturnValue(true);
-    vi.mocked(invokeTauriOrNull).mockResolvedValue([] as any);
-
-    await envConflictsCheck("codex");
-    expect(invokeTauriOrNull).toHaveBeenCalledWith("env_conflicts_check", {
-      cliKey: "codex",
-    });
   });
 });

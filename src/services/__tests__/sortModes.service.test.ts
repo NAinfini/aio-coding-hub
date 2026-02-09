@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { logToConsole } from "../consoleLog";
-import { envConflictsCheck } from "../envConflicts";
+import { sortModeActiveList, sortModeCreate, sortModeDelete, sortModesList } from "../sortModes";
 import { hasTauriRuntime, invokeTauriOrNull } from "../tauriInvoke";
 
 vi.mock("../tauriInvoke", async () => {
@@ -20,45 +20,44 @@ vi.mock("../consoleLog", async () => {
   };
 });
 
-describe("services/envConflicts", () => {
+describe("services/sortModes (error semantics)", () => {
   it("returns null without tauri runtime", async () => {
     vi.mocked(hasTauriRuntime).mockReturnValue(false);
 
-    await expect(envConflictsCheck("codex")).resolves.toBeNull();
-    expect(logToConsole).not.toHaveBeenCalled();
+    await expect(sortModesList()).resolves.toBeNull();
+    await expect(sortModeActiveList()).resolves.toBeNull();
   });
 
-  it("rethrows invoke errors and logs", async () => {
+  it("rethrows and logs on invoke failure", async () => {
     vi.mocked(hasTauriRuntime).mockReturnValue(true);
-    vi.mocked(invokeTauriOrNull).mockRejectedValueOnce(new Error("env conflicts boom"));
+    vi.mocked(invokeTauriOrNull).mockRejectedValueOnce(new Error("sort modes boom"));
 
-    await expect(envConflictsCheck("codex")).rejects.toThrow("env conflicts boom");
+    await expect(sortModesList()).rejects.toThrow("sort modes boom");
     expect(logToConsole).toHaveBeenCalledWith(
       "error",
-      "检查环境变量冲突失败",
+      "读取排序模板失败",
       expect.objectContaining({
-        cmd: "env_conflicts_check",
-        error: expect.stringContaining("env conflicts boom"),
+        cmd: "sort_modes_list",
+        error: expect.stringContaining("sort modes boom"),
       })
     );
   });
 
-  it("treats null invoke result as error with runtime", async () => {
+  it("treats null result as IPC null error with runtime", async () => {
     vi.mocked(hasTauriRuntime).mockReturnValue(true);
     vi.mocked(invokeTauriOrNull).mockResolvedValueOnce(null);
 
-    await expect(envConflictsCheck("codex")).rejects.toThrow(
-      "IPC_NULL_RESULT: env_conflicts_check"
-    );
+    await expect(sortModesList()).rejects.toThrow("IPC_NULL_RESULT: sort_modes_list");
   });
 
   it("keeps argument mapping unchanged", async () => {
     vi.mocked(hasTauriRuntime).mockReturnValue(true);
-    vi.mocked(invokeTauriOrNull).mockResolvedValue([] as any);
+    vi.mocked(invokeTauriOrNull).mockResolvedValue({ id: 1, name: "Mode" } as any);
 
-    await envConflictsCheck("codex");
-    expect(invokeTauriOrNull).toHaveBeenCalledWith("env_conflicts_check", {
-      cliKey: "codex",
-    });
+    await sortModeCreate({ name: "Mode" });
+    expect(invokeTauriOrNull).toHaveBeenCalledWith("sort_mode_create", { name: "Mode" });
+
+    await sortModeDelete({ mode_id: 2 });
+    expect(invokeTauriOrNull).toHaveBeenCalledWith("sort_mode_delete", { modeId: 2 });
   });
 });

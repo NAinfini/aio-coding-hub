@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { invokeTauriOrNull } from "../tauriInvoke";
+import { logToConsole } from "../consoleLog";
+import { hasTauriRuntime, invokeTauriOrNull } from "../tauriInvoke";
 import {
   appDataDirGet,
   appDataReset,
@@ -11,12 +12,57 @@ import {
 
 vi.mock("../tauriInvoke", async () => {
   const actual = await vi.importActual<typeof import("../tauriInvoke")>("../tauriInvoke");
-  return { ...actual, invokeTauriOrNull: vi.fn() };
+  return {
+    ...actual,
+    hasTauriRuntime: vi.fn(),
+    invokeTauriOrNull: vi.fn(),
+  };
+});
+
+vi.mock("../consoleLog", async () => {
+  const actual = await vi.importActual<typeof import("../consoleLog")>("../consoleLog");
+  return {
+    ...actual,
+    logToConsole: vi.fn(),
+  };
 });
 
 describe("services/dataManagement", () => {
+  it("returns null without tauri runtime", async () => {
+    vi.mocked(hasTauriRuntime).mockReturnValue(false);
+
+    await expect(dbDiskUsageGet()).resolves.toBeNull();
+    await expect(requestLogsClearAll()).resolves.toBeNull();
+    await expect(appDataReset()).resolves.toBeNull();
+
+    expect(logToConsole).not.toHaveBeenCalled();
+  });
+
+  it("rethrows invoke errors and logs", async () => {
+    vi.mocked(hasTauriRuntime).mockReturnValue(true);
+    vi.mocked(invokeTauriOrNull).mockRejectedValueOnce(new Error("data management boom"));
+
+    await expect(dbDiskUsageGet()).rejects.toThrow("data management boom");
+    expect(logToConsole).toHaveBeenCalledWith(
+      "error",
+      "读取数据库磁盘用量失败",
+      expect.objectContaining({
+        cmd: "db_disk_usage_get",
+        error: expect.stringContaining("data management boom"),
+      })
+    );
+  });
+
+  it("treats null invoke result as error with runtime", async () => {
+    vi.mocked(hasTauriRuntime).mockReturnValue(true);
+    vi.mocked(invokeTauriOrNull).mockResolvedValueOnce(null);
+
+    await expect(dbDiskUsageGet()).rejects.toThrow("IPC_NULL_RESULT: db_disk_usage_get");
+  });
+
   it("invokes data management commands with expected parameters", async () => {
-    vi.mocked(invokeTauriOrNull).mockResolvedValue(null as any);
+    vi.mocked(hasTauriRuntime).mockReturnValue(true);
+    vi.mocked(invokeTauriOrNull).mockResolvedValue({} as any);
 
     await dbDiskUsageGet();
     expect(invokeTauriOrNull).toHaveBeenCalledWith("db_disk_usage_get");

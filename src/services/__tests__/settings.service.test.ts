@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import { settingsGet, settingsSet } from "../settings";
 import { logToConsole } from "../consoleLog";
-import { envConflictsCheck } from "../envConflicts";
 import { hasTauriRuntime, invokeTauriOrNull } from "../tauriInvoke";
 
 vi.mock("../tauriInvoke", async () => {
@@ -20,25 +20,33 @@ vi.mock("../consoleLog", async () => {
   };
 });
 
-describe("services/envConflicts", () => {
+describe("services/settings (error semantics)", () => {
   it("returns null without tauri runtime", async () => {
     vi.mocked(hasTauriRuntime).mockReturnValue(false);
 
-    await expect(envConflictsCheck("codex")).resolves.toBeNull();
-    expect(logToConsole).not.toHaveBeenCalled();
+    await expect(settingsGet()).resolves.toBeNull();
+    await expect(
+      settingsSet({
+        preferredPort: 37123,
+        autoStart: false,
+        logRetentionDays: 30,
+        failoverMaxAttemptsPerProvider: 5,
+        failoverMaxProvidersToTry: 5,
+      })
+    ).resolves.toBeNull();
   });
 
   it("rethrows invoke errors and logs", async () => {
     vi.mocked(hasTauriRuntime).mockReturnValue(true);
-    vi.mocked(invokeTauriOrNull).mockRejectedValueOnce(new Error("env conflicts boom"));
+    vi.mocked(invokeTauriOrNull).mockRejectedValueOnce(new Error("settings boom"));
 
-    await expect(envConflictsCheck("codex")).rejects.toThrow("env conflicts boom");
+    await expect(settingsGet()).rejects.toThrow("settings boom");
     expect(logToConsole).toHaveBeenCalledWith(
       "error",
-      "检查环境变量冲突失败",
+      "读取设置失败",
       expect.objectContaining({
-        cmd: "env_conflicts_check",
-        error: expect.stringContaining("env conflicts boom"),
+        cmd: "settings_get",
+        error: expect.stringContaining("settings boom"),
       })
     );
   });
@@ -47,18 +55,6 @@ describe("services/envConflicts", () => {
     vi.mocked(hasTauriRuntime).mockReturnValue(true);
     vi.mocked(invokeTauriOrNull).mockResolvedValueOnce(null);
 
-    await expect(envConflictsCheck("codex")).rejects.toThrow(
-      "IPC_NULL_RESULT: env_conflicts_check"
-    );
-  });
-
-  it("keeps argument mapping unchanged", async () => {
-    vi.mocked(hasTauriRuntime).mockReturnValue(true);
-    vi.mocked(invokeTauriOrNull).mockResolvedValue([] as any);
-
-    await envConflictsCheck("codex");
-    expect(invokeTauriOrNull).toHaveBeenCalledWith("env_conflicts_check", {
-      cliKey: "codex",
-    });
+    await expect(settingsGet()).rejects.toThrow("IPC_NULL_RESULT: settings_get");
   });
 });

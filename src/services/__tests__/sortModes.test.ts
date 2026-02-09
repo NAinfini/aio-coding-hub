@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { invokeTauriOrNull } from "../tauriInvoke";
+import { hasTauriRuntime, invokeTauriOrNull } from "../tauriInvoke";
 import {
   sortModeActiveList,
   sortModeActiveSet,
@@ -14,12 +14,17 @@ import {
 
 vi.mock("../tauriInvoke", async () => {
   const actual = await vi.importActual<typeof import("../tauriInvoke")>("../tauriInvoke");
-  return { ...actual, invokeTauriOrNull: vi.fn() };
+  return {
+    ...actual,
+    hasTauriRuntime: vi.fn(),
+    invokeTauriOrNull: vi.fn(),
+  };
 });
 
 describe("services/sortModes", () => {
   it("invokes sort mode commands with expected parameters", async () => {
-    vi.mocked(invokeTauriOrNull).mockResolvedValue(null as any);
+    vi.mocked(hasTauriRuntime).mockReturnValue(true);
+    vi.mocked(invokeTauriOrNull).mockResolvedValue({} as any);
 
     await sortModesList();
     expect(invokeTauriOrNull).toHaveBeenCalledWith("sort_modes_list");

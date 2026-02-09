@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { tauriInvoke } from "../../test/mocks/tauri";
-import { clearTauriRuntime, setTauriRuntime } from "../../test/utils/tauriRuntime";
+import { describe, expect, it, vi } from "vitest";
+import { logToConsole } from "../consoleLog";
+import { hasTauriRuntime, invokeTauriOrNull } from "../tauriInvoke";
 import {
   requestAttemptLogsByTraceId,
   requestLogGet,
@@ -11,16 +11,61 @@ import {
   requestLogsListAll,
 } from "../requestLogs";
 
+vi.mock("../tauriInvoke", async () => {
+  const actual = await vi.importActual<typeof import("../tauriInvoke")>("../tauriInvoke");
+  return {
+    ...actual,
+    hasTauriRuntime: vi.fn(),
+    invokeTauriOrNull: vi.fn(),
+  };
+});
+
+vi.mock("../consoleLog", async () => {
+  const actual = await vi.importActual<typeof import("../consoleLog")>("../consoleLog");
+  return {
+    ...actual,
+    logToConsole: vi.fn(),
+  };
+});
+
 describe("services/requestLogs", () => {
-  it("does not call tauri invoke without runtime", async () => {
-    clearTauriRuntime();
-    await requestLogsListAll(10);
-    expect(tauriInvoke).not.toHaveBeenCalled();
+  it("returns null without tauri runtime", async () => {
+    vi.mocked(hasTauriRuntime).mockReturnValue(false);
+
+    await expect(requestLogsList("claude", 10)).resolves.toBeNull();
+    await expect(requestLogsListAll(20)).resolves.toBeNull();
+    await expect(requestLogGet(1)).resolves.toBeNull();
+
+    expect(logToConsole).not.toHaveBeenCalled();
+  });
+
+  it("rethrows invoke errors and logs", async () => {
+    vi.mocked(hasTauriRuntime).mockReturnValue(true);
+    vi.mocked(invokeTauriOrNull).mockRejectedValueOnce(new Error("request logs boom"));
+
+    await expect(requestLogsList("claude", 10)).rejects.toThrow("request logs boom");
+    expect(logToConsole).toHaveBeenCalledWith(
+      "error",
+      "读取请求日志失败",
+      expect.objectContaining({
+        cmd: "request_logs_list",
+        error: expect.stringContaining("request logs boom"),
+      })
+    );
+  });
+
+  it("treats null invoke result as error with runtime", async () => {
+    vi.mocked(hasTauriRuntime).mockReturnValue(true);
+    vi.mocked(invokeTauriOrNull).mockResolvedValueOnce(null);
+
+    await expect(requestLogsList("claude", 10)).rejects.toThrow(
+      "IPC_NULL_RESULT: request_logs_list"
+    );
   });
 
   it("passes args for list/get/attempts APIs", async () => {
-    setTauriRuntime();
-    tauriInvoke.mockResolvedValue(null as any);
+    vi.mocked(hasTauriRuntime).mockReturnValue(true);
+    vi.mocked(invokeTauriOrNull).mockResolvedValue([] as any);
 
     await requestLogsList("claude", 10);
     await requestLogsListAll(20);
@@ -30,20 +75,25 @@ describe("services/requestLogs", () => {
     await requestLogGetByTraceId("t1");
     await requestAttemptLogsByTraceId("t1", 99);
 
-    expect(tauriInvoke).toHaveBeenCalledWith("request_logs_list", { cliKey: "claude", limit: 10 });
-    expect(tauriInvoke).toHaveBeenCalledWith("request_logs_list_all", { limit: 20 });
-    expect(tauriInvoke).toHaveBeenCalledWith("request_logs_list_after_id", {
+    expect(invokeTauriOrNull).toHaveBeenCalledWith("request_logs_list", {
+      cliKey: "claude",
+      limit: 10,
+    });
+    expect(invokeTauriOrNull).toHaveBeenCalledWith("request_logs_list_all", { limit: 20 });
+    expect(invokeTauriOrNull).toHaveBeenCalledWith("request_logs_list_after_id", {
       cliKey: "codex",
       afterId: 5,
       limit: 30,
     });
-    expect(tauriInvoke).toHaveBeenCalledWith("request_logs_list_after_id_all", {
+    expect(invokeTauriOrNull).toHaveBeenCalledWith("request_logs_list_after_id_all", {
       afterId: 6,
       limit: 40,
     });
-    expect(tauriInvoke).toHaveBeenCalledWith("request_log_get", { logId: 1 });
-    expect(tauriInvoke).toHaveBeenCalledWith("request_log_get_by_trace_id", { traceId: "t1" });
-    expect(tauriInvoke).toHaveBeenCalledWith("request_attempt_logs_by_trace_id", {
+    expect(invokeTauriOrNull).toHaveBeenCalledWith("request_log_get", { logId: 1 });
+    expect(invokeTauriOrNull).toHaveBeenCalledWith("request_log_get_by_trace_id", {
+      traceId: "t1",
+    });
+    expect(invokeTauriOrNull).toHaveBeenCalledWith("request_attempt_logs_by_trace_id", {
       traceId: "t1",
       limit: 99,
     });

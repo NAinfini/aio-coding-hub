@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { logToConsole } from "../consoleLog";
 import { hasTauriRuntime, invokeTauriOrNull } from "../tauriInvoke";
-import { cliProxySetEnabled, cliProxyStatusAll, cliProxySyncEnabled } from "../cliProxy";
+import {
+  promptDelete,
+  promptSetEnabled,
+  promptUpsert,
+  promptsDefaultSyncFromFiles,
+  promptsList,
+} from "../prompts";
 
 vi.mock("../tauriInvoke", async () => {
   const actual = await vi.importActual<typeof import("../tauriInvoke")>("../tauriInvoke");
@@ -20,27 +26,27 @@ vi.mock("../consoleLog", async () => {
   };
 });
 
-describe("services/cliProxy", () => {
+describe("services/prompts", () => {
   it("returns null without tauri runtime", async () => {
     vi.mocked(hasTauriRuntime).mockReturnValue(false);
 
-    await expect(cliProxyStatusAll()).resolves.toBeNull();
-    await expect(cliProxySetEnabled({ cli_key: "claude", enabled: true })).resolves.toBeNull();
+    await expect(promptsList(1)).resolves.toBeNull();
+    await expect(promptsDefaultSyncFromFiles()).resolves.toBeNull();
 
     expect(logToConsole).not.toHaveBeenCalled();
   });
 
   it("rethrows invoke errors and logs", async () => {
     vi.mocked(hasTauriRuntime).mockReturnValue(true);
-    vi.mocked(invokeTauriOrNull).mockRejectedValueOnce(new Error("cli proxy boom"));
+    vi.mocked(invokeTauriOrNull).mockRejectedValueOnce(new Error("prompts boom"));
 
-    await expect(cliProxyStatusAll()).rejects.toThrow("cli proxy boom");
+    await expect(promptsList(1)).rejects.toThrow("prompts boom");
     expect(logToConsole).toHaveBeenCalledWith(
       "error",
-      "读取 CLI 代理状态失败",
+      "读取提示词列表失败",
       expect.objectContaining({
-        cmd: "cli_proxy_status_all",
-        error: expect.stringContaining("cli proxy boom"),
+        cmd: "prompts_list",
+        error: expect.stringContaining("prompts boom"),
       })
     );
   });
@@ -49,25 +55,35 @@ describe("services/cliProxy", () => {
     vi.mocked(hasTauriRuntime).mockReturnValue(true);
     vi.mocked(invokeTauriOrNull).mockResolvedValueOnce(null);
 
-    await expect(cliProxyStatusAll()).rejects.toThrow("IPC_NULL_RESULT: cli_proxy_status_all");
+    await expect(promptsList(1)).rejects.toThrow("IPC_NULL_RESULT: prompts_list");
   });
 
   it("keeps argument mapping unchanged", async () => {
     vi.mocked(hasTauriRuntime).mockReturnValue(true);
-    vi.mocked(invokeTauriOrNull).mockResolvedValue([] as any);
+    vi.mocked(invokeTauriOrNull).mockResolvedValue({ id: 1 } as any);
 
-    await cliProxyStatusAll();
-    expect(invokeTauriOrNull).toHaveBeenCalledWith("cli_proxy_status_all");
-
-    await cliProxySetEnabled({ cli_key: "claude", enabled: true });
-    expect(invokeTauriOrNull).toHaveBeenCalledWith("cli_proxy_set_enabled", {
-      cliKey: "claude",
+    await promptUpsert({
+      prompt_id: null,
+      workspace_id: 1,
+      name: "P1",
+      content: "hello",
+      enabled: true,
+    });
+    expect(invokeTauriOrNull).toHaveBeenCalledWith("prompt_upsert", {
+      promptId: null,
+      workspaceId: 1,
+      name: "P1",
+      content: "hello",
       enabled: true,
     });
 
-    await cliProxySyncEnabled("http://127.0.0.1:37123");
-    expect(invokeTauriOrNull).toHaveBeenCalledWith("cli_proxy_sync_enabled", {
-      baseOrigin: "http://127.0.0.1:37123",
+    await promptSetEnabled(10, true);
+    expect(invokeTauriOrNull).toHaveBeenCalledWith("prompt_set_enabled", {
+      promptId: 10,
+      enabled: true,
     });
+
+    await promptDelete(10);
+    expect(invokeTauriOrNull).toHaveBeenCalledWith("prompt_delete", { promptId: 10 });
   });
 });

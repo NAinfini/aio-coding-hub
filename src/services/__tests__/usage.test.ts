@@ -1,21 +1,68 @@
 import { describe, expect, it, vi } from "vitest";
-import { invokeTauriOrNull } from "../tauriInvoke";
+import { logToConsole } from "../consoleLog";
+import { hasTauriRuntime, invokeTauriOrNull } from "../tauriInvoke";
 import {
   usageHourlySeries,
   usageLeaderboardDay,
   usageLeaderboardProvider,
   usageLeaderboardV2,
+  usageProviderCacheRateTrendV1,
   usageSummary,
   usageSummaryV2,
 } from "../usage";
 
-vi.mock("../tauriInvoke", () => ({
-  invokeTauriOrNull: vi.fn(),
-}));
+vi.mock("../tauriInvoke", async () => {
+  const actual = await vi.importActual<typeof import("../tauriInvoke")>("../tauriInvoke");
+  return {
+    ...actual,
+    hasTauriRuntime: vi.fn(),
+    invokeTauriOrNull: vi.fn(),
+  };
+});
+
+vi.mock("../consoleLog", async () => {
+  const actual = await vi.importActual<typeof import("../consoleLog")>("../consoleLog");
+  return {
+    ...actual,
+    logToConsole: vi.fn(),
+  };
+});
 
 describe("services/usage", () => {
+  it("returns null without tauri runtime", async () => {
+    vi.mocked(hasTauriRuntime).mockReturnValue(false);
+
+    await expect(usageSummary("today")).resolves.toBeNull();
+    await expect(usageHourlySeries(7)).resolves.toBeNull();
+
+    expect(logToConsole).not.toHaveBeenCalled();
+  });
+
+  it("rethrows invoke errors and logs", async () => {
+    vi.mocked(hasTauriRuntime).mockReturnValue(true);
+    vi.mocked(invokeTauriOrNull).mockRejectedValueOnce(new Error("usage boom"));
+
+    await expect(usageSummary("today")).rejects.toThrow("usage boom");
+    expect(logToConsole).toHaveBeenCalledWith(
+      "error",
+      "读取用量汇总失败",
+      expect.objectContaining({
+        cmd: "usage_summary",
+        error: expect.stringContaining("usage boom"),
+      })
+    );
+  });
+
+  it("treats null invoke result as error with runtime", async () => {
+    vi.mocked(hasTauriRuntime).mockReturnValue(true);
+    vi.mocked(invokeTauriOrNull).mockResolvedValueOnce(null);
+
+    await expect(usageSummary("today")).rejects.toThrow("IPC_NULL_RESULT: usage_summary");
+  });
+
   it("passes normalized args to invokeTauriOrNull", async () => {
-    vi.mocked(invokeTauriOrNull).mockResolvedValue(null as any);
+    vi.mocked(hasTauriRuntime).mockReturnValue(true);
+    vi.mocked(invokeTauriOrNull).mockResolvedValue({} as any);
 
     await usageSummary("today");
     await usageSummary("last7", { cliKey: "claude" });
@@ -37,6 +84,13 @@ describe("services/usage", () => {
       endTs: 2,
       cliKey: "claude",
       limit: 50,
+    });
+
+    await usageProviderCacheRateTrendV1("daily", {
+      startTs: 1,
+      endTs: 2,
+      cliKey: "claude",
+      limit: 20,
     });
 
     expect(vi.mocked(invokeTauriOrNull).mock.calls).toEqual(

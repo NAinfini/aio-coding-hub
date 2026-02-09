@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { tauriInvoke } from "../../test/mocks/tauri";
-import { clearTauriRuntime, setTauriRuntime } from "../../test/utils/tauriRuntime";
+import { describe, expect, it, vi } from "vitest";
+import { logToConsole } from "../consoleLog";
+import { hasTauriRuntime, invokeTauriOrNull } from "../tauriInvoke";
 import {
   costBackfillMissingV1,
   costBreakdownModelV1,
@@ -11,16 +11,58 @@ import {
   costTrendV1,
 } from "../cost";
 
+vi.mock("../tauriInvoke", async () => {
+  const actual = await vi.importActual<typeof import("../tauriInvoke")>("../tauriInvoke");
+  return {
+    ...actual,
+    hasTauriRuntime: vi.fn(),
+    invokeTauriOrNull: vi.fn(),
+  };
+});
+
+vi.mock("../consoleLog", async () => {
+  const actual = await vi.importActual<typeof import("../consoleLog")>("../consoleLog");
+  return {
+    ...actual,
+    logToConsole: vi.fn(),
+  };
+});
+
 describe("services/cost", () => {
-  it("does not call tauri invoke without runtime", async () => {
-    clearTauriRuntime();
-    await costSummaryV1("daily");
-    expect(tauriInvoke).not.toHaveBeenCalled();
+  it("returns null without tauri runtime", async () => {
+    vi.mocked(hasTauriRuntime).mockReturnValue(false);
+
+    await expect(costSummaryV1("daily")).resolves.toBeNull();
+    await expect(costTrendV1("daily")).resolves.toBeNull();
+
+    expect(logToConsole).not.toHaveBeenCalled();
+  });
+
+  it("rethrows invoke errors and logs", async () => {
+    vi.mocked(hasTauriRuntime).mockReturnValue(true);
+    vi.mocked(invokeTauriOrNull).mockRejectedValueOnce(new Error("cost boom"));
+
+    await expect(costSummaryV1("daily")).rejects.toThrow("cost boom");
+    expect(logToConsole).toHaveBeenCalledWith(
+      "error",
+      "读取花费汇总失败",
+      expect.objectContaining({
+        cmd: "cost_summary_v1",
+        error: expect.stringContaining("cost boom"),
+      })
+    );
+  });
+
+  it("treats null invoke result as error with runtime", async () => {
+    vi.mocked(hasTauriRuntime).mockReturnValue(true);
+    vi.mocked(invokeTauriOrNull).mockResolvedValueOnce(null);
+
+    await expect(costSummaryV1("daily")).rejects.toThrow("IPC_NULL_RESULT: cost_summary_v1");
   });
 
   it("passes optional args and covers nullish branches", async () => {
-    setTauriRuntime();
-    tauriInvoke.mockResolvedValue(null as any);
+    vi.mocked(hasTauriRuntime).mockReturnValue(true);
+    vi.mocked(invokeTauriOrNull).mockResolvedValue({} as any);
 
     // input omitted
     await costSummaryV1("daily");
@@ -87,7 +129,7 @@ describe("services/cost", () => {
       maxRows: 999,
     });
 
-    expect(tauriInvoke).toHaveBeenCalledWith(
+    expect(invokeTauriOrNull).toHaveBeenCalledWith(
       "cost_summary_v1",
       expect.objectContaining({
         params: expect.objectContaining({
@@ -98,7 +140,7 @@ describe("services/cost", () => {
         }),
       })
     );
-    expect(tauriInvoke).toHaveBeenCalledWith(
+    expect(invokeTauriOrNull).toHaveBeenCalledWith(
       "cost_backfill_missing_v1",
       expect.objectContaining({ maxRows: 999 })
     );

@@ -1,4 +1,4 @@
-import { invokeTauriOrNull } from "./tauriInvoke";
+import { invokeService } from "./invokeServiceCommand";
 import type { AppSettings } from "./settings";
 
 export type GatewayRectifierSettingsPatch = {
@@ -13,7 +13,7 @@ export type GatewayRectifierSettingsPatch = {
 };
 
 export async function settingsGatewayRectifierSet(input: GatewayRectifierSettingsPatch) {
-  return invokeTauriOrNull<AppSettings>("settings_gateway_rectifier_set", {
+  return invokeService<AppSettings>("保存网关修复配置失败", "settings_gateway_rectifier_set", {
     interceptAnthropicWarmupRequests: input.intercept_anthropic_warmup_requests,
     enableThinkingSignatureRectifier: input.enable_thinking_signature_rectifier,
     enableResponseFixer: input.enable_response_fixer,

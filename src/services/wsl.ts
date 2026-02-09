@@ -1,4 +1,4 @@
-import { invokeTauriOrNull } from "./tauriInvoke";
+import { invokeService } from "./invokeServiceCommand";
 import type { WslTargetCli } from "./settings";
 
 export type WslDetection = {
@@ -32,22 +32,23 @@ export type WslConfigureReport = {
 };
 
 export async function wslDetect() {
-  return invokeTauriOrNull<WslDetection>("wsl_detect");
+  return invokeService<WslDetection>("检测 WSL 失败", "wsl_detect");
 }
 
 export async function wslHostAddressGet() {
-  return invokeTauriOrNull<string | null>("wsl_host_address_get");
+  return invokeService<string | null>("读取 WSL 主机地址失败", "wsl_host_address_get");
 }
 
 export async function wslConfigStatusGet(distros?: string[]) {
-  return invokeTauriOrNull<WslDistroConfigStatus[]>(
+  return invokeService<WslDistroConfigStatus[]>(
+    "读取 WSL 配置状态失败",
     "wsl_config_status_get",
     distros !== undefined ? { distros } : undefined
   );
 }
 
 export async function wslConfigureClients(input: { targets: WslTargetCli }) {
-  return invokeTauriOrNull<WslConfigureReport>("wsl_configure_clients", {
+  return invokeService<WslConfigureReport>("配置 WSL 客户端失败", "wsl_configure_clients", {
     targets: input.targets,
   });
 }

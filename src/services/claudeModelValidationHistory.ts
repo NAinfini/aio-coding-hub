@@ -1,4 +1,4 @@
-import { invokeTauriOrNull } from "./tauriInvoke";
+import { invokeService } from "./invokeServiceCommand";
 
 export type ClaudeModelValidationRunRow = {
   id: number;
@@ -9,14 +9,22 @@ export type ClaudeModelValidationRunRow = {
 };
 
 export async function claudeValidationHistoryList(input: { provider_id: number; limit?: number }) {
-  return invokeTauriOrNull<ClaudeModelValidationRunRow[]>("claude_validation_history_list", {
-    providerId: input.provider_id,
-    limit: input.limit,
-  });
+  return invokeService<ClaudeModelValidationRunRow[]>(
+    "读取 Claude 模型验证历史失败",
+    "claude_validation_history_list",
+    {
+      providerId: input.provider_id,
+      limit: input.limit,
+    }
+  );
 }
 
 export async function claudeValidationHistoryClearProvider(input: { provider_id: number }) {
-  return invokeTauriOrNull<boolean>("claude_validation_history_clear_provider", {
-    providerId: input.provider_id,
-  });
+  return invokeService<boolean>(
+    "清空 Claude 模型验证历史失败",
+    "claude_validation_history_clear_provider",
+    {
+      providerId: input.provider_id,
+    }
+  );
 }

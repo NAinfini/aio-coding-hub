@@ -1,4 +1,4 @@
-import { invokeTauriOrNull } from "./tauriInvoke";
+import { invokeService } from "./invokeServiceCommand";
 import type { CliKey } from "./providers";
 
 export type WorkspaceSummary = {
@@ -15,7 +15,7 @@ export type WorkspacesListResult = {
 };
 
 export async function workspacesList(cliKey: CliKey) {
-  return invokeTauriOrNull<WorkspacesListResult>("workspaces_list", { cliKey });
+  return invokeService<WorkspacesListResult>("读取工作区列表失败", "workspaces_list", { cliKey });
 }
 
 export async function workspaceCreate(input: {
@@ -23,7 +23,7 @@ export async function workspaceCreate(input: {
   name: string;
   clone_from_active?: boolean;
 }) {
-  return invokeTauriOrNull<WorkspaceSummary>("workspace_create", {
+  return invokeService<WorkspaceSummary>("创建工作区失败", "workspace_create", {
     cliKey: input.cli_key,
     name: input.name,
     cloneFromActive: input.clone_from_active ?? false,
@@ -31,14 +31,14 @@ export async function workspaceCreate(input: {
 }
 
 export async function workspaceRename(input: { workspace_id: number; name: string }) {
-  return invokeTauriOrNull<WorkspaceSummary>("workspace_rename", {
+  return invokeService<WorkspaceSummary>("重命名工作区失败", "workspace_rename", {
     workspaceId: input.workspace_id,
     name: input.name,
   });
 }
 
 export async function workspaceDelete(workspaceId: number) {
-  return invokeTauriOrNull<boolean>("workspace_delete", { workspaceId });
+  return invokeService<boolean>("删除工作区失败", "workspace_delete", { workspaceId });
 }
 
 export type WorkspacePreview = {
@@ -72,9 +72,13 @@ export type WorkspaceApplyReport = {
 };
 
 export async function workspacePreview(workspaceId: number) {
-  return invokeTauriOrNull<WorkspacePreview>("workspace_preview", { workspaceId });
+  return invokeService<WorkspacePreview>("读取工作区预览失败", "workspace_preview", {
+    workspaceId,
+  });
 }
 
 export async function workspaceApply(workspaceId: number) {
-  return invokeTauriOrNull<WorkspaceApplyReport>("workspace_apply", { workspaceId });
+  return invokeService<WorkspaceApplyReport>("应用工作区失败", "workspace_apply", {
+    workspaceId,
+  });
 }

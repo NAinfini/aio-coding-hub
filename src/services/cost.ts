@@ -1,7 +1,7 @@
 // Usage:
 // - Used by `src/components/home/HomeCostPanel.tsx` to load cost analytics for the Home "花费" tab.
 
-import { invokeTauriOrNull } from "./tauriInvoke";
+import { invokeService } from "./invokeServiceCommand";
 import type { CliKey } from "./providers";
 
 export type CostPeriod = "daily" | "weekly" | "monthly" | "allTime" | "custom";
@@ -94,12 +94,12 @@ function buildParams(period: CostPeriod, input?: CostQueryInput) {
 }
 
 export async function costSummaryV1(period: CostPeriod, input?: CostQueryInput) {
-  return invokeTauriOrNull<CostSummaryV1>("cost_summary_v1", {
+  return invokeService<CostSummaryV1>("读取花费汇总失败", "cost_summary_v1", {
     params: buildParams(period, input),
   });
 }
 export async function costTrendV1(period: CostPeriod, input?: CostQueryInput) {
-  return invokeTauriOrNull<CostTrendRowV1[]>("cost_trend_v1", {
+  return invokeService<CostTrendRowV1[]>("读取花费趋势失败", "cost_trend_v1", {
     params: buildParams(period, input),
   });
 }
@@ -108,27 +108,35 @@ export async function costBreakdownProviderV1(
   period: CostPeriod,
   input?: CostQueryInput & { limit?: number | null }
 ) {
-  return invokeTauriOrNull<CostProviderBreakdownRowV1[]>("cost_breakdown_provider_v1", {
-    params: buildParams(period, input),
-    limit: input?.limit ?? null,
-  });
+  return invokeService<CostProviderBreakdownRowV1[]>(
+    "读取按供应商花费分布失败",
+    "cost_breakdown_provider_v1",
+    {
+      params: buildParams(period, input),
+      limit: input?.limit ?? null,
+    }
+  );
 }
 
 export async function costBreakdownModelV1(
   period: CostPeriod,
   input?: CostQueryInput & { limit?: number | null }
 ) {
-  return invokeTauriOrNull<CostModelBreakdownRowV1[]>("cost_breakdown_model_v1", {
-    params: buildParams(period, input),
-    limit: input?.limit ?? null,
-  });
+  return invokeService<CostModelBreakdownRowV1[]>(
+    "读取按模型花费分布失败",
+    "cost_breakdown_model_v1",
+    {
+      params: buildParams(period, input),
+      limit: input?.limit ?? null,
+    }
+  );
 }
 
 export async function costTopRequestsV1(
   period: CostPeriod,
   input?: CostQueryInput & { limit?: number | null }
 ) {
-  return invokeTauriOrNull<CostTopRequestRowV1[]>("cost_top_requests_v1", {
+  return invokeService<CostTopRequestRowV1[]>("读取高花费请求失败", "cost_top_requests_v1", {
     params: buildParams(period, input),
     limit: input?.limit ?? null,
   });
@@ -138,7 +146,8 @@ export async function costScatterCliProviderModelV1(
   period: CostPeriod,
   input?: CostQueryInput & { limit?: number | null }
 ) {
-  return invokeTauriOrNull<CostScatterCliProviderModelRowV1[]>(
+  return invokeService<CostScatterCliProviderModelRowV1[]>(
+    "读取花费散点数据失败",
     "cost_scatter_cli_provider_model_v1",
     {
       params: buildParams(period, input),
@@ -151,7 +160,7 @@ export async function costBackfillMissingV1(
   period: CostPeriod,
   input?: CostQueryInput & { maxRows?: number | null }
 ) {
-  return invokeTauriOrNull<CostBackfillReportV1>("cost_backfill_missing_v1", {
+  return invokeService<CostBackfillReportV1>("回填花费数据失败", "cost_backfill_missing_v1", {
     params: buildParams(period, input),
     maxRows: input?.maxRows ?? null,
   });

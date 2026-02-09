@@ -1,4 +1,4 @@
-import { invokeTauriOrNull } from "./tauriInvoke";
+import { invokeService } from "./invokeServiceCommand";
 import type { CliKey } from "./providers";
 
 export type SkillRepoSummary = {
@@ -58,7 +58,7 @@ export type SkillImportLocalBatchReport = {
 };
 
 export async function skillReposList() {
-  return invokeTauriOrNull<SkillRepoSummary[]>("skill_repos_list");
+  return invokeService<SkillRepoSummary[]>("读取技能仓库列表失败", "skill_repos_list");
 }
 
 export async function skillRepoUpsert(input: {
@@ -67,7 +67,7 @@ export async function skillRepoUpsert(input: {
   branch: string;
   enabled: boolean;
 }) {
-  return invokeTauriOrNull<SkillRepoSummary>("skill_repo_upsert", {
+  return invokeService<SkillRepoSummary>("保存技能仓库失败", "skill_repo_upsert", {
     repoId: input.repo_id ?? null,
     gitUrl: input.git_url,
     branch: input.branch,
@@ -76,15 +76,17 @@ export async function skillRepoUpsert(input: {
 }
 
 export async function skillRepoDelete(repoId: number) {
-  return invokeTauriOrNull<boolean>("skill_repo_delete", { repoId });
+  return invokeService<boolean>("删除技能仓库失败", "skill_repo_delete", { repoId });
 }
 
 export async function skillsInstalledList(workspaceId: number) {
-  return invokeTauriOrNull<InstalledSkillSummary[]>("skills_installed_list", { workspaceId });
+  return invokeService<InstalledSkillSummary[]>("读取已安装技能失败", "skills_installed_list", {
+    workspaceId,
+  });
 }
 
 export async function skillsDiscoverAvailable(refresh: boolean) {
-  return invokeTauriOrNull<AvailableSkillSummary[]>("skills_discover_available", {
+  return invokeService<AvailableSkillSummary[]>("发现可用技能失败", "skills_discover_available", {
     refresh,
   });
 }
@@ -96,7 +98,7 @@ export async function skillInstall(input: {
   source_subdir: string;
   enabled: boolean;
 }) {
-  return invokeTauriOrNull<InstalledSkillSummary>("skill_install", {
+  return invokeService<InstalledSkillSummary>("安装技能失败", "skill_install", {
     workspaceId: input.workspace_id,
     gitUrl: input.git_url,
     branch: input.branch,
@@ -110,7 +112,7 @@ export async function skillSetEnabled(input: {
   skill_id: number;
   enabled: boolean;
 }) {
-  return invokeTauriOrNull<InstalledSkillSummary>("skill_set_enabled", {
+  return invokeService<InstalledSkillSummary>("更新技能启用状态失败", "skill_set_enabled", {
     workspaceId: input.workspace_id,
     skillId: input.skill_id,
     enabled: input.enabled,
@@ -118,27 +120,33 @@ export async function skillSetEnabled(input: {
 }
 
 export async function skillUninstall(skillId: number) {
-  return invokeTauriOrNull<boolean>("skill_uninstall", { skillId });
+  return invokeService<boolean>("卸载技能失败", "skill_uninstall", { skillId });
 }
 
 export async function skillsLocalList(workspaceId: number) {
-  return invokeTauriOrNull<LocalSkillSummary[]>("skills_local_list", { workspaceId });
+  return invokeService<LocalSkillSummary[]>("读取本地技能列表失败", "skills_local_list", {
+    workspaceId,
+  });
 }
 
 export async function skillImportLocal(input: { workspace_id: number; dir_name: string }) {
-  return invokeTauriOrNull<InstalledSkillSummary>("skill_import_local", {
+  return invokeService<InstalledSkillSummary>("导入本地技能失败", "skill_import_local", {
     workspaceId: input.workspace_id,
     dirName: input.dir_name,
   });
 }
 
 export async function skillsImportLocalBatch(input: { workspace_id: number; dir_names: string[] }) {
-  return invokeTauriOrNull<SkillImportLocalBatchReport>("skills_import_local_batch", {
-    workspaceId: input.workspace_id,
-    dirNames: input.dir_names,
-  });
+  return invokeService<SkillImportLocalBatchReport>(
+    "批量导入本地技能失败",
+    "skills_import_local_batch",
+    {
+      workspaceId: input.workspace_id,
+      dirNames: input.dir_names,
+    }
+  );
 }
 
 export async function skillsPathsGet(cliKey: CliKey) {
-  return invokeTauriOrNull<SkillsPaths>("skills_paths_get", { cliKey });
+  return invokeService<SkillsPaths>("读取技能路径失败", "skills_paths_get", { cliKey });
 }

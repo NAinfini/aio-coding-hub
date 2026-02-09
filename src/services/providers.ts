@@ -1,4 +1,4 @@
-import { invokeTauriOrNull } from "./tauriInvoke";
+import { invokeService } from "./invokeServiceCommand";
 
 export type CliKey = "claude" | "codex" | "gemini";
 
@@ -32,7 +32,7 @@ export type ProviderSummary = {
 };
 
 export async function providersList(cliKey: CliKey) {
-  return invokeTauriOrNull<ProviderSummary[]>("providers_list", { cliKey });
+  return invokeService<ProviderSummary[]>("读取供应商列表失败", "providers_list", { cliKey });
 }
 
 export async function providerUpsert(input: {
@@ -54,7 +54,7 @@ export async function providerUpsert(input: {
   limit_monthly_usd: number | null;
   limit_total_usd: number | null;
 }) {
-  return invokeTauriOrNull<ProviderSummary>("provider_upsert", {
+  return invokeService<ProviderSummary>("保存供应商失败", "provider_upsert", {
     providerId: input.provider_id ?? null,
     cliKey: input.cli_key,
     name: input.name,
@@ -76,22 +76,22 @@ export async function providerUpsert(input: {
 }
 
 export async function baseUrlPingMs(baseUrl: string) {
-  return invokeTauriOrNull<number>("base_url_ping_ms", { baseUrl });
+  return invokeService<number>("测试 Base URL 延迟失败", "base_url_ping_ms", { baseUrl });
 }
 
 export async function providerSetEnabled(providerId: number, enabled: boolean) {
-  return invokeTauriOrNull<ProviderSummary>("provider_set_enabled", {
+  return invokeService<ProviderSummary>("更新供应商启用状态失败", "provider_set_enabled", {
     providerId,
     enabled,
   });
 }
 
 export async function providerDelete(providerId: number) {
-  return invokeTauriOrNull<boolean>("provider_delete", { providerId });
+  return invokeService<boolean>("删除供应商失败", "provider_delete", { providerId });
 }
 
 export async function providersReorder(cliKey: CliKey, orderedProviderIds: number[]) {
-  return invokeTauriOrNull<ProviderSummary[]>("providers_reorder", {
+  return invokeService<ProviderSummary[]>("调整供应商顺序失败", "providers_reorder", {
     cliKey,
     orderedProviderIds,
   });

@@ -1,4 +1,4 @@
-import { invokeTauriOrNull } from "./tauriInvoke";
+import { invokeService } from "./invokeServiceCommand";
 import type { CliKey } from "./providers";
 
 export type EnvConflict = {
@@ -8,5 +8,7 @@ export type EnvConflict = {
 };
 
 export async function envConflictsCheck(cliKey: CliKey): Promise<EnvConflict[] | null> {
-  return invokeTauriOrNull<EnvConflict[]>("env_conflicts_check", { cliKey });
+  return invokeService<EnvConflict[]>("检查环境变量冲突失败", "env_conflicts_check", {
+    cliKey,
+  });
 }

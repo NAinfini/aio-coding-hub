@@ -6,7 +6,7 @@
  * - `title` 为空时，Rust 会按 level 生成默认标题并追加固定前缀
  */
 
-import { invokeTauriOrNull } from "./tauriInvoke";
+import { invokeServiceCommand } from "./invokeServiceCommand";
 
 export type NoticeLevel = "info" | "success" | "warning" | "error";
 
@@ -17,6 +17,10 @@ export type NoticeSendParams = {
 };
 
 export async function noticeSend(params: NoticeSendParams): Promise<boolean> {
-  const ok = await invokeTauriOrNull<boolean>("notice_send", params);
-  return ok === true;
+  return invokeServiceCommand<boolean, false>({
+    title: "发送系统通知失败",
+    cmd: "notice_send",
+    args: params,
+    fallback: false,
+  });
 }

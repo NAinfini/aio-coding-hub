@@ -1,6 +1,4 @@
-import { formatUnknownError } from "../utils/errors";
-import { logToConsole } from "./consoleLog";
-import { invokeTauriOrNull } from "./tauriInvoke";
+import { invokeServiceWithDetails } from "./invokeServiceCommand";
 
 export type GatewayStatus = {
   running: boolean;
@@ -32,26 +30,12 @@ export type GatewayProviderCircuitStatus = {
   cooldown_until: number | null;
 };
 
-async function invokeGatewayOrNull<T>(
-  title: string,
-  cmd: string,
-  args?: Record<string, unknown>,
-  details?: Record<string, unknown>
-): Promise<T | null> {
-  try {
-    return await invokeTauriOrNull<T>(cmd, args);
-  } catch (err) {
-    logToConsole("error", title, { cmd, args, ...details, error: formatUnknownError(err) });
-    return null;
-  }
-}
-
 export async function gatewayStatus() {
-  return invokeGatewayOrNull<GatewayStatus>("获取网关状态失败", "gateway_status");
+  return invokeServiceWithDetails<GatewayStatus>("获取网关状态失败", "gateway_status");
 }
 
 export async function gatewayStart(preferredPort?: number) {
-  return invokeGatewayOrNull<GatewayStatus>(
+  return invokeServiceWithDetails<GatewayStatus>(
     "启动网关失败",
     "gateway_start",
     {
@@ -62,11 +46,11 @@ export async function gatewayStart(preferredPort?: number) {
 }
 
 export async function gatewayStop() {
-  return invokeGatewayOrNull<GatewayStatus>("停止网关失败", "gateway_stop");
+  return invokeServiceWithDetails<GatewayStatus>("停止网关失败", "gateway_stop");
 }
 
 export async function gatewayCheckPortAvailable(port: number) {
-  return invokeGatewayOrNull<boolean>(
+  return invokeServiceWithDetails<boolean>(
     "检查端口可用性失败",
     "gateway_check_port_available",
     { port },
@@ -75,7 +59,7 @@ export async function gatewayCheckPortAvailable(port: number) {
 }
 
 export async function gatewaySessionsList(limit?: number) {
-  return invokeGatewayOrNull<GatewayActiveSession[]>(
+  return invokeServiceWithDetails<GatewayActiveSession[]>(
     "获取会话列表失败",
     "gateway_sessions_list",
     { limit: limit ?? null },
@@ -84,7 +68,7 @@ export async function gatewaySessionsList(limit?: number) {
 }
 
 export async function gatewayCircuitStatus(cliKey: string) {
-  return invokeGatewayOrNull<GatewayProviderCircuitStatus[]>(
+  return invokeServiceWithDetails<GatewayProviderCircuitStatus[]>(
     "获取熔断器状态失败",
     "gateway_circuit_status",
     { cliKey },
@@ -93,7 +77,7 @@ export async function gatewayCircuitStatus(cliKey: string) {
 }
 
 export async function gatewayCircuitResetProvider(providerId: number) {
-  return invokeGatewayOrNull<boolean>(
+  return invokeServiceWithDetails<boolean>(
     "重置 Provider 熔断器失败",
     "gateway_circuit_reset_provider",
     { providerId },
@@ -102,7 +86,7 @@ export async function gatewayCircuitResetProvider(providerId: number) {
 }
 
 export async function gatewayCircuitResetCli(cliKey: string) {
-  return invokeGatewayOrNull<number>(
+  return invokeServiceWithDetails<number>(
     "重置 CLI 熔断器失败",
     "gateway_circuit_reset_cli",
     { cliKey },

@@ -1,4 +1,4 @@
-import { invokeTauriOrNull } from "./tauriInvoke";
+import { invokeService } from "./invokeServiceCommand";
 import type { CliKey } from "./providers";
 
 type Listener = () => void;
@@ -53,19 +53,23 @@ export type ModelPriceSummary = {
 };
 
 export async function modelPricesList(cliKey: CliKey) {
-  return invokeTauriOrNull<ModelPriceSummary[]>("model_prices_list", { cliKey });
+  return invokeService<ModelPriceSummary[]>("读取模型价格列表失败", "model_prices_list", {
+    cliKey,
+  });
 }
 
 export async function modelPricesSyncBasellm(force = false) {
-  return invokeTauriOrNull<ModelPricesSyncReport>("model_prices_sync_basellm", {
+  return invokeService<ModelPricesSyncReport>("同步模型价格失败", "model_prices_sync_basellm", {
     force,
   });
 }
 
 export async function modelPriceAliasesGet() {
-  return invokeTauriOrNull<ModelPriceAliases>("model_price_aliases_get");
+  return invokeService<ModelPriceAliases>("读取模型别名规则失败", "model_price_aliases_get");
 }
 
 export async function modelPriceAliasesSet(aliases: ModelPriceAliases) {
-  return invokeTauriOrNull<ModelPriceAliases>("model_price_aliases_set", { aliases });
+  return invokeService<ModelPriceAliases>("保存模型别名规则失败", "model_price_aliases_set", {
+    aliases,
+  });
 }

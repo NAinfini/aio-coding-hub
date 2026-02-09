@@ -1,4 +1,4 @@
-import { invokeTauriOrNull } from "./tauriInvoke";
+import { invokeService } from "./invokeServiceCommand";
 import type { CliKey } from "./providers";
 
 export type PromptSummary = {
@@ -23,11 +23,14 @@ export type DefaultPromptSyncReport = {
 };
 
 export async function promptsList(workspaceId: number) {
-  return invokeTauriOrNull<PromptSummary[]>("prompts_list", { workspaceId });
+  return invokeService<PromptSummary[]>("读取提示词列表失败", "prompts_list", { workspaceId });
 }
 
 export async function promptsDefaultSyncFromFiles() {
-  return invokeTauriOrNull<DefaultPromptSyncReport>("prompts_default_sync_from_files");
+  return invokeService<DefaultPromptSyncReport>(
+    "同步默认提示词失败",
+    "prompts_default_sync_from_files"
+  );
 }
 
 export async function promptUpsert(input: {
@@ -37,7 +40,7 @@ export async function promptUpsert(input: {
   content: string;
   enabled: boolean;
 }) {
-  return invokeTauriOrNull<PromptSummary>("prompt_upsert", {
+  return invokeService<PromptSummary>("保存提示词失败", "prompt_upsert", {
     promptId: input.prompt_id ?? null,
     workspaceId: input.workspace_id,
     name: input.name,
@@ -47,12 +50,12 @@ export async function promptUpsert(input: {
 }
 
 export async function promptSetEnabled(promptId: number, enabled: boolean) {
-  return invokeTauriOrNull<PromptSummary>("prompt_set_enabled", {
+  return invokeService<PromptSummary>("更新提示词启用状态失败", "prompt_set_enabled", {
     promptId,
     enabled,
   });
 }
 
 export async function promptDelete(promptId: number) {
-  return invokeTauriOrNull<boolean>("prompt_delete", { promptId });
+  return invokeService<boolean>("删除提示词失败", "prompt_delete", { promptId });
 }

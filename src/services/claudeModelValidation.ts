@@ -1,4 +1,4 @@
-import { invokeTauriOrNull } from "./tauriInvoke";
+import { invokeService } from "./invokeServiceCommand";
 
 export type ClaudeModelValidationResult = {
   ok: boolean;
@@ -27,13 +27,21 @@ export async function claudeProviderValidateModel(input: {
   base_url: string;
   request_json: string;
 }) {
-  return invokeTauriOrNull<ClaudeModelValidationResult>("claude_provider_validate_model", {
-    providerId: input.provider_id,
-    baseUrl: input.base_url,
-    requestJson: input.request_json,
-  });
+  return invokeService<ClaudeModelValidationResult>(
+    "Claude 模型验证失败",
+    "claude_provider_validate_model",
+    {
+      providerId: input.provider_id,
+      baseUrl: input.base_url,
+      requestJson: input.request_json,
+    }
+  );
 }
 
 export async function claudeProviderGetApiKeyPlaintext(providerId: number) {
-  return invokeTauriOrNull<string>("claude_provider_get_api_key_plaintext", { providerId });
+  return invokeService<string>(
+    "读取 Claude API Key 失败",
+    "claude_provider_get_api_key_plaintext",
+    { providerId }
+  );
 }

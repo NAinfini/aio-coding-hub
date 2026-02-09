@@ -1,4 +1,4 @@
-import { invokeTauriOrNull } from "./tauriInvoke";
+import { invokeServiceCommand } from "./invokeServiceCommand";
 
 export type AppAboutInfo = {
   os: string;
@@ -10,9 +10,8 @@ export type AppAboutInfo = {
 };
 
 export async function appAboutGet() {
-  try {
-    return await invokeTauriOrNull<AppAboutInfo>("app_about_get");
-  } catch {
-    return null;
-  }
+  return invokeServiceCommand<AppAboutInfo>({
+    title: "读取应用信息失败",
+    cmd: "app_about_get",
+  });
 }

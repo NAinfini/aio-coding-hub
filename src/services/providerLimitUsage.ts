@@ -1,7 +1,7 @@
 // Usage:
 // - Used by `src/components/home/HomeProviderLimitPanel.tsx` to load provider limit usage data.
 
-import { invokeTauriOrNull } from "./tauriInvoke";
+import { invokeService } from "./invokeServiceCommand";
 import type { CliKey } from "./providers";
 
 export type ProviderLimitUsageRow = {
@@ -31,7 +31,11 @@ export type ProviderLimitUsageRow = {
 };
 
 export async function providerLimitUsageV1(cliKey?: CliKey | null) {
-  return invokeTauriOrNull<ProviderLimitUsageRow[]>("provider_limit_usage_v1", {
-    cliKey: cliKey ?? null,
-  });
+  return invokeService<ProviderLimitUsageRow[]>(
+    "读取 Provider 限额用量失败",
+    "provider_limit_usage_v1",
+    {
+      cliKey: cliKey ?? null,
+    }
+  );
 }

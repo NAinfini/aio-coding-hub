@@ -1,4 +1,5 @@
-import { hasTauriRuntime, invokeTauriOrNull } from "./tauriInvoke";
+import { invokeServiceCommand } from "./invokeServiceCommand";
+import { hasTauriRuntime } from "./tauriInvoke";
 
 export type UpdaterCheckUpdate = {
   rid: number;
@@ -41,7 +42,11 @@ export function parseUpdaterCheckResult(value: unknown): UpdaterCheckResult {
 }
 
 export async function updaterCheck(): Promise<UpdaterCheckResult> {
-  const raw = await invokeTauriOrNull<unknown>("plugin:updater|check");
+  const raw = await invokeServiceCommand<unknown>({
+    title: "检查更新失败",
+    cmd: "plugin:updater|check",
+    nullResultBehavior: "return_fallback",
+  });
   return parseUpdaterCheckResult(raw);
 }
 

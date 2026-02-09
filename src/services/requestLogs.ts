@@ -1,4 +1,4 @@
-import { invokeTauriOrNull } from "./tauriInvoke";
+import { invokeService } from "./invokeServiceCommand";
 import type { CliKey } from "./providers";
 
 export type RequestLogSummary = {
@@ -92,18 +92,20 @@ export type RequestAttemptLog = {
 };
 
 export async function requestLogsList(cliKey: CliKey, limit?: number) {
-  return invokeTauriOrNull<RequestLogSummary[]>("request_logs_list", {
+  return invokeService<RequestLogSummary[]>("读取请求日志失败", "request_logs_list", {
     cliKey,
     limit,
   });
 }
 
 export async function requestLogsListAll(limit?: number) {
-  return invokeTauriOrNull<RequestLogSummary[]>("request_logs_list_all", { limit });
+  return invokeService<RequestLogSummary[]>("读取全局请求日志失败", "request_logs_list_all", {
+    limit,
+  });
 }
 
 export async function requestLogsListAfterId(cliKey: CliKey, afterId: number, limit?: number) {
-  return invokeTauriOrNull<RequestLogSummary[]>("request_logs_list_after_id", {
+  return invokeService<RequestLogSummary[]>("读取增量请求日志失败", "request_logs_list_after_id", {
     cliKey,
     afterId,
     limit,
@@ -111,25 +113,37 @@ export async function requestLogsListAfterId(cliKey: CliKey, afterId: number, li
 }
 
 export async function requestLogsListAfterIdAll(afterId: number, limit?: number) {
-  return invokeTauriOrNull<RequestLogSummary[]>("request_logs_list_after_id_all", {
-    afterId,
-    limit,
-  });
+  return invokeService<RequestLogSummary[]>(
+    "读取全局增量请求日志失败",
+    "request_logs_list_after_id_all",
+    {
+      afterId,
+      limit,
+    }
+  );
 }
 
 export async function requestLogGet(logId: number) {
-  return invokeTauriOrNull<RequestLogDetail>("request_log_get", { logId });
+  return invokeService<RequestLogDetail>("读取请求日志详情失败", "request_log_get", { logId });
 }
 
 export async function requestLogGetByTraceId(traceId: string) {
-  return invokeTauriOrNull<RequestLogDetail | null>("request_log_get_by_trace_id", {
-    traceId,
-  });
+  return invokeService<RequestLogDetail | null>(
+    "按追踪 ID 读取请求日志失败",
+    "request_log_get_by_trace_id",
+    {
+      traceId,
+    }
+  );
 }
 
 export async function requestAttemptLogsByTraceId(traceId: string, limit?: number) {
-  return invokeTauriOrNull<RequestAttemptLog[]>("request_attempt_logs_by_trace_id", {
-    traceId,
-    limit,
-  });
+  return invokeService<RequestAttemptLog[]>(
+    "读取请求尝试日志失败",
+    "request_attempt_logs_by_trace_id",
+    {
+      traceId,
+      limit,
+    }
+  );
 }

@@ -1,4 +1,4 @@
-import { invokeTauriOrNull } from "./tauriInvoke";
+import { invokeService } from "./invokeServiceCommand";
 
 export type GatewayListenMode = "localhost" | "wsl_auto" | "lan" | "custom";
 
@@ -70,9 +70,9 @@ export type SettingsSetInput = {
 };
 
 export async function settingsGet() {
-  return invokeTauriOrNull<AppSettings>("settings_get");
+  return invokeService<AppSettings>("读取设置失败", "settings_get");
 }
 
 export async function settingsSet(input: SettingsSetInput) {
-  return invokeTauriOrNull<AppSettings>("settings_set", { update: input });
+  return invokeService<AppSettings>("更新设置失败", "settings_set", { update: input });
 }

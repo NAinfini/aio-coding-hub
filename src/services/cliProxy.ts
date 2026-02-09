@@ -1,4 +1,4 @@
-import { invokeTauriOrNull } from "./tauriInvoke";
+import { invokeService } from "./invokeServiceCommand";
 import type { CliKey } from "./providers";
 
 export type CliProxyStatus = {
@@ -18,18 +18,18 @@ export type CliProxyResult = {
 };
 
 export async function cliProxyStatusAll() {
-  return invokeTauriOrNull<CliProxyStatus[]>("cli_proxy_status_all");
+  return invokeService<CliProxyStatus[]>("读取 CLI 代理状态失败", "cli_proxy_status_all");
 }
 
 export async function cliProxySetEnabled(input: { cli_key: CliKey; enabled: boolean }) {
-  return invokeTauriOrNull<CliProxyResult>("cli_proxy_set_enabled", {
+  return invokeService<CliProxyResult>("设置 CLI 代理开关失败", "cli_proxy_set_enabled", {
     cliKey: input.cli_key,
     enabled: input.enabled,
   });
 }
 
 export async function cliProxySyncEnabled(base_origin: string) {
-  return invokeTauriOrNull<CliProxyResult[]>("cli_proxy_sync_enabled", {
+  return invokeService<CliProxyResult[]>("同步 CLI 代理状态失败", "cli_proxy_sync_enabled", {
     baseOrigin: base_origin,
   });
 }

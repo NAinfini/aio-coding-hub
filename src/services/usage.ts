@@ -1,4 +1,4 @@
-import { invokeTauriOrNull } from "./tauriInvoke";
+import { invokeService } from "./invokeServiceCommand";
 import type { CliKey } from "./providers";
 
 export type UsageRange = "today" | "last7" | "last30" | "month" | "all";
@@ -90,7 +90,7 @@ export type UsageLeaderboardRow = {
 };
 
 export async function usageSummary(range: UsageRange, input?: { cliKey?: CliKey | null }) {
-  return invokeTauriOrNull<UsageSummary>("usage_summary", {
+  return invokeService<UsageSummary>("读取用量汇总失败", "usage_summary", {
     range,
     cliKey: input?.cliKey ?? null,
   });
@@ -100,18 +100,22 @@ export async function usageLeaderboardProvider(
   range: UsageRange,
   input?: { cliKey?: CliKey | null; limit?: number }
 ) {
-  return invokeTauriOrNull<UsageProviderRow[]>("usage_leaderboard_provider", {
-    range,
-    cliKey: input?.cliKey ?? null,
-    limit: input?.limit,
-  });
+  return invokeService<UsageProviderRow[]>(
+    "读取按供应商用量排行失败",
+    "usage_leaderboard_provider",
+    {
+      range,
+      cliKey: input?.cliKey ?? null,
+      limit: input?.limit,
+    }
+  );
 }
 
 export async function usageLeaderboardDay(
   range: UsageRange,
   input?: { cliKey?: CliKey | null; limit?: number }
 ) {
-  return invokeTauriOrNull<UsageDayRow[]>("usage_leaderboard_day", {
+  return invokeService<UsageDayRow[]>("读取按日期用量排行失败", "usage_leaderboard_day", {
     range,
     cliKey: input?.cliKey ?? null,
     limit: input?.limit,
@@ -119,14 +123,14 @@ export async function usageLeaderboardDay(
 }
 
 export async function usageHourlySeries(days: number) {
-  return invokeTauriOrNull<UsageHourlyRow[]>("usage_hourly_series", { days });
+  return invokeService<UsageHourlyRow[]>("读取小时用量序列失败", "usage_hourly_series", { days });
 }
 
 export async function usageSummaryV2(
   period: UsagePeriod,
   input?: { startTs?: number | null; endTs?: number | null; cliKey?: CliKey | null }
 ) {
-  return invokeTauriOrNull<UsageSummary>("usage_summary_v2", {
+  return invokeService<UsageSummary>("读取用量汇总失败", "usage_summary_v2", {
     period,
     startTs: input?.startTs ?? null,
     endTs: input?.endTs ?? null,
@@ -139,7 +143,7 @@ export async function usageLeaderboardV2(
   period: UsagePeriod,
   input?: { startTs?: number | null; endTs?: number | null; cliKey?: CliKey | null; limit?: number }
 ) {
-  return invokeTauriOrNull<UsageLeaderboardRow[]>("usage_leaderboard_v2", {
+  return invokeService<UsageLeaderboardRow[]>("读取用量排行榜失败", "usage_leaderboard_v2", {
     scope,
     period,
     startTs: input?.startTs ?? null,
@@ -158,7 +162,8 @@ export async function usageProviderCacheRateTrendV1(
     limit?: number | null;
   }
 ) {
-  return invokeTauriOrNull<UsageProviderCacheRateTrendRowV1[]>(
+  return invokeService<UsageProviderCacheRateTrendRowV1[]>(
+    "读取供应商缓存命中趋势失败",
     "usage_provider_cache_rate_trend_v1",
     {
       period,

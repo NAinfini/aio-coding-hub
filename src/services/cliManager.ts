@@ -1,4 +1,4 @@
-import { invokeTauriOrNull } from "./tauriInvoke";
+import { invokeService } from "./invokeServiceCommand";
 
 export type ClaudeCliInfo = {
   found: boolean;
@@ -160,27 +160,33 @@ export type CodexConfigTomlValidationResult = {
 };
 
 export async function cliManagerClaudeInfoGet() {
-  return invokeTauriOrNull<ClaudeCliInfo>("cli_manager_claude_info_get");
+  return invokeService<ClaudeCliInfo>("获取 Claude CLI 信息失败", "cli_manager_claude_info_get");
 }
 
 export async function cliManagerCodexInfoGet() {
-  return invokeTauriOrNull<SimpleCliInfo>("cli_manager_codex_info_get");
+  return invokeService<SimpleCliInfo>("获取 Codex CLI 信息失败", "cli_manager_codex_info_get");
 }
 
 export async function cliManagerCodexConfigGet() {
-  return invokeTauriOrNull<CodexConfigState>("cli_manager_codex_config_get");
+  return invokeService<CodexConfigState>("读取 Codex 配置失败", "cli_manager_codex_config_get");
 }
 
 export async function cliManagerCodexConfigSet(patch: CodexConfigPatch) {
-  return invokeTauriOrNull<CodexConfigState>("cli_manager_codex_config_set", { patch });
+  return invokeService<CodexConfigState>("保存 Codex 配置失败", "cli_manager_codex_config_set", {
+    patch,
+  });
 }
 
 export async function cliManagerCodexConfigTomlGet() {
-  return invokeTauriOrNull<CodexConfigTomlState>("cli_manager_codex_config_toml_get");
+  return invokeService<CodexConfigTomlState>(
+    "读取 Codex TOML 配置失败",
+    "cli_manager_codex_config_toml_get"
+  );
 }
 
 export async function cliManagerCodexConfigTomlValidate(toml: string) {
-  return invokeTauriOrNull<CodexConfigTomlValidationResult>(
+  return invokeService<CodexConfigTomlValidationResult>(
+    "校验 Codex TOML 配置失败",
     "cli_manager_codex_config_toml_validate",
     {
       toml,
@@ -189,27 +195,38 @@ export async function cliManagerCodexConfigTomlValidate(toml: string) {
 }
 
 export async function cliManagerCodexConfigTomlSet(toml: string) {
-  return invokeTauriOrNull<CodexConfigState>("cli_manager_codex_config_toml_set", { toml });
+  return invokeService<CodexConfigState>(
+    "保存 Codex TOML 配置失败",
+    "cli_manager_codex_config_toml_set",
+    { toml }
+  );
 }
 
 export async function cliManagerGeminiInfoGet() {
-  return invokeTauriOrNull<SimpleCliInfo>("cli_manager_gemini_info_get");
+  return invokeService<SimpleCliInfo>("获取 Gemini CLI 信息失败", "cli_manager_gemini_info_get");
 }
 
 export async function cliManagerClaudeEnvSet(input: {
   mcp_timeout_ms: number | null;
   disable_error_reporting: boolean;
 }) {
-  return invokeTauriOrNull<ClaudeEnvState>("cli_manager_claude_env_set", {
+  return invokeService<ClaudeEnvState>("保存 Claude 环境变量失败", "cli_manager_claude_env_set", {
     mcpTimeoutMs: input.mcp_timeout_ms,
     disableErrorReporting: input.disable_error_reporting,
   });
 }
 
 export async function cliManagerClaudeSettingsGet() {
-  return invokeTauriOrNull<ClaudeSettingsState>("cli_manager_claude_settings_get");
+  return invokeService<ClaudeSettingsState>(
+    "读取 Claude 设置失败",
+    "cli_manager_claude_settings_get"
+  );
 }
 
 export async function cliManagerClaudeSettingsSet(patch: ClaudeSettingsPatch) {
-  return invokeTauriOrNull<ClaudeSettingsState>("cli_manager_claude_settings_set", { patch });
+  return invokeService<ClaudeSettingsState>(
+    "保存 Claude 设置失败",
+    "cli_manager_claude_settings_set",
+    { patch }
+  );
 }

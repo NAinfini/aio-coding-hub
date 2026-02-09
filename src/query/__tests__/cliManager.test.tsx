@@ -97,6 +97,21 @@ describe("query/cliManager", () => {
     });
   });
 
+  it("useCliManagerClaudeInfoQuery enters error state when service rejects", async () => {
+    setTauriRuntime();
+
+    vi.mocked(cliManagerClaudeInfoGet).mockRejectedValue(new Error("cli manager query boom"));
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useCliManagerClaudeInfoQuery(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+  });
+
   it("respects options.enabled=false for all cliManager info/config queries", async () => {
     setTauriRuntime();
 

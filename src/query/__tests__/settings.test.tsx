@@ -101,6 +101,19 @@ describe("query/settings", () => {
     });
   });
 
+  it("useSettingsQuery enters error state when settingsGet rejects", async () => {
+    setTauriRuntime();
+    vi.mocked(settingsGet).mockRejectedValue(new Error("settings query boom"));
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useSettingsQuery(), { wrapper });
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+  });
+
   it("useSettingsSetMutation updates cache and invalidates on settle", async () => {
     setTauriRuntime();
 

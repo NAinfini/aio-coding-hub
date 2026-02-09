@@ -110,6 +110,21 @@ describe("query/gateway", () => {
     });
   });
 
+  it("useGatewaySessionsListQuery enters error state when service rejects", async () => {
+    setTauriRuntime();
+
+    vi.mocked(gatewaySessionsList).mockRejectedValue(new Error("sessions boom"));
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useGatewaySessionsListQuery(10), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+  });
+
   it("useGatewayStatusQuery respects options.enabled=false", async () => {
     setTauriRuntime();
 
@@ -152,6 +167,20 @@ describe("query/gateway", () => {
 
     expect(gatewayStatus).toHaveBeenCalledTimes(1);
     expect(result.current.data?.running).toBe(true);
+  });
+
+  it("useGatewayStatusQuery enters error state when service rejects", async () => {
+    setTauriRuntime();
+
+    vi.mocked(gatewayStatus).mockRejectedValue(new Error("status boom"));
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useGatewayStatusQuery(), { wrapper });
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
   });
 
   it("useGatewayCircuitResetProviderMutation invalidates cliKey circuit status when provided", async () => {

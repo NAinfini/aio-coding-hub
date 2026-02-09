@@ -1,4 +1,4 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { CliProxyStatus } from "../../services/cliProxy";
 import { cliProxySetEnabled, cliProxyStatusAll } from "../../services/cliProxy";
@@ -26,6 +26,34 @@ describe("query/cliProxy", () => {
     await Promise.resolve();
 
     expect(cliProxyStatusAll).not.toHaveBeenCalled();
+  });
+
+  it("calls cliProxyStatusAll with tauri runtime", async () => {
+    setTauriRuntime();
+    vi.mocked(cliProxyStatusAll).mockResolvedValue([]);
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    renderHook(() => useCliProxyStatusAllQuery(), { wrapper });
+
+    await waitFor(() => {
+      expect(cliProxyStatusAll).toHaveBeenCalled();
+    });
+  });
+
+  it("useCliProxyStatusAllQuery enters error state when service rejects", async () => {
+    setTauriRuntime();
+    vi.mocked(cliProxyStatusAll).mockRejectedValue(new Error("cli proxy query boom"));
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useCliProxyStatusAllQuery(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
   });
 
   it("optimistically updates status cache on setEnabled", async () => {

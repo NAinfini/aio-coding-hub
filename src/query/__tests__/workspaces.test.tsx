@@ -69,6 +69,21 @@ describe("query/workspaces", () => {
     });
   });
 
+  it("useWorkspacesListQuery enters error state when workspacesList rejects", async () => {
+    setTauriRuntime();
+
+    vi.mocked(workspacesList).mockRejectedValue(new Error("workspaces query boom"));
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useWorkspacesListQuery("claude"), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+  });
+
   it("useWorkspacePreviewQuery calls workspacePreview when workspaceId is set", async () => {
     setTauriRuntime();
 

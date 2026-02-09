@@ -102,6 +102,20 @@ describe("query/skills", () => {
     });
   });
 
+  it("useSkillReposListQuery enters error state when skillReposList rejects", async () => {
+    setTauriRuntime();
+    vi.mocked(skillReposList).mockRejectedValue(new Error("skills query boom"));
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useSkillReposListQuery(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+  });
+
   it("useSkillsInstalledListQuery refetch returns null when workspaceId is null", async () => {
     setTauriRuntime();
 

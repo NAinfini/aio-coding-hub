@@ -151,6 +151,36 @@ describe("query/cost", () => {
     });
   });
 
+  it("useCostAnalyticsV1Query enters error state when underlying call rejects", async () => {
+    setTauriRuntime();
+
+    vi.mocked(costSummaryV1).mockRejectedValue(new Error("cost summary boom"));
+    vi.mocked(costTrendV1).mockResolvedValue([]);
+    vi.mocked(costBreakdownProviderV1).mockResolvedValue([]);
+    vi.mocked(costBreakdownModelV1).mockResolvedValue([]);
+    vi.mocked(costScatterCliProviderModelV1).mockResolvedValue([]);
+    vi.mocked(costTopRequestsV1).mockResolvedValue([]);
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(
+      () =>
+        useCostAnalyticsV1Query("daily", {
+          startTs: null,
+          endTs: null,
+          cliKey: "claude",
+          providerId: null,
+          model: null,
+        }),
+      { wrapper }
+    );
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+  });
+
   it("returns null when any underlying call returns null", async () => {
     setTauriRuntime();
 

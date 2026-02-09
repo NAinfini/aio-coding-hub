@@ -41,6 +41,21 @@ describe("query/providerLimitUsage", () => {
     });
   });
 
+  it("useProviderLimitUsageV1Query enters error state when providerLimitUsageV1 rejects", async () => {
+    setTauriRuntime();
+
+    vi.mocked(providerLimitUsageV1).mockRejectedValue(new Error("provider limit usage query boom"));
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useProviderLimitUsageV1Query("claude"), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+  });
+
   it("respects options.enabled=false", async () => {
     setTauriRuntime();
 

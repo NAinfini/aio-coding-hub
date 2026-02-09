@@ -55,6 +55,21 @@ describe("query/requestLogs", () => {
     });
   });
 
+  it("useRequestLogsListAllQuery enters error state when requestLogsListAll rejects", async () => {
+    setTauriRuntime();
+
+    vi.mocked(requestLogsListAll).mockRejectedValue(new Error("request logs query boom"));
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useRequestLogsListAllQuery(10), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+  });
+
   it("respects options.enabled=false", async () => {
     setTauriRuntime();
 

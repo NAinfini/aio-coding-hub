@@ -49,6 +49,21 @@ describe("query/dataManagement", () => {
     });
   });
 
+  it("useDbDiskUsageQuery enters error state when dbDiskUsageGet rejects", async () => {
+    setTauriRuntime();
+
+    vi.mocked(dbDiskUsageGet).mockRejectedValue(new Error("db usage query boom"));
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useDbDiskUsageQuery(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+  });
+
   it("useRequestLogsClearAllMutation invalidates dbDiskUsage + requestLogs", async () => {
     setTauriRuntime();
 

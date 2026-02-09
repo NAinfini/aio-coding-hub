@@ -62,6 +62,21 @@ describe("query/wsl", () => {
     });
   });
 
+  it("useWslDetectionQuery enters error state when wslDetect rejects", async () => {
+    setTauriRuntime();
+
+    vi.mocked(wslDetect).mockRejectedValue(new Error("wsl detection query boom"));
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useWslDetectionQuery(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+  });
+
   it("respects options.enabled=false for detection and host address queries", async () => {
     setTauriRuntime();
 

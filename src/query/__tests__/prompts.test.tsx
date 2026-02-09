@@ -50,6 +50,21 @@ describe("query/prompts", () => {
     });
   });
 
+  it("usePromptsListQuery enters error state when promptsList rejects", async () => {
+    setTauriRuntime();
+
+    vi.mocked(promptsList).mockRejectedValue(new Error("prompts query boom"));
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => usePromptsListQuery(1), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+  });
+
   it("usePromptUpsertMutation inserts/updates cached list and invalidates", async () => {
     setTauriRuntime();
 

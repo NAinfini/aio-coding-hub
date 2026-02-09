@@ -57,6 +57,20 @@ describe("query/modelPrices", () => {
     });
   });
 
+  it("useModelPricesListQuery enters error state when modelPricesList rejects", async () => {
+    setTauriRuntime();
+    vi.mocked(modelPricesList).mockRejectedValue(new Error("model prices query boom"));
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useModelPricesListQuery("claude"), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+  });
+
   it("useModelPricesTotalCountQuery sums list lengths and returns null if any list is null", async () => {
     setTauriRuntime();
 

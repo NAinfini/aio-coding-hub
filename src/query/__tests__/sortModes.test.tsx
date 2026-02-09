@@ -66,6 +66,20 @@ describe("query/sortModes", () => {
     });
   });
 
+  it("useSortModesListQuery enters error state when sortModesList rejects", async () => {
+    setTauriRuntime();
+
+    vi.mocked(sortModesList).mockRejectedValue(new Error("sort modes query boom"));
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useSortModesListQuery(), { wrapper });
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+  });
+
   it("useSortModeActiveSetMutation optimistically updates activeList and invalidates on settle", async () => {
     setTauriRuntime();
 

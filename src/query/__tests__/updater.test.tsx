@@ -50,4 +50,19 @@ describe("query/updater", () => {
     expect(updaterCheck).toHaveBeenCalledTimes(1);
     expect(result.current.data?.version).toBe("0.2.0");
   });
+
+  it("useUpdaterCheckQuery enters error state when updaterCheck rejects", async () => {
+    setTauriRuntime();
+
+    vi.mocked(updaterCheck).mockRejectedValue(new Error("updater check boom"));
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useUpdaterCheckQuery({ enabled: true }), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+  });
 });

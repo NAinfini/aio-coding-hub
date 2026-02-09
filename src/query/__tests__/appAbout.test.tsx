@@ -49,6 +49,20 @@ describe("query/appAbout", () => {
     expect(result.current.data?.os).toBe("windows");
   });
 
+  it("enters error state when appAboutGet rejects", async () => {
+    setTauriRuntime();
+
+    vi.mocked(appAboutGet).mockRejectedValue(new Error("about boom"));
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useAppAboutQuery(), { wrapper });
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+  });
+
   it("respects options.enabled=false", async () => {
     setTauriRuntime();
 

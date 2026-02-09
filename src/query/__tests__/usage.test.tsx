@@ -56,6 +56,21 @@ describe("query/usage", () => {
     });
   });
 
+  it("useUsageHourlySeriesQuery enters error state when usageHourlySeries rejects", async () => {
+    setTauriRuntime();
+
+    vi.mocked(usageHourlySeries).mockRejectedValue(new Error("usage hourly query boom"));
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useUsageHourlySeriesQuery(7), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+  });
+
   it("respects options.enabled=false", async () => {
     setTauriRuntime();
 

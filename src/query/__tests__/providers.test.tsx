@@ -81,6 +81,21 @@ describe("query/providers", () => {
     });
   });
 
+  it("useProvidersListQuery enters error state when providersList rejects", async () => {
+    setTauriRuntime();
+
+    vi.mocked(providersList).mockRejectedValue(new Error("providers query boom"));
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useProvidersListQuery("claude"), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+  });
+
   it("respects options.enabled=false", async () => {
     setTauriRuntime();
 

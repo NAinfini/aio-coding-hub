@@ -61,6 +61,20 @@ describe("query/mcp", () => {
     });
   });
 
+  it("useMcpServersListQuery enters error state when mcpServersList rejects", async () => {
+    setTauriRuntime();
+    vi.mocked(mcpServersList).mockRejectedValue(new Error("mcp query boom"));
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useMcpServersListQuery(1), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+  });
+
   it("useMcpServerUpsertMutation inserts into cached list", async () => {
     setTauriRuntime();
 

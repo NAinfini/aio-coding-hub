@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { logToConsole } from "../consoleLog";
 import {
+  gatewayCheckPortAvailable,
+  gatewayStart,
+  gatewayStop,
   gatewayCircuitStatus,
   gatewaySessionsList,
   gatewayStatus,
@@ -82,6 +85,46 @@ describe("services/gateway", () => {
     await expect(gatewayStatus()).resolves.toEqual(status);
     await expect(gatewaySessionsList(20)).resolves.toEqual(sessions);
     await expect(gatewayCircuitStatus("claude")).resolves.toEqual(circuits);
+  });
+
+  it("passes gateway command args with stable contract fields", async () => {
+    vi.mocked(hasTauriRuntime).mockReturnValue(true);
+    vi.mocked(invokeTauriOrNull)
+      .mockResolvedValueOnce({ running: true } as any)
+      .mockResolvedValueOnce({ running: false } as any)
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce([] as any)
+      .mockResolvedValueOnce([] as any)
+      .mockResolvedValueOnce(1 as any)
+      .mockResolvedValueOnce(true as any);
+
+    await gatewayStart(37123);
+    await gatewayStop();
+    await gatewayCheckPortAvailable(37123);
+    await gatewaySessionsList(undefined);
+    await gatewayCircuitStatus("claude");
+    await gatewayCircuitStatus("codex");
+    await gatewayCircuitStatus("gemini");
+
+    expect(invokeTauriOrNull).toHaveBeenCalledWith("gateway_start", {
+      preferredPort: 37123,
+    });
+    expect(invokeTauriOrNull).toHaveBeenCalledWith("gateway_stop");
+    expect(invokeTauriOrNull).toHaveBeenCalledWith("gateway_check_port_available", {
+      port: 37123,
+    });
+    expect(invokeTauriOrNull).toHaveBeenCalledWith("gateway_sessions_list", {
+      limit: null,
+    });
+    expect(invokeTauriOrNull).toHaveBeenCalledWith("gateway_circuit_status", {
+      cliKey: "claude",
+    });
+    expect(invokeTauriOrNull).toHaveBeenCalledWith("gateway_circuit_status", {
+      cliKey: "codex",
+    });
+    expect(invokeTauriOrNull).toHaveBeenCalledWith("gateway_circuit_status", {
+      cliKey: "gemini",
+    });
   });
 
   it("rethrows invoke errors and logs details", async () => {

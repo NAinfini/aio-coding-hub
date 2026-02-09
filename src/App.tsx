@@ -6,6 +6,7 @@ import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AppLayout } from "./layout/AppLayout";
 import { HomePage } from "./pages/HomePage";
 import { useGatewayQuerySync } from "./hooks/useGatewayQuerySync";
+import { logToConsole } from "./services/consoleLog";
 import { listenGatewayEvents } from "./services/gatewayEvents";
 import { listenNoticeEvents } from "./services/noticeEvents";
 import {
@@ -84,7 +85,12 @@ export default function App() {
         }
         cleanup = unlisten;
       })
-      .catch(() => {});
+      .catch((error) => {
+        logToConsole("warn", "网关事件监听初始化失败", {
+          stage: "listenGatewayEvents",
+          error: String(error),
+        });
+      });
 
     return () => {
       cancelled = true;
@@ -104,7 +110,12 @@ export default function App() {
         }
         cleanup = unlisten;
       })
-      .catch(() => {});
+      .catch((error) => {
+        logToConsole("warn", "通知事件监听初始化失败", {
+          stage: "listenNoticeEvents",
+          error: String(error),
+        });
+      });
 
     return () => {
       cancelled = true;
@@ -113,11 +124,21 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    startupSyncModelPricesOnce().catch(() => {});
+    startupSyncModelPricesOnce().catch((error) => {
+      logToConsole("warn", "启动模型定价同步失败", {
+        stage: "startupSyncModelPricesOnce",
+        error: String(error),
+      });
+    });
   }, []);
 
   useEffect(() => {
-    startupSyncDefaultPromptsFromFilesOncePerSession().catch(() => {});
+    startupSyncDefaultPromptsFromFilesOncePerSession().catch((error) => {
+      logToConsole("warn", "启动默认提示词同步失败", {
+        stage: "startupSyncDefaultPromptsFromFilesOncePerSession",
+        error: String(error),
+      });
+    });
   }, []);
 
   return (

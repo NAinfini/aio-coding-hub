@@ -42,6 +42,85 @@ use super::super::warmup;
 const DEFAULT_FAILOVER_MAX_ATTEMPTS_PER_PROVIDER: u32 = 5;
 const DEFAULT_FAILOVER_MAX_PROVIDERS_TO_TRY: u32 = 5;
 
+#[derive(Debug, Clone, Copy)]
+enum EarlyErrorKind {
+    CliProxyDisabled,
+    BodyTooLarge,
+    InvalidCliKey,
+    NoEnabledProvider,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct EarlyErrorContract {
+    status: StatusCode,
+    error_code: &'static str,
+    error_category: Option<&'static str>,
+    excluded_from_stats: bool,
+}
+
+fn early_error_contract(kind: EarlyErrorKind) -> EarlyErrorContract {
+    match kind {
+        EarlyErrorKind::CliProxyDisabled => EarlyErrorContract {
+            status: StatusCode::FORBIDDEN,
+            error_code: GatewayErrorCode::CliProxyDisabled.as_str(),
+            error_category: Some(ErrorCategory::NonRetryableClientError.as_str()),
+            excluded_from_stats: true,
+        },
+        EarlyErrorKind::BodyTooLarge => EarlyErrorContract {
+            status: StatusCode::PAYLOAD_TOO_LARGE,
+            error_code: GatewayErrorCode::BodyTooLarge.as_str(),
+            error_category: None,
+            excluded_from_stats: false,
+        },
+        EarlyErrorKind::InvalidCliKey => EarlyErrorContract {
+            status: StatusCode::BAD_REQUEST,
+            error_code: GatewayErrorCode::InvalidCliKey.as_str(),
+            error_category: None,
+            excluded_from_stats: false,
+        },
+        EarlyErrorKind::NoEnabledProvider => EarlyErrorContract {
+            status: StatusCode::SERVICE_UNAVAILABLE,
+            error_code: GatewayErrorCode::NoEnabledProvider.as_str(),
+            error_category: None,
+            excluded_from_stats: false,
+        },
+    }
+}
+
+fn body_too_large_message(err: &str) -> String {
+    format!("failed to read request body: {err}")
+}
+
+fn no_enabled_provider_message(cli_key: &str) -> String {
+    format!("no enabled provider for cli_key={cli_key}")
+}
+
+fn cli_proxy_disabled_message(cli_key: &str, error: Option<&str>) -> String {
+    match error {
+        Some(err) => format!(
+            "CLI 代理状态读取失败（按未开启处理）：{err}；请在首页开启 {cli_key} 的 CLI 代理开关后重试"
+        ),
+        None => format!("CLI 代理未开启：请在首页开启 {cli_key} 的 CLI 代理开关后重试"),
+    }
+}
+
+fn cli_proxy_guard_special_settings_json(
+    cache_hit: bool,
+    cache_ttl_ms: i64,
+    error: Option<&str>,
+) -> String {
+    serde_json::json!([{
+        "type": "cli_proxy_guard",
+        "scope": "request",
+        "hit": true,
+        "enabled": false,
+        "cacheHit": cache_hit,
+        "cacheTtlMs": cache_ttl_ms,
+        "error": error,
+    }])
+    .to_string()
+}
+
 pub(in crate::gateway) async fn proxy_impl(
     state: GatewayAppState,
     cli_key: String,
@@ -73,30 +152,21 @@ pub(in crate::gateway) async fn proxy_impl(
                 }
             }
 
-            let message = match enabled_snapshot.error.as_deref() {
-                Some(err) => format!(
-                    "CLI 代理状态读取失败（按未开启处理）：{err}；请在首页开启 {cli_key} 的 CLI 代理开关后重试"
-                ),
-                None => format!("CLI 代理未开启：请在首页开启 {cli_key} 的 CLI 代理开关后重试"),
-            };
+            let contract = early_error_contract(EarlyErrorKind::CliProxyDisabled);
+            let message = cli_proxy_disabled_message(&cli_key, enabled_snapshot.error.as_deref());
             let resp = error_response(
-                StatusCode::FORBIDDEN,
+                contract.status,
                 trace_id.clone(),
-                GatewayErrorCode::CliProxyDisabled.as_str(),
+                contract.error_code,
                 message,
                 vec![],
             );
 
-            let special_settings_json = serde_json::json!([{
-                "type": "cli_proxy_guard",
-                "scope": "request",
-                "hit": true,
-                "enabled": false,
-                "cacheHit": enabled_snapshot.cache_hit,
-                "cacheTtlMs": enabled_snapshot.cache_ttl_ms,
-                "error": enabled_snapshot.error.as_deref(),
-            }])
-            .to_string();
+            let special_settings_json = cli_proxy_guard_special_settings_json(
+                enabled_snapshot.cache_hit,
+                enabled_snapshot.cache_ttl_ms,
+                enabled_snapshot.error.as_deref(),
+            );
 
             let duration_ms = started.elapsed().as_millis();
             emit_request_event_and_enqueue_request_log(RequestEndArgs {
@@ -106,10 +176,10 @@ pub(in crate::gateway) async fn proxy_impl(
                 method: method_hint.as_str(),
                 path: forwarded_path.as_str(),
                 query: query.as_deref(),
-                excluded_from_stats: true,
-                status: Some(StatusCode::FORBIDDEN.as_u16()),
-                error_category: Some(ErrorCategory::NonRetryableClientError.as_str()),
-                error_code: Some(GatewayErrorCode::CliProxyDisabled.as_str()),
+                excluded_from_stats: contract.excluded_from_stats,
+                status: Some(contract.status.as_u16()),
+                error_category: contract.error_category,
+                error_code: Some(contract.error_code),
                 duration_ms,
                 event_ttfb_ms: None,
                 log_ttfb_ms: None,
@@ -137,11 +207,12 @@ pub(in crate::gateway) async fn proxy_impl(
     let mut body_bytes = match to_bytes(body, MAX_REQUEST_BODY_BYTES).await {
         Ok(bytes) => bytes,
         Err(err) => {
+            let contract = early_error_contract(EarlyErrorKind::BodyTooLarge);
             let resp = error_response(
-                StatusCode::PAYLOAD_TOO_LARGE,
+                contract.status,
                 trace_id.clone(),
-                GatewayErrorCode::BodyTooLarge.as_str(),
-                format!("failed to read request body: {err}"),
+                contract.error_code,
+                body_too_large_message(&err.to_string()),
                 vec![],
             );
 
@@ -153,10 +224,10 @@ pub(in crate::gateway) async fn proxy_impl(
                 method: method_hint.as_str(),
                 path: forwarded_path.as_str(),
                 query: query.as_deref(),
-                excluded_from_stats: false,
-                status: Some(StatusCode::PAYLOAD_TOO_LARGE.as_u16()),
-                error_category: None,
-                error_code: Some(GatewayErrorCode::BodyTooLarge.as_str()),
+                excluded_from_stats: contract.excluded_from_stats,
+                status: Some(contract.status.as_u16()),
+                error_category: contract.error_category,
+                error_code: Some(contract.error_code),
                 duration_ms,
                 event_ttfb_ms: None,
                 log_ttfb_ms: None,
@@ -404,10 +475,11 @@ pub(in crate::gateway) async fn proxy_impl(
     };
 
     let respond_invalid_cli_key = |err: String| -> Response {
+        let contract = early_error_contract(EarlyErrorKind::InvalidCliKey);
         let resp = error_response(
-            StatusCode::BAD_REQUEST,
+            contract.status,
             trace_id.clone(),
-            GatewayErrorCode::InvalidCliKey.as_str(),
+            contract.error_code,
             err,
             vec![],
         );
@@ -420,10 +492,10 @@ pub(in crate::gateway) async fn proxy_impl(
             method: method_hint.as_str(),
             path: forwarded_path.as_str(),
             query: query.as_deref(),
-            excluded_from_stats: false,
-            status: Some(StatusCode::BAD_REQUEST.as_u16()),
-            error_category: None,
-            error_code: Some(GatewayErrorCode::InvalidCliKey.as_str()),
+            excluded_from_stats: contract.excluded_from_stats,
+            status: Some(contract.status.as_u16()),
+            error_category: contract.error_category,
+            error_code: Some(contract.error_code),
             duration_ms,
             event_ttfb_ms: None,
             log_ttfb_ms: None,
@@ -512,11 +584,12 @@ pub(in crate::gateway) async fn proxy_impl(
     }
 
     if providers.is_empty() {
-        let message = format!("no enabled provider for cli_key={cli_key}");
+        let contract = early_error_contract(EarlyErrorKind::NoEnabledProvider);
+        let message = no_enabled_provider_message(&cli_key);
         let resp = error_response(
-            StatusCode::SERVICE_UNAVAILABLE,
+            contract.status,
             trace_id.clone(),
-            GatewayErrorCode::NoEnabledProvider.as_str(),
+            contract.error_code,
             message,
             vec![],
         );
@@ -528,10 +601,10 @@ pub(in crate::gateway) async fn proxy_impl(
             method: method_hint.as_str(),
             path: forwarded_path.as_str(),
             query: query.as_deref(),
-            excluded_from_stats: false,
-            status: Some(StatusCode::SERVICE_UNAVAILABLE.as_u16()),
-            error_category: None,
-            error_code: Some(GatewayErrorCode::NoEnabledProvider.as_str()),
+            excluded_from_stats: contract.excluded_from_stats,
+            status: Some(contract.status.as_u16()),
+            error_category: contract.error_category,
+            error_code: Some(contract.error_code),
             duration_ms,
             event_ttfb_ms: None,
             log_ttfb_ms: None,
@@ -738,4 +811,108 @@ pub(in crate::gateway) async fn proxy_impl(
         response_fixer_non_stream_config,
     }))
     .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        body_too_large_message, cli_proxy_disabled_message, cli_proxy_guard_special_settings_json,
+        early_error_contract, no_enabled_provider_message, EarlyErrorKind,
+    };
+    use crate::gateway::proxy::{ErrorCategory, GatewayErrorCode};
+    use axum::http::StatusCode;
+
+    #[test]
+    fn cli_proxy_disabled_message_without_error_is_actionable() {
+        let message = cli_proxy_disabled_message("claude", None);
+        assert!(message.contains("CLI 代理未开启"));
+        assert!(message.contains("claude"));
+        assert!(message.contains("首页开启"));
+    }
+
+    #[test]
+    fn cli_proxy_disabled_message_with_error_preserves_context() {
+        let message = cli_proxy_disabled_message("codex", Some("manifest read failed"));
+        assert!(message.contains("CLI 代理状态读取失败"));
+        assert!(message.contains("manifest read failed"));
+        assert!(message.contains("codex"));
+    }
+
+    #[test]
+    fn cli_proxy_guard_special_settings_json_has_expected_shape() {
+        let encoded = cli_proxy_guard_special_settings_json(false, 5000, Some("boom"));
+        let value: serde_json::Value =
+            serde_json::from_str(&encoded).expect("special settings should be valid json");
+
+        let row = value
+            .as_array()
+            .and_then(|rows| rows.first())
+            .expect("special settings should contain one object");
+
+        assert_eq!(
+            row.get("type").and_then(|v| v.as_str()),
+            Some("cli_proxy_guard")
+        );
+        assert_eq!(row.get("scope").and_then(|v| v.as_str()), Some("request"));
+        assert_eq!(row.get("hit").and_then(|v| v.as_bool()), Some(true));
+        assert_eq!(row.get("enabled").and_then(|v| v.as_bool()), Some(false));
+        assert_eq!(row.get("cacheHit").and_then(|v| v.as_bool()), Some(false));
+        assert_eq!(row.get("cacheTtlMs").and_then(|v| v.as_i64()), Some(5000));
+        assert_eq!(row.get("error").and_then(|v| v.as_str()), Some("boom"));
+    }
+
+    #[test]
+    fn early_error_contracts_match_expected_status_and_codes() {
+        let cli_proxy = early_error_contract(EarlyErrorKind::CliProxyDisabled);
+        assert_eq!(cli_proxy.status, StatusCode::FORBIDDEN);
+        assert_eq!(
+            cli_proxy.error_code,
+            GatewayErrorCode::CliProxyDisabled.as_str()
+        );
+        assert_eq!(
+            cli_proxy.error_category,
+            Some(ErrorCategory::NonRetryableClientError.as_str())
+        );
+        assert!(cli_proxy.excluded_from_stats);
+
+        let body_too_large = early_error_contract(EarlyErrorKind::BodyTooLarge);
+        assert_eq!(body_too_large.status, StatusCode::PAYLOAD_TOO_LARGE);
+        assert_eq!(
+            body_too_large.error_code,
+            GatewayErrorCode::BodyTooLarge.as_str()
+        );
+        assert_eq!(body_too_large.error_category, None);
+        assert!(!body_too_large.excluded_from_stats);
+
+        let invalid_cli = early_error_contract(EarlyErrorKind::InvalidCliKey);
+        assert_eq!(invalid_cli.status, StatusCode::BAD_REQUEST);
+        assert_eq!(
+            invalid_cli.error_code,
+            GatewayErrorCode::InvalidCliKey.as_str()
+        );
+        assert_eq!(invalid_cli.error_category, None);
+        assert!(!invalid_cli.excluded_from_stats);
+
+        let no_provider = early_error_contract(EarlyErrorKind::NoEnabledProvider);
+        assert_eq!(no_provider.status, StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            no_provider.error_code,
+            GatewayErrorCode::NoEnabledProvider.as_str()
+        );
+        assert_eq!(no_provider.error_category, None);
+        assert!(!no_provider.excluded_from_stats);
+    }
+
+    #[test]
+    fn body_too_large_message_includes_prefix_and_error() {
+        let message = body_too_large_message("stream exceeded limit");
+        assert!(message.contains("failed to read request body:"));
+        assert!(message.contains("stream exceeded limit"));
+    }
+
+    #[test]
+    fn no_enabled_provider_message_preserves_cli_key() {
+        let message = no_enabled_provider_message("codex");
+        assert_eq!(message, "no enabled provider for cli_key=codex");
+    }
 }

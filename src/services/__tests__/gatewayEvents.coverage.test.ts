@@ -292,6 +292,98 @@ describe("services/gatewayEvents (coverage)", () => {
     unlisten();
   });
 
+  it("skips logging for high-frequency started attempt events", async () => {
+    setTauriRuntime();
+    vi.resetModules();
+
+    shouldLogToConsole.mockReturnValue(true);
+    vi.mocked(tauriListen).mockResolvedValue(tauriUnlisten);
+
+    const { listenGatewayEvents } = await import("../gatewayEvents");
+    const unlisten = await listenGatewayEvents();
+
+    const attempt = vi
+      .mocked(tauriListen)
+      .mock.calls.find((call) => call[0] === "gateway:attempt")?.[1];
+
+    attempt?.({
+      payload: {
+        trace_id: "t-started",
+        cli_key: "claude",
+        method: "POST",
+        path: "/v1/messages",
+        query: null,
+        attempt_index: 1,
+        provider_id: 1,
+        provider_name: "P1",
+        base_url: "https://p1",
+        outcome: "started",
+        status: null,
+        attempt_started_ms: 1,
+        attempt_duration_ms: 0,
+      },
+    } as any);
+
+    const attemptDebugLogs = logToConsole.mock.calls.filter((call) =>
+      String(call[1]).includes("故障切换尝试")
+    );
+    expect(attemptDebugLogs).toHaveLength(0);
+
+    unlisten();
+  });
+
+  it("deduplicates non-transition circuit logs inside window", async () => {
+    setTauriRuntime();
+    vi.resetModules();
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+
+    shouldLogToConsole.mockReturnValue(true);
+    vi.mocked(tauriListen).mockResolvedValue(tauriUnlisten);
+
+    const { listenGatewayEvents } = await import("../gatewayEvents");
+    const unlisten = await listenGatewayEvents();
+
+    const circuit = vi
+      .mocked(tauriListen)
+      .mock.calls.find((call) => call[0] === "gateway:circuit")?.[1];
+
+    const payload = {
+      trace_id: "t-circuit",
+      cli_key: "claude",
+      provider_id: 7,
+      provider_name: "P7",
+      base_url: "https://p7",
+      prev_state: "OPEN",
+      next_state: "OPEN",
+      failure_count: 1,
+      failure_threshold: 5,
+      open_until: null,
+      cooldown_until: null,
+      reason: "SKIP_OPEN",
+      ts: 0,
+    };
+
+    circuit?.({ payload } as any);
+    circuit?.({ payload } as any);
+
+    let skippedLogs = logToConsole.mock.calls.filter(
+      (call) => call[0] === "debug" && String(call[1]).includes("Provider 跳过")
+    );
+    expect(skippedLogs).toHaveLength(1);
+
+    vi.setSystemTime(3001);
+    circuit?.({ payload } as any);
+
+    skippedLogs = logToConsole.mock.calls.filter(
+      (call) => call[0] === "debug" && String(call[1]).includes("Provider 跳过")
+    );
+    expect(skippedLogs).toHaveLength(2);
+
+    unlisten();
+    vi.useRealTimers();
+  });
+
   it("clears circuit dedup map when it grows too large", async () => {
     setTauriRuntime();
     vi.resetModules();

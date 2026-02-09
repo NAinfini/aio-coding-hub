@@ -63,7 +63,7 @@ describe("services/requestLogs", () => {
     );
   });
 
-  it("passes args for list/get/attempts APIs", async () => {
+  it("passes request logs command args with stable contract fields", async () => {
     vi.mocked(hasTauriRuntime).mockReturnValue(true);
     vi.mocked(invokeTauriOrNull).mockResolvedValue([] as any);
 

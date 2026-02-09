@@ -11,6 +11,7 @@ pub(crate) mod cost;
 pub(crate) mod data_management;
 pub(crate) mod env_conflicts;
 pub(crate) mod gateway;
+pub(crate) mod limit;
 pub(crate) mod mcp;
 pub(crate) mod model_prices;
 pub(crate) mod notice;

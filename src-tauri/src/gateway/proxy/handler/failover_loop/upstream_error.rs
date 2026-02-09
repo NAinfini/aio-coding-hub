@@ -31,6 +31,25 @@ use crate::gateway::util::{now_unix_seconds, strip_hop_headers};
 use axum::body::{Body, Bytes};
 use axum::http::{header, HeaderValue};
 
+fn upstream_error_decision(
+    is_count_tokens: bool,
+    base_decision: FailoverDecision,
+    retry_index: u32,
+    max_attempts_per_provider: u32,
+) -> FailoverDecision {
+    if is_count_tokens {
+        return FailoverDecision::Abort;
+    }
+
+    if matches!(base_decision, FailoverDecision::RetrySameProvider)
+        && retry_index >= max_attempts_per_provider
+    {
+        return FailoverDecision::SwitchProvider;
+    }
+
+    base_decision
+}
+
 async fn read_response_body_with_optional_limit(
     mut resp: reqwest::Response,
     max_bytes: Option<u64>,
@@ -141,16 +160,12 @@ pub(super) async fn handle_non_success_response(
 
     let (base_category, error_code, base_decision) = classify_upstream_status(status);
     let mut category = base_category;
-    let mut decision = if is_count_tokens {
-        FailoverDecision::Abort
-    } else {
-        base_decision
-    };
-    if matches!(decision, FailoverDecision::RetrySameProvider)
-        && retry_index >= max_attempts_per_provider
-    {
-        decision = FailoverDecision::SwitchProvider;
-    }
+    let mut decision = upstream_error_decision(
+        is_count_tokens,
+        base_decision,
+        retry_index,
+        max_attempts_per_provider,
+    );
 
     let mut abort_body_bytes: Option<Bytes> = None;
     let mut abort_response_headers: Option<axum::http::HeaderMap> = None;
@@ -520,4 +535,37 @@ pub(super) async fn handle_reqwest_error(
         reason: "reqwest error".to_string(),
     })
     .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{upstream_error_decision, FailoverDecision};
+
+    #[test]
+    fn upstream_error_decision_aborts_for_count_tokens() {
+        let decision = upstream_error_decision(true, FailoverDecision::RetrySameProvider, 1, 5);
+        assert!(matches!(decision, FailoverDecision::Abort));
+    }
+
+    #[test]
+    fn upstream_error_decision_keeps_base_decision_before_retry_limit() {
+        let decision = upstream_error_decision(false, FailoverDecision::RetrySameProvider, 1, 5);
+        assert!(matches!(decision, FailoverDecision::RetrySameProvider));
+    }
+
+    #[test]
+    fn upstream_error_decision_switches_after_retry_limit() {
+        let decision = upstream_error_decision(false, FailoverDecision::RetrySameProvider, 5, 5);
+        assert!(matches!(decision, FailoverDecision::SwitchProvider));
+    }
+
+    #[test]
+    fn upstream_error_decision_keeps_switch_and_abort_decisions() {
+        let switch_decision =
+            upstream_error_decision(false, FailoverDecision::SwitchProvider, 1, 5);
+        assert!(matches!(switch_decision, FailoverDecision::SwitchProvider));
+
+        let abort_decision = upstream_error_decision(false, FailoverDecision::Abort, 1, 5);
+        assert!(matches!(abort_decision, FailoverDecision::Abort));
+    }
 }

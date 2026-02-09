@@ -95,4 +95,39 @@ describe("services/providers", () => {
       })
     );
   });
+
+  it("passes providers command args with stable contract fields", async () => {
+    vi.mocked(hasTauriRuntime).mockReturnValue(true);
+    vi.mocked(invokeTauriOrNull)
+      .mockResolvedValueOnce([] as any)
+      .mockResolvedValueOnce(120 as any)
+      .mockResolvedValueOnce({ id: 1 } as any)
+      .mockResolvedValueOnce({ id: 1 } as any)
+      .mockResolvedValueOnce(true as any)
+      .mockResolvedValueOnce([] as any);
+
+    await providersList("claude");
+    await baseUrlPingMs("https://api.example.com");
+    await providerSetEnabled(1, true);
+    await providerDelete(1);
+    await providersReorder("claude", [2, 1]);
+
+    expect(invokeTauriOrNull).toHaveBeenCalledWith("providers_list", {
+      cliKey: "claude",
+    });
+    expect(invokeTauriOrNull).toHaveBeenCalledWith("base_url_ping_ms", {
+      baseUrl: "https://api.example.com",
+    });
+    expect(invokeTauriOrNull).toHaveBeenCalledWith("provider_set_enabled", {
+      providerId: 1,
+      enabled: true,
+    });
+    expect(invokeTauriOrNull).toHaveBeenCalledWith("provider_delete", {
+      providerId: 1,
+    });
+    expect(invokeTauriOrNull).toHaveBeenCalledWith("providers_reorder", {
+      cliKey: "claude",
+      orderedProviderIds: [2, 1],
+    });
+  });
 });

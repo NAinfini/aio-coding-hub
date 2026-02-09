@@ -1,10 +1,23 @@
 //! Usage: Gateway lifecycle / status / session / circuit commands.
 
 use crate::app_state::{ensure_db_ready, DbInitState, GatewayState};
+use crate::commands::limit::normalize_limit;
 use crate::shared::mutex_ext::MutexExt;
 use crate::{blocking, cli_proxy, gateway, providers, request_logs, settings, wsl};
 use tauri::Emitter;
 use tauri::Manager;
+
+const GATEWAY_SESSIONS_DEFAULT_LIMIT: u32 = 50;
+const GATEWAY_SESSIONS_MAX_LIMIT: u32 = 200;
+
+fn gateway_sessions_limit(limit: Option<u32>) -> usize {
+    normalize_limit(
+        limit,
+        GATEWAY_SESSIONS_DEFAULT_LIMIT,
+        1,
+        GATEWAY_SESSIONS_MAX_LIMIT,
+    )
+}
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub(crate) struct GatewayActiveSessionSummary {
@@ -59,7 +72,7 @@ pub(crate) async fn gateway_sessions_list(
 ) -> Result<Vec<GatewayActiveSessionSummary>, String> {
     let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
 
-    let limit = limit.unwrap_or(50).min(200) as usize;
+    let limit = gateway_sessions_limit(limit);
     let now_unix = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
@@ -206,6 +219,19 @@ pub(crate) async fn gateway_start(
         .await;
     }
     Ok(status)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::gateway_sessions_limit;
+
+    #[test]
+    fn gateway_sessions_limit_uses_default_and_clamps() {
+        assert_eq!(gateway_sessions_limit(None), 50);
+        assert_eq!(gateway_sessions_limit(Some(0)), 1);
+        assert_eq!(gateway_sessions_limit(Some(999)), 200);
+        assert_eq!(gateway_sessions_limit(Some(88)), 88);
+    }
 }
 
 #[tauri::command]

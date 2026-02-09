@@ -155,11 +155,10 @@ export function CliManagerCodexTab({
   const loading = codexLoading || codexConfigLoading;
   const tomlBusy = codexConfigTomlLoading || codexConfigTomlSaving;
 
-  useEffect(() => {
-    if (!codexConfig) return;
-    if (saving) return;
-    setSandboxModeText(codexConfig.sandbox_mode ?? "");
-  }, [saving, codexConfig?.sandbox_mode, codexConfig]);
+  // sandbox_mode 的本地 text 已由上方 codexConfig 整体同步 effect 更新，
+  // 此处不再需要额外的 saving 守卫同步——之前的实现会在 saving 从
+  // true→false 时用旧的 codexConfig 覆盖本地状态，导致 danger-full-access
+  // 选择后被重置为默认值。
 
   const defaults = useMemo(() => {
     return {

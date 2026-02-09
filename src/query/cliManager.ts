@@ -99,6 +99,7 @@ export function useCliManagerCodexConfigSetMutation() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: cliManagerKeys.codexConfig() });
+      queryClient.invalidateQueries({ queryKey: cliManagerKeys.codexConfigToml() });
     },
   });
 }

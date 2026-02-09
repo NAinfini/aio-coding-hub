@@ -15,8 +15,8 @@
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "check:no-instant-now-sub": "node scripts/check-no-instant-now-sub.mjs",
-    "check:precommit": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm check:no-instant-now-sub && pnpm tauri:fmt && pnpm tauri:check && pnpm tauri:clippy",
-    "check:prepush": "pnpm test:unit:coverage && pnpm tauri:test",
+    "check:precommit": "pnpm check:precommit:src && pnpm check:precommit:tauri",
+    "check:prepush": "pnpm test:unit:coverage && pnpm tauri:test && pnpm tauri:clippy",
     "hooks:install": "node scripts/install-git-hooks.mjs",
     "postinstall": "node scripts/install-git-hooks.mjs",
     "preview": "vite preview",
@@ -30,7 +30,10 @@
     "tauri:build:mac:arm64": "node scripts/tauri-build.mjs --target aarch64-apple-darwin",
     "tauri:build:mac:x64": "node scripts/tauri-build.mjs --target x86_64-apple-darwin",
     "tauri:build:mac:universal": "node scripts/tauri-build.mjs --target universal-apple-darwin",
-    "tauri:gen-types": "cd src-tauri && cargo test export_bindings -- --ignored"
+    "tauri:gen-types": "cd src-tauri && cargo test export_bindings -- --ignored",
+    "check:precommit:src": "pnpm lint && pnpm typecheck && pnpm check:no-instant-now-sub",
+    "check:precommit:tauri": "pnpm tauri:check",
+    "check:precommit:full": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm check:no-instant-now-sub && pnpm tauri:fmt && pnpm tauri:check && pnpm tauri:clippy"
   },
   "dependencies": {
     "@codemirror/language": "^6.12.1",

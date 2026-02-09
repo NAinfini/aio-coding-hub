@@ -146,8 +146,9 @@ pnpm test:unit:coverage  # 前端覆盖率门禁
 pnpm tauri:test          # 后端测试
 
 # 代码质量检查
-pnpm check:precommit     # 完整的预提交检查
-pnpm check:prepush       # 覆盖率 + 后端测试（推送前）
+pnpm check:precommit     # 快速预提交检查（前端 + Rust check）
+pnpm check:precommit:full # 完整预提交检查（含格式全量校验 + clippy）
+pnpm check:prepush       # 覆盖率 + 后端测试 + clippy（推送前）
 ```
 
 ---
@@ -189,7 +190,7 @@ curl http://127.0.0.1:37123/health
 
 - **测试**: Vitest (前端) + Cargo test (后端)
 - **检查**: TypeScript 严格模式 + Rust clippy
-- **Hooks**: Pre-commit 格式检查 + Pre-push 覆盖率门禁与后端测试
+- **Hooks**: Pre-commit 增量格式化/快速检查 + Pre-push 覆盖率/后端测试/clippy
 - **CI/CD**: GitHub Actions + Release Please
 
 ---

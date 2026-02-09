@@ -4,13 +4,15 @@ set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
-echo "[pre-commit] Auto-fixing formatting for staged files (Prettier + cargo fmt)..."
-
 prettier_targets=()
 rust_tauri_targets=()
+has_src_changes=false
+has_tauri_changes=false
+
 while IFS= read -r file; do
   case "$file" in
     src/*)
+      has_src_changes=true
       case "$file" in
         *.js|*.jsx|*.ts|*.tsx|*.css|*.scss|*.md|*.json|*.yaml|*.yml)
           prettier_targets+=("$file")
@@ -18,6 +20,7 @@ while IFS= read -r file; do
       esac
       ;;
     src-tauri/*)
+      has_tauri_changes=true
       case "$file" in
         *.rs)
           rust_tauri_targets+=("$file")
@@ -26,6 +29,13 @@ while IFS= read -r file; do
       ;;
   esac
 done < <(git diff --cached --name-only --diff-filter=ACMR)
+
+if [ "$has_src_changes" = false ] && [ "$has_tauri_changes" = false ]; then
+  echo "[pre-commit] No src/ or src-tauri/ changes, skipping checks."
+  exit 0
+fi
+
+echo "[pre-commit] Auto-fixing formatting for staged files..."
 
 # Avoid auto-fixing when files are partially staged, otherwise formatters may
 # rewrite working tree content and break the user's intended staging.
@@ -49,7 +59,7 @@ if [ "${#partially_staged[@]}" -gt 0 ]; then
 fi
 
 if [ "${#prettier_targets[@]}" -gt 0 ]; then
-  pnpm format
+  pnpm exec prettier --write -- "${prettier_targets[@]}"
   git add -- "${prettier_targets[@]}"
 fi
 
@@ -60,5 +70,12 @@ if [ "${#rust_tauri_targets[@]}" -gt 0 ]; then
   git add -u -- "src-tauri"
 fi
 
-echo "[pre-commit] Running checks for src/ and src-tauri/..."
-pnpm run check:precommit
+if [ "$has_src_changes" = true ]; then
+  echo "[pre-commit] Running frontend checks..."
+  pnpm run check:precommit:src
+fi
+
+if [ "$has_tauri_changes" = true ]; then
+  echo "[pre-commit] Running Rust fast checks..."
+  pnpm run check:precommit:tauri
+fi

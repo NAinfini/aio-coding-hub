@@ -6,6 +6,8 @@ import { useMemo } from "react";
 import { cliBadgeTone, cliShortLabel } from "../../constants/clis";
 import type { GatewayActiveSession } from "../../services/gateway";
 import { Card } from "../../ui/Card";
+import { EmptyState } from "../../ui/EmptyState";
+import { Spinner } from "../../ui/Spinner";
 import { cn } from "../../utils/cn";
 import { formatDurationMs, formatInteger, formatUsdRaw } from "../../utils/formatters";
 import { DollarSign } from "lucide-react";
@@ -29,7 +31,12 @@ export function HomeActiveSessionsCardContent({
   }, [activeSessions]);
 
   if (activeSessionsLoading) {
-    return <div className="text-sm text-slate-600 dark:text-slate-400">加载中…</div>;
+    return (
+      <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+        <Spinner size="sm" />
+        加载中…
+      </div>
+    );
   }
 
   if (activeSessionsAvailable === false) {
@@ -39,7 +46,7 @@ export function HomeActiveSessionsCardContent({
   }
 
   if (activeSessions.length === 0) {
-    return <div className="text-sm text-slate-600 dark:text-slate-400">暂无活跃 Session。</div>;
+    return <EmptyState title="暂无活跃 Session。" />;
   }
 
   return (

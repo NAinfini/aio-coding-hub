@@ -15,6 +15,7 @@ import {
   startupSyncDefaultPromptsFromFilesOncePerSession,
   startupSyncModelPricesOnce,
 } from "./services/startup";
+import { Spinner } from "./ui/Spinner";
 
 // Lazy-loaded pages (non-critical path)
 const CliManagerPage = lazy(() =>
@@ -59,7 +60,7 @@ const TOASTER_STYLE: CssVarsStyle = {
 function PageLoadingFallback() {
   return (
     <div className="flex h-full items-center justify-center">
-      <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
+      <Spinner />
     </div>
   );
 }

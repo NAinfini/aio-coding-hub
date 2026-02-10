@@ -26,6 +26,8 @@ import { hasTauriRuntime } from "../services/tauriInvoke";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { Dialog } from "../ui/Dialog";
+import { EmptyState } from "../ui/EmptyState";
+import { Spinner } from "../ui/Spinner";
 import { TabList } from "../ui/TabList";
 import { Switch } from "../ui/Switch";
 import { formatActionFailureToast } from "../utils/errors";
@@ -443,13 +445,13 @@ export function SkillsMarketPage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="搜索 Skill（名称/描述/仓库/目录）"
-            className="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm dark:text-slate-100 outline-none focus:ring-2 focus:ring-[#0052FF]/30 sm:w-[360px]"
+            className="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm dark:text-slate-100 outline-none focus:ring-2 focus:ring-accent/30 sm:w-[360px]"
           />
 
           <select
             value={repoFilter}
             onChange={(e) => setRepoFilter(e.target.value)}
-            className="h-10 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 text-sm dark:text-slate-100 outline-none focus:ring-2 focus:ring-[#0052FF]/30"
+            className="h-10 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 text-sm dark:text-slate-100 outline-none focus:ring-2 focus:ring-accent/30"
           >
             <option value="all">全部仓库</option>
             {repoOptions.map((opt) => (
@@ -462,7 +464,7 @@ export function SkillsMarketPage() {
           <select
             value={sortMode}
             onChange={(e) => setSortMode(e.target.value as typeof sortMode)}
-            className="h-10 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 text-sm dark:text-slate-100 outline-none focus:ring-2 focus:ring-[#0052FF]/30"
+            className="h-10 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 text-sm dark:text-slate-100 outline-none focus:ring-2 focus:ring-accent/30"
           >
             <option value="actionable">可操作优先</option>
             <option value="name">按名称</option>
@@ -483,18 +485,22 @@ export function SkillsMarketPage() {
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           {loading ? (
-            <div className="text-sm text-slate-600 dark:text-slate-400">加载中…</div>
+            <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+              <Spinner size="sm" />
+              加载中…
+            </div>
           ) : discovering ? (
-            <div className="text-sm text-slate-600 dark:text-slate-400">扫描中…</div>
+            <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+              <Spinner size="sm" />
+              扫描中…
+            </div>
           ) : enabledRepoCount === 0 ? (
-            <div className="text-sm text-slate-600 dark:text-slate-400">
-              暂无启用的仓库。请先点右上角「管理仓库」添加并启用。
-            </div>
+            <EmptyState title="暂无启用的仓库" description="请先点右上角「管理仓库」添加并启用。" />
           ) : filteredAvailable.length === 0 ? (
-            <div className="text-sm text-slate-600 dark:text-slate-400">
-              没有匹配结果。可尝试：清空搜索 / 关闭“仅显示可操作” / 切换仓库 /
-              点击右上角「刷新发现」。
-            </div>
+            <EmptyState
+              title="没有匹配结果"
+              description="可尝试：清空搜索 / 关闭「仅显示可操作」 / 切换仓库 / 点击右上角「刷新发现」。"
+            />
           ) : (
             filteredAvailable.map((skill) => {
               const key = sourceKey(skill);
@@ -584,7 +590,7 @@ export function SkillsMarketPage() {
                   value={newRepoUrl}
                   onChange={(e) => setNewRepoUrl(e.target.value)}
                   placeholder="https://github.com/owner/repo"
-                  className="mt-1 w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm dark:text-slate-100 outline-none focus:ring-2 focus:ring-[#0052FF]/30"
+                  className="mt-1 w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm dark:text-slate-100 outline-none focus:ring-2 focus:ring-accent/30"
                 />
               </div>
               <div>
@@ -593,7 +599,7 @@ export function SkillsMarketPage() {
                   value={newRepoBranch}
                   onChange={(e) => setNewRepoBranch(e.target.value)}
                   placeholder="auto / main / master"
-                  className="mt-1 w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm dark:text-slate-100 outline-none focus:ring-2 focus:ring-[#0052FF]/30"
+                  className="mt-1 w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm dark:text-slate-100 outline-none focus:ring-2 focus:ring-accent/30"
                 />
                 <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
                   推荐使用 <span className="font-mono">auto</span>（自动使用仓库默认分支）。
@@ -614,9 +620,10 @@ export function SkillsMarketPage() {
             </div>
 
             {repos.length === 0 ? (
-              <div className="text-sm text-slate-600 dark:text-slate-400">
-                暂无仓库。添加后点击页面右上角「刷新发现」即可扫描可安装 Skill。
-              </div>
+              <EmptyState
+                title="暂无仓库"
+                description="添加后点击页面右上角「刷新发现」即可扫描可安装 Skill。"
+              />
             ) : (
               repos.map((repo) => (
                 <div

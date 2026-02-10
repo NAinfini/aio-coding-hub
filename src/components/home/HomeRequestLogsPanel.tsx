@@ -10,6 +10,7 @@ import type { RequestLogSummary } from "../../services/requestLogs";
 import type { TraceSession } from "../../services/traceStore";
 import { Button } from "../../ui/Button";
 import { Card } from "../../ui/Card";
+import { Spinner } from "../../ui/Spinner";
 import { Tooltip } from "../../ui/Tooltip";
 import { cn } from "../../utils/cn";
 import {
@@ -499,7 +500,10 @@ function RequestLogsList({
         </div>
       ) : requestLogs.length === 0 ? (
         requestLogsLoading ? (
-          <div className="p-4 text-sm text-slate-600 dark:text-slate-400">加载中…</div>
+          <div className="flex items-center justify-center gap-2 p-4 text-sm text-slate-600 dark:text-slate-400">
+            <Spinner size="sm" />
+            加载中…
+          </div>
         ) : null
       ) : useVirtual ? (
         <div

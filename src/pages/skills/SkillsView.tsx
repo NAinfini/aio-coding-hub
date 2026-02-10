@@ -17,6 +17,8 @@ import { type InstalledSkillSummary, type LocalSkillSummary } from "../../servic
 import { Button } from "../../ui/Button";
 import { Card } from "../../ui/Card";
 import { Dialog } from "../../ui/Dialog";
+import { EmptyState } from "../../ui/EmptyState";
+import { Spinner } from "../../ui/Spinner";
 import { Switch } from "../../ui/Switch";
 import { cn } from "../../utils/cn";
 import { formatActionFailureToast } from "../../utils/errors";
@@ -221,11 +223,12 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
 
           <div className="mt-4 min-h-0 flex-1 space-y-2 lg:overflow-y-auto lg:pr-1 scrollbar-overlay">
             {loading ? (
-              <div className="text-sm text-slate-600 dark:text-slate-400">加载中…</div>
-            ) : installed.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-4 text-sm text-slate-600 dark:text-slate-400">
-                暂无已安装 Skill。
+              <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                <Spinner size="sm" />
+                加载中…
               </div>
+            ) : installed.length === 0 ? (
+              <EmptyState title="暂无已安装 Skill。" variant="dashed" />
             ) : (
               installed.map((skill) => (
                 <div
@@ -304,15 +307,17 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
 
           <div className="mt-4 min-h-0 flex-1 space-y-2 lg:overflow-y-auto lg:pr-1 scrollbar-overlay">
             {!canOperateLocal ? (
-              <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-4 text-sm text-slate-600 dark:text-slate-400">
-                仅当前工作区可扫描/导入本机 Skill（因为会直接读取/写入 {cliKey} 的真实目录）。
-              </div>
+              <EmptyState
+                title={`仅当前工作区可扫描/导入本机 Skill（因为会直接读取/写入 ${cliKey} 的真实目录）。`}
+                variant="dashed"
+              />
             ) : localLoading ? (
-              <div className="text-sm text-slate-600 dark:text-slate-400">扫描中…</div>
-            ) : localSkills.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-4 text-sm text-slate-600 dark:text-slate-400">
-                未发现本机 Skill。
+              <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                <Spinner size="sm" />
+                扫描中…
               </div>
+            ) : localSkills.length === 0 ? (
+              <EmptyState title="未发现本机 Skill。" variant="dashed" />
             ) : (
               localSkills.map((skill) => (
                 <div

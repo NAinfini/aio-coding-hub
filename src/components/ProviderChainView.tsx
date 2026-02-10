@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { Spinner } from "../ui/Spinner";
 import { cn } from "../utils/cn";
 
 export type ProviderChainAttemptLog = {
@@ -138,7 +139,12 @@ export function ProviderChainView({
   }, [attemptLogs.length, attemptLogsLoading, parsedAttemptsJson.ok]);
 
   if (attemptLogsLoading) {
-    return <div className="mt-2 text-sm text-slate-600 dark:text-slate-400">加载中…</div>;
+    return (
+      <div className="mt-2 flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+        <Spinner size="sm" />
+        加载中…
+      </div>
+    );
   }
 
   if (!attempts) {

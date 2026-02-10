@@ -22,9 +22,11 @@ import { type WorkspaceApplyReport, type WorkspaceSummary } from "../services/wo
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { Dialog } from "../ui/Dialog";
+import { EmptyState } from "../ui/EmptyState";
 import { FormField } from "../ui/FormField";
 import { Input } from "../ui/Input";
 import { PageHeader } from "../ui/PageHeader";
+import { Spinner } from "../ui/Spinner";
 import { TabList } from "../ui/TabList";
 import { cn } from "../utils/cn";
 import { McpServersView } from "./mcp/McpServersView";
@@ -408,7 +410,7 @@ export function WorkspacesPage() {
             <div className="min-w-0">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
-                  <Layers className="h-4 w-4 shrink-0 text-[#0052FF]" />
+                  <Layers className="h-4 w-4 shrink-0 text-accent" />
                   <span className="shrink-0">工作区</span>
                   <span className="shrink-0 text-xs font-medium text-slate-500 dark:text-slate-400">
                     {items.length} 个
@@ -442,11 +444,12 @@ export function WorkspacesPage() {
 
           <div className="mt-3 space-y-3 lg:min-h-0 lg:flex-1 lg:overflow-auto lg:pr-1">
             {loading ? (
-              <div className="text-sm text-slate-600 dark:text-slate-400 px-1">加载中…</div>
-            ) : filtered.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 p-4 text-sm text-slate-600 dark:text-slate-400">
-                暂无工作区
+              <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 px-1">
+                <Spinner size="sm" />
+                加载中…
               </div>
+            ) : filtered.length === 0 ? (
+              <EmptyState title="暂无工作区" variant="dashed" />
             ) : (
               filtered.map((workspace) => {
                 const isActive = workspace.id === activeWorkspaceId;
@@ -458,7 +461,7 @@ export function WorkspacesPage() {
                     className={cn(
                       "rounded-2xl border p-4 transition",
                       isActive
-                        ? "border-[#0052FF]/30 bg-[#0052FF]/[0.03] shadow-sm dark:border-[#0052FF]/40 dark:bg-[#0052FF]/10"
+                        ? "border-accent/30 bg-accent/[0.03] shadow-sm dark:border-accent/40 dark:bg-accent/10"
                         : isSelected
                           ? "border-slate-300 bg-slate-50 dark:border-slate-600 dark:bg-slate-700"
                           : "border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700"
@@ -727,9 +730,7 @@ export function WorkspacesPage() {
               </div>
             </Card>
           ) : (
-            <div className="rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 p-4 text-sm text-slate-600 dark:text-slate-400">
-              请选择一个工作区
-            </div>
+            <EmptyState title="请选择一个工作区" variant="dashed" />
           )}
         </div>
       </div>
@@ -770,7 +771,10 @@ export function WorkspacesPage() {
           </Card>
 
           {previewLoading ? (
-            <div className="text-sm text-slate-600 dark:text-slate-400">生成对比中…</div>
+            <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+              <Spinner size="sm" />
+              生成对比中…
+            </div>
           ) : !preview ? (
             <div className="text-sm text-slate-600 dark:text-slate-400">暂无对比数据。</div>
           ) : (

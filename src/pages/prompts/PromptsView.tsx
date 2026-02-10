@@ -15,8 +15,10 @@ import type { CliKey } from "../../services/providers";
 import { Button } from "../../ui/Button";
 import { Card } from "../../ui/Card";
 import { Dialog } from "../../ui/Dialog";
+import { EmptyState } from "../../ui/EmptyState";
 import { FormField } from "../../ui/FormField";
 import { Input } from "../../ui/Input";
+import { Spinner } from "../../ui/Spinner";
 import { Switch } from "../../ui/Switch";
 import { Textarea } from "../../ui/Textarea";
 import { cn } from "../../utils/cn";
@@ -222,11 +224,12 @@ export function PromptsView({ workspaceId, cliKey, isActiveWorkspace = true }: P
       </div>
 
       {loading ? (
-        <div className="text-sm text-slate-600 dark:text-slate-400">加载中…</div>
-      ) : items.length === 0 ? (
-        <div className="text-sm text-slate-600 dark:text-slate-400">
-          暂无提示词。点击右上角「新增提示词」创建第一条。
+        <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+          <Spinner size="sm" />
+          加载中…
         </div>
+      ) : items.length === 0 ? (
+        <EmptyState title="暂无提示词" description="点击右上角「新增提示词」创建第一条。" />
       ) : (
         <div className="space-y-2">
           {items.map((prompt) => (

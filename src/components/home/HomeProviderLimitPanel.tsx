@@ -7,6 +7,8 @@ import { useMemo } from "react";
 import { cliBadgeTone, cliShortLabel } from "../../constants/clis";
 import type { ProviderLimitUsageRow } from "../../services/providerLimitUsage";
 import { Card } from "../../ui/Card";
+import { EmptyState } from "../../ui/EmptyState";
+import { Spinner } from "../../ui/Spinner";
 import { cn } from "../../utils/cn";
 import { formatPercent, formatUsdRaw } from "../../utils/formatters";
 import { AlertTriangle, RefreshCw } from "lucide-react";
@@ -238,7 +240,12 @@ export function HomeProviderLimitPanelContent({
   }, [rows]);
 
   if (loading) {
-    return <div className="text-sm text-slate-600 dark:text-slate-400">加载中...</div>;
+    return (
+      <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+        <Spinner size="sm" />
+        加载中...
+      </div>
+    );
   }
 
   if (available === false) {
@@ -248,11 +255,7 @@ export function HomeProviderLimitPanelContent({
   }
 
   if (rows.length === 0) {
-    return (
-      <div className="text-sm text-slate-600 dark:text-slate-400">
-        暂无配置限额的供应商。请在供应商编辑界面配置限额。
-      </div>
-    );
+    return <EmptyState title="暂无配置限额的供应商" description="请在供应商编辑界面配置限额。" />;
   }
 
   return (
@@ -304,14 +307,17 @@ export function HomeProviderLimitPanel({
       </div>
 
       {loading ? (
-        <div className="mt-2 text-sm text-slate-600 dark:text-slate-400">加载中...</div>
+        <div className="mt-2 flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+          <Spinner size="sm" />
+          加载中...
+        </div>
       ) : available === false ? (
         <div className="mt-2 text-sm text-slate-600 dark:text-slate-400">
           仅在 Tauri Desktop 环境可用
         </div>
       ) : rows.length === 0 ? (
-        <div className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-          暂无配置限额的供应商。请在供应商编辑界面配置限额。
+        <div className="mt-2">
+          <EmptyState title="暂无配置限额的供应商" description="请在供应商编辑界面配置限额。" />
         </div>
       ) : (
         <div className="mt-3 space-y-2 flex-1 min-h-0 overflow-auto pr-1 scrollbar-overlay">

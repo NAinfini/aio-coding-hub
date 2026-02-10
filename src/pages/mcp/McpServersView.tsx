@@ -10,6 +10,8 @@ import {
 import { logToConsole } from "../../services/consoleLog";
 import { type McpServerSummary } from "../../services/mcp";
 import { Button } from "../../ui/Button";
+import { EmptyState } from "../../ui/EmptyState";
+import { Spinner } from "../../ui/Spinner";
 import { McpDeleteDialog } from "./components/McpDeleteDialog";
 import { McpServerCard } from "./components/McpServerCard";
 import { McpServerDialog } from "./components/McpServerDialog";
@@ -150,11 +152,12 @@ export function McpServersView({ workspaceId }: McpServersViewProps) {
       </div>
 
       {loading ? (
-        <div className="text-sm text-slate-600 dark:text-slate-400">加载中…</div>
-      ) : items.length === 0 ? (
-        <div className="text-sm text-slate-600 dark:text-slate-400">
-          暂无 MCP 服务。点击右上角「添加 MCP」创建第一条。
+        <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+          <Spinner size="sm" />
+          加载中…
         </div>
+      ) : items.length === 0 ? (
+        <EmptyState title="暂无 MCP 服务" description="点击右上角「添加 MCP」创建第一条。" />
       ) : (
         <div className="space-y-2">
           {items.map((server) => (

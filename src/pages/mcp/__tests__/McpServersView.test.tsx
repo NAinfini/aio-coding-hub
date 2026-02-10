@@ -45,9 +45,7 @@ describe("pages/mcp/McpServersView", () => {
     } as any);
 
     renderWithQuery(<McpServersView workspaceId={1} />);
-    expect(
-      screen.getByText("暂无 MCP 服务。点击右上角「添加 MCP」创建第一条。")
-    ).toBeInTheDocument();
+    expect(screen.getByText("暂无 MCP 服务")).toBeInTheDocument();
   });
 
   it("toggles and deletes server entries via mutations", async () => {

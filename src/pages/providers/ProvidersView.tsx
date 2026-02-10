@@ -38,6 +38,8 @@ import {
 import { Button } from "../../ui/Button";
 import { Card } from "../../ui/Card";
 import { Dialog } from "../../ui/Dialog";
+import { EmptyState } from "../../ui/EmptyState";
+import { Spinner } from "../../ui/Spinner";
 import { Switch } from "../../ui/Switch";
 import { cn } from "../../utils/cn";
 import { formatCountdownSeconds, formatUnixSeconds, formatUsdRaw } from "../../utils/formatters";
@@ -128,7 +130,7 @@ function SortableProviderCard({
         padding="sm"
         className={cn(
           "flex cursor-grab flex-col gap-2 transition-shadow duration-200 active:cursor-grabbing sm:flex-row sm:items-center sm:justify-between",
-          isDragging && "z-10 scale-[1.02] shadow-lg ring-2 ring-[#0052FF]/30"
+          isDragging && "z-10 scale-[1.02] shadow-lg ring-2 ring-accent/30"
         )}
         {...attributes}
         {...listeners}
@@ -590,11 +592,12 @@ export function ProvidersView({ activeCli, setActiveCli }: ProvidersViewProps) {
 
         <div className="lg:min-h-0 lg:flex-1 lg:overflow-auto lg:pr-1">
           {providersLoading ? (
-            <div className="text-sm text-slate-600 dark:text-slate-400">加载中…</div>
-          ) : providers.length === 0 ? (
-            <div className="text-sm text-slate-600 dark:text-slate-400">
-              暂无 Provider。请点击「添加」新增。
+            <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+              <Spinner size="sm" />
+              加载中…
             </div>
+          ) : providers.length === 0 ? (
+            <EmptyState title="暂无 Provider" description="请点击「添加」新增。" />
           ) : (
             <DndContext
               sensors={sensors}

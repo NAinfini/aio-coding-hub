@@ -12,6 +12,8 @@ import {
   CartesianGrid,
 } from "recharts";
 import { Card } from "../../ui/Card";
+import { EmptyState } from "../../ui/EmptyState";
+import { Spinner } from "../../ui/Spinner";
 import { cn } from "../../utils/cn";
 import { formatUsdRaw } from "../../utils/formatters";
 import {
@@ -154,13 +156,16 @@ export function CostTrendChart({
         </div>
       </div>
       {loading ? (
-        <div className="text-sm text-slate-400 dark:text-slate-500">加载中…</div>
+        <div className="flex items-center gap-2 text-sm text-slate-400 dark:text-slate-500">
+          <Spinner size="sm" />
+          加载中…
+        </div>
       ) : hasData ? (
         <div className="h-[280px] flex-1">
           <TrendAreaChart data={data} isHourly={period === "daily"} isDark={isDark} />
         </div>
       ) : (
-        <div className="text-sm text-slate-600 dark:text-slate-400">暂无可展示的数据。</div>
+        <EmptyState title="暂无可展示的数据。" />
       )}
     </Card>
   );

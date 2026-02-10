@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { hasTauriRuntime } from "../services/tauriInvoke";
 
@@ -6,9 +6,57 @@ type Theme = "light" | "dark" | "system";
 
 const STORAGE_KEY = "aio-theme";
 
+// ---------------------------------------------------------------------------
+// Module-level shared store — single source of truth for ALL useTheme() calls
+// ---------------------------------------------------------------------------
+
 function getSystemTheme(): "light" | "dark" {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
+
+function readStoredTheme(): Theme {
+  const stored = localStorage.getItem(STORAGE_KEY);
+  return (stored as Theme) || "system";
+}
+
+interface ThemeSnapshot {
+  theme: Theme;
+  resolvedTheme: "light" | "dark";
+}
+
+function resolve(theme: Theme): "light" | "dark" {
+  return theme === "system" ? getSystemTheme() : theme;
+}
+
+let currentSnapshot: ThemeSnapshot = (() => {
+  const t = readStoredTheme();
+  return { theme: t, resolvedTheme: resolve(t) };
+})();
+
+type Listener = () => void;
+const listeners = new Set<Listener>();
+
+function emitChange() {
+  for (const l of listeners) l();
+}
+
+function subscribe(listener: Listener): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+function getSnapshot(): ThemeSnapshot {
+  return currentSnapshot;
+}
+
+// SSR / test fallback — same as initial client snapshot
+function getServerSnapshot(): ThemeSnapshot {
+  return { theme: "system", resolvedTheme: "light" };
+}
+
+// ---------------------------------------------------------------------------
+// Side-effects: DOM class + native titlebar
+// ---------------------------------------------------------------------------
 
 /** Sync native window titlebar theme with the resolved app theme. */
 function syncNativeTheme(theme: Theme) {
@@ -27,44 +75,53 @@ function syncNativeTheme(theme: Theme) {
 }
 
 function applyTheme(theme: Theme) {
-  const resolved = theme === "system" ? getSystemTheme() : theme;
+  const resolved = resolve(theme);
   document.documentElement.classList.toggle("dark", resolved === "dark");
   syncNativeTheme(theme);
 }
 
-export function useTheme() {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return (stored as Theme) || "system";
+// ---------------------------------------------------------------------------
+// Store mutations
+// ---------------------------------------------------------------------------
+
+function setThemeInternal(next: Theme) {
+  localStorage.setItem(STORAGE_KEY, next);
+  applyTheme(next);
+  currentSnapshot = { theme: next, resolvedTheme: resolve(next) };
+  emitChange();
+}
+
+// ---------------------------------------------------------------------------
+// System theme media query listener (singleton, always active)
+// ---------------------------------------------------------------------------
+
+if (typeof window !== "undefined") {
+  const mq = window.matchMedia("(prefers-color-scheme: dark)");
+  mq.addEventListener("change", () => {
+    // Only react when the user preference is "system"
+    if (currentSnapshot.theme !== "system") return;
+    applyTheme("system");
+    const newResolved = getSystemTheme();
+    if (currentSnapshot.resolvedTheme !== newResolved) {
+      currentSnapshot = { ...currentSnapshot, resolvedTheme: newResolved };
+      emitChange();
+    }
   });
 
-  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">(() => {
-    return theme === "system" ? getSystemTheme() : theme;
-  });
+  // Apply theme on module load to ensure DOM is in sync
+  applyTheme(currentSnapshot.theme);
+}
+
+// ---------------------------------------------------------------------------
+// Public hook
+// ---------------------------------------------------------------------------
+
+export function useTheme() {
+  const snapshot = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   const setTheme = useCallback((next: Theme) => {
-    setThemeState(next);
-    localStorage.setItem(STORAGE_KEY, next);
-    applyTheme(next);
-    setResolvedTheme(next === "system" ? getSystemTheme() : next);
+    setThemeInternal(next);
   }, []);
 
-  useEffect(() => {
-    applyTheme(theme);
-    setResolvedTheme(theme === "system" ? getSystemTheme() : theme);
-  }, [theme]);
-
-  // Listen for system theme changes when in "system" mode
-  useEffect(() => {
-    if (theme !== "system") return;
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const handler = () => {
-      applyTheme("system");
-      setResolvedTheme(getSystemTheme());
-    };
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, [theme]);
-
-  return { theme, resolvedTheme, setTheme } as const;
+  return { theme: snapshot.theme, resolvedTheme: snapshot.resolvedTheme, setTheme } as const;
 }

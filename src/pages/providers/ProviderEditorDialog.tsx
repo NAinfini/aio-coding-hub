@@ -29,114 +29,15 @@ import { Dialog } from "../../ui/Dialog";
 import { FormField } from "../../ui/FormField";
 import { Input } from "../../ui/Input";
 import { Switch } from "../../ui/Switch";
-import { cn } from "../../utils/cn";
 import { normalizeBaseUrlRows } from "./baseUrl";
 import { BaseUrlEditor } from "./BaseUrlEditor";
+import { LimitCard } from "./LimitCard";
+import { RadioButtonGroup } from "./RadioButtonGroup";
 import type { BaseUrlRow, ProviderBaseUrlMode } from "./types";
 import { validateProviderClaudeModels } from "./validators";
 import { useForm } from "react-hook-form";
 
-type BaseUrlModeRadioGroupProps = {
-  value: ProviderBaseUrlMode;
-  onChange: (mode: ProviderBaseUrlMode) => void;
-  disabled?: boolean;
-};
-
-function BaseUrlModeRadioGroup({ value, onChange, disabled }: BaseUrlModeRadioGroupProps) {
-  const items = [
-    { value: "order" as const, label: "顺序" },
-    { value: "ping" as const, label: "Ping" },
-  ];
-
-  return (
-    <div
-      role="radiogroup"
-      aria-label="Base URL 模式"
-      className={cn(
-        "inline-flex w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-800",
-        disabled ? "opacity-60" : null
-      )}
-    >
-      {items.map((item, index) => {
-        const active = value === item.value;
-        return (
-          <button
-            key={item.value}
-            type="button"
-            onClick={() => onChange(item.value)}
-            role="radio"
-            aria-checked={active}
-            disabled={disabled}
-            className={cn(
-              "flex-1 px-3 py-2 text-sm font-medium transition",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900",
-              index < items.length - 1 ? "border-r border-slate-200 dark:border-slate-600" : null,
-              active ? "bg-gradient-to-br from-accent to-accent-secondary text-white" : null,
-              !active
-                ? "bg-white text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                : null,
-              disabled ? "cursor-not-allowed" : null
-            )}
-          >
-            {item.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 type DailyResetMode = "fixed" | "rolling";
-
-type DailyResetModeRadioGroupProps = {
-  value: DailyResetMode;
-  onChange: (mode: DailyResetMode) => void;
-  disabled?: boolean;
-};
-
-function DailyResetModeRadioGroup({ value, onChange, disabled }: DailyResetModeRadioGroupProps) {
-  const items = [
-    { value: "fixed" as const, label: "固定时间" },
-    { value: "rolling" as const, label: "滚动窗口 (24h)" },
-  ];
-
-  return (
-    <div
-      role="radiogroup"
-      aria-label="每日重置模式"
-      className={cn(
-        "inline-flex w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-800",
-        disabled ? "opacity-60" : null
-      )}
-    >
-      {items.map((item, index) => {
-        const active = value === item.value;
-        return (
-          <button
-            key={item.value}
-            type="button"
-            onClick={() => onChange(item.value)}
-            role="radio"
-            aria-checked={active}
-            disabled={disabled}
-            className={cn(
-              "flex-1 px-3 py-2 text-sm font-medium transition",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900",
-              index < items.length - 1 ? "border-r border-slate-200 dark:border-slate-600" : null,
-              active ? "bg-gradient-to-br from-accent to-accent-secondary text-white" : null,
-              !active
-                ? "bg-white text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                : null,
-              disabled ? "cursor-not-allowed" : null
-            )}
-          >
-            {item.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 type ProviderEditorDialogBaseProps = {
   open: boolean;
@@ -156,65 +57,6 @@ export type ProviderEditorDialogProps =
 
 function cliNameFromKey(cliKey: CliKey) {
   return cliLongLabel(cliKey);
-}
-
-// Limit card component for visual distinction
-type LimitCardProps = {
-  icon: React.ReactNode;
-  iconBgClass: string;
-  label: string;
-  hint?: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-  disabled?: boolean;
-};
-
-function LimitCard({
-  icon,
-  iconBgClass,
-  label,
-  hint,
-  value,
-  onChange,
-  placeholder,
-  disabled,
-}: LimitCardProps) {
-  return (
-    <div className="group relative rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:border-slate-300 hover:shadow-md dark:border-slate-700 dark:bg-slate-800 dark:hover:border-slate-600">
-      <div className="flex items-start gap-3">
-        <div
-          className={cn(
-            "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
-            iconBgClass
-          )}
-        >
-          {icon}
-        </div>
-        <div className="min-w-0 flex-1">
-          <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{label}</label>
-          {hint ? (
-            <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">{hint}</p>
-          ) : null}
-          <div className="relative mt-2">
-            <Input
-              type="number"
-              min="0"
-              step="0.01"
-              value={value}
-              onChange={(e) => onChange(e.currentTarget.value)}
-              placeholder={placeholder}
-              disabled={disabled}
-              className="pr-12"
-            />
-            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">
-              USD
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
@@ -472,7 +314,12 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
           </FormField>
 
           <FormField label="Base URL 模式">
-            <BaseUrlModeRadioGroup
+            <RadioButtonGroup<ProviderBaseUrlMode>
+              items={[
+                { value: "order", label: "顺序" },
+                { value: "ping", label: "Ping" },
+              ]}
+              ariaLabel="Base URL 模式"
               value={baseUrlMode}
               onChange={setBaseUrlMode}
               disabled={saving}
@@ -605,7 +452,12 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
                         <p className="mb-2 text-xs text-slate-400 dark:text-slate-500">
                           rolling 为过去 24 小时窗口
                         </p>
-                        <DailyResetModeRadioGroup
+                        <RadioButtonGroup<DailyResetMode>
+                          items={[
+                            { value: "fixed", label: "固定时间" },
+                            { value: "rolling", label: "滚动窗口 (24h)" },
+                          ]}
+                          ariaLabel="每日重置模式"
                           value={dailyResetMode}
                           onChange={(value) =>
                             setValue("daily_reset_mode", value, { shouldDirty: true })

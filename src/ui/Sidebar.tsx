@@ -1,9 +1,8 @@
 import { NavLink } from "react-router-dom";
-import { openUrl } from "@tauri-apps/plugin-opener";
-import { AIO_RELEASES_URL, AIO_REPO_URL } from "../constants/urls";
-import { useGatewayMeta } from "../hooks/useGatewayMeta";
+import { AIO_REPO_URL } from "../constants/urls";
+import { useGatewayStatus, openReleasesUrl } from "../hooks/useGatewayStatus";
+import { updateDialogSetOpen } from "../hooks/useUpdateMeta";
 import { useTheme } from "../hooks/useTheme";
-import { updateDialogSetOpen, useUpdateMeta } from "../hooks/useUpdateMeta";
 import { cn } from "../utils/cn";
 
 type NavItem = {
@@ -34,39 +33,8 @@ export type SidebarProps = {
 };
 
 export function Sidebar({ isOpen = true, onNavClick, className }: SidebarProps) {
-  const { gatewayAvailable, gateway, preferredPort } = useGatewayMeta();
-  const updateMeta = useUpdateMeta();
+  const { statusText, statusTone, portText, hasUpdate, isPortable } = useGatewayStatus();
   const { theme, setTheme } = useTheme();
-  const hasUpdate = !!updateMeta.updateCandidate;
-  const isPortable = updateMeta.about?.run_mode === "portable";
-
-  const statusText =
-    gatewayAvailable === "checking"
-      ? "检查中"
-      : gatewayAvailable === "unavailable"
-        ? "不可用"
-        : gateway == null
-          ? "未知"
-          : gateway.running
-            ? "运行中"
-            : "已停止";
-
-  const statusTone =
-    gatewayAvailable === "available" && gateway?.running
-      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-      : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300";
-
-  const portText = gatewayAvailable === "available" ? String(gateway?.port ?? preferredPort) : "—";
-
-  async function openReleases() {
-    try {
-      await openUrl(AIO_RELEASES_URL);
-    } catch {
-      try {
-        window.open(AIO_RELEASES_URL, "_blank", "noopener,noreferrer");
-      } catch {}
-    }
-  }
 
   function handleNavClick() {
     onNavClick?.();
@@ -105,7 +73,7 @@ export function Sidebar({ isOpen = true, onNavClick, className }: SidebarProps) 
                 title={isPortable ? "发现新版本（portable：打开下载页）" : "发现新版本（点击更新）"}
                 onClick={() => {
                   if (isPortable) {
-                    openReleases().catch(() => {});
+                    openReleasesUrl().catch(() => {});
                     return;
                   }
                   updateDialogSetOpen(true);

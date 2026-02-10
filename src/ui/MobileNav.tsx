@@ -1,10 +1,9 @@
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { NavLink } from "react-router-dom";
-import { openUrl } from "@tauri-apps/plugin-opener";
-import { AIO_RELEASES_URL, AIO_REPO_URL } from "../constants/urls";
-import { useGatewayMeta } from "../hooks/useGatewayMeta";
-import { updateDialogSetOpen, useUpdateMeta } from "../hooks/useUpdateMeta";
+import { AIO_REPO_URL } from "../constants/urls";
+import { useGatewayStatus, openReleasesUrl } from "../hooks/useGatewayStatus";
+import { updateDialogSetOpen } from "../hooks/useUpdateMeta";
 import { cn } from "../utils/cn";
 import { NAV } from "./Sidebar";
 
@@ -20,28 +19,7 @@ export type MobileNavProps = {
  * Slides in from the left on small screens
  */
 export function MobileNav({ isOpen, onClose }: MobileNavProps) {
-  const { gatewayAvailable, gateway, preferredPort } = useGatewayMeta();
-  const updateMeta = useUpdateMeta();
-  const hasUpdate = !!updateMeta.updateCandidate;
-  const isPortable = updateMeta.about?.run_mode === "portable";
-
-  const statusText =
-    gatewayAvailable === "checking"
-      ? "检查中"
-      : gatewayAvailable === "unavailable"
-        ? "不可用"
-        : gateway == null
-          ? "未知"
-          : gateway.running
-            ? "运行中"
-            : "已停止";
-
-  const statusTone =
-    gatewayAvailable === "available" && gateway?.running
-      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-      : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400";
-
-  const portText = gatewayAvailable === "available" ? String(gateway?.port ?? preferredPort) : "—";
+  const { statusText, statusTone, portText, hasUpdate, isPortable } = useGatewayStatus();
 
   // Close on escape key
   useEffect(() => {
@@ -66,16 +44,6 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
       document.body.style.overflow = "";
     };
   }, [isOpen]);
-
-  async function openReleases() {
-    try {
-      await openUrl(AIO_RELEASES_URL);
-    } catch {
-      try {
-        window.open(AIO_RELEASES_URL, "_blank", "noopener,noreferrer");
-      } catch {}
-    }
-  }
 
   function handleNavClick() {
     onClose();
@@ -116,7 +84,7 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
                   title={isPortable ? "发现新版本（打开下载页）" : "发现新版本（点击更新）"}
                   onClick={() => {
                     if (isPortable) {
-                      openReleases().catch(() => {});
+                      openReleasesUrl().catch(() => {});
                       return;
                     }
                     updateDialogSetOpen(true);
@@ -225,8 +193,7 @@ export type MobileHeaderProps = {
 };
 
 export function MobileHeader({ onMenuClick }: MobileHeaderProps) {
-  const { gatewayAvailable, gateway } = useGatewayMeta();
-  const isGatewayRunning = gatewayAvailable === "available" && gateway?.running;
+  const { isGatewayRunning } = useGatewayStatus();
 
   return (
     <header className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 bg-white/80 px-4 pb-3 pt-9 backdrop-blur dark:border-slate-700 dark:bg-slate-900/80 lg:hidden">

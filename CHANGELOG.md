@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.24.0](https://github.com/dyndynjyxa/aio-coding-hub/compare/aio-coding-hub-v0.23.0...aio-coding-hub-v0.24.0) (2026-02-10)
+
+
+### Features
+
+* **settings:** 新增缓存异常监测功能开关 ([ea681c1](https://github.com/dyndynjyxa/aio-coding-hub/commit/ea681c155346da3057f25e25867ab75a818f4157))
+* **ui:** 统一 Loading/Empty/Error 状态反馈组件 ([b27f64a](https://github.com/dyndynjyxa/aio-coding-hub/commit/b27f64a79a1ad655a37992527794759f9f8c5370))
+
+
+### Bug Fixes
+
+* **ci:** 修复CI流程中正则表达式重复问题 ([609f2ea](https://github.com/dyndynjyxa/aio-coding-hub/commit/609f2ea657034a58b6f175b995e05431829f6dd9))
+* **codex-tab:** sandbox_mode danger-full-access 选择不生效及高级配置不回显 ([3943401](https://github.com/dyndynjyxa/aio-coding-hub/commit/3943401524c8ef6a179e65e8ee62fd2ac4f784cb))
+* **deps:** 升级 react-router-dom 7.11→7.13 修复 XSS 漏洞 ([c4db630](https://github.com/dyndynjyxa/aio-coding-hub/commit/c4db630b4478cab2f1180f03b324cfc0af9d42e3))
+* **theme:** 修复 dark mode 切换闪烁回退问题 ([ac9500c](https://github.com/dyndynjyxa/aio-coding-hub/commit/ac9500c04a108c5bc15921353b691394a689ac54))
+
 ## [0.23.0](https://github.com/dyndynjyxa/aio-coding-hub/compare/aio-coding-hub-v0.22.0...aio-coding-hub-v0.23.0) (2026-02-08)
 
 

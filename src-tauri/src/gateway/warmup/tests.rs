@@ -16,8 +16,7 @@ fn warmup_request_matches_strict_shape() {
             }
         ]
     });
-    let bytes = serde_json::to_vec(&body).unwrap();
-    assert!(is_anthropic_warmup_request("/v1/messages", &bytes));
+    assert!(is_anthropic_warmup_request("/v1/messages", Some(&body)));
 }
 
 #[test]
@@ -36,10 +35,9 @@ fn warmup_request_rejects_wrong_path() {
             }
         ]
     });
-    let bytes = serde_json::to_vec(&body).unwrap();
     assert!(!is_anthropic_warmup_request(
         "/v1/messages/count_tokens",
-        &bytes
+        Some(&body)
     ));
 }
 
@@ -58,6 +56,5 @@ fn warmup_request_rejects_missing_cache_control() {
             }
         ]
     });
-    let bytes = serde_json::to_vec(&body).unwrap();
-    assert!(!is_anthropic_warmup_request("/v1/messages", &bytes));
+    assert!(!is_anthropic_warmup_request("/v1/messages", Some(&body)));
 }

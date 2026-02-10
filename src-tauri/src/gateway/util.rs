@@ -2,6 +2,7 @@ use super::proxy::GatewayErrorCode;
 use axum::http::{header, HeaderMap, HeaderValue};
 use std::borrow::Cow;
 use std::collections::hash_map::DefaultHasher;
+use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 use std::io::Read;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -53,6 +54,26 @@ pub(super) fn extract_idempotency_key_hash(headers: &HeaderMap) -> Option<u64> {
     None
 }
 
+fn normalize_query_for_fingerprint(query: Option<&str>) -> Option<String> {
+    let raw = query.map(str::trim).filter(|v| !v.is_empty())?;
+    let mut pairs: Vec<&str> = raw.split('&').filter(|part| !part.is_empty()).collect();
+    if pairs.is_empty() {
+        return None;
+    }
+
+    let mut seen_keys: HashSet<&str> = HashSet::with_capacity(pairs.len());
+    let has_duplicate_keys = pairs.iter().any(|part| {
+        let key = part.split_once('=').map(|(k, _)| k).unwrap_or(part);
+        !seen_keys.insert(key)
+    });
+
+    if !has_duplicate_keys {
+        pairs.sort_unstable();
+    }
+
+    Some(pairs.join("&"))
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn compute_request_fingerprint(
     cli_key: &str,
@@ -66,14 +87,20 @@ pub(super) fn compute_request_fingerprint(
 ) -> (u64, String) {
     let body_len = body_bytes.len();
     let body_hash = hash_u64_of_bytes(body_bytes);
+    let normalized_query = normalize_query_for_fingerprint(query);
+    let session_for_fingerprint = if idempotency_key_hash.is_some() {
+        None
+    } else {
+        session_id
+    };
     let idem_hash = idempotency_key_hash
         .map(|v| format!("{v:016x}"))
         .unwrap_or_else(|| "-".to_string());
 
     let debug = format!(
         "v2|cli={cli_key}|method={method}|path={path}|query={}|session={}|model={}|idem_hash={idem_hash}|len={body_len}|body_hash={body_hash:016x}",
-        query.unwrap_or("-"),
-        session_id.unwrap_or("-"),
+        normalized_query.as_deref().unwrap_or("-"),
+        session_for_fingerprint.unwrap_or("-"),
         requested_model.unwrap_or("-"),
     );
 
@@ -431,5 +458,126 @@ pub(super) fn inject_provider_auth(cli_key: &str, api_key: &str, headers: &mut H
 pub(super) fn ensure_cli_required_headers(cli_key: &str, headers: &mut HeaderMap) {
     if cli_key == "claude" && !headers.contains_key("anthropic-version") {
         headers.insert("anthropic-version", HeaderValue::from_static("2023-06-01"));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{compute_request_fingerprint, normalize_query_for_fingerprint};
+
+    #[test]
+    fn normalize_query_sorts_unique_key_pairs() {
+        let normalized = normalize_query_for_fingerprint(Some("b=2&a=1&c=3"));
+        assert_eq!(normalized.as_deref(), Some("a=1&b=2&c=3"));
+    }
+
+    #[test]
+    fn normalize_query_keeps_order_when_duplicate_keys_exist() {
+        let normalized = normalize_query_for_fingerprint(Some("a=2&a=1&b=3"));
+        assert_eq!(normalized.as_deref(), Some("a=2&a=1&b=3"));
+    }
+
+    #[test]
+    fn fingerprint_ignores_query_pair_order_for_unique_keys() {
+        let (left, _) = compute_request_fingerprint(
+            "claude",
+            "POST",
+            "/v1/messages",
+            Some("model=a&stream=true"),
+            Some("session-1"),
+            Some("m1"),
+            None,
+            b"{}",
+        );
+        let (right, _) = compute_request_fingerprint(
+            "claude",
+            "POST",
+            "/v1/messages",
+            Some("stream=true&model=a"),
+            Some("session-1"),
+            Some("m1"),
+            None,
+            b"{}",
+        );
+
+        assert_eq!(left, right);
+    }
+
+    #[test]
+    fn fingerprint_preserves_duplicate_key_order() {
+        let (left, _) = compute_request_fingerprint(
+            "claude",
+            "POST",
+            "/v1/messages",
+            Some("tag=x&tag=y"),
+            Some("session-1"),
+            Some("m1"),
+            None,
+            b"{}",
+        );
+        let (right, _) = compute_request_fingerprint(
+            "claude",
+            "POST",
+            "/v1/messages",
+            Some("tag=y&tag=x"),
+            Some("session-1"),
+            Some("m1"),
+            None,
+            b"{}",
+        );
+
+        assert_ne!(left, right);
+    }
+
+    #[test]
+    fn fingerprint_ignores_session_id_when_idempotency_present() {
+        let (left, _) = compute_request_fingerprint(
+            "claude",
+            "POST",
+            "/v1/messages",
+            Some("model=a"),
+            Some("session-a"),
+            Some("m1"),
+            Some(0x1111),
+            b"{}",
+        );
+        let (right, _) = compute_request_fingerprint(
+            "claude",
+            "POST",
+            "/v1/messages",
+            Some("model=a"),
+            Some("session-b"),
+            Some("m1"),
+            Some(0x1111),
+            b"{}",
+        );
+
+        assert_eq!(left, right);
+    }
+
+    #[test]
+    fn fingerprint_keeps_session_id_when_idempotency_absent() {
+        let (left, _) = compute_request_fingerprint(
+            "claude",
+            "POST",
+            "/v1/messages",
+            Some("model=a"),
+            Some("session-a"),
+            Some("m1"),
+            None,
+            b"{}",
+        );
+        let (right, _) = compute_request_fingerprint(
+            "claude",
+            "POST",
+            "/v1/messages",
+            Some("model=a"),
+            Some("session-b"),
+            Some("m1"),
+            None,
+            b"{}",
+        );
+
+        assert_ne!(left, right);
     }
 }

@@ -6,6 +6,7 @@ use super::super::super::model_rewrite::{
 use super::context::{CommonCtx, ProviderCtx};
 use crate::gateway::util::RequestedModelLocation;
 use crate::providers;
+use crate::shared::mutex_ext::MutexExt;
 use axum::body::Bytes;
 
 pub(super) struct UpstreamRequestMut<'a> {
@@ -124,23 +125,22 @@ pub(super) fn apply_if_needed(
         ..
     } = provider_ctx;
 
-    if let Ok(mut settings) = ctx.special_settings.lock() {
-        settings.push(serde_json::json!({
-            "type": "claude_model_mapping",
-            "scope": "attempt",
-            "hit": true,
-            "applied": applied,
-            "providerId": provider_id,
-            "providerName": provider_name_base.clone(),
-            "requestedModel": requested_model,
-            "effectiveModel": effective_model,
-            "mappingKind": kind,
-            "hasThinking": has_thinking,
-            "location": match location {
-                RequestedModelLocation::BodyJson => "body",
-                RequestedModelLocation::Query => "query",
-                RequestedModelLocation::Path => "path",
-            },
-        }));
-    }
+    let mut settings = ctx.special_settings.lock_or_recover();
+    settings.push(serde_json::json!({
+        "type": "claude_model_mapping",
+        "scope": "attempt",
+        "hit": true,
+        "applied": applied,
+        "providerId": provider_id,
+        "providerName": provider_name_base.clone(),
+        "requestedModel": requested_model,
+        "effectiveModel": effective_model,
+        "mappingKind": kind,
+        "hasThinking": has_thinking,
+        "location": match location {
+            RequestedModelLocation::BodyJson => "body",
+            RequestedModelLocation::Query => "query",
+            RequestedModelLocation::Path => "path",
+        },
+    }));
 }

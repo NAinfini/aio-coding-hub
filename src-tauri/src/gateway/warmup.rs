@@ -1,11 +1,14 @@
 use serde_json::json;
 
-pub(super) fn is_anthropic_warmup_request(forwarded_path: &str, body_bytes: &[u8]) -> bool {
+pub(super) fn is_anthropic_warmup_request(
+    forwarded_path: &str,
+    root: Option<&serde_json::Value>,
+) -> bool {
     if forwarded_path != "/v1/messages" {
         return false;
     }
 
-    let Ok(root) = serde_json::from_slice::<serde_json::Value>(body_bytes) else {
+    let Some(root) = root else {
         return false;
     };
 

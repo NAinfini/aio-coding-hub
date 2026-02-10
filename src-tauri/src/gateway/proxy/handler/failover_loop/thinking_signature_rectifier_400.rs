@@ -2,6 +2,7 @@
 
 use super::super::super::upstream_client_error_rules;
 use super::*;
+use crate::shared::mutex_ext::MutexExt;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn handle_thinking_signature_rectifier_400(
@@ -126,22 +127,21 @@ pub(super) async fn handle_thinking_signature_rectifier_400(
                     &mut message_value,
                 );
 
-                if let Ok(mut settings) = special_settings.lock() {
-                    settings.push(serde_json::json!({
-                        "type": "thinking_signature_rectifier",
-                        "scope": "request",
-                        "hit": rectified.applied,
-                        "providerId": provider_id,
-                        "providerName": provider_name_base.clone(),
-                        "trigger": trigger,
-                        "attemptNumber": retry_index,
-                        "retryAttemptNumber": retry_index + 1,
-                        "removedThinkingBlocks": rectified.removed_thinking_blocks,
-                        "removedRedactedThinkingBlocks": rectified.removed_redacted_thinking_blocks,
-                        "removedSignatureFields": rectified.removed_signature_fields,
-                        "removedTopLevelThinking": rectified.removed_top_level_thinking,
-                    }));
-                }
+                let mut settings = special_settings.lock_or_recover();
+                settings.push(serde_json::json!({
+                    "type": "thinking_signature_rectifier",
+                    "scope": "request",
+                    "hit": rectified.applied,
+                    "providerId": provider_id,
+                    "providerName": provider_name_base.clone(),
+                    "trigger": trigger,
+                    "attemptNumber": retry_index,
+                    "retryAttemptNumber": retry_index + 1,
+                    "removedThinkingBlocks": rectified.removed_thinking_blocks,
+                    "removedRedactedThinkingBlocks": rectified.removed_redacted_thinking_blocks,
+                    "removedSignatureFields": rectified.removed_signature_fields,
+                    "removedTopLevelThinking": rectified.removed_top_level_thinking,
+                }));
 
                 if rectified.applied {
                     if let Ok(next) = serde_json::to_vec(&message_value) {
@@ -267,9 +267,8 @@ pub(super) async fn handle_thinking_signature_rectifier_400(
                         HeaderValue::from_static(outcome.header_value),
                     );
                     if let Some(setting) = outcome.special_setting {
-                        if let Ok(mut settings) = special_settings.lock() {
-                            settings.push(setting);
-                        }
+                        let mut settings = special_settings.lock_or_recover();
+                        settings.push(setting);
                     }
                     body_to_return = outcome.body;
                 }

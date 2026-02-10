@@ -9,6 +9,7 @@ use crate::gateway::events::FailoverAttempt;
 use crate::gateway::manager::GatewayAppState;
 use crate::gateway::response_fixer;
 use crate::gateway::util::now_unix_seconds;
+use crate::shared::mutex_ext::MutexExt;
 use axum::http::StatusCode;
 use axum::response::Response;
 use std::sync::{Arc, Mutex};
@@ -110,34 +111,33 @@ pub(super) async fn all_providers_unavailable(input: AllUnavailableInput<'_>) ->
     .await;
 
     if let Some(retry_after_seconds) = retry_after_seconds.filter(|v| *v > 0) {
-        if let Ok(mut cache) = state.recent_errors.lock() {
-            cache.insert_error(
-                now_unix,
-                unavailable_fingerprint_key,
-                CachedGatewayError {
-                    trace_id: trace_id.clone(),
-                    status: StatusCode::SERVICE_UNAVAILABLE,
-                    error_code: GatewayErrorCode::AllProvidersUnavailable.as_str(),
-                    message: message.clone(),
-                    retry_after_seconds: Some(retry_after_seconds),
-                    expires_at_unix: now_unix.saturating_add(retry_after_seconds as i64),
-                    fingerprint_debug: unavailable_fingerprint_debug.clone(),
-                },
-            );
-            cache.insert_error(
-                now_unix,
-                fingerprint_key,
-                CachedGatewayError {
-                    trace_id: trace_id.clone(),
-                    status: StatusCode::SERVICE_UNAVAILABLE,
-                    error_code: GatewayErrorCode::AllProvidersUnavailable.as_str(),
-                    message,
-                    retry_after_seconds: Some(retry_after_seconds),
-                    expires_at_unix: now_unix.saturating_add(retry_after_seconds as i64),
-                    fingerprint_debug: fingerprint_debug.clone(),
-                },
-            );
-        }
+        let mut cache = state.recent_errors.lock_or_recover();
+        cache.insert_error(
+            now_unix,
+            unavailable_fingerprint_key,
+            CachedGatewayError {
+                trace_id: trace_id.clone(),
+                status: StatusCode::SERVICE_UNAVAILABLE,
+                error_code: GatewayErrorCode::AllProvidersUnavailable.as_str(),
+                message: message.clone(),
+                retry_after_seconds: Some(retry_after_seconds),
+                expires_at_unix: now_unix.saturating_add(retry_after_seconds as i64),
+                fingerprint_debug: unavailable_fingerprint_debug.clone(),
+            },
+        );
+        cache.insert_error(
+            now_unix,
+            fingerprint_key,
+            CachedGatewayError {
+                trace_id: trace_id.clone(),
+                status: StatusCode::SERVICE_UNAVAILABLE,
+                error_code: GatewayErrorCode::AllProvidersUnavailable.as_str(),
+                message,
+                retry_after_seconds: Some(retry_after_seconds),
+                expires_at_unix: now_unix.saturating_add(retry_after_seconds as i64),
+                fingerprint_debug: fingerprint_debug.clone(),
+            },
+        );
     }
 
     abort_guard.disarm();

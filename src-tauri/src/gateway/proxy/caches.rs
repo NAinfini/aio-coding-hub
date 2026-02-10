@@ -84,10 +84,6 @@ impl RecentErrorCache {
         self.errors.insert(fingerprint_key, entry);
     }
 
-    pub(super) fn remove_error(&mut self, fingerprint_key: u64) {
-        self.errors.remove(&fingerprint_key);
-    }
-
     pub(super) fn get_trace_id(
         &mut self,
         now_unix: i64,
@@ -194,5 +190,70 @@ impl ProviderBaseUrlPingCache {
                 expires_at_unix_ms,
             },
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CachedGatewayError, RecentErrorCache};
+    use axum::http::StatusCode;
+
+    fn cached_error(expires_at_unix: i64, fingerprint_debug: &str) -> CachedGatewayError {
+        CachedGatewayError {
+            trace_id: "trace_1".to_string(),
+            status: StatusCode::SERVICE_UNAVAILABLE,
+            error_code: "GW_ALL_PROVIDERS_UNAVAILABLE",
+            message: "cached unavailable".to_string(),
+            retry_after_seconds: Some(30),
+            expires_at_unix,
+            fingerprint_debug: fingerprint_debug.to_string(),
+        }
+    }
+
+    #[test]
+    fn get_error_returns_remaining_retry_after_seconds() {
+        let mut cache = RecentErrorCache::default();
+        cache.insert_error(100, 10, cached_error(130, "fp-a"));
+
+        let got = cache
+            .get_error(110, 10, "fp-a")
+            .expect("cached error should exist");
+
+        assert_eq!(got.retry_after_seconds, Some(20));
+        assert_eq!(got.trace_id, "trace_1");
+        assert_eq!(got.error_code, "GW_ALL_PROVIDERS_UNAVAILABLE");
+    }
+
+    #[test]
+    fn get_error_returns_none_after_expiration() {
+        let mut cache = RecentErrorCache::default();
+        cache.insert_error(100, 11, cached_error(130, "fp-b"));
+
+        let got = cache.get_error(130, 11, "fp-b");
+        assert!(got.is_none());
+    }
+
+    #[test]
+    fn get_error_mismatched_debug_removes_stale_entry() {
+        let mut cache = RecentErrorCache::default();
+        cache.insert_error(100, 12, cached_error(140, "fp-correct"));
+
+        let mismatch = cache.get_error(110, 12, "fp-other");
+        assert!(mismatch.is_none());
+
+        let second_read = cache.get_error(110, 12, "fp-correct");
+        assert!(second_read.is_none());
+    }
+
+    #[test]
+    fn upsert_trace_id_uses_minimum_ttl_of_one_second() {
+        let mut cache = RecentErrorCache::default();
+        cache.upsert_trace_id(200, 99, "trace-x".to_string(), "fp-x".to_string(), 0);
+
+        assert_eq!(
+            cache.get_trace_id(200, 99, "fp-x"),
+            Some("trace-x".to_string())
+        );
+        assert_eq!(cache.get_trace_id(201, 99, "fp-x"), None);
     }
 }

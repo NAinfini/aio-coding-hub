@@ -28,6 +28,7 @@ use crate::gateway::events::FailoverAttempt;
 use crate::gateway::response_fixer;
 use crate::gateway::streams::GunzipStream;
 use crate::gateway::util::{now_unix_seconds, strip_hop_headers};
+use crate::shared::mutex_ext::MutexExt;
 use axum::body::{Body, Bytes};
 use axum::http::{header, HeaderValue};
 
@@ -363,9 +364,8 @@ pub(super) async fn handle_non_success_response(
                         HeaderValue::from_static(outcome.header_value),
                     );
                     if let Some(setting) = outcome.special_setting {
-                        if let Ok(mut settings) = special_settings.lock() {
-                            settings.push(setting);
-                        }
+                        let mut settings = special_settings.lock_or_recover();
+                        settings.push(setting);
                     }
                     body_bytes = outcome.body;
                 }

@@ -2,6 +2,7 @@
 
 use super::super::super::{provider_router, GatewayErrorCode};
 use super::*;
+use crate::shared::mutex_ext::MutexExt;
 
 pub(super) async fn handle_success_non_stream(
     ctx: CommonCtx<'_>,
@@ -337,9 +338,8 @@ pub(super) async fn handle_success_non_stream(
             HeaderValue::from_static(outcome.header_value),
         );
         if let Some(setting) = outcome.special_setting {
-            if let Ok(mut settings) = common.special_settings.lock() {
-                settings.push(setting);
-            }
+            let mut settings = common.special_settings.lock_or_recover();
+            settings.push(setting);
         }
         body_bytes = outcome.body;
     }

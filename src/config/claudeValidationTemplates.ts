@@ -162,7 +162,7 @@ Claude Code 是 Anthropic 官方的 CLI 工具，提供以下核心能力：
   {
     key: "official_effort_opus45",
     label: "官方渠道（Opus 4.5 effort 探针）",
-    hint: "仅 Opus 4.5 支持 output_config.effort；非 Opus 自动跳过",
+    hint: "仅 Opus 4.5+ 支持 output_config.effort；非 Opus 4.x 自动跳过",
     channelLabel: "官方渠道",
     summary: "验证 effort 能力（Opus 4.5 only）",
     request: {
@@ -173,7 +173,7 @@ Claude Code 是 Anthropic 官方的 CLI 工具，提供以下核心能力：
       },
       expect: {},
       constraints: {
-        onlyModelIncludes: ["opus-4-5"],
+        onlyModelIncludes: ["opus-4"],
       },
       body: {
         max_tokens: 256,

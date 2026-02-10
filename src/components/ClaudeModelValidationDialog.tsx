@@ -118,11 +118,24 @@ function getHistoryGroupKey(run: { id: number; request_json: string }): string {
   return `run:${run.id}`;
 }
 
+/**
+ * 判断模型名是否属于 Claude 4+ 系列。
+ * 匹配规则：模型名（小写）包含以下任一片段即视为 Claude 4+：
+ *   opus-4, sonnet-4, haiku-4
+ * 这样可以覆盖 claude-opus-4-5-20250929、claude-sonnet-4-20250514 等所有 4.x 变体。
+ */
+function isClaude4Plus(model: string): boolean {
+  const m = model.toLowerCase();
+  return /(?:opus|sonnet|haiku)-4(?:\b|[-_.])/.test(m);
+}
+
 function sortClaudeModelsFromPrices(rows: ModelPriceSummary[]) {
   const unique = new Set<string>();
   for (const row of rows) {
     const model = row.model.trim();
     if (!model) continue;
+    // 仅保留 Claude 4+ 模型
+    if (!isClaude4Plus(model)) continue;
     unique.add(model);
   }
 

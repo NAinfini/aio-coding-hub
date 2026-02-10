@@ -1,18 +1,7 @@
 mod support;
 
 use serde_json::Value;
-
-fn json_bool(value: &Value, key: &str) -> bool {
-    value.get(key).and_then(|v| v.as_bool()).unwrap_or(false)
-}
-
-fn json_str(value: &Value, key: &str) -> String {
-    value
-        .get(key)
-        .and_then(|v| v.as_str())
-        .unwrap_or_default()
-        .to_string()
-}
+use support::{json_bool, json_str};
 
 fn read_text(path: &std::path::Path) -> String {
     std::fs::read_to_string(path).expect("read text")

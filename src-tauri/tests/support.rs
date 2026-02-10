@@ -98,3 +98,41 @@ impl Default for TestApp {
         Self::new()
     }
 }
+
+// ---------------------------------------------------------------------------
+// Shared JSON assertion helpers (previously duplicated across test files)
+// ---------------------------------------------------------------------------
+
+#[allow(dead_code)]
+pub fn json_str(value: &serde_json::Value, key: &str) -> String {
+    value
+        .get(key)
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string()
+}
+
+#[allow(dead_code)]
+pub fn json_i64(value: &serde_json::Value, key: &str) -> i64 {
+    value.get(key).and_then(|v| v.as_i64()).unwrap_or_default()
+}
+
+#[allow(dead_code)]
+pub fn json_bool(value: &serde_json::Value, key: &str) -> bool {
+    value.get(key).and_then(|v| v.as_bool()).unwrap_or(false)
+}
+
+#[allow(dead_code)]
+pub fn json_f64(value: &serde_json::Value, key: &str) -> Option<f64> {
+    value.get(key).and_then(|v| v.as_f64())
+}
+
+#[allow(dead_code)]
+pub fn json_u64(value: &serde_json::Value, key: &str) -> u64 {
+    value.get(key).and_then(|v| v.as_u64()).unwrap_or_default()
+}
+
+#[allow(dead_code)]
+pub fn json_array(value: serde_json::Value) -> Vec<serde_json::Value> {
+    value.as_array().cloned().unwrap_or_default()
+}

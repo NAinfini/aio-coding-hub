@@ -279,3 +279,181 @@ pub fn cli_manager_claude_settings_set_json<R: tauri::Runtime>(
     let state = crate::infra::claude_settings::claude_settings_set(app, patch)?;
     serialize_json(state)
 }
+
+// ---------------------------------------------------------------------------
+// Settings
+// ---------------------------------------------------------------------------
+
+/// Read application settings and return as JSON Value.
+///
+/// Because `settings::read` is not generic over `R: tauri::Runtime`, this bridge
+/// reads the settings JSON file directly using the generic `app_data_dir` helper.
+pub fn settings_get_json<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> crate::shared::error::AppResult<serde_json::Value> {
+    let settings_path = crate::infra::app_paths::app_data_dir(app)?.join("settings.json");
+    let settings: crate::settings::AppSettings = if settings_path.exists() {
+        let content = std::fs::read_to_string(&settings_path)
+            .map_err(|e| format!("failed to read settings: {e}"))?;
+        serde_json::from_str(&content).map_err(|e| format!("failed to parse settings: {e}"))?
+    } else {
+        let defaults = crate::settings::AppSettings::default();
+        let content = serde_json::to_vec_pretty(&defaults)
+            .map_err(|e| format!("failed to serialize default settings: {e}"))?;
+        std::fs::write(&settings_path, &content)
+            .map_err(|e| format!("failed to write default settings: {e}"))?;
+        defaults
+    };
+    serialize_json(settings)
+}
+
+/// Update application settings from a JSON Value and return the persisted result.
+///
+/// The `update` Value is deserialized as a full `AppSettings` struct and written to disk.
+pub fn settings_set_json<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    update: serde_json::Value,
+) -> crate::shared::error::AppResult<serde_json::Value> {
+    let settings: crate::settings::AppSettings = serde_json::from_value(update)
+        .map_err(|e| format!("SEC_INVALID_INPUT: invalid settings json: {e}"))?;
+    let settings_path = crate::infra::app_paths::app_data_dir(app)?.join("settings.json");
+    let content = serde_json::to_vec_pretty(&settings)
+        .map_err(|e| format!("failed to serialize settings: {e}"))?;
+    std::fs::write(&settings_path, content)
+        .map_err(|e| format!("failed to write settings: {e}"))?;
+    serialize_json(settings)
+}
+
+// ---------------------------------------------------------------------------
+// Workspaces
+// ---------------------------------------------------------------------------
+
+pub fn workspaces_list_json<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    cli_key: &str,
+) -> crate::shared::error::AppResult<serde_json::Value> {
+    let db = crate::infra::db::init(app)?;
+    let result = crate::workspaces::list_by_cli(&db, cli_key)?;
+    serialize_json(result)
+}
+
+pub fn workspace_create_json<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    cli_key: &str,
+    name: &str,
+    clone_from_active: bool,
+) -> crate::shared::error::AppResult<serde_json::Value> {
+    let db = crate::infra::db::init(app)?;
+    let workspace = crate::workspaces::create(&db, cli_key, name, clone_from_active)?;
+    serialize_json(workspace)
+}
+
+pub fn workspace_rename_json<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    workspace_id: i64,
+    name: &str,
+) -> crate::shared::error::AppResult<serde_json::Value> {
+    let db = crate::infra::db::init(app)?;
+    let workspace = crate::workspaces::rename(&db, workspace_id, name)?;
+    serialize_json(workspace)
+}
+
+pub fn workspace_delete<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    workspace_id: i64,
+) -> crate::shared::error::AppResult<bool> {
+    let db = crate::infra::db::init(app)?;
+    crate::workspaces::delete(&db, workspace_id)
+}
+
+// ---------------------------------------------------------------------------
+// Sort Modes
+// ---------------------------------------------------------------------------
+
+pub fn sort_modes_list_json<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> crate::shared::error::AppResult<serde_json::Value> {
+    let db = crate::infra::db::init(app)?;
+    let modes = crate::sort_modes::list_modes(&db)?;
+    serialize_json(modes)
+}
+
+pub fn sort_mode_create_json<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    name: &str,
+) -> crate::shared::error::AppResult<serde_json::Value> {
+    let db = crate::infra::db::init(app)?;
+    let mode = crate::sort_modes::create_mode(&db, name)?;
+    serialize_json(mode)
+}
+
+pub fn sort_mode_rename_json<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    mode_id: i64,
+    name: &str,
+) -> crate::shared::error::AppResult<serde_json::Value> {
+    let db = crate::infra::db::init(app)?;
+    let mode = crate::sort_modes::rename_mode(&db, mode_id, name)?;
+    serialize_json(mode)
+}
+
+pub fn sort_mode_delete<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    mode_id: i64,
+) -> crate::shared::error::AppResult<bool> {
+    let db = crate::infra::db::init(app)?;
+    crate::sort_modes::delete_mode(&db, mode_id)?;
+    Ok(true)
+}
+
+pub fn sort_mode_active_set_json<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    cli_key: &str,
+    mode_id: Option<i64>,
+) -> crate::shared::error::AppResult<serde_json::Value> {
+    let db = crate::infra::db::init(app)?;
+    let row = crate::sort_modes::set_active(&db, cli_key, mode_id)?;
+    serialize_json(row)
+}
+
+// ---------------------------------------------------------------------------
+// Data Management
+// ---------------------------------------------------------------------------
+
+pub fn db_disk_usage_json<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> crate::shared::error::AppResult<serde_json::Value> {
+    let db_path = crate::infra::db::db_path(app)?;
+    let wal_path = {
+        let mut out = db_path.clone().into_os_string();
+        out.push("-wal");
+        std::path::PathBuf::from(out)
+    };
+    let shm_path = {
+        let mut out = db_path.clone().into_os_string();
+        out.push("-shm");
+        std::path::PathBuf::from(out)
+    };
+
+    let file_len =
+        |p: &std::path::Path| -> u64 { std::fs::metadata(p).map(|m| m.len()).unwrap_or(0) };
+
+    let db_bytes = file_len(&db_path);
+    let wal_bytes = file_len(&wal_path);
+    let shm_bytes = file_len(&shm_path);
+
+    serialize_json(serde_json::json!({
+        "db_bytes": db_bytes,
+        "wal_bytes": wal_bytes,
+        "shm_bytes": shm_bytes,
+        "total_bytes": db_bytes + wal_bytes + shm_bytes,
+    }))
+}
+
+pub fn request_logs_clear_all_json<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> crate::shared::error::AppResult<serde_json::Value> {
+    let db = crate::infra::db::init(app)?;
+    let result = crate::data_management::request_logs_clear_all(&db)?;
+    serialize_json(result)
+}

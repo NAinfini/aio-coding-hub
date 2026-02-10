@@ -1,30 +1,6 @@
 mod support;
 
-use serde_json::Value;
-
-fn json_array(value: Value) -> Vec<Value> {
-    value.as_array().cloned().unwrap_or_default()
-}
-
-fn json_i64(value: &Value, key: &str) -> i64 {
-    value.get(key).and_then(|v| v.as_i64()).unwrap_or_default()
-}
-
-fn json_str(value: &Value, key: &str) -> String {
-    value
-        .get(key)
-        .and_then(|v| v.as_str())
-        .unwrap_or_default()
-        .to_string()
-}
-
-fn json_bool(value: &Value, key: &str) -> bool {
-    value.get(key).and_then(|v| v.as_bool()).unwrap_or(false)
-}
-
-fn json_f64(value: &Value, key: &str) -> Option<f64> {
-    value.get(key).and_then(|v| v.as_f64())
-}
+use support::{json_array, json_bool, json_f64, json_i64, json_str};
 
 #[test]
 fn providers_crud_roundtrip() {

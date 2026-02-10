@@ -9,12 +9,16 @@ use super::request_end::{
 };
 use super::{
     cli_proxy_guard::cli_proxy_enabled_cached, errors::error_response,
-    failover::should_reuse_provider, is_claude_count_tokens_request,
+    is_claude_count_tokens_request,
 };
 use super::{ErrorCategory, GatewayErrorCode};
+use provider_selection::{
+    resolve_session_bound_provider_id, resolve_session_routing_decision,
+    select_providers_with_session_binding, ProviderSelection, SessionRoutingDecision,
+};
 
 use crate::shared::mutex_ext::MutexExt;
-use crate::{providers, session_manager, settings, usage};
+use crate::{settings, usage};
 use axum::{
     body::{to_bytes, Body, Bytes},
     http::{header, HeaderValue, Request, StatusCode},
@@ -36,6 +40,7 @@ use super::super::warmup;
 use request_fingerprint::{apply_recent_error_cache_gate, build_request_fingerprints};
 
 mod provider_order;
+mod provider_selection;
 mod request_fingerprint;
 
 const DEFAULT_FAILOVER_MAX_ATTEMPTS_PER_PROVIDER: u32 = 5;
@@ -391,102 +396,6 @@ fn handler_runtime_settings(
     }
 }
 
-struct ProviderSelection {
-    effective_sort_mode_id: Option<i64>,
-    providers: Vec<providers::ProviderForGateway>,
-    bound_provider_order: Option<Vec<i64>>,
-}
-
-fn select_providers_with_session_binding(
-    state: &GatewayAppState,
-    cli_key: &str,
-    session_id: Option<&str>,
-    created_at: i64,
-) -> crate::shared::error::AppResult<ProviderSelection> {
-    let bound_sort_mode_id = session_id.and_then(|sid| {
-        state
-            .session
-            .get_bound_sort_mode_id(cli_key, sid, created_at)
-    });
-
-    let (effective_sort_mode_id, mut providers) = match bound_sort_mode_id {
-        Some(sort_mode_id) => {
-            let providers =
-                providers::list_enabled_for_gateway_in_mode(&state.db, cli_key, sort_mode_id)?;
-            (sort_mode_id, providers)
-        }
-        None => {
-            let selection =
-                providers::list_enabled_for_gateway_using_active_mode(&state.db, cli_key)?;
-            (selection.sort_mode_id, selection.providers)
-        }
-    };
-
-    let mut bound_provider_order: Option<Vec<i64>> = None;
-    if let Some(sid) = session_id {
-        let provider_order: Vec<i64> = providers.iter().map(|p| p.id).collect();
-        state.session.bind_sort_mode(
-            cli_key,
-            sid,
-            effective_sort_mode_id,
-            Some(provider_order),
-            created_at,
-        );
-
-        bound_provider_order = state
-            .session
-            .get_bound_provider_order(cli_key, sid, created_at);
-
-        if let Some(order) = bound_provider_order.as_deref() {
-            provider_order::reorder_providers_by_bound_order(&mut providers, order);
-        }
-    }
-
-    Ok(ProviderSelection {
-        effective_sort_mode_id,
-        providers,
-        bound_provider_order,
-    })
-}
-
-fn apply_session_reuse_provider_binding(
-    allow_session_reuse: bool,
-    providers: &mut Vec<providers::ProviderForGateway>,
-    bound_provider_id: Option<i64>,
-    bound_provider_order: Option<&[i64]>,
-) -> Option<i64> {
-    if !allow_session_reuse {
-        return None;
-    }
-    let bound_provider_id = bound_provider_id?;
-
-    provider_order::apply_session_provider_preference(
-        providers,
-        bound_provider_id,
-        bound_provider_order,
-    )
-}
-
-fn resolve_session_bound_provider_id(
-    state: &GatewayAppState,
-    cli_key: &str,
-    session_id: Option<&str>,
-    created_at: i64,
-    allow_session_reuse: bool,
-    providers: &mut Vec<providers::ProviderForGateway>,
-    bound_provider_order: Option<&[i64]>,
-) -> Option<i64> {
-    let bound_provider_id =
-        session_id.and_then(|sid| state.session.get_bound_provider(cli_key, sid, created_at));
-
-    apply_session_reuse_provider_binding(
-        allow_session_reuse,
-        providers,
-        bound_provider_id,
-        bound_provider_order,
-    )
-}
-
 struct WarmupInterceptCtx<'a> {
     state: &'a GatewayAppState,
     trace_id: &'a str,
@@ -657,11 +566,6 @@ fn complete_codex_session_ids_if_needed(
     );
 }
 
-struct SessionRoutingDecision {
-    session_id: Option<String>,
-    allow_session_reuse: bool,
-}
-
 struct RuntimeWarmupDecision {
     runtime_settings: HandlerRuntimeSettings,
     is_warmup_request: bool,
@@ -699,32 +603,6 @@ fn resolve_runtime_warmup_decision(
     RuntimeWarmupDecision {
         runtime_settings,
         is_warmup_request,
-    }
-}
-
-fn resolve_session_routing_decision(
-    headers: &axum::http::HeaderMap,
-    introspection_json: Option<&serde_json::Value>,
-    is_claude_count_tokens: bool,
-) -> SessionRoutingDecision {
-    let extracted_session_id =
-        session_manager::SessionManager::extract_session_id_from_json(headers, introspection_json);
-
-    let session_id = if is_claude_count_tokens {
-        None
-    } else {
-        extracted_session_id
-    };
-
-    let allow_session_reuse = if is_claude_count_tokens {
-        false
-    } else {
-        should_reuse_provider(introspection_json)
-    };
-
-    SessionRoutingDecision {
-        session_id,
-        allow_session_reuse,
     }
 }
 
@@ -1032,9 +910,9 @@ pub(in crate::gateway) async fn proxy_impl(
 #[cfg(test)]
 mod tests {
     use super::{
-        apply_session_reuse_provider_binding, body_too_large_message, build_request_fingerprints,
-        cli_proxy_disabled_message, cli_proxy_guard_special_settings_json, early_error_contract,
-        handler_runtime_settings, no_enabled_provider_message, resolve_session_routing_decision,
+        body_too_large_message, build_request_fingerprints, cli_proxy_disabled_message,
+        cli_proxy_guard_special_settings_json, early_error_contract, handler_runtime_settings,
+        no_enabled_provider_message, resolve_session_routing_decision,
         should_intercept_warmup_request, warmup_intercept_special_settings_json,
         warmup_log_usage_metrics, EarlyErrorKind,
     };
@@ -1200,7 +1078,7 @@ mod tests {
     fn apply_session_reuse_binding_noop_when_reuse_disabled() {
         let mut providers = vec![provider(11), provider(22), provider(33)];
 
-        let selected = apply_session_reuse_provider_binding(
+        let selected = super::provider_selection::apply_session_reuse_provider_binding(
             false,
             &mut providers,
             Some(22),
@@ -1215,7 +1093,7 @@ mod tests {
     fn apply_session_reuse_binding_promotes_bound_provider_when_allowed() {
         let mut providers = vec![provider(11), provider(22), provider(33)];
 
-        let selected = apply_session_reuse_provider_binding(
+        let selected = super::provider_selection::apply_session_reuse_provider_binding(
             true,
             &mut providers,
             Some(22),
@@ -1230,7 +1108,7 @@ mod tests {
     fn apply_session_reuse_binding_rotates_to_next_when_bound_missing() {
         let mut providers = vec![provider(10), provider(20), provider(30)];
 
-        let selected = apply_session_reuse_provider_binding(
+        let selected = super::provider_selection::apply_session_reuse_provider_binding(
             true,
             &mut providers,
             Some(99),

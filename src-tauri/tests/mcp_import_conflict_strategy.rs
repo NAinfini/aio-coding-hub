@@ -1,22 +1,7 @@
 mod support;
 
 use serde_json::Value;
-
-fn json_array(value: Value) -> Vec<Value> {
-    value.as_array().cloned().unwrap_or_default()
-}
-
-fn json_str(value: &Value, key: &str) -> String {
-    value
-        .get(key)
-        .and_then(|v| v.as_str())
-        .unwrap_or_default()
-        .to_string()
-}
-
-fn json_bool(value: &Value, key: &str) -> bool {
-    value.get(key).and_then(|v| v.as_bool()).unwrap_or(false)
-}
+use support::{json_array, json_bool, json_str};
 
 fn json_u32(value: &Value, key: &str) -> u32 {
     value.get(key).and_then(|v| v.as_u64()).unwrap_or_default() as u32

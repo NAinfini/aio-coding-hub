@@ -33,6 +33,7 @@ export type AppSettings = {
   intercept_anthropic_warmup_requests: boolean;
   enable_thinking_signature_rectifier: boolean;
   enable_codex_session_id_completion: boolean;
+  enable_cache_anomaly_monitor: boolean;
   enable_response_fixer: boolean;
   response_fixer_fix_encoding: boolean;
   response_fixer_fix_sse_format: boolean;
@@ -56,6 +57,7 @@ export type SettingsSetInput = {
   upstreamRequestTimeoutNonStreamingSeconds?: number;
   interceptAnthropicWarmupRequests?: boolean;
   enableThinkingSignatureRectifier?: boolean;
+  enableCacheAnomalyMonitor?: boolean;
   enableResponseFixer?: boolean;
   responseFixerFixEncoding?: boolean;
   responseFixerFixSseFormat?: boolean;

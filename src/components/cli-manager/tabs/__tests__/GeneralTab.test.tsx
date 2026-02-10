@@ -3,10 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import type { ReactElement } from "react";
 import { toast } from "sonner";
-import {
-  setCacheAnomalyMonitorEnabled,
-  useCacheAnomalyMonitorEnabled,
-} from "../../../../services/cacheAnomalyMonitor";
+import { CACHE_ANOMALY_MONITOR_GUIDE_COPY } from "../../../../services/cacheAnomalyMonitorConfig";
 import type { AppSettings } from "../../../../services/settings";
 import type { GatewayRectifierSettingsPatch } from "../../../../services/settingsGatewayRectifier";
 import { CliManagerGeneralTab } from "../GeneralTab";
@@ -23,17 +20,6 @@ vi.mock("../../WslSettingsCard", () => ({ WslSettingsCard: () => <div>wsl-card</
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
   return { ...actual, useNavigate: () => navigateMock };
-});
-
-vi.mock("../../../../services/cacheAnomalyMonitor", async () => {
-  const actual = await vi.importActual<typeof import("../../../../services/cacheAnomalyMonitor")>(
-    "../../../../services/cacheAnomalyMonitor"
-  );
-  return {
-    ...actual,
-    useCacheAnomalyMonitorEnabled: vi.fn(),
-    setCacheAnomalyMonitorEnabled: vi.fn(),
-  };
 });
 
 function renderTab(element: ReactElement) {
@@ -66,6 +52,7 @@ function createAppSettings(): AppSettings {
     intercept_anthropic_warmup_requests: false,
     enable_thinking_signature_rectifier: true,
     enable_codex_session_id_completion: true,
+    enable_cache_anomaly_monitor: false,
     enable_response_fixer: true,
     response_fixer_fix_encoding: true,
     response_fixer_fix_sse_format: true,
@@ -90,8 +77,6 @@ function createRectifierPatch(): GatewayRectifierSettingsPatch {
 
 describe("cli-manager/GeneralTab", () => {
   it("renders unavailable state", () => {
-    vi.mocked(useCacheAnomalyMonitorEnabled).mockReturnValue(false);
-
     renderTab(
       <CliManagerGeneralTab
         rectifierAvailable="unavailable"
@@ -104,6 +89,9 @@ describe("cli-manager/GeneralTab", () => {
         codexSessionIdCompletionEnabled={true}
         codexSessionIdCompletionSaving={false}
         onPersistCodexSessionIdCompletion={vi.fn()}
+        cacheAnomalyMonitorEnabled={false}
+        cacheAnomalyMonitorSaving={false}
+        onPersistCacheAnomalyMonitor={vi.fn()}
         appSettings={null}
         commonSettingsSaving={false}
         onPersistCommonSettings={vi.fn()}
@@ -130,13 +118,13 @@ describe("cli-manager/GeneralTab", () => {
   });
 
   it("wires switches, inputs and navigation actions when available", () => {
-    vi.mocked(useCacheAnomalyMonitorEnabled).mockReturnValue(false);
     navigateMock.mockClear();
 
     const rectifier = createRectifierPatch();
     const onPersistRectifier = vi.fn();
     const onPersistCircuitBreakerNotice = vi.fn();
     const onPersistCodexSessionIdCompletion = vi.fn();
+    const onPersistCacheAnomalyMonitor = vi.fn();
     const onPersistCommonSettings = vi.fn().mockResolvedValue(createAppSettings());
 
     const setUpstreamFirstByteTimeoutSeconds = vi.fn();
@@ -160,6 +148,9 @@ describe("cli-manager/GeneralTab", () => {
         codexSessionIdCompletionEnabled={true}
         codexSessionIdCompletionSaving={false}
         onPersistCodexSessionIdCompletion={onPersistCodexSessionIdCompletion}
+        cacheAnomalyMonitorEnabled={false}
+        cacheAnomalyMonitorSaving={false}
+        onPersistCacheAnomalyMonitor={onPersistCacheAnomalyMonitor}
         appSettings={createAppSettings()}
         commonSettingsSaving={false}
         onPersistCommonSettings={onPersistCommonSettings}
@@ -194,8 +185,11 @@ describe("cli-manager/GeneralTab", () => {
     expect(onPersistRectifier).toHaveBeenCalled();
     expect(onPersistCircuitBreakerNotice).toHaveBeenCalled();
     expect(onPersistCodexSessionIdCompletion).toHaveBeenCalled();
-    expect(setCacheAnomalyMonitorEnabled).toHaveBeenCalled();
-    expect(toast).toHaveBeenCalled();
+    expect(onPersistCacheAnomalyMonitor).toHaveBeenCalled();
+
+    // Copy is sourced from central config.
+    expect(screen.getByText(CACHE_ANOMALY_MONITOR_GUIDE_COPY.overview)).toBeInTheDocument();
+    expect(screen.getByText(CACHE_ANOMALY_MONITOR_GUIDE_COPY.thresholds)).toBeInTheDocument();
 
     // Inputs: change + blur should validate and persist (or toast on invalid)
     const inputs = screen.getAllByRole("spinbutton");

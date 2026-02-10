@@ -7,8 +7,10 @@ import { AppLayout } from "./layout/AppLayout";
 import { HomePage } from "./pages/HomePage";
 import { useGatewayQuerySync } from "./hooks/useGatewayQuerySync";
 import { logToConsole } from "./services/consoleLog";
+import { setCacheAnomalyMonitorEnabled } from "./services/cacheAnomalyMonitor";
 import { listenGatewayEvents } from "./services/gatewayEvents";
 import { listenNoticeEvents } from "./services/noticeEvents";
+import { settingsGet } from "./services/settings";
 import {
   startupSyncDefaultPromptsFromFilesOncePerSession,
   startupSyncModelPricesOnce,
@@ -121,6 +123,20 @@ export default function App() {
       cancelled = true;
       cleanup?.();
     };
+  }, []);
+
+  useEffect(() => {
+    settingsGet()
+      .then((settings) => {
+        if (!settings) return;
+        setCacheAnomalyMonitorEnabled(settings.enable_cache_anomaly_monitor ?? false);
+      })
+      .catch((error) => {
+        logToConsole("warn", "启动缓存异常监测开关同步失败", {
+          stage: "startupSyncCacheAnomalyMonitorSwitch",
+          error: String(error),
+        });
+      });
   }, []);
 
   useEffect(() => {

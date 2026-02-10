@@ -14,6 +14,10 @@ import { logToConsole } from "../services/consoleLog";
 import { type GatewayRectifierSettingsPatch } from "../services/settingsGatewayRectifier";
 import type { AppSettings } from "../services/settings";
 import {
+  setCacheAnomalyMonitorEnabled,
+  useCacheAnomalyMonitorEnabled,
+} from "../services/cacheAnomalyMonitor";
+import {
   useSettingsCircuitBreakerNoticeSetMutation,
   useSettingsCodexSessionIdCompletionSetMutation,
   useSettingsGatewayRectifierSetMutation,
@@ -101,6 +105,7 @@ export function CliManagerPage() {
   const [rectifier, setRectifier] = useState<GatewayRectifierSettingsPatch>(DEFAULT_RECTIFIER);
   const [circuitBreakerNoticeEnabled, setCircuitBreakerNoticeEnabled] = useState(false);
   const [codexSessionIdCompletionEnabled, setCodexSessionIdCompletionEnabled] = useState(true);
+  const cacheAnomalyMonitorEnabled = useCacheAnomalyMonitorEnabled();
   const [upstreamFirstByteTimeoutSeconds, setUpstreamFirstByteTimeoutSeconds] = useState<number>(0);
   const [upstreamStreamIdleTimeoutSeconds, setUpstreamStreamIdleTimeoutSeconds] =
     useState<number>(0);
@@ -170,6 +175,7 @@ export function CliManagerPage() {
     });
     setCircuitBreakerNoticeEnabled(appSettings.enable_circuit_breaker_notice ?? false);
     setCodexSessionIdCompletionEnabled(appSettings.enable_codex_session_id_completion ?? true);
+    setCacheAnomalyMonitorEnabled(appSettings.enable_cache_anomaly_monitor ?? false);
     setUpstreamFirstByteTimeoutSeconds(appSettings.upstream_first_byte_timeout_seconds);
     setUpstreamStreamIdleTimeoutSeconds(appSettings.upstream_stream_idle_timeout_seconds);
     setUpstreamRequestTimeoutNonStreamingSeconds(
@@ -259,6 +265,27 @@ export function CliManagerPage() {
     }
   }
 
+  async function persistCacheAnomalyMonitor(enable: boolean) {
+    if (commonSettingsSaving) return;
+    if (rectifierAvailable !== "available") return;
+
+    const prev = cacheAnomalyMonitorEnabled;
+    setCacheAnomalyMonitorEnabled(enable);
+    try {
+      const updated = await persistCommonSettings({ enable_cache_anomaly_monitor: enable });
+      if (!updated) {
+        setCacheAnomalyMonitorEnabled(prev);
+        return;
+      }
+
+      const next = updated.enable_cache_anomaly_monitor ?? enable;
+      setCacheAnomalyMonitorEnabled(next);
+      toast(next ? "已开启缓存异常监测（实验）" : "已关闭缓存异常监测（实验）");
+    } catch {
+      setCacheAnomalyMonitorEnabled(prev);
+    }
+  }
+
   async function persistCommonSettings(patch: Partial<AppSettings>): Promise<AppSettings | null> {
     if (commonSettingsSaving) return null;
     if (rectifierAvailable !== "available") return null;
@@ -281,6 +308,7 @@ export function CliManagerPage() {
         upstreamStreamIdleTimeoutSeconds: next.upstream_stream_idle_timeout_seconds,
         upstreamRequestTimeoutNonStreamingSeconds:
           next.upstream_request_timeout_non_streaming_seconds,
+        enableCacheAnomalyMonitor: next.enable_cache_anomaly_monitor,
         failoverMaxAttemptsPerProvider: next.failover_max_attempts_per_provider,
         failoverMaxProvidersToTry: next.failover_max_providers_to_try,
         circuitBreakerFailureThreshold: next.circuit_breaker_failure_threshold,
@@ -450,6 +478,9 @@ export function CliManagerPage() {
             codexSessionIdCompletionEnabled={codexSessionIdCompletionEnabled}
             codexSessionIdCompletionSaving={codexSessionIdCompletionSaving}
             onPersistCodexSessionIdCompletion={persistCodexSessionIdCompletion}
+            cacheAnomalyMonitorEnabled={cacheAnomalyMonitorEnabled}
+            cacheAnomalyMonitorSaving={commonSettingsSaving}
+            onPersistCacheAnomalyMonitor={persistCacheAnomalyMonitor}
             appSettings={appSettings}
             commonSettingsSaving={commonSettingsSaving}
             onPersistCommonSettings={persistCommonSettings}

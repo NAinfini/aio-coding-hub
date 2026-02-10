@@ -25,8 +25,18 @@ vi.mock("../services/noticeEvents", () => ({
   listenNoticeEvents: vi.fn().mockResolvedValue(() => {}),
 }));
 
+vi.mock("../services/settings", async () => {
+  const actual =
+    await vi.importActual<typeof import("../services/settings")>("../services/settings");
+  return {
+    ...actual,
+    settingsGet: vi.fn().mockResolvedValue(null),
+  };
+});
+
 import { listenGatewayEvents } from "../services/gatewayEvents";
 import { listenNoticeEvents } from "../services/noticeEvents";
+import { settingsGet } from "../services/settings";
 
 const DEFAULT_HASH = "#/";
 
@@ -50,6 +60,7 @@ describe("App (smoke)", () => {
     mockLogToConsole.mockReset();
     vi.mocked(listenGatewayEvents).mockResolvedValue(() => {});
     vi.mocked(listenNoticeEvents).mockResolvedValue(() => {});
+    vi.mocked(settingsGet).mockResolvedValue(null);
   });
 
   afterEach(() => {

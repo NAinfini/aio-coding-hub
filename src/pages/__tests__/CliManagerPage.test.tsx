@@ -37,6 +37,7 @@ vi.mock("../../components/cli-manager/tabs/GeneralTab", () => ({
     onPersistRectifier,
     onPersistCircuitBreakerNotice,
     onPersistCodexSessionIdCompletion,
+    onPersistCacheAnomalyMonitor,
     onPersistCommonSettings,
     blurOnEnter,
   }: any) => (
@@ -56,6 +57,12 @@ vi.mock("../../components/cli-manager/tabs/GeneralTab", () => ({
       </button>
       <button type="button" onClick={() => onPersistCodexSessionIdCompletion(true)}>
         enable-codex-completion
+      </button>
+      <button type="button" onClick={() => onPersistCacheAnomalyMonitor(true)}>
+        enable-cache-monitor
+      </button>
+      <button type="button" onClick={() => onPersistCacheAnomalyMonitor(false)}>
+        disable-cache-monitor
       </button>
       <button
         type="button"
@@ -166,6 +173,7 @@ function createAppSettings(overrides: Partial<any> = {}) {
     intercept_anthropic_warmup_requests: false,
     enable_thinking_signature_rectifier: true,
     enable_response_fixer: true,
+    enable_cache_anomaly_monitor: false,
     response_fixer_fix_encoding: true,
     response_fixer_fix_sse_format: true,
     response_fixer_fix_truncated_json: true,

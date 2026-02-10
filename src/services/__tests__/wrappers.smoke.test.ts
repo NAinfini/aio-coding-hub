@@ -219,6 +219,7 @@ describe("services wrappers (smoke)", () => {
         upstreamFirstByteTimeoutSeconds: null,
         upstreamStreamIdleTimeoutSeconds: null,
         upstreamRequestTimeoutNonStreamingSeconds: null,
+        enableCacheAnomalyMonitor: null,
         interceptAnthropicWarmupRequests: null,
         enableThinkingSignatureRectifier: null,
         enableResponseFixer: null,

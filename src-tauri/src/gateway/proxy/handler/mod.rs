@@ -2,17 +2,14 @@
 //!
 //! Note: this module is being split into smaller submodules under `handler/`.
 
-use super::caches::RECENT_TRACE_DEDUP_TTL_SECS;
 use super::request_context::{RequestContext, RequestContextParts};
 use super::request_end::{
     emit_request_event_and_enqueue_request_log, emit_request_event_and_spawn_request_log,
     RequestEndArgs, RequestEndDeps,
 };
 use super::{
-    cli_proxy_guard::cli_proxy_enabled_cached,
-    errors::{error_response, error_response_with_retry_after},
-    failover::should_reuse_provider,
-    is_claude_count_tokens_request,
+    cli_proxy_guard::cli_proxy_enabled_cached, errors::error_response,
+    failover::should_reuse_provider, is_claude_count_tokens_request,
 };
 use super::{ErrorCategory, GatewayErrorCode};
 
@@ -32,13 +29,14 @@ use super::super::events::{emit_gateway_log, emit_request_start_event};
 use super::super::manager::GatewayAppState;
 use super::super::response_fixer;
 use super::super::util::{
-    body_for_introspection, compute_all_providers_unavailable_fingerprint,
-    compute_request_fingerprint, extract_idempotency_key_hash, infer_requested_model_info,
-    new_trace_id, now_unix_millis, now_unix_seconds, MAX_REQUEST_BODY_BYTES,
+    body_for_introspection, infer_requested_model_info, new_trace_id, now_unix_millis,
+    MAX_REQUEST_BODY_BYTES,
 };
 use super::super::warmup;
+use request_fingerprint::{apply_recent_error_cache_gate, build_request_fingerprints};
 
 mod provider_order;
+mod request_fingerprint;
 
 const DEFAULT_FAILOVER_MAX_ATTEMPTS_PER_PROVIDER: u32 = 5;
 const DEFAULT_FAILOVER_MAX_PROVIDERS_TO_TRY: u32 = 5;
@@ -487,114 +485,6 @@ fn resolve_session_bound_provider_id(
         bound_provider_id,
         bound_provider_order,
     )
-}
-
-#[derive(Debug, Clone)]
-struct RequestFingerprints {
-    fingerprint_key: u64,
-    fingerprint_debug: String,
-    unavailable_fingerprint_key: u64,
-    unavailable_fingerprint_debug: String,
-}
-
-#[allow(clippy::too_many_arguments)]
-fn build_request_fingerprints(
-    cli_key: &str,
-    effective_sort_mode_id: Option<i64>,
-    method_hint: &str,
-    forwarded_path: &str,
-    query: Option<&str>,
-    session_id: Option<&str>,
-    requested_model: Option<&str>,
-    headers: &axum::http::HeaderMap,
-    body_bytes: &Bytes,
-) -> RequestFingerprints {
-    let (unavailable_fingerprint_key, unavailable_fingerprint_debug) =
-        compute_all_providers_unavailable_fingerprint(
-            cli_key,
-            effective_sort_mode_id,
-            method_hint,
-            forwarded_path,
-        );
-
-    let idempotency_key_hash = extract_idempotency_key_hash(headers);
-    let introspection_body = body_for_introspection(headers, body_bytes);
-    let (fingerprint_key, fingerprint_debug) = compute_request_fingerprint(
-        cli_key,
-        method_hint,
-        forwarded_path,
-        query,
-        session_id,
-        requested_model,
-        idempotency_key_hash,
-        introspection_body.as_ref(),
-    );
-
-    RequestFingerprints {
-        fingerprint_key,
-        fingerprint_debug,
-        unavailable_fingerprint_key,
-        unavailable_fingerprint_debug,
-    }
-}
-
-fn apply_recent_error_cache_gate(
-    state: &GatewayAppState,
-    fingerprints: &RequestFingerprints,
-    trace_id: String,
-) -> Result<String, Box<Response>> {
-    let mut next_trace_id = trace_id;
-
-    let mut cache = state.recent_errors.lock_or_recover();
-    let now_unix = now_unix_seconds() as i64;
-    let cached_error = cache
-        .get_error(
-            now_unix,
-            fingerprints.fingerprint_key,
-            &fingerprints.fingerprint_debug,
-        )
-        .or_else(|| {
-            cache.get_error(
-                now_unix,
-                fingerprints.unavailable_fingerprint_key,
-                &fingerprints.unavailable_fingerprint_debug,
-            )
-        });
-
-    if let Some(entry) = cached_error {
-        next_trace_id = entry.trace_id.clone();
-        cache.upsert_trace_id(
-            now_unix,
-            fingerprints.fingerprint_key,
-            next_trace_id.clone(),
-            fingerprints.fingerprint_debug.clone(),
-            RECENT_TRACE_DEDUP_TTL_SECS,
-        );
-        return Err(Box::new(error_response_with_retry_after(
-            entry.status,
-            entry.trace_id,
-            entry.error_code,
-            entry.message,
-            vec![],
-            entry.retry_after_seconds,
-        )));
-    } else if let Some(existing) = cache.get_trace_id(
-        now_unix,
-        fingerprints.fingerprint_key,
-        &fingerprints.fingerprint_debug,
-    ) {
-        next_trace_id = existing;
-    }
-
-    cache.upsert_trace_id(
-        now_unix,
-        fingerprints.fingerprint_key,
-        next_trace_id.clone(),
-        fingerprints.fingerprint_debug.clone(),
-        RECENT_TRACE_DEDUP_TTL_SECS,
-    );
-
-    Ok(next_trace_id)
 }
 
 struct WarmupInterceptCtx<'a> {

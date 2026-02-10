@@ -3,24 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { tauriInvoke } from "../../test/mocks/tauri";
 import { setTauriRuntime } from "../../test/utils/tauriRuntime";
 
-async function importFreshCacheAnomalyMonitor(options?: {
-  localStorageGetThrows?: boolean;
-  initialEnabled?: boolean;
-}) {
+async function importFreshCacheAnomalyMonitor() {
   vi.resetModules();
-  try {
-    window.localStorage.removeItem("aio.cacheAnomalyMonitor.enabled");
-    if (options?.initialEnabled) {
-      window.localStorage.setItem("aio.cacheAnomalyMonitor.enabled", "1");
-    }
-  } catch {}
-  const getSpy = options?.localStorageGetThrows
-    ? vi.spyOn(window.localStorage, "getItem").mockImplementation(() => {
-        throw new Error("boom");
-      })
-    : null;
   const mod = await import("../cacheAnomalyMonitor");
-  getSpy?.mockRestore();
   return mod;
 }
 
@@ -67,35 +52,24 @@ describe("services/cacheAnomalyMonitor", () => {
     vi.clearAllMocks();
   });
 
-  it("handles localStorage errors gracefully", async () => {
-    setTauriRuntime();
-    const mod = await importFreshCacheAnomalyMonitor({ localStorageGetThrows: true });
-    expect(mod.getCacheAnomalyMonitorEnabled()).toBe(false);
-
-    const setSpy = vi.spyOn(window.localStorage, "setItem").mockImplementation(() => {
-      throw new Error("boom");
-    });
-
-    expect(() => mod.setCacheAnomalyMonitorEnabled(true)).not.toThrow();
-    expect(mod.getCacheAnomalyMonitorEnabled()).toBe(true);
-
-    setSpy.mockRestore();
-  });
-
-  it("honors initial enabled state from storage and notifies subscribers (including idempotent sets)", async () => {
+  it("defaults disabled and notifies subscribers (including idempotent sets)", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(1_700_000_000_000);
 
-    const mod = await importFreshCacheAnomalyMonitor({ initialEnabled: true });
+    const mod = await importFreshCacheAnomalyMonitor();
 
-    expect(mod.getCacheAnomalyMonitorEnabled()).toBe(true);
+    expect(mod.getCacheAnomalyMonitorEnabled()).toBe(false);
 
     const { result } = renderHook(() => mod.useCacheAnomalyMonitorEnabled());
-    expect(result.current).toBe(true);
+    expect(result.current).toBe(false);
 
     // Idempotent set should be a no-op.
-    mod.setCacheAnomalyMonitorEnabled(true);
+    mod.setCacheAnomalyMonitorEnabled(false);
+    expect(mod.getCacheAnomalyMonitorEnabled()).toBe(false);
+
+    act(() => mod.setCacheAnomalyMonitorEnabled(true));
     expect(mod.getCacheAnomalyMonitorEnabled()).toBe(true);
+    expect(result.current).toBe(true);
 
     act(() => mod.setCacheAnomalyMonitorEnabled(false));
     expect(mod.getCacheAnomalyMonitorEnabled()).toBe(false);

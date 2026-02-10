@@ -9,7 +9,7 @@ use std::sync::{OnceLock, RwLock};
 use std::time::{Duration, Instant};
 use tauri::Manager;
 
-pub const SCHEMA_VERSION: u32 = 14;
+pub const SCHEMA_VERSION: u32 = 15;
 const SCHEMA_VERSION_DISABLE_UPSTREAM_TIMEOUTS: u32 = 7;
 const SCHEMA_VERSION_ADD_GATEWAY_RECTIFIERS: u32 = 8;
 const SCHEMA_VERSION_ADD_CIRCUIT_BREAKER_NOTICE: u32 = 9;
@@ -18,6 +18,7 @@ const SCHEMA_VERSION_ADD_CODEX_SESSION_ID_COMPLETION: u32 = 11;
 const SCHEMA_VERSION_ADD_GATEWAY_NETWORK_SETTINGS: u32 = 12;
 const SCHEMA_VERSION_ADD_RESPONSE_FIXER_LIMITS: u32 = 13;
 const SCHEMA_VERSION_ADD_CLI_PROXY_STARTUP_RECOVERY: u32 = 14;
+const SCHEMA_VERSION_ADD_CACHE_ANOMALY_MONITOR: u32 = 15;
 pub const DEFAULT_GATEWAY_PORT: u16 = 37123;
 pub const MAX_GATEWAY_PORT: u16 = 37199;
 const DEFAULT_LOG_RETENTION_DAYS: u32 = 30;
@@ -34,6 +35,7 @@ const DEFAULT_ENABLE_CIRCUIT_BREAKER_NOTICE: bool = false;
 const DEFAULT_INTERCEPT_ANTHROPIC_WARMUP_REQUESTS: bool = false;
 const DEFAULT_ENABLE_THINKING_SIGNATURE_RECTIFIER: bool = true;
 const DEFAULT_ENABLE_CODEX_SESSION_ID_COMPLETION: bool = true;
+const DEFAULT_ENABLE_CACHE_ANOMALY_MONITOR: bool = false;
 const DEFAULT_ENABLE_RESPONSE_FIXER: bool = true;
 const DEFAULT_ENABLE_CLI_PROXY_STARTUP_RECOVERY: bool = true;
 const DEFAULT_RESPONSE_FIXER_FIX_ENCODING: bool = true;
@@ -134,6 +136,8 @@ pub struct AppSettings {
     pub enable_thinking_signature_rectifier: bool,
     // Codex Session ID completion (default enabled).
     pub enable_codex_session_id_completion: bool,
+    // Cache anomaly monitor (default disabled).
+    pub enable_cache_anomaly_monitor: bool,
     // Response fixer (default enabled).
     pub enable_response_fixer: bool,
     pub response_fixer_fix_encoding: bool,
@@ -172,6 +176,7 @@ impl Default for AppSettings {
             intercept_anthropic_warmup_requests: DEFAULT_INTERCEPT_ANTHROPIC_WARMUP_REQUESTS,
             enable_thinking_signature_rectifier: DEFAULT_ENABLE_THINKING_SIGNATURE_RECTIFIER,
             enable_codex_session_id_completion: DEFAULT_ENABLE_CODEX_SESSION_ID_COMPLETION,
+            enable_cache_anomaly_monitor: DEFAULT_ENABLE_CACHE_ANOMALY_MONITOR,
             enable_response_fixer: DEFAULT_ENABLE_RESPONSE_FIXER,
             response_fixer_fix_encoding: DEFAULT_RESPONSE_FIXER_FIX_ENCODING,
             response_fixer_fix_sse_format: DEFAULT_RESPONSE_FIXER_FIX_SSE_FORMAT,
@@ -466,6 +471,18 @@ fn migrate_add_cli_proxy_startup_recovery(
     )
 }
 
+fn migrate_add_cache_anomaly_monitor(
+    settings: &mut AppSettings,
+    schema_version_present: bool,
+) -> bool {
+    // v15: Add cache anomaly monitor toggle (default disabled).
+    migrate_bump_schema_version(
+        settings,
+        schema_version_present,
+        SCHEMA_VERSION_ADD_CACHE_ANOMALY_MONITOR,
+    )
+}
+
 fn settings_path(app: &tauri::AppHandle) -> AppResult<PathBuf> {
     Ok(app_paths::app_data_dir(app)?.join("settings.json"))
 }
@@ -537,6 +554,7 @@ pub fn read(app: &tauri::AppHandle) -> AppResult<AppSettings> {
             repaired |= migrate_add_response_fixer_limits(&mut settings, schema_version_present);
             repaired |=
                 migrate_add_cli_proxy_startup_recovery(&mut settings, schema_version_present);
+            repaired |= migrate_add_cache_anomaly_monitor(&mut settings, schema_version_present);
             repaired |= sanitize_failover_settings(&mut settings);
             repaired |= sanitize_circuit_breaker_settings(&mut settings);
             repaired |= sanitize_provider_cooldown_seconds(&mut settings);
@@ -598,6 +616,7 @@ pub fn read(app: &tauri::AppHandle) -> AppResult<AppSettings> {
     repaired |= migrate_add_gateway_network_settings(&mut settings, schema_version_present);
     repaired |= migrate_add_response_fixer_limits(&mut settings, schema_version_present);
     repaired |= migrate_add_cli_proxy_startup_recovery(&mut settings, schema_version_present);
+    repaired |= migrate_add_cache_anomaly_monitor(&mut settings, schema_version_present);
     repaired |= sanitize_failover_settings(&mut settings);
     repaired |= sanitize_circuit_breaker_settings(&mut settings);
     repaired |= sanitize_provider_cooldown_seconds(&mut settings);
@@ -1146,5 +1165,21 @@ mod tests {
     fn app_settings_default_has_expected_port() {
         let s = AppSettings::default();
         assert_eq!(s.preferred_port, DEFAULT_GATEWAY_PORT);
+    }
+
+    #[test]
+    fn app_settings_default_cache_anomaly_monitor_disabled() {
+        let s = AppSettings::default();
+        assert!(!s.enable_cache_anomaly_monitor);
+    }
+
+    #[test]
+    fn migrate_add_cache_anomaly_monitor_bumps_schema_version() {
+        let mut s = AppSettings {
+            schema_version: 14,
+            ..Default::default()
+        };
+        assert!(migrate_add_cache_anomaly_monitor(&mut s, true));
+        assert_eq!(s.schema_version, SCHEMA_VERSION_ADD_CACHE_ANOMALY_MONITOR);
     }
 }

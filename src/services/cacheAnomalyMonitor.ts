@@ -10,14 +10,20 @@ import {
   computeCacheHitRateDenomTokens,
   computeEffectiveInputTokens,
 } from "../utils/cacheRateMetrics";
-
-const STORAGE_KEY_ENABLED = "aio.cacheAnomalyMonitor.enabled";
+import {
+  CACHE_ANOMALY_MONITOR_BASELINE_MINUTES,
+  CACHE_ANOMALY_MONITOR_COLD_START_MINUTES,
+  CACHE_ANOMALY_MONITOR_NON_CACHING_MODEL_KEYWORDS,
+  CACHE_ANOMALY_MONITOR_RECENT_MINUTES,
+  CACHE_ANOMALY_MONITOR_THRESHOLDS,
+  CACHE_ANOMALY_MONITOR_WINDOW_MINUTES,
+} from "./cacheAnomalyMonitorConfig";
 
 const MINUTE_MS = 60_000;
-const WINDOW_MINUTES = 60;
-const BASELINE_MINUTES = 45;
-const RECENT_MINUTES = 15;
-const COLD_START_MINUTES = 10;
+const WINDOW_MINUTES = CACHE_ANOMALY_MONITOR_WINDOW_MINUTES;
+const BASELINE_MINUTES = CACHE_ANOMALY_MONITOR_BASELINE_MINUTES;
+const RECENT_MINUTES = CACHE_ANOMALY_MONITOR_RECENT_MINUTES;
+const COLD_START_MINUTES = CACHE_ANOMALY_MONITOR_COLD_START_MINUTES;
 
 const EVAL_INTERVAL_MS = 60_000;
 const ALERT_DEDUP_MS = 15 * MINUTE_MS;
@@ -26,25 +32,10 @@ const COLD_START_WINDOW_MS = COLD_START_MINUTES * MINUTE_MS;
 const SAMPLE_RETENTION_MINUTES = 75;
 const TRACE_MODEL_TTL_MS = 10 * MINUTE_MS;
 
-const THRESHOLDS = {
-  baselineDenomTokensMin: 10_000,
-  recentDenomTokensMin: 3_000,
-  baselineSuccessRequestsMin: 30,
-  recentSuccessRequestsMin: 10,
-  coldRecentDenomTokensMin: 2_000,
-  coldRecentSuccessRequestsMin: 5,
-  baselineHitRateMin: 0.05,
-  dropRatioMin: 0.25,
-  dropAbsMin: 0.05,
-  // NOTE: Denominator now includes cache creation tokens.
-  // Keep the previous behavior (create / (effective_input + read) >= 0.9) by mapping to:
-  // create / (effective_input + read + create) >= 0.9 / (1 + 0.9)
-  createShareMin: 0.9 / (1 + 0.9),
-  createReadImbalanceMin: 3,
-} as const;
+const THRESHOLDS = CACHE_ANOMALY_MONITOR_THRESHOLDS;
 
 // Some models may naturally not create caches (e.g. Haiku). For these models we skip monitoring entirely.
-const NON_CACHING_MODEL_KEYWORDS = ["haiku"] as const;
+const NON_CACHING_MODEL_KEYWORDS = CACHE_ANOMALY_MONITOR_NON_CACHING_MODEL_KEYWORDS;
 
 function isNonCachingModel(cliKey: SupportedCliKey, model: string): boolean {
   if (cliKey !== "claude") return false;
@@ -60,16 +51,7 @@ type EnabledSnapshot = {
   enabled: boolean;
 };
 
-function readEnabledFromStorage(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    return window.localStorage.getItem(STORAGE_KEY_ENABLED) === "1";
-  } catch {
-    return false;
-  }
-}
-
-let enabled = readEnabledFromStorage();
+let enabled = false;
 let enabledSnapshot: EnabledSnapshot = { enabled };
 const enabledListeners = new Set<Listener>();
 
@@ -90,12 +72,6 @@ export function getCacheAnomalyMonitorEnabled(): boolean {
 export function setCacheAnomalyMonitorEnabled(next: boolean) {
   const normalized = next === true;
   if (enabled === normalized) return;
-
-  if (typeof window !== "undefined") {
-    try {
-      window.localStorage.setItem(STORAGE_KEY_ENABLED, normalized ? "1" : "0");
-    } catch {}
-  }
 
   resetState();
   state.enabledAtMs = normalized ? Date.now() : 0;

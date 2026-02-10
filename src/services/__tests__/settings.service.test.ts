@@ -30,6 +30,7 @@ describe("services/settings (error semantics)", () => {
         preferredPort: 37123,
         autoStart: false,
         logRetentionDays: 30,
+        enableCacheAnomalyMonitor: false,
         failoverMaxAttemptsPerProvider: 5,
         failoverMaxProvidersToTry: 5,
       })

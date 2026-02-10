@@ -1,10 +1,7 @@
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import {
-  setCacheAnomalyMonitorEnabled,
-  useCacheAnomalyMonitorEnabled,
-} from "../../../services/cacheAnomalyMonitor";
+import { CACHE_ANOMALY_MONITOR_GUIDE_COPY } from "../../../services/cacheAnomalyMonitorConfig";
 import type { AppSettings } from "../../../services/settings";
 import type { GatewayRectifierSettingsPatch } from "../../../services/settingsGatewayRectifier";
 import { Button } from "../../../ui/Button";
@@ -31,6 +28,10 @@ export type CliManagerGeneralTabProps = {
   codexSessionIdCompletionEnabled: boolean;
   codexSessionIdCompletionSaving: boolean;
   onPersistCodexSessionIdCompletion: (enable: boolean) => Promise<void> | void;
+
+  cacheAnomalyMonitorEnabled: boolean;
+  cacheAnomalyMonitorSaving: boolean;
+  onPersistCacheAnomalyMonitor: (enable: boolean) => Promise<void> | void;
 
   appSettings: AppSettings | null;
   commonSettingsSaving: boolean;
@@ -66,6 +67,9 @@ export function CliManagerGeneralTab({
   codexSessionIdCompletionEnabled,
   codexSessionIdCompletionSaving,
   onPersistCodexSessionIdCompletion,
+  cacheAnomalyMonitorEnabled,
+  cacheAnomalyMonitorSaving,
+  onPersistCacheAnomalyMonitor,
   appSettings,
   commonSettingsSaving,
   onPersistCommonSettings,
@@ -85,7 +89,6 @@ export function CliManagerGeneralTab({
   setCircuitBreakerOpenDurationMinutes,
   blurOnEnter,
 }: CliManagerGeneralTabProps) {
-  const cacheMonitorEnabled = useCacheAnomalyMonitorEnabled();
   const navigate = useNavigate();
 
   return (
@@ -235,25 +238,14 @@ export function CliManagerGeneralTab({
                 缓存异常监测（实验）
               </h3>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                近 1 小时滑窗（按 Provider + Model）监测缓存读取/创建异常。仅 Claude / Codex；
-                命中后写入控制台并发送系统通知。
+                {CACHE_ANOMALY_MONITOR_GUIDE_COPY.overview}
               </p>
               <div className="mt-2 space-y-1 text-xs text-slate-500 dark:text-slate-400">
-                <p>
-                  触发条件：命中率断崖式下降（最近 15m vs 前 45m）；或创建异常（创建但读取为 0 /
-                  创建占比过高 / 创建显著高于读取）。
-                </p>
-                <p>
-                  口径：命中率=读取 /（有效输入 + 创建 + 读取）。有效输入：Codex 做 input-cache_read
-                  纠偏；Claude 原样。
-                </p>
-                <p>冷启动：开启后前 10 分钟也会评估创建异常（不依赖 45m 基线）。</p>
-                <p>Haiku：模型名包含 haiku 时默认不采集（该类模型不创建缓存）。</p>
-                <p>
-                  门槛（默认）：冷启动 token≥2000 且成功请求≥5；稳定期：基线 token≥10000
-                  且成功请求≥30； 最近 token≥3000 且成功请求≥10；基线命中率≥5%；创建占比≥47.4%
-                  （等价旧口径 90%）或 创建/读取≥3。* token 不是请求数
-                </p>
+                <p>{CACHE_ANOMALY_MONITOR_GUIDE_COPY.trigger}</p>
+                <p>{CACHE_ANOMALY_MONITOR_GUIDE_COPY.metric}</p>
+                <p>{CACHE_ANOMALY_MONITOR_GUIDE_COPY.coldStart}</p>
+                <p>{CACHE_ANOMALY_MONITOR_GUIDE_COPY.nonCachingModel}</p>
+                <p>{CACHE_ANOMALY_MONITOR_GUIDE_COPY.thresholds}</p>
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                 <span>
@@ -270,12 +262,9 @@ export function CliManagerGeneralTab({
                 <span className="text-xs text-slate-400">不可用</span>
               ) : (
                 <Switch
-                  checked={cacheMonitorEnabled}
-                  onCheckedChange={(checked) => {
-                    setCacheAnomalyMonitorEnabled(checked);
-                    toast(checked ? "已开启缓存异常监测（实验）" : "已关闭缓存异常监测（实验）");
-                  }}
-                  disabled={rectifierAvailable !== "available"}
+                  checked={cacheAnomalyMonitorEnabled}
+                  onCheckedChange={(checked) => void onPersistCacheAnomalyMonitor(checked)}
+                  disabled={cacheAnomalyMonitorSaving || rectifierAvailable !== "available"}
                 />
               )}
             </div>

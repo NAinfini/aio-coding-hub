@@ -1,17 +1,19 @@
 // Shared chart theme and configuration for Recharts
 // Provides consistent colors, gradients, and styling across all charts
 
+import { BRAND, STATUS, CHART_PALETTE } from "../../constants/colors";
+
 /**
  * Primary color palette for charts
- * Based on existing brand color (#0052FF) with expanded range for multi-series
+ * Derived from shared brand/status constants in constants/colors.ts
  */
 export const CHART_COLORS = {
-  primary: "#0052FF",
+  primary: BRAND.accent,
   secondary: "#7C3AED",
-  success: "#16A34A",
-  warning: "#F97316",
-  danger: "#DC2626",
-  info: "#0EA5E9",
+  success: STATUS.success,
+  warning: STATUS.warning,
+  danger: STATUS.danger,
+  info: STATUS.info,
   purple: "#9333EA",
   emerald: "#059669",
   orange: "#EA580C",
@@ -21,18 +23,7 @@ export const CHART_COLORS = {
 /**
  * Color palette for multi-series charts
  */
-export const MULTI_SERIES_PALETTE = [
-  CHART_COLORS.primary,
-  CHART_COLORS.secondary,
-  CHART_COLORS.success,
-  CHART_COLORS.warning,
-  CHART_COLORS.danger,
-  CHART_COLORS.info,
-  CHART_COLORS.purple,
-  CHART_COLORS.emerald,
-  CHART_COLORS.orange,
-  CHART_COLORS.red,
-];
+export const MULTI_SERIES_PALETTE: readonly string[] = CHART_PALETTE;
 
 /**
  * Pick a color from palette by index, with HSL fallback for large series

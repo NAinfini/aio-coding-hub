@@ -5,6 +5,7 @@ import { placeholder as placeholderExt } from "@codemirror/view";
 import { StreamLanguage } from "@codemirror/language";
 import { toml as tomlMode } from "@codemirror/legacy-modes/mode/toml";
 import { cn } from "../utils/cn";
+import { BRAND } from "../constants/colors";
 
 export type CodeEditorLanguage = "toml" | "text";
 
@@ -48,7 +49,7 @@ export function CodeEditor({
       },
       ".cm-editor.cm-focused": {
         outline: "none",
-        borderColor: "#0052FF",
+        borderColor: BRAND.accent,
       },
       ".cm-scroller": {
         background: "transparent",

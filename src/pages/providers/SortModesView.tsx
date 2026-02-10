@@ -76,7 +76,7 @@ function SortableModeProviderRow({
         padding="sm"
         className={cn(
           "flex cursor-grab flex-col gap-2 transition-shadow duration-200 active:cursor-grabbing sm:flex-row sm:items-center sm:justify-between",
-          isDragging && "z-10 scale-[1.02] opacity-90 shadow-lg ring-2 ring-[#0052FF]/30",
+          isDragging && "z-10 scale-[1.02] opacity-90 shadow-lg ring-2 ring-accent/30",
           disabled && "opacity-70",
           !modeEnabled && "bg-slate-50 dark:bg-slate-800"
         )}

@@ -368,7 +368,7 @@ export function UsagePage() {
                     value={customStartDate}
                     onChange={(e) => setCustomStartDate(e.currentTarget.value)}
                     aria-label="开始日期"
-                    className="h-10 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm text-slate-900 dark:text-slate-100 shadow-sm outline-none transition focus:border-[#0052FF] focus:ring-2 focus:ring-[#0052FF]/20"
+                    className="h-10 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm text-slate-900 dark:text-slate-100 shadow-sm outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20"
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
@@ -380,7 +380,7 @@ export function UsagePage() {
                     value={customEndDate}
                     onChange={(e) => setCustomEndDate(e.currentTarget.value)}
                     aria-label="结束日期"
-                    className="h-10 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm text-slate-900 dark:text-slate-100 shadow-sm outline-none transition focus:border-[#0052FF] focus:ring-2 focus:ring-[#0052FF]/20"
+                    className="h-10 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm text-slate-900 dark:text-slate-100 shadow-sm outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20"
                   />
                 </div>
                 <div className="flex flex-wrap items-center gap-2 md:pb-0.5">

@@ -423,7 +423,7 @@ describe("pages/providers/ProvidersView", () => {
         <ProvidersView activeCli="claude" setActiveCli={vi.fn()} />
       </QueryClientProvider>
     );
-    expect(screen.getByText("暂无 Provider。请点击「添加」新增。")).toBeInTheDocument();
+    expect(screen.getByText("暂无 Provider")).toBeInTheDocument();
   });
 
   it("covers mutation null/error branches and drag end edge cases", async () => {

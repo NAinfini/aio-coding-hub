@@ -3,6 +3,7 @@
 
 import { useMemo } from "react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Label, Tooltip } from "recharts";
+import { CHART_PALETTE } from "../../constants/colors";
 import { Card } from "../../ui/Card";
 import { formatUsdRaw } from "../../utils/formatters";
 import { getTooltipStyle } from "../charts/chartTheme";
@@ -10,17 +11,8 @@ import { CHART_ANIMATION } from "../charts/chartTheme";
 import type { CostPeriod } from "../../services/cost";
 import type { CustomDateRangeApplied } from "../../hooks/useCustomDateRange";
 
-// Pie chart color palette
-const PIE_COLORS = [
-  "#0052FF",
-  "#7C3AED",
-  "#16A34A",
-  "#F97316",
-  "#DC2626",
-  "#0EA5E9",
-  "#9333EA",
-  "#64748b",
-];
+// Pie chart color palette — aligned with MULTI_SERIES_PALETTE via shared constants
+const PIE_COLORS = [...CHART_PALETTE.slice(0, 7), "#64748b"];
 
 export type DonutDataSet = {
   data: Array<{ name: string; value: number }>;

@@ -10,7 +10,8 @@ export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const VARIANT_CLASS: Record<ButtonVariant, string> = {
-  primary: "bg-gradient-to-br from-[#0052FF] to-[#4D7CFF] text-white shadow-sm hover:opacity-95",
+  primary:
+    "bg-gradient-to-br from-accent to-accent-secondary text-white shadow-sm hover:opacity-95",
   secondary:
     "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700",
   ghost: "text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800",
@@ -36,7 +37,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       type={type}
       className={cn(
         "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition disabled:cursor-not-allowed disabled:opacity-50",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0052FF]/30 focus-visible:ring-offset-2 focus-visible:ring-offset-[#FAFAFA] dark:focus-visible:ring-blue-400/30 dark:focus-visible:ring-offset-slate-900",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-accent/30 dark:focus-visible:ring-offset-slate-900",
         VARIANT_CLASS[variant],
         SIZE_CLASS[size],
         className

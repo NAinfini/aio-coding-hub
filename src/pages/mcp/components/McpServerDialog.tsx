@@ -358,7 +358,7 @@ export function McpServerDialog({
               onChange={(e) => setJsonText(e.currentTarget.value)}
               placeholder='示例：{"type":"stdio","command":"uvx","args":["mcp-server-fetch"]}'
               rows={4}
-              className="mt-2 w-full resize-y rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 font-mono text-xs text-slate-900 dark:text-slate-100 shadow-sm outline-none focus:border-[#0052FF] focus:ring-2 focus:ring-[#0052FF]/20"
+              className="mt-2 w-full resize-y rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 font-mono text-xs text-slate-900 dark:text-slate-100 shadow-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
             />
             <div className="mt-2 flex justify-end">
               <Button variant="secondary" onClick={() => void fillFromJson()} disabled={saving}>
@@ -380,7 +380,7 @@ export function McpServerDialog({
               value={name}
               onChange={(e) => setName(e.currentTarget.value)}
               placeholder="例如：Fetch 工具"
-              className="mt-2 w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 shadow-sm outline-none focus:border-[#0052FF] focus:ring-2 focus:ring-[#0052FF]/20"
+              className="mt-2 w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 shadow-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
             />
           </div>
 
@@ -420,15 +420,15 @@ export function McpServerDialog({
                       "flex h-full cursor-pointer items-start gap-3 rounded-xl border px-3 py-3 shadow-sm transition-all",
                       "bg-white dark:bg-slate-800",
                       "hover:border-slate-300 hover:bg-slate-50/60 dark:hover:border-slate-600 dark:hover:bg-slate-700",
-                      "peer-focus-visible:ring-2 peer-focus-visible:ring-[#0052FF]/20 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-white dark:peer-focus-visible:ring-offset-slate-900",
-                      "peer-checked:border-[#0052FF]/60 peer-checked:bg-[#0052FF]/5 peer-checked:shadow dark:peer-checked:bg-[#0052FF]/10"
+                      "peer-focus-visible:ring-2 peer-focus-visible:ring-accent/20 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-white dark:peer-focus-visible:ring-offset-slate-900",
+                      "peer-checked:border-accent/60 peer-checked:bg-accent/5 peer-checked:shadow dark:peer-checked:bg-accent/10"
                     )}
                   >
                     <div
                       className={cn(
                         "mt-0.5 flex h-9 w-9 items-center justify-center rounded-lg border bg-white dark:bg-slate-800 shadow-sm",
                         "border-slate-200 text-slate-700 dark:border-slate-600 dark:text-slate-300",
-                        "peer-checked:border-[#0052FF]/40 peer-checked:bg-[#0052FF]/10 peer-checked:text-[#0052FF]"
+                        "peer-checked:border-accent/40 peer-checked:bg-accent/10 peer-checked:text-accent"
                       )}
                     >
                       <span className="text-sm font-semibold">{item.icon}</span>
@@ -443,7 +443,7 @@ export function McpServerDialog({
                       </div>
                     </div>
 
-                    <div className="pointer-events-none absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-[11px] text-white shadow-sm transition peer-checked:border-[#0052FF] peer-checked:bg-[#0052FF]">
+                    <div className="pointer-events-none absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-[11px] text-white shadow-sm transition peer-checked:border-accent peer-checked:bg-accent">
                       ✓
                     </div>
                   </div>
@@ -462,7 +462,7 @@ export function McpServerDialog({
                 value={command}
                 onChange={(e) => setCommand(e.currentTarget.value)}
                 placeholder="例如：npx"
-                className="mt-2 w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 font-mono text-sm text-slate-900 dark:text-slate-100 shadow-sm outline-none focus:border-[#0052FF] focus:ring-2 focus:ring-[#0052FF]/20"
+                className="mt-2 w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 font-mono text-sm text-slate-900 dark:text-slate-100 shadow-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
               />
             </div>
 
@@ -476,7 +476,7 @@ export function McpServerDialog({
                   onChange={(e) => setArgsText(e.currentTarget.value)}
                   placeholder={`例如：\n-y\n@modelcontextprotocol/server-fetch`}
                   rows={6}
-                  className="mt-2 w-full resize-y rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 font-mono text-xs text-slate-900 dark:text-slate-100 shadow-sm outline-none focus:border-[#0052FF] focus:ring-2 focus:ring-[#0052FF]/20"
+                  className="mt-2 w-full resize-y rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 font-mono text-xs text-slate-900 dark:text-slate-100 shadow-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
                 />
               </div>
 
@@ -489,7 +489,7 @@ export function McpServerDialog({
                   onChange={(e) => setEnvText(e.currentTarget.value)}
                   placeholder={`例如：\nFOO=bar\nTOKEN=xxx`}
                   rows={6}
-                  className="mt-2 w-full resize-y rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 font-mono text-xs text-slate-900 dark:text-slate-100 shadow-sm outline-none focus:border-[#0052FF] focus:ring-2 focus:ring-[#0052FF]/20"
+                  className="mt-2 w-full resize-y rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 font-mono text-xs text-slate-900 dark:text-slate-100 shadow-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
                 />
               </div>
             </div>
@@ -503,7 +503,7 @@ export function McpServerDialog({
                 value={cwd}
                 onChange={(e) => setCwd(e.currentTarget.value)}
                 placeholder="例如：/Users/xxx/project"
-                className="mt-2 w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 font-mono text-sm text-slate-900 dark:text-slate-100 shadow-sm outline-none focus:border-[#0052FF] focus:ring-2 focus:ring-[#0052FF]/20"
+                className="mt-2 w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 font-mono text-sm text-slate-900 dark:text-slate-100 shadow-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
               />
             </div>
           </>
@@ -516,7 +516,7 @@ export function McpServerDialog({
                 value={url}
                 onChange={(e) => setUrl(e.currentTarget.value)}
                 placeholder="例如：https://example.com/mcp"
-                className="mt-2 w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 font-mono text-sm text-slate-900 dark:text-slate-100 shadow-sm outline-none focus:border-[#0052FF] focus:ring-2 focus:ring-[#0052FF]/20"
+                className="mt-2 w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 font-mono text-sm text-slate-900 dark:text-slate-100 shadow-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
               />
             </div>
 
@@ -529,7 +529,7 @@ export function McpServerDialog({
                 onChange={(e) => setHeadersText(e.currentTarget.value)}
                 placeholder={`例如：\nAuthorization=Bearer xxx\nX-Env=dev`}
                 rows={6}
-                className="mt-2 w-full resize-y rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 font-mono text-xs text-slate-900 dark:text-slate-100 shadow-sm outline-none focus:border-[#0052FF] focus:ring-2 focus:ring-[#0052FF]/20"
+                className="mt-2 w-full resize-y rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 font-mono text-xs text-slate-900 dark:text-slate-100 shadow-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
               />
             </div>
           </>

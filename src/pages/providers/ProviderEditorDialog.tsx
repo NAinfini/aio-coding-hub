@@ -69,9 +69,9 @@ function BaseUrlModeRadioGroup({ value, onChange, disabled }: BaseUrlModeRadioGr
             disabled={disabled}
             className={cn(
               "flex-1 px-3 py-2 text-sm font-medium transition",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0052FF]/30 focus-visible:ring-offset-2 focus-visible:ring-offset-[#FAFAFA] dark:focus-visible:ring-offset-slate-900",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900",
               index < items.length - 1 ? "border-r border-slate-200 dark:border-slate-600" : null,
-              active ? "bg-gradient-to-br from-[#0052FF] to-[#4D7CFF] text-white" : null,
+              active ? "bg-gradient-to-br from-accent to-accent-secondary text-white" : null,
               !active
                 ? "bg-white text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                 : null,
@@ -121,9 +121,9 @@ function DailyResetModeRadioGroup({ value, onChange, disabled }: DailyResetModeR
             disabled={disabled}
             className={cn(
               "flex-1 px-3 py-2 text-sm font-medium transition",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0052FF]/30 focus-visible:ring-offset-2 focus-visible:ring-offset-[#FAFAFA] dark:focus-visible:ring-offset-slate-900",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900",
               index < items.length - 1 ? "border-r border-slate-200 dark:border-slate-600" : null,
-              active ? "bg-gradient-to-br from-[#0052FF] to-[#4D7CFF] text-white" : null,
+              active ? "bg-gradient-to-br from-accent to-accent-secondary text-white" : null,
               !active
                 ? "bg-white text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                 : null,
@@ -518,14 +518,14 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
           </FormField>
         </div>
 
-        <details className="group rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50/80 to-white shadow-sm open:ring-2 open:ring-[#0052FF]/10 transition-all dark:border-slate-700 dark:from-slate-800/80 dark:to-slate-900">
+        <details className="group rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50/80 to-white shadow-sm open:ring-2 open:ring-accent/10 transition-all dark:border-slate-700 dark:from-slate-800/80 dark:to-slate-900">
           <summary className="flex cursor-pointer items-center justify-between px-5 py-4 select-none">
             <div className="flex items-center gap-3">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 shadow-sm">
                 <DollarSign className="h-4 w-4 text-white" />
               </div>
               <div>
-                <span className="text-sm font-semibold text-slate-700 group-open:text-[#0052FF] dark:text-slate-300">
+                <span className="text-sm font-semibold text-slate-700 group-open:text-accent dark:text-slate-300">
                   限流配置
                 </span>
                 <p className="text-xs text-slate-400 dark:text-slate-500">
@@ -657,10 +657,10 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
         </details>
 
         {cliKey === "claude" ? (
-          <details className="group rounded-xl border border-slate-200 bg-white shadow-sm open:ring-2 open:ring-[#0052FF]/10 transition-all dark:border-slate-700 dark:bg-slate-800">
+          <details className="group rounded-xl border border-slate-200 bg-white shadow-sm open:ring-2 open:ring-accent/10 transition-all dark:border-slate-700 dark:bg-slate-800">
             <summary className="flex cursor-pointer items-center justify-between px-4 py-3 select-none">
               <div className="flex items-center gap-3">
-                <span className="text-sm font-medium text-slate-700 group-open:text-[#0052FF] dark:text-slate-300">
+                <span className="text-sm font-medium text-slate-700 group-open:text-accent dark:text-slate-300">
                   Claude 模型映射
                 </span>
                 <span className="text-xs font-mono text-slate-500 dark:text-slate-400">

@@ -33,6 +33,12 @@ const REALTIME_TRACE_EXIT_ANIM_MS = 700;
 const REALTIME_TRACE_EXIT_TOTAL_MS =
   REALTIME_TRACE_EXIT_START_MS + REALTIME_TRACE_EXIT_ANIM_MS + 100;
 
+/**
+ * UI-level safety net: hide traces stuck in "in progress" beyond this threshold.
+ * Works independently of traceStore pruning for defense-in-depth.
+ */
+const STALE_TRACE_TIMEOUT_MS = 5 * 60 * 1000;
+
 export function RealtimeTraceCards({
   traces,
   formatUnixSeconds,
@@ -51,7 +57,9 @@ export function RealtimeTraceCards({
       setNowMs(now);
 
       return traces.some((trace) => {
-        if (!trace.summary) return true;
+        if (!trace.summary) {
+          return now - trace.last_seen_ms < STALE_TRACE_TIMEOUT_MS;
+        }
         return Math.max(0, now - trace.last_seen_ms) < REALTIME_TRACE_EXIT_TOTAL_MS;
       });
     };
@@ -74,7 +82,9 @@ export function RealtimeTraceCards({
 
   const visibleTraces = useMemo(() => {
     const kept = traces.filter((trace) => {
-      if (!trace.summary) return true;
+      if (!trace.summary) {
+        return nowMs - trace.last_seen_ms < STALE_TRACE_TIMEOUT_MS;
+      }
       return Math.max(0, nowMs - trace.last_seen_ms) < REALTIME_TRACE_EXIT_TOTAL_MS;
     });
     return kept.slice(0, 5);

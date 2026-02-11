@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.24.1](https://github.com/dyndynjyxa/aio-coding-hub/compare/aio-coding-hub-v0.24.0...aio-coding-hub-v0.24.1) (2026-02-11)
+
+
+### Bug Fixes
+
+* **gateway:** 调整上游连接超时与错误切换逻辑 ([a6870ae](https://github.com/dyndynjyxa/aio-coding-hub/commit/a6870ae14b6b5bb8edce814ca37da2000e84f6b4))
+
 ## [0.24.0](https://github.com/dyndynjyxa/aio-coding-hub/compare/aio-coding-hub-v0.23.0...aio-coding-hub-v0.24.0) (2026-02-10)
 
 

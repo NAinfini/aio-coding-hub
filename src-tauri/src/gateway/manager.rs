@@ -4,6 +4,7 @@ use crate::{
 };
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use tauri::Emitter;
 use tokio::sync::oneshot;
 
@@ -35,6 +36,8 @@ type RunningGatewayHandles = (
     tauri::async_runtime::JoinHandle<()>,
     tauri::async_runtime::JoinHandle<()>,
 );
+
+const UPSTREAM_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(Default)]
 pub struct GatewayManager {
@@ -210,6 +213,7 @@ impl GatewayManager {
                 "aio-coding-hub-gateway/{}",
                 env!("CARGO_PKG_VERSION")
             ))
+            .connect_timeout(UPSTREAM_CONNECT_TIMEOUT)
             .build()
             .map_err(|e| format!("{}: {e}", GatewayErrorCode::HttpClientInit.as_str()))?;
 

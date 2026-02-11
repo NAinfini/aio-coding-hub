@@ -483,6 +483,29 @@ pub(super) async fn handle_reqwest_error(
     loop_state: LoopState<'_>,
     err: reqwest::Error,
 ) -> LoopControl {
+    if err.is_connect() {
+        let error_code = GatewayErrorCode::UpstreamConnectFailed.as_str();
+        let decision = FailoverDecision::SwitchProvider;
+        let outcome = format!(
+            "request_error: category={} code={} decision={} err={err}",
+            ErrorCategory::SystemError.as_str(),
+            error_code,
+            decision.as_str(),
+        );
+        return record_system_failure_and_decide(RecordSystemFailureArgs {
+            ctx,
+            provider_ctx,
+            attempt_ctx,
+            loop_state,
+            status: None,
+            error_code,
+            decision,
+            outcome,
+            reason: "reqwest connect error".to_string(),
+        })
+        .await;
+    }
+
     if is_claude_count_tokens_request(ctx.cli_key.as_str(), ctx.forwarded_path.as_str()) {
         let (_, error_code) = classify_reqwest_error(&err);
         let decision = FailoverDecision::Abort;

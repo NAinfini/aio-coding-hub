@@ -274,7 +274,6 @@ pub(crate) struct GatewayProvidersSelection {
 
 #[derive(Debug, Clone)]
 pub(crate) struct ClaudeTerminalLaunchContext {
-    pub base_url: String,
     pub api_key_plaintext: String,
 }
 
@@ -470,10 +469,7 @@ WHERE id = ?1
             .into());
     }
 
-    Ok(ClaudeTerminalLaunchContext {
-        base_url,
-        api_key_plaintext,
-    })
+    Ok(ClaudeTerminalLaunchContext { api_key_plaintext })
 }
 
 pub fn names_by_id(

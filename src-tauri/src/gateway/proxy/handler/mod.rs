@@ -110,6 +110,42 @@ fn cli_proxy_disabled_message(cli_key: &str, error: Option<&str>) -> String {
     }
 }
 
+fn extract_forced_provider_id(headers: &axum::http::HeaderMap) -> Option<i64> {
+    let raw = headers.get("x-aio-provider-id")?.to_str().ok()?.trim();
+    let provider_id = raw.parse::<i64>().ok()?;
+    (provider_id > 0).then_some(provider_id)
+}
+
+fn force_provider_if_requested(
+    providers: &mut Vec<crate::providers::ProviderForGateway>,
+    provider_id: Option<i64>,
+    special_settings: &SpecialSettings,
+) {
+    let Some(provider_id) = provider_id else {
+        return;
+    };
+
+    if let Some(index) = providers.iter().position(|p| p.id == provider_id) {
+        if index > 0 {
+            providers.rotate_left(index);
+        }
+
+        providers.truncate(1);
+
+        push_special_setting(
+            special_settings,
+            serde_json::json!({
+                "type": "provider_lock",
+                "scope": "request",
+                "hit": true,
+                "providerId": provider_id,
+            }),
+        );
+    } else {
+        providers.clear();
+    }
+}
+
 fn cli_proxy_guard_special_settings_json(
     cache_hit: bool,
     cache_ttl_ms: i64,
@@ -621,7 +657,15 @@ pub(in crate::gateway) async fn proxy_impl(
     let query = req.uri().query().map(str::to_string);
     let is_claude_count_tokens = is_claude_count_tokens_request(&cli_key, &forwarded_path);
 
-    if crate::shared::cli_key::is_supported_cli_key(cli_key.as_str()) {
+    let (mut headers, body) = {
+        let (parts, body) = req.into_parts();
+        (parts.headers, body)
+    };
+
+    let forced_provider_id = extract_forced_provider_id(&headers);
+    let bypass_cli_proxy_guard = forced_provider_id.is_some();
+
+    if crate::shared::cli_key::is_supported_cli_key(cli_key.as_str()) && !bypass_cli_proxy_guard {
         let enabled_snapshot = cli_proxy_enabled_cached(&state.app, &cli_key);
         if !enabled_snapshot.enabled {
             if !enabled_snapshot.cache_hit {
@@ -668,10 +712,7 @@ pub(in crate::gateway) async fn proxy_impl(
         }
     }
 
-    let (mut headers, body) = {
-        let (parts, body) = req.into_parts();
-        (parts.headers, body)
-    };
+    headers.remove("x-aio-provider-id");
 
     let mut body_bytes = match to_bytes(body, MAX_REQUEST_BODY_BYTES).await {
         Ok(bytes) => bytes,
@@ -797,6 +838,34 @@ pub(in crate::gateway) async fn proxy_impl(
             );
         }
     };
+
+    if providers.is_empty() {
+        let contract = early_error_contract(EarlyErrorKind::NoEnabledProvider);
+        let message = no_enabled_provider_message(&cli_key);
+        let log_ctx = build_early_error_log_ctx(
+            &state,
+            &started,
+            trace_id.as_str(),
+            cli_key.as_str(),
+            method_hint.as_str(),
+            forwarded_path.as_str(),
+            query.as_deref(),
+            created_at_ms,
+            created_at,
+        );
+
+        return respond_early_error_with_enqueue(
+            &log_ctx,
+            contract,
+            message,
+            None,
+            session_id,
+            requested_model,
+        )
+        .await;
+    }
+
+    force_provider_if_requested(&mut providers, forced_provider_id, &special_settings);
 
     if providers.is_empty() {
         let contract = early_error_contract(EarlyErrorKind::NoEnabledProvider);
@@ -1234,6 +1303,46 @@ mod tests {
 
         assert_eq!(decision.session_id.as_deref(), Some("sess-normal-456"));
         assert!(decision.allow_session_reuse);
+    }
+
+    #[test]
+    fn extract_forced_provider_id_reads_positive_integer() {
+        let mut headers = HeaderMap::new();
+        headers.insert("x-aio-provider-id", HeaderValue::from_static("12"));
+        assert_eq!(super::extract_forced_provider_id(&headers), Some(12));
+    }
+
+    #[test]
+    fn extract_forced_provider_id_rejects_invalid_or_non_positive_values() {
+        let mut headers = HeaderMap::new();
+        headers.insert("x-aio-provider-id", HeaderValue::from_static("0"));
+        assert_eq!(super::extract_forced_provider_id(&headers), None);
+
+        headers.insert("x-aio-provider-id", HeaderValue::from_static("-1"));
+        assert_eq!(super::extract_forced_provider_id(&headers), None);
+
+        headers.insert("x-aio-provider-id", HeaderValue::from_static("abc"));
+        assert_eq!(super::extract_forced_provider_id(&headers), None);
+    }
+
+    #[test]
+    fn force_provider_if_requested_keeps_only_selected_provider() {
+        let mut providers = vec![provider(1), provider(2), provider(3)];
+        let special_settings = super::new_special_settings();
+
+        super::force_provider_if_requested(&mut providers, Some(2), &special_settings);
+
+        assert_eq!(provider_ids(&providers), vec![2]);
+    }
+
+    #[test]
+    fn force_provider_if_requested_clears_when_selected_provider_missing() {
+        let mut providers = vec![provider(1), provider(2), provider(3)];
+        let special_settings = super::new_special_settings();
+
+        super::force_provider_if_requested(&mut providers, Some(99), &special_settings);
+
+        assert!(providers.is_empty());
     }
 
     #[test]

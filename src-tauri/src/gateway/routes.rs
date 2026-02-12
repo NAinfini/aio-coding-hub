@@ -46,6 +46,24 @@ async fn proxy_cli_any(
     proxy_impl(state, cli_key, forwarded_path, req).await
 }
 
+async fn proxy_cli_with_provider_any(
+    State(state): State<GatewayAppState>,
+    Path((cli_key, provider_id, path)): Path<(String, i64, String)>,
+    mut req: Request<Body>,
+) -> Response {
+    if let Ok(value) = axum::http::HeaderValue::from_str(&provider_id.to_string()) {
+        req.headers_mut().insert("x-aio-provider-id", value);
+    }
+
+    let forwarded_path = if path.is_empty() {
+        "/".to_string()
+    } else {
+        format!("/{path}")
+    };
+
+    proxy_impl(state, cli_key, forwarded_path, req).await
+}
+
 async fn proxy_openai_v1_any(
     State(state): State<GatewayAppState>,
     Path(path): Path<String>,
@@ -70,6 +88,10 @@ pub(super) fn build_router(state: GatewayAppState) -> Router {
     Router::new()
         .route("/", get(root))
         .route("/health", get(health))
+        .route(
+            "/:cli_key/_aio/provider/:provider_id/*path",
+            any(proxy_cli_with_provider_any),
+        )
         .route("/v1", any(proxy_openai_v1_root))
         .route("/v1/*path", any(proxy_openai_v1_any))
         .route("/:cli_key/*path", any(proxy_cli_any))

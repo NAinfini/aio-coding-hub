@@ -1,9 +1,12 @@
 //! Usage: Provider configuration related Tauri commands.
 
-use crate::app_state::{ensure_db_ready, DbInitState};
+use crate::app_state::{ensure_db_ready, DbInitState, GatewayState};
+use crate::shared::mutex_ext::MutexExt;
 use crate::{base_url_probe, blocking, providers};
 use serde_json::json;
 use std::path::{Path, PathBuf};
+use tauri::Emitter;
+use tauri::Manager;
 
 const ENV_CLAUDE_DISABLE_NONESSENTIAL_TRAFFIC: &str = "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC";
 const ENV_DISABLE_ERROR_REPORTING: &str = "DISABLE_ERROR_REPORTING";
@@ -130,17 +133,53 @@ pub(crate) async fn provider_claude_terminal_launch_command(
     db_state: tauri::State<'_, DbInitState>,
     provider_id: i64,
 ) -> Result<String, String> {
-    let db = ensure_db_ready(app, db_state.inner()).await?;
+    let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
+    let gateway_base_origin = blocking::run("provider_claude_terminal_launch_gateway_origin", {
+        let app = app.clone();
+        let db = db.clone();
+        move || ensure_gateway_base_origin(&app, &db)
+    })
+    .await?;
+
     blocking::run("provider_claude_terminal_launch_command", move || {
         let launch = providers::claude_terminal_launch_context(&db, provider_id)?;
+        let claude_base_url = build_claude_gateway_base_url(&gateway_base_origin, provider_id);
         create_claude_terminal_launch_command(
             provider_id,
-            &launch.base_url,
+            &claude_base_url,
             &launch.api_key_plaintext,
         )
     })
     .await
     .map_err(Into::into)
+}
+
+fn ensure_gateway_base_origin(
+    app: &tauri::AppHandle,
+    db: &crate::db::Db,
+) -> crate::shared::error::AppResult<String> {
+    let state = app.state::<GatewayState>();
+    let mut manager = state.0.lock_or_recover();
+
+    let mut status = manager.status();
+    if !status.running {
+        status = manager.start(app, db.clone(), None)?;
+    }
+
+    drop(manager);
+
+    let _ = app.emit("gateway:status", status.clone());
+
+    status
+        .base_url
+        .ok_or_else(|| "SYSTEM_ERROR: gateway base_url missing".to_string().into())
+}
+
+fn build_claude_gateway_base_url(gateway_base_origin: &str, provider_id: i64) -> String {
+    format!(
+        "{}/claude/_aio/provider/{provider_id}",
+        gateway_base_origin.trim_end_matches('/')
+    )
 }
 
 fn create_claude_terminal_launch_command(
@@ -330,6 +369,12 @@ mod tests {
             env.get(ENV_ANTHROPIC_AUTH_TOKEN).and_then(|v| v.as_str()),
             Some("sk-test")
         );
+    }
+
+    #[test]
+    fn build_claude_gateway_base_url_trims_trailing_slash() {
+        let url = build_claude_gateway_base_url("http://127.0.0.1:18080/", 12);
+        assert_eq!(url, "http://127.0.0.1:18080/claude/_aio/provider/12");
     }
 
     #[test]

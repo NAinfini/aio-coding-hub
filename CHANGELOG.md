@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.25.0](https://github.com/dyndynjyxa/aio-coding-hub/compare/aio-coding-hub-v0.24.1...aio-coding-hub-v0.25.0) (2026-02-12)
+
+
+### Features
+
+* **cli:** 添加 Claude 终端启动命令生成及剪贴板管理插件支持 ([ba3d3c2](https://github.com/dyndynjyxa/aio-coding-hub/commit/ba3d3c20d8d1d40accc0d97780c4dae54d48c71a))
+* **gateway:** 支持强制指定请求的Provider并更新Claude终端启动逻辑 ([904a9aa](https://github.com/dyndynjyxa/aio-coding-hub/commit/904a9aa6805681fb5642e350105803ce01ae998b))
+
+
+### Bug Fixes
+
+* **ci:** 修复正则表达式转义字符问题 ([ba805c3](https://github.com/dyndynjyxa/aio-coding-hub/commit/ba805c3b2f147f153cbe39042b078547eb36da5a))
+
 ## [0.24.1](https://github.com/dyndynjyxa/aio-coding-hub/compare/aio-coding-hub-v0.24.0...aio-coding-hub-v0.24.1) (2026-02-11)
 
 

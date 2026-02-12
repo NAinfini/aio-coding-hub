@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { FlaskConical } from "lucide-react";
+import { FlaskConical, Pencil, Terminal, Trash2 } from "lucide-react";
 import type { GatewayProviderCircuitStatus } from "../../services/gateway";
 import type { ProviderSummary } from "../../services/providers";
 import { Button } from "../../ui/Button";
@@ -17,6 +17,8 @@ export type SortableProviderCardProps = {
   circuitResetting: boolean;
   onToggleEnabled: (provider: ProviderSummary) => void;
   onResetCircuit: (provider: ProviderSummary) => void;
+  onCopyTerminalLaunchCommand?: (provider: ProviderSummary) => void;
+  terminalLaunchCopying?: boolean;
   onValidateModel?: (provider: ProviderSummary) => void;
   onEdit: (provider: ProviderSummary) => void;
   onDelete: (provider: ProviderSummary) => void;
@@ -28,6 +30,8 @@ export function SortableProviderCard({
   circuitResetting,
   onToggleEnabled,
   onResetCircuit,
+  onCopyTerminalLaunchCommand,
+  terminalLaunchCopying = false,
   onValidateModel,
   onEdit,
   onDelete,
@@ -165,9 +169,23 @@ export function SortableProviderCard({
             <Button
               onClick={() => onResetCircuit(provider)}
               variant="secondary"
+              size="sm"
               disabled={circuitResetting}
             >
               {circuitResetting ? "处理中…" : "解除熔断"}
+            </Button>
+          ) : null}
+
+          {onCopyTerminalLaunchCommand ? (
+            <Button
+              onClick={() => onCopyTerminalLaunchCommand(provider)}
+              variant="secondary"
+              size="sm"
+              disabled={terminalLaunchCopying}
+              title="复制终端启动命令"
+            >
+              <Terminal className="h-4 w-4" />
+              {terminalLaunchCopying ? "复制中…" : "终端启动"}
             </Button>
           ) : null}
 
@@ -175,39 +193,22 @@ export function SortableProviderCard({
             <Button
               onClick={() => onValidateModel(provider)}
               variant="secondary"
-              size="icon"
+              size="sm"
               title="模型验证"
             >
               <FlaskConical className="h-4 w-4" />
+              模型验证
             </Button>
           ) : null}
 
-          <Button onClick={() => onEdit(provider)} variant="secondary" size="icon" title="编辑">
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-              />
-            </svg>
+          <Button onClick={() => onEdit(provider)} variant="secondary" size="sm" title="编辑">
+            <Pencil className="h-4 w-4" />
+            编辑
           </Button>
 
-          <Button
-            onClick={() => onDelete(provider)}
-            variant="secondary"
-            size="icon"
-            className="hover:!bg-rose-50 hover:!text-rose-600"
-            title="删除"
-          >
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-              />
-            </svg>
+          <Button onClick={() => onDelete(provider)} variant="danger" size="sm" title="删除">
+            <Trash2 className="h-4 w-4" />
+            删除
           </Button>
         </div>
       </Card>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactElemen
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { logToConsole } from "../services/consoleLog";
+import { copyText } from "../services/clipboard";
 import { useModelPricesListQuery } from "../query/modelPrices";
 import { useProvidersListQuery } from "../query/providers";
 import {
@@ -464,7 +465,7 @@ export function ClaudeModelValidationDialog({
 
   async function copyTextOrToast(text: string, okMessage: string) {
     try {
-      await navigator.clipboard.writeText(text);
+      await copyText(text);
       toast(okMessage);
     } catch (err) {
       logToConsole("error", "复制失败", { error: String(err) });

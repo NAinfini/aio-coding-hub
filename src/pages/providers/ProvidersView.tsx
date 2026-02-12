@@ -15,6 +15,7 @@ import { SortableContext, arrayMove, verticalListSortingStrategy } from "@dnd-ki
 import { CLIS } from "../../constants/clis";
 import { ClaudeModelValidationDialog } from "../../components/ClaudeModelValidationDialog";
 import { logToConsole } from "../../services/consoleLog";
+import { copyText } from "../../services/clipboard";
 import type { GatewayProviderCircuitStatus } from "../../services/gateway";
 import type { CliKey, ProviderSummary } from "../../services/providers";
 import { gatewayKeys, providersKeys } from "../../query/keys";
@@ -24,6 +25,7 @@ import {
   useGatewayCircuitStatusQuery,
 } from "../../query/gateway";
 import {
+  useProviderClaudeTerminalLaunchCommandMutation,
   useProviderDeleteMutation,
   useProviderSetEnabledMutation,
   useProvidersListQuery,
@@ -94,6 +96,7 @@ export function ProvidersView({ activeCli, setActiveCli }: ProvidersViewProps) {
   const providerSetEnabledMutation = useProviderSetEnabledMutation();
   const providerDeleteMutation = useProviderDeleteMutation();
   const providersReorderMutation = useProvidersReorderMutation();
+  const terminalLaunchCommandMutation = useProviderClaudeTerminalLaunchCommandMutation();
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createCliKeyLocked, setCreateCliKeyLocked] = useState<CliKey | null>(null);
@@ -101,6 +104,9 @@ export function ProvidersView({ activeCli, setActiveCli }: ProvidersViewProps) {
   const [editTarget, setEditTarget] = useState<ProviderSummary | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProviderSummary | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [terminalCopyingByProviderId, setTerminalCopyingByProviderId] = useState<
+    Record<number, boolean>
+  >({});
 
   const [validateDialogOpen, setValidateDialogOpen] = useState(false);
   const [validateProvider, setValidateProvider] = useState<ProviderSummary | null>(null);
@@ -269,6 +275,57 @@ export function ProvidersView({ activeCli, setActiveCli }: ProvidersViewProps) {
     }
   }
 
+  function terminalLaunchCopiedToastMessage(command: string) {
+    const normalized = command.trim().toLowerCase();
+    if (
+      normalized.startsWith("powershell ") ||
+      normalized.startsWith("powershell.exe ") ||
+      normalized.startsWith("pwsh ")
+    ) {
+      return "已复制, 请在目标文件夹 PowerShell 粘贴执行";
+    }
+    return "已复制, 请在目标文件夹终端粘贴执行";
+  }
+
+  async function copyTerminalLaunchCommand(provider: ProviderSummary) {
+    if (provider.cli_key !== "claude") return;
+    if (terminalCopyingByProviderId[provider.id]) return;
+
+    setTerminalCopyingByProviderId((cur) => ({ ...cur, [provider.id]: true }));
+
+    let launchCommand: string | null = null;
+    try {
+      launchCommand = await terminalLaunchCommandMutation.mutateAsync({ providerId: provider.id });
+      if (!launchCommand) {
+        toast("仅在 Tauri Desktop 环境可用");
+        return;
+      }
+    } catch (err) {
+      logToConsole("error", "生成 Claude 终端启动命令失败", {
+        provider_id: provider.id,
+        error: String(err),
+      });
+      toast(`生成启动命令失败：${String(err)}`);
+      return;
+    }
+
+    try {
+      await copyText(launchCommand);
+      toast(terminalLaunchCopiedToastMessage(launchCommand));
+      logToConsole("info", "复制 Claude 终端启动命令", {
+        provider_id: provider.id,
+      });
+    } catch (err) {
+      logToConsole("error", "复制 Claude 终端启动命令失败", {
+        provider_id: provider.id,
+        error: String(err),
+      });
+      toast("复制失败：当前环境不支持剪贴板");
+    } finally {
+      setTerminalCopyingByProviderId((cur) => ({ ...cur, [provider.id]: false }));
+    }
+  }
+
   async function persistProvidersOrder(
     cliKey: CliKey,
     nextProviders: ProviderSummary[],
@@ -402,6 +459,10 @@ export function ProvidersView({ activeCli, setActiveCli }: ProvidersViewProps) {
                       circuitResetting={Boolean(circuitResetting[provider.id]) || circuitLoading}
                       onToggleEnabled={toggleProviderEnabled}
                       onResetCircuit={resetCircuit}
+                      onCopyTerminalLaunchCommand={
+                        provider.cli_key === "claude" ? copyTerminalLaunchCommand : undefined
+                      }
+                      terminalLaunchCopying={Boolean(terminalCopyingByProviderId[provider.id])}
                       onValidateModel={
                         activeCli === "claude" ? requestValidateProviderModel : undefined
                       }

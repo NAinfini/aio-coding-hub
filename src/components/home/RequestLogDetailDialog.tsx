@@ -4,6 +4,7 @@
 
 import { toast } from "sonner";
 import { cliBadgeTone, cliShortLabel } from "../../constants/clis";
+import { copyText } from "../../services/clipboard";
 import { logToConsole } from "../../services/consoleLog";
 import type { RequestAttemptLog, RequestLogDetail } from "../../services/requestLogs";
 import { Button } from "../../ui/Button";
@@ -150,7 +151,7 @@ export function RequestLogDetailDialog({
                 <Button
                   onClick={async () => {
                     try {
-                      await navigator.clipboard.writeText(selectedLog.trace_id);
+                      await copyText(selectedLog.trace_id);
                       toast("已复制 trace_id");
                     } catch (err) {
                       logToConsole("error", "复制 trace_id 失败", {
@@ -200,7 +201,7 @@ export function RequestLogDetailDialog({
                       <Button
                         onClick={async () => {
                           try {
-                            await navigator.clipboard.writeText(selectedLog.usage_json ?? "");
+                            await copyText(selectedLog.usage_json ?? "");
                             toast("已复制 usage_json");
                           } catch (err) {
                             logToConsole("error", "复制 usage_json 失败", {

@@ -2,6 +2,15 @@
 
 use crate::app_state::{ensure_db_ready, DbInitState};
 use crate::{base_url_probe, blocking, providers};
+use serde_json::json;
+use std::path::{Path, PathBuf};
+
+const ENV_CLAUDE_DISABLE_NONESSENTIAL_TRAFFIC: &str = "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC";
+const ENV_DISABLE_ERROR_REPORTING: &str = "DISABLE_ERROR_REPORTING";
+const ENV_DISABLE_TELEMETRY: &str = "DISABLE_TELEMETRY";
+const ENV_MCP_TIMEOUT: &str = "MCP_TIMEOUT";
+const ENV_ANTHROPIC_BASE_URL: &str = "ANTHROPIC_BASE_URL";
+const ENV_ANTHROPIC_AUTH_TOKEN: &str = "ANTHROPIC_AUTH_TOKEN";
 
 #[tauri::command]
 pub(crate) async fn providers_list(
@@ -116,10 +125,246 @@ pub(crate) async fn providers_reorder(
 }
 
 #[tauri::command]
+pub(crate) async fn provider_claude_terminal_launch_command(
+    app: tauri::AppHandle,
+    db_state: tauri::State<'_, DbInitState>,
+    provider_id: i64,
+) -> Result<String, String> {
+    let db = ensure_db_ready(app, db_state.inner()).await?;
+    blocking::run("provider_claude_terminal_launch_command", move || {
+        let launch = providers::claude_terminal_launch_context(&db, provider_id)?;
+        create_claude_terminal_launch_command(
+            provider_id,
+            &launch.base_url,
+            &launch.api_key_plaintext,
+        )
+    })
+    .await
+    .map_err(Into::into)
+}
+
+fn create_claude_terminal_launch_command(
+    provider_id: i64,
+    base_url: &str,
+    api_key_plaintext: &str,
+) -> crate::shared::error::AppResult<String> {
+    let temp_dir = std::env::temp_dir();
+    let now = crate::shared::time::now_unix_seconds();
+    let pid = std::process::id();
+
+    let config_path = temp_dir.join(format!("claude_{provider_id}_{pid}_{now}.json"));
+
+    let settings_json = build_claude_settings_json(base_url, api_key_plaintext)?;
+    std::fs::write(&config_path, settings_json)
+        .map_err(|e| format!("SYSTEM_ERROR: write claude settings failed: {e}"))?;
+
+    let (script_path, script_content, launch_command) =
+        build_claude_launch_assets(provider_id, pid, now, &temp_dir, &config_path);
+    if let Err(err) = std::fs::write(&script_path, script_content) {
+        let _ = std::fs::remove_file(&config_path);
+        return Err(format!("SYSTEM_ERROR: write launch script failed: {err}").into());
+    }
+
+    Ok(launch_command)
+}
+
+fn build_claude_launch_assets(
+    provider_id: i64,
+    pid: u32,
+    now: i64,
+    temp_dir: &Path,
+    config_path: &Path,
+) -> (PathBuf, String, String) {
+    if cfg!(target_os = "windows") {
+        let script_path =
+            temp_dir.join(format!("aio_claude_launcher_{provider_id}_{pid}_{now}.ps1"));
+        let script_content = build_claude_launcher_powershell_script(config_path, &script_path);
+        let launch_command = build_powershell_launch_command(&script_path);
+        (script_path, script_content, launch_command)
+    } else {
+        let script_path =
+            temp_dir.join(format!("aio_claude_launcher_{provider_id}_{pid}_{now}.sh"));
+        let script_content = build_claude_launcher_bash_script(config_path, &script_path);
+        let launch_command = build_bash_launch_command(&script_path);
+        (script_path, script_content, launch_command)
+    }
+}
+
+fn build_claude_settings_json(
+    base_url: &str,
+    api_key_plaintext: &str,
+) -> crate::shared::error::AppResult<String> {
+    let value = json!({
+        "env": {
+            ENV_CLAUDE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
+            ENV_DISABLE_ERROR_REPORTING: "1",
+            ENV_DISABLE_TELEMETRY: "1",
+            ENV_MCP_TIMEOUT: "60000",
+            ENV_ANTHROPIC_BASE_URL: base_url,
+            ENV_ANTHROPIC_AUTH_TOKEN: api_key_plaintext,
+        }
+    });
+
+    serde_json::to_string_pretty(&value)
+        .map_err(|e| format!("SYSTEM_ERROR: serialize claude settings failed: {e}").into())
+}
+
+fn build_claude_launcher_bash_script(config_path: &Path, script_path: &Path) -> String {
+    let config_var = bash_single_quote(&config_path.to_string_lossy());
+    let script_var = bash_single_quote(&script_path.to_string_lossy());
+
+    format!(
+        "#!/bin/bash\n\
+config_path={config_var}\n\
+script_path={script_var}\n\
+trap 'rm -f \"$config_path\" \"$script_path\"' EXIT\n\
+echo \"Using provider-specific claude config:\"\n\
+echo \"$config_path\"\n\
+claude --settings \"$config_path\"\n\
+exec bash --norc --noprofile\n"
+    )
+}
+
+fn build_claude_launcher_powershell_script(config_path: &Path, script_path: &Path) -> String {
+    let config_var = powershell_single_quote(&config_path.to_string_lossy());
+    let script_var = powershell_single_quote(&script_path.to_string_lossy());
+
+    format!(
+        "$configPath = {config_var}\n\
+$scriptPath = {script_var}\n\
+try {{\n\
+  Write-Output \"Using provider-specific claude config:\"\n\
+  Write-Output $configPath\n\
+  claude --settings $configPath\n\
+}} finally {{\n\
+  Remove-Item -LiteralPath $configPath -ErrorAction SilentlyContinue\n\
+  Remove-Item -LiteralPath $scriptPath -ErrorAction SilentlyContinue\n\
+}}\n"
+    )
+}
+
+fn build_bash_launch_command(script_path: &Path) -> String {
+    format!("bash {}", bash_single_quote(&script_path.to_string_lossy()))
+}
+
+fn build_powershell_launch_command(script_path: &Path) -> String {
+    format!(
+        "powershell -NoLogo -NoExit -ExecutionPolicy Bypass -File {}",
+        windows_double_quote(&script_path.to_string_lossy())
+    )
+}
+
+fn bash_single_quote(value: &str) -> String {
+    if value.is_empty() {
+        return "''".to_string();
+    }
+    format!("'{}'", value.replace('\'', r#"'"'"'"#))
+}
+
+fn powershell_single_quote(value: &str) -> String {
+    if value.is_empty() {
+        return "''".to_string();
+    }
+    format!("'{}'", value.replace('\'', "''"))
+}
+
+fn windows_double_quote(value: &str) -> String {
+    format!("\"{value}\"")
+}
+
+#[tauri::command]
 pub(crate) async fn base_url_ping_ms(base_url: String) -> Result<u64, String> {
     let client = reqwest::Client::builder()
         .user_agent(format!("aio-coding-hub-ping/{}", env!("CARGO_PKG_VERSION")))
         .build()
         .map_err(|e| format!("PING_HTTP_CLIENT_INIT: {e}"))?;
     base_url_probe::probe_base_url_ms(&client, &base_url, std::time::Duration::from_secs(3)).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bash_single_quote_escapes_single_quote() {
+        assert_eq!(bash_single_quote("a'b"), "'a'\"'\"'b'");
+    }
+
+    #[test]
+    fn powershell_single_quote_escapes_single_quote() {
+        assert_eq!(powershell_single_quote("a'b"), "'a''b'");
+    }
+
+    #[test]
+    fn build_settings_contains_required_envs() {
+        let json_text = build_claude_settings_json("https://example.com", "sk-test").unwrap();
+        let value: serde_json::Value = serde_json::from_str(&json_text).unwrap();
+        let env = value
+            .get("env")
+            .and_then(|v| v.as_object())
+            .expect("env object");
+
+        assert_eq!(
+            env.get(ENV_CLAUDE_DISABLE_NONESSENTIAL_TRAFFIC)
+                .and_then(|v| v.as_str()),
+            Some("1")
+        );
+        assert_eq!(
+            env.get(ENV_DISABLE_ERROR_REPORTING)
+                .and_then(|v| v.as_str()),
+            Some("1")
+        );
+        assert_eq!(
+            env.get(ENV_DISABLE_TELEMETRY).and_then(|v| v.as_str()),
+            Some("1")
+        );
+        assert_eq!(
+            env.get(ENV_MCP_TIMEOUT).and_then(|v| v.as_str()),
+            Some("60000")
+        );
+        assert_eq!(
+            env.get(ENV_ANTHROPIC_BASE_URL).and_then(|v| v.as_str()),
+            Some("https://example.com")
+        );
+        assert_eq!(
+            env.get(ENV_ANTHROPIC_AUTH_TOKEN).and_then(|v| v.as_str()),
+            Some("sk-test")
+        );
+    }
+
+    #[test]
+    fn bash_launch_script_includes_cleanup_and_claude_settings() {
+        let config_path = Path::new("/tmp/claude_x.json");
+        let script_path = Path::new("/tmp/aio_launcher.sh");
+        let script = build_claude_launcher_bash_script(config_path, script_path);
+
+        assert!(script.contains("trap 'rm -f \"$config_path\" \"$script_path\"' EXIT"));
+        assert!(script.contains("claude --settings \"$config_path\""));
+        assert!(script.contains("exec bash --norc --noprofile"));
+    }
+
+    #[test]
+    fn powershell_launch_script_includes_cleanup_and_claude_settings() {
+        let config_path = Path::new(r"C:\\Temp\\claude_x.json");
+        let script_path = Path::new(r"C:\\Temp\\aio_launcher.ps1");
+        let script = build_claude_launcher_powershell_script(config_path, script_path);
+
+        assert!(script.contains("Write-Output \"Using provider-specific claude config:\""));
+        assert!(script.contains("claude --settings $configPath"));
+        assert!(
+            script.contains("Remove-Item -LiteralPath $configPath -ErrorAction SilentlyContinue")
+        );
+        assert!(
+            script.contains("Remove-Item -LiteralPath $scriptPath -ErrorAction SilentlyContinue")
+        );
+    }
+
+    #[test]
+    fn powershell_launch_command_uses_expected_flags() {
+        let script_path = Path::new(r"C:\\Temp\\aio_launcher.ps1");
+        let command = build_powershell_launch_command(script_path);
+
+        assert!(command.starts_with("powershell -NoLogo -NoExit -ExecutionPolicy Bypass -File"));
+        assert!(command.contains("\"C:\\\\Temp\\\\aio_launcher.ps1\""));
+    }
 }

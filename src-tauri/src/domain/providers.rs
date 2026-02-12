@@ -272,6 +272,12 @@ pub(crate) struct GatewayProvidersSelection {
     pub providers: Vec<ProviderForGateway>,
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct ClaudeTerminalLaunchContext {
+    pub base_url: String,
+    pub api_key_plaintext: String,
+}
+
 fn validate_cli_key(cli_key: &str) -> crate::shared::error::AppResult<()> {
     crate::shared::cli_key::validate_cli_key(cli_key)
 }
@@ -413,6 +419,61 @@ WHERE id = ?1
     .optional()
     .map_err(|e| db_err!("failed to query provider: {e}"))?
     .ok_or_else(|| crate::shared::error::AppError::from("DB_NOT_FOUND: provider not found"))
+}
+
+pub(crate) fn claude_terminal_launch_context(
+    db: &db::Db,
+    provider_id: i64,
+) -> crate::shared::error::AppResult<ClaudeTerminalLaunchContext> {
+    if provider_id <= 0 {
+        return Err(format!("SEC_INVALID_INPUT: invalid provider_id={provider_id}").into());
+    }
+
+    let conn = db.open_connection()?;
+    let row: Option<(String, String, String, String)> = conn
+        .query_row(
+            r#"
+SELECT
+  cli_key,
+  base_url,
+  base_urls_json,
+  api_key_plaintext
+FROM providers
+WHERE id = ?1
+"#,
+            params![provider_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        )
+        .optional()
+        .map_err(|e| db_err!("failed to query provider for launch context: {e}"))?;
+
+    let Some((cli_key, base_url_fallback, base_urls_json, api_key_plaintext)) = row else {
+        return Err("DB_NOT_FOUND: provider not found".to_string().into());
+    };
+
+    if cli_key != "claude" {
+        return Err(format!("SEC_INVALID_INPUT: provider_id={provider_id} is not claude").into());
+    }
+
+    let base_url = base_urls_from_row(&base_url_fallback, &base_urls_json)
+        .into_iter()
+        .find(|v| !v.trim().is_empty())
+        .ok_or_else(|| "SEC_INVALID_INPUT: provider base_url is empty".to_string())?;
+
+    reqwest::Url::parse(&base_url)
+        .map_err(|e| format!("SEC_INVALID_INPUT: invalid base_url={base_url}: {e}"))?;
+
+    let api_key_plaintext = api_key_plaintext.trim().to_string();
+    if api_key_plaintext.is_empty() {
+        return Err("SEC_INVALID_INPUT: provider api_key is empty"
+            .to_string()
+            .into());
+    }
+
+    Ok(ClaudeTerminalLaunchContext {
+        base_url,
+        api_key_plaintext,
+    })
 }
 
 pub fn names_by_id(

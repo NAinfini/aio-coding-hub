@@ -2,12 +2,14 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { ProviderSummary } from "../../services/providers";
 import {
+  providerClaudeTerminalLaunchCommand,
   providerDelete,
   providerSetEnabled,
   providersList,
   providersReorder,
 } from "../../services/providers";
 import {
+  useProviderClaudeTerminalLaunchCommandMutation,
   useProviderDeleteMutation,
   useProviderSetEnabledMutation,
   useProvidersListQuery,
@@ -27,6 +29,7 @@ vi.mock("../../services/providers", async () => {
     providerSetEnabled: vi.fn(),
     providerDelete: vi.fn(),
     providersReorder: vi.fn(),
+    providerClaudeTerminalLaunchCommand: vi.fn(),
   };
 });
 
@@ -282,5 +285,23 @@ describe("query/providers", () => {
     });
 
     expect(client.getQueryData(providersKeys.list("claude"))).toEqual(providers);
+  });
+
+  it("useProviderClaudeTerminalLaunchCommandMutation calls service with provider id", async () => {
+    setTauriRuntime();
+
+    vi.mocked(providerClaudeTerminalLaunchCommand).mockResolvedValue("bash '/tmp/aio.sh'");
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useProviderClaudeTerminalLaunchCommandMutation(), {
+      wrapper,
+    });
+    await act(async () => {
+      await result.current.mutateAsync({ providerId: 8 });
+    });
+
+    expect(providerClaudeTerminalLaunchCommand).toHaveBeenCalledWith(8);
   });
 });

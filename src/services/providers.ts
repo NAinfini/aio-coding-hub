@@ -96,3 +96,11 @@ export async function providersReorder(cliKey: CliKey, orderedProviderIds: numbe
     orderedProviderIds,
   });
 }
+
+export async function providerClaudeTerminalLaunchCommand(providerId: number) {
+  return invokeService<string>(
+    "生成 Claude 终端启动命令失败",
+    "provider_claude_terminal_launch_command",
+    { providerId }
+  );
+}

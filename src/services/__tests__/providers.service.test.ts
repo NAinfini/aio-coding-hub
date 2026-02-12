@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   baseUrlPingMs,
+  providerClaudeTerminalLaunchCommand,
   providerDelete,
   providerSetEnabled,
   providersList,
@@ -36,6 +37,7 @@ describe("services/providers", () => {
     await expect(providerSetEnabled(1, true)).resolves.toBeNull();
     await expect(providerDelete(1)).resolves.toBeNull();
     await expect(providersReorder("claude", [1])).resolves.toBeNull();
+    await expect(providerClaudeTerminalLaunchCommand(1)).resolves.toBeNull();
 
     expect(logToConsole).not.toHaveBeenCalled();
   });
@@ -104,13 +106,15 @@ describe("services/providers", () => {
       .mockResolvedValueOnce({ id: 1 } as any)
       .mockResolvedValueOnce({ id: 1 } as any)
       .mockResolvedValueOnce(true as any)
-      .mockResolvedValueOnce([] as any);
+      .mockResolvedValueOnce([] as any)
+      .mockResolvedValueOnce("bash '/tmp/aio.sh'" as any);
 
     await providersList("claude");
     await baseUrlPingMs("https://api.example.com");
     await providerSetEnabled(1, true);
     await providerDelete(1);
     await providersReorder("claude", [2, 1]);
+    await providerClaudeTerminalLaunchCommand(5);
 
     expect(invokeTauriOrNull).toHaveBeenCalledWith("providers_list", {
       cliKey: "claude",
@@ -128,6 +132,9 @@ describe("services/providers", () => {
     expect(invokeTauriOrNull).toHaveBeenCalledWith("providers_reorder", {
       cliKey: "claude",
       orderedProviderIds: [2, 1],
+    });
+    expect(invokeTauriOrNull).toHaveBeenCalledWith("provider_claude_terminal_launch_command", {
+      providerId: 5,
     });
   });
 });

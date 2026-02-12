@@ -1,5 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  providerClaudeTerminalLaunchCommand,
   providerDelete,
   providerSetEnabled,
   providersList,
@@ -68,5 +69,12 @@ export function useProvidersReorderMutation() {
       if (!next) return;
       queryClient.setQueryData(providersKeys.list(input.cliKey), next);
     },
+  });
+}
+
+export function useProviderClaudeTerminalLaunchCommandMutation() {
+  return useMutation({
+    mutationFn: (input: { providerId: number }) =>
+      providerClaudeTerminalLaunchCommand(input.providerId),
   });
 }

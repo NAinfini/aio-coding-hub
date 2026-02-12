@@ -1,19 +1,14 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
+import { copyText } from "../../../services/clipboard";
 import { logToConsole } from "../../../services/consoleLog";
 import type { RequestLogDetail } from "../../../services/requestLogs";
 import { RequestLogDetailDialog } from "../RequestLogDetailDialog";
 
 vi.mock("sonner", () => ({ toast: vi.fn() }));
+vi.mock("../../../services/clipboard", () => ({ copyText: vi.fn() }));
 vi.mock("../../../services/consoleLog", () => ({ logToConsole: vi.fn() }));
-
-function mockClipboard(writeText: ReturnType<typeof vi.fn>) {
-  Object.defineProperty(navigator, "clipboard", {
-    value: { writeText },
-    configurable: true,
-  });
-}
 
 function createSelectedLog(overrides: Partial<RequestLogDetail> = {}): RequestLogDetail {
   return {
@@ -72,8 +67,7 @@ describe("home/RequestLogDetailDialog", () => {
   it("renders detail view and handles clipboard copy success + failure for trace_id and usage_json", async () => {
     const onSelectLogId = vi.fn();
 
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    mockClipboard(writeText);
+    vi.mocked(copyText).mockResolvedValue(undefined);
 
     render(
       <RequestLogDetailDialog
@@ -92,13 +86,13 @@ describe("home/RequestLogDetailDialog", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "复制 trace_id" }));
     await waitFor(() => {
-      expect(writeText).toHaveBeenCalledWith("trace-1");
+      expect(copyText).toHaveBeenCalledWith("trace-1");
     });
     expect(toast).toHaveBeenCalledWith("已复制 trace_id");
 
     fireEvent.click(screen.getByRole("button", { name: "复制 usage_json" }));
     await waitFor(() => {
-      expect(writeText).toHaveBeenCalledWith(
+      expect(copyText).toHaveBeenCalledWith(
         expect.stringContaining("cache_creation_1h_input_tokens")
       );
     });
@@ -108,7 +102,7 @@ describe("home/RequestLogDetailDialog", () => {
     expect(screen.getByText(/\"input_tokens\"/)).toBeInTheDocument();
     expect(screen.queryByText(/cache_creation_1h_input_tokens/)).not.toBeInTheDocument();
 
-    writeText.mockRejectedValueOnce(new Error("nope"));
+    vi.mocked(copyText).mockRejectedValueOnce(new Error("nope"));
     fireEvent.click(screen.getByRole("button", { name: "复制 trace_id" }));
     await waitFor(() => {
       expect(logToConsole).toHaveBeenCalledWith("error", "复制 trace_id 失败", {
@@ -119,7 +113,7 @@ describe("home/RequestLogDetailDialog", () => {
   });
 
   it("falls back to raw usage_json when JSON parsing fails", () => {
-    mockClipboard(vi.fn().mockResolvedValue(undefined));
+    vi.mocked(copyText).mockResolvedValue(undefined);
 
     render(
       <RequestLogDetailDialog

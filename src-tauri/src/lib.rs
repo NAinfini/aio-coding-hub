@@ -36,7 +36,8 @@ pub fn run() {
         .manage(DbInitState::default())
         .manage(GatewayState::default())
         .manage(resident::ResidentState::default())
-        .plugin(tauri_plugin_opener::init());
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_clipboard_manager::init());
 
     #[cfg(desktop)]
     let builder = builder
@@ -232,6 +233,7 @@ pub fn run() {
             provider_set_enabled,
             provider_delete,
             providers_reorder,
+            provider_claude_terminal_launch_command,
             base_url_ping_ms,
             claude_provider_validate_model,
             claude_provider_get_api_key_plaintext,

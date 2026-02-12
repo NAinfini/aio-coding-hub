@@ -1,10 +1,11 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 import { toast } from "sonner";
 import { ProvidersView } from "../ProvidersView";
 import { createTestQueryClient } from "../../../test/utils/reactQuery";
+import { copyText } from "../../../services/clipboard";
 import { logToConsole } from "../../../services/consoleLog";
 import { gatewayKeys, providersKeys } from "../../../query/keys";
 import {
@@ -13,6 +14,7 @@ import {
   useGatewayCircuitStatusQuery,
 } from "../../../query/gateway";
 import {
+  useProviderClaudeTerminalLaunchCommandMutation,
   useProviderDeleteMutation,
   useProviderSetEnabledMutation,
   useProvidersListQuery,
@@ -57,6 +59,7 @@ vi.mock("@dnd-kit/utilities", () => ({
 }));
 
 vi.mock("sonner", () => ({ toast: vi.fn() }));
+vi.mock("../../../services/clipboard", () => ({ copyText: vi.fn() }));
 vi.mock("../../../services/consoleLog", () => ({ logToConsole: vi.fn() }));
 
 vi.mock("../../../components/ClaudeModelValidationDialog", () => ({
@@ -103,6 +106,7 @@ vi.mock("../../../query/providers", async () => {
   return {
     ...actual,
     useProvidersListQuery: vi.fn(),
+    useProviderClaudeTerminalLaunchCommandMutation: vi.fn(),
     useProviderSetEnabledMutation: vi.fn(),
     useProviderDeleteMutation: vi.fn(),
     useProvidersReorderMutation: vi.fn(),
@@ -113,6 +117,13 @@ function renderWithQuery(element: ReactElement) {
   const client = createTestQueryClient();
   return render(<QueryClientProvider client={client}>{element}</QueryClientProvider>);
 }
+
+beforeEach(() => {
+  vi.mocked(copyText).mockResolvedValue(undefined);
+  vi.mocked(useProviderClaudeTerminalLaunchCommandMutation).mockReturnValue({
+    mutateAsync: vi.fn().mockResolvedValue("bash '/tmp/aio.sh'"),
+  } as any);
+});
 
 afterEach(() => {
   cleanup();
@@ -181,6 +192,12 @@ describe("pages/providers/ProvidersView", () => {
     resetCliMutation.mutateAsync.mockResolvedValue(1);
     vi.mocked(useGatewayCircuitResetCliMutation).mockReturnValue(resetCliMutation as any);
 
+    const copyLaunchMutation = { mutateAsync: vi.fn().mockResolvedValue("bash '/tmp/aio.sh'") };
+    vi.mocked(useProviderClaudeTerminalLaunchCommandMutation).mockReturnValue(
+      copyLaunchMutation as any
+    );
+    vi.mocked(copyText).mockResolvedValue(undefined);
+
     renderWithQuery(<ProvidersView activeCli="claude" setActiveCli={vi.fn()} />);
 
     // Toggle provider 2 to enabled.
@@ -203,6 +220,14 @@ describe("pages/providers/ProvidersView", () => {
     await waitFor(() =>
       expect(resetCliMutation.mutateAsync).toHaveBeenCalledWith({ cliKey: "claude" })
     );
+
+    // Copy launch command.
+    fireEvent.click(screen.getAllByRole("button", { name: "终端启动" })[0]!);
+    await waitFor(() =>
+      expect(copyLaunchMutation.mutateAsync).toHaveBeenCalledWith({ providerId: 1 })
+    );
+    await waitFor(() => expect(copyText).toHaveBeenCalledWith("bash '/tmp/aio.sh'"));
+    expect(toast).toHaveBeenCalledWith("已复制, 请在目标文件夹终端粘贴执行");
 
     // Open create dialog (mocked ProviderEditorDialog).
     fireEvent.click(screen.getByRole("button", { name: "添加" }));
@@ -230,6 +255,106 @@ describe("pages/providers/ProvidersView", () => {
         cliKey: "claude",
         orderedProviderIds: [2, 1],
       })
+    );
+  });
+
+  it("shows generate error when launch command mutation fails", async () => {
+    vi.mocked(toast).mockClear();
+
+    const providers = [
+      {
+        id: 1,
+        cli_key: "claude",
+        name: "P1",
+        enabled: true,
+        base_urls: ["https://a"],
+        base_url_mode: "order",
+        cost_multiplier: 1,
+        claude_models: {},
+      },
+    ] as any[];
+
+    vi.mocked(useProvidersListQuery).mockReturnValue({
+      data: providers,
+      isFetching: false,
+      error: null,
+    } as any);
+    vi.mocked(useGatewayCircuitStatusQuery).mockReturnValue({
+      data: [],
+      isFetching: false,
+      error: null,
+      refetch: vi.fn().mockResolvedValue({ data: [] }),
+    } as any);
+
+    vi.mocked(useProviderSetEnabledMutation).mockReturnValue({ mutateAsync: vi.fn() } as any);
+    vi.mocked(useProviderDeleteMutation).mockReturnValue({ mutateAsync: vi.fn() } as any);
+    vi.mocked(useProvidersReorderMutation).mockReturnValue({ mutateAsync: vi.fn() } as any);
+    vi.mocked(useGatewayCircuitResetProviderMutation).mockReturnValue({
+      mutateAsync: vi.fn(),
+    } as any);
+    vi.mocked(useGatewayCircuitResetCliMutation).mockReturnValue({ mutateAsync: vi.fn() } as any);
+    vi.mocked(useProviderClaudeTerminalLaunchCommandMutation).mockReturnValue({
+      mutateAsync: vi.fn().mockRejectedValue(new Error("boom")),
+    } as any);
+
+    renderWithQuery(<ProvidersView activeCli="claude" setActiveCli={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "终端启动" }));
+
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.stringContaining("生成启动命令失败"))
+    );
+  });
+
+  it("shows PowerShell-specific toast when copied command targets Windows terminal", async () => {
+    vi.mocked(toast).mockClear();
+
+    const providers = [
+      {
+        id: 1,
+        cli_key: "claude",
+        name: "P1",
+        enabled: true,
+        base_urls: ["https://a"],
+        base_url_mode: "order",
+        cost_multiplier: 1,
+        claude_models: {},
+      },
+    ] as any[];
+
+    vi.mocked(useProvidersListQuery).mockReturnValue({
+      data: providers,
+      isFetching: false,
+      error: null,
+    } as any);
+    vi.mocked(useGatewayCircuitStatusQuery).mockReturnValue({
+      data: [],
+      isFetching: false,
+      error: null,
+      refetch: vi.fn().mockResolvedValue({ data: [] }),
+    } as any);
+
+    vi.mocked(useProviderSetEnabledMutation).mockReturnValue({ mutateAsync: vi.fn() } as any);
+    vi.mocked(useProviderDeleteMutation).mockReturnValue({ mutateAsync: vi.fn() } as any);
+    vi.mocked(useProvidersReorderMutation).mockReturnValue({ mutateAsync: vi.fn() } as any);
+    vi.mocked(useGatewayCircuitResetProviderMutation).mockReturnValue({
+      mutateAsync: vi.fn(),
+    } as any);
+    vi.mocked(useGatewayCircuitResetCliMutation).mockReturnValue({ mutateAsync: vi.fn() } as any);
+    vi.mocked(useProviderClaudeTerminalLaunchCommandMutation).mockReturnValue({
+      mutateAsync: vi
+        .fn()
+        .mockResolvedValue(
+          'powershell -NoLogo -NoExit -ExecutionPolicy Bypass -File "C:\\\\Temp\\\\aio.ps1"'
+        ),
+    } as any);
+
+    renderWithQuery(<ProvidersView activeCli="claude" setActiveCli={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "终端启动" }));
+
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith("已复制, 请在目标文件夹 PowerShell 粘贴执行")
     );
   });
 

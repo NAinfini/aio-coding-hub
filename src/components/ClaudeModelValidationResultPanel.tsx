@@ -2,6 +2,7 @@ import { toast } from "sonner";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { Tooltip } from "../ui/Tooltip";
+import { copyText } from "../services/clipboard";
 import type { ClaudeModelValidationResult } from "../services/claudeModelValidation";
 import type { ClaudeValidationTemplateKey } from "../services/claudeValidationTemplates";
 import {
@@ -870,7 +871,7 @@ export function ClaudeModelValidationResultPanel({ templateKey, result }: Props)
               className="!h-7 !px-2 text-xs"
               onClick={async () => {
                 try {
-                  await navigator.clipboard.writeText(outputPreviewForDisplay);
+                  await copyText(outputPreviewForDisplay);
                   toast("已复制");
                 } catch {
                   toast.error("复制失败");

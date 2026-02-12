@@ -7,6 +7,7 @@
     "core:default",
     "core:window:allow-set-theme",
     "core:window:allow-start-dragging",
+    "clipboard-manager:allow-write-text",
     "opener:default",
     "updater:default",
     "autostart:default",

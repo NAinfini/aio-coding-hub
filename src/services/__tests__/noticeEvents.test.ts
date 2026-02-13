@@ -7,6 +7,11 @@ import {
 } from "../../test/mocks/tauri";
 import { setTauriRuntime } from "../../test/utils/tauriRuntime";
 
+const logToConsoleMock = vi.hoisted(() => vi.fn());
+vi.mock("../consoleLog", () => ({
+  logToConsole: logToConsoleMock,
+}));
+
 describe("services/noticeEvents", () => {
   it("returns no-op when tauri runtime is missing", async () => {
     vi.resetModules();
@@ -56,5 +61,32 @@ describe("services/noticeEvents", () => {
     await handler?.({ payload: { level: "info", title: "T", body: "B" } } as any);
 
     expect(tauriSendNotification).not.toHaveBeenCalled();
+  });
+
+  it("logs error when sendNotification throws", async () => {
+    setTauriRuntime();
+    vi.resetModules();
+
+    vi.mocked(tauriListen).mockResolvedValue(tauriUnlisten);
+    vi.mocked(tauriIsPermissionGranted).mockResolvedValue(true);
+    vi.mocked(tauriSendNotification).mockRejectedValue(new Error("notification failed"));
+
+    const { listenNoticeEvents } = await import("../noticeEvents");
+    await listenNoticeEvents();
+
+    const handler = vi.mocked(tauriListen).mock.calls.find((c) => c[0] === "notice:notify")?.[1];
+    expect(handler).toBeTypeOf("function");
+
+    await handler?.({ payload: { level: "error", title: "T", body: "B" } } as any);
+
+    expect(logToConsoleMock).toHaveBeenCalledWith(
+      "error",
+      "发送系统通知失败",
+      expect.objectContaining({
+        error: expect.stringContaining("notification failed"),
+        level: "error",
+        title: "T",
+      })
+    );
   });
 });

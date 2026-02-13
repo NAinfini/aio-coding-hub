@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.27.0](https://github.com/dyndynjyxa/aio-coding-hub/compare/aio-coding-hub-v0.26.0...aio-coding-hub-v0.27.0) (2026-02-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* **infra:** request_attempt_logs 表不再创建或写入
+
+### Code Refactoring
+
+* **infra:** 移除 request_attempt_logs 独立表，改用 request_logs.attempts_json 派生 ([3fb2627](https://github.com/dyndynjyxa/aio-coding-hub/commit/3fb2627407e1b9b57758a8a40d3a7d7393278e1b))
+
 ## [0.26.0](https://github.com/dyndynjyxa/aio-coding-hub/compare/aio-coding-hub-v0.25.0...aio-coding-hub-v0.26.0) (2026-02-13)
 
 

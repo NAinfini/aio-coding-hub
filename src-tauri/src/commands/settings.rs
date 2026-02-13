@@ -191,6 +191,17 @@ pub(crate) async fn settings_set(
 
     app.state::<resident::ResidentState>()
         .set_tray_enabled(next_settings.tray_enabled);
+
+    tracing::info!(
+        preferred_port = next_settings.preferred_port,
+        auto_start = next_settings.auto_start,
+        tray_enabled = next_settings.tray_enabled,
+        log_retention_days = next_settings.log_retention_days,
+        failover_max_attempts_per_provider = next_settings.failover_max_attempts_per_provider,
+        failover_max_providers_to_try = next_settings.failover_max_providers_to_try,
+        "settings updated"
+    );
+
     Ok(next_settings)
 }
 
@@ -207,6 +218,12 @@ pub(crate) async fn settings_gateway_rectifier_set(
     response_fixer_max_json_depth: u32,
     response_fixer_max_fix_size: u32,
 ) -> Result<settings::AppSettings, String> {
+    tracing::info!(
+        intercept_anthropic_warmup_requests = intercept_anthropic_warmup_requests,
+        enable_thinking_signature_rectifier = enable_thinking_signature_rectifier,
+        enable_response_fixer = enable_response_fixer,
+        "gateway rectifier settings updated"
+    );
     let app_for_work = app.clone();
     blocking::run("settings_gateway_rectifier_set", move || {
         let mut settings = settings::read(&app_for_work).unwrap_or_default();

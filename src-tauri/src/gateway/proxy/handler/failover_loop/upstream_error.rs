@@ -317,6 +317,17 @@ pub(super) async fn handle_non_success_response(
     *last_error_category = Some(category.as_str());
     *last_error_code = Some(error_code);
 
+    // Disk log: upstream non-success response (failure path only).
+    tracing::warn!(
+        trace_id = %ctx.trace_id,
+        error_code = error_code,
+        provider = %provider_name_base,
+        status = status.as_u16(),
+        duration_ms = %attempt_started.elapsed().as_millis(),
+        decision = decision.as_str(),
+        "upstream returned non-success status"
+    );
+
     match decision {
         FailoverDecision::RetrySameProvider => {
             if let Some(delay) = retry_backoff_delay(status, retry_index) {
@@ -483,6 +494,16 @@ pub(super) async fn handle_reqwest_error(
     loop_state: LoopState<'_>,
     err: reqwest::Error,
 ) -> LoopControl {
+    // Disk log: reqwest-level error (connection failure, timeout, etc.).
+    tracing::warn!(
+        trace_id = %ctx.trace_id,
+        error_code = "GW_REQUEST_ERROR",
+        provider = %provider_ctx.provider_name_base,
+        is_connect = err.is_connect(),
+        is_timeout = err.is_timeout(),
+        "upstream request error: {err}"
+    );
+
     if err.is_connect() {
         let error_code = GatewayErrorCode::UpstreamConnectFailed.as_str();
         let decision = FailoverDecision::SwitchProvider;

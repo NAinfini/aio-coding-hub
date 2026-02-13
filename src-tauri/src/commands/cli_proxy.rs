@@ -22,6 +22,8 @@ pub(crate) async fn cli_proxy_set_enabled(
     cli_key: String,
     enabled: bool,
 ) -> Result<cli_proxy::CliProxyResult, String> {
+    tracing::info!(cli_key = %cli_key, enabled = enabled, "cli proxy enabled state changing");
+
     let base_origin = if enabled {
         let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
 
@@ -60,11 +62,28 @@ pub(crate) async fn cli_proxy_set_enabled(
         .await?
     };
 
-    blocking::run("cli_proxy_set_enabled_apply", move || {
+    let result = blocking::run("cli_proxy_set_enabled_apply", move || {
         cli_proxy::set_enabled(&app, &cli_key, enabled, &base_origin)
     })
     .await
-    .map_err(Into::into)
+    .map_err(Into::into);
+
+    match &result {
+        Ok(r) if !r.ok => {
+            tracing::warn!(
+                cli_key = %r.cli_key,
+                error_code = %r.error_code.as_deref().unwrap_or(""),
+                "cli proxy set_enabled failed: {}",
+                r.message
+            );
+        }
+        Err(err) => {
+            tracing::warn!("cli proxy set_enabled error: {}", err);
+        }
+        _ => {}
+    }
+
+    result
 }
 
 #[tauri::command]

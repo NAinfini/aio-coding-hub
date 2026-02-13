@@ -476,6 +476,13 @@ pub async fn sync_basellm(
     db: db::Db,
     force: bool,
 ) -> crate::shared::error::AppResult<ModelPricesSyncReport> {
+    tracing::info!(
+        source = "basellm",
+        force = force,
+        url = BASELLM_ALL_JSON_URL,
+        "model prices sync started"
+    );
+
     let app_handle = app.clone();
     let cache = if force {
         BasellmCacheMeta::default()
@@ -507,6 +514,7 @@ pub async fn sync_basellm(
         .map_err(|e| format!("SYNC_ERROR: basellm request failed: {e}"))?;
 
     if resp.status() == reqwest::StatusCode::NOT_MODIFIED && !force {
+        tracing::info!(source = "basellm", "model prices sync: not modified (304)");
         return Ok(ModelPricesSyncReport {
             status: "not_modified".to_string(),
             inserted: 0,
@@ -517,7 +525,9 @@ pub async fn sync_basellm(
     }
 
     if !resp.status().is_success() {
-        return Err(format!("SYNC_ERROR: basellm returned http status {}", resp.status()).into());
+        let status = resp.status();
+        tracing::warn!(source = "basellm", status = %status, "model prices sync failed: HTTP error");
+        return Err(format!("SYNC_ERROR: basellm returned http status {}", status).into());
     }
 
     let new_cache = headers_to_cache(resp.headers());
@@ -541,6 +551,15 @@ pub async fn sync_basellm(
         move || -> crate::shared::error::AppResult<ModelPricesSyncReport> { upsert_rows(&db, rows) }
     })
     .await?;
+
+    tracing::info!(
+        source = "basellm",
+        inserted = report.inserted,
+        updated = report.updated,
+        skipped = report.skipped,
+        total = report.total,
+        "model prices sync completed"
+    );
 
     // Best-effort: cache write should not fail the whole sync after DB is updated.
     if let Err(err) = blocking::run(

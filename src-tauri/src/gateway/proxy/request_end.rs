@@ -102,6 +102,18 @@ fn prepare_request_end(args: RequestEndArgs<'_>) -> PreparedRequestEnd<'_> {
 }
 
 pub(super) async fn emit_request_event_and_enqueue_request_log(args: RequestEndArgs<'_>) {
+    // Disk log: request ended with error (failure path only).
+    if let Some(error_code) = args.error_code {
+        tracing::warn!(
+            trace_id = %args.trace_id,
+            error_code = error_code,
+            cli_key = %args.cli_key,
+            status = ?args.status,
+            duration_ms = %args.duration_ms,
+            "gateway request completed with error"
+        );
+    }
+
     let PreparedRequestEnd {
         deps,
         error_category,
@@ -131,6 +143,18 @@ pub(super) async fn emit_request_event_and_enqueue_request_log(args: RequestEndA
 }
 
 pub(super) fn emit_request_event_and_spawn_request_log(args: RequestEndArgs<'_>) {
+    // Disk log: request ended with error (failure path only).
+    if let Some(error_code) = args.error_code {
+        tracing::warn!(
+            trace_id = %args.trace_id,
+            error_code = error_code,
+            cli_key = %args.cli_key,
+            status = ?args.status,
+            duration_ms = %args.duration_ms,
+            "gateway request completed with error"
+        );
+    }
+
     let PreparedRequestEnd {
         deps,
         error_category,

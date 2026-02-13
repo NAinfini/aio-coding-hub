@@ -74,6 +74,17 @@ pub(super) async fn all_providers_unavailable(input: AllUnavailableInput<'_>) ->
         "no provider available (skipped: open={skipped_open}, cooldown={skipped_cooldown}, limits={skipped_limits}) for cli_key={cli_key}",
     );
 
+    // Disk log: all providers unavailable (circuit breaker / cooldown / limits).
+    tracing::error!(
+        trace_id = %trace_id,
+        error_code = GatewayErrorCode::AllProvidersUnavailable.as_str(),
+        cli_key = %cli_key,
+        skipped_open = skipped_open,
+        skipped_cooldown = skipped_cooldown,
+        skipped_limits = skipped_limits,
+        "all providers unavailable"
+    );
+
     let resp = error_response_with_retry_after(
         StatusCode::SERVICE_UNAVAILABLE,
         trace_id.clone(),
@@ -184,6 +195,16 @@ pub(super) async fn all_providers_failed(input: AllFailedInput<'_>) -> Response 
     } = input;
 
     let final_error_code = last_error_code.unwrap_or(GatewayErrorCode::UpstreamAllFailed.as_str());
+
+    // Disk log: all providers tried and failed.
+    tracing::error!(
+        trace_id = %trace_id,
+        error_code = final_error_code,
+        cli_key = %cli_key,
+        attempt_count = attempts.len(),
+        duration_ms = %started.elapsed().as_millis(),
+        "all providers failed"
+    );
 
     let resp = error_response(
         StatusCode::BAD_GATEWAY,

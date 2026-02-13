@@ -350,6 +350,7 @@ fn shell_env_path() -> Option<PathBuf> {
     std::env::var_os("SHELL").map(PathBuf::from)
 }
 
+#[cfg(not(windows))]
 fn is_fish_shell(shell: &Path) -> bool {
     shell
         .file_name()
@@ -359,19 +360,9 @@ fn is_fish_shell(shell: &Path) -> bool {
 }
 
 fn run_in_login_shell(shell: &Path, script: &str) -> crate::shared::error::AppResult<String> {
-    let mut cmd = Command::new(shell);
-
-    #[cfg(not(windows))]
-    {
-        if is_fish_shell(shell) {
-            cmd.arg("-l").arg("-c").arg(script);
-        } else {
-            cmd.arg("-lc").arg(script);
-        }
-    }
-
     #[cfg(windows)]
     {
+        let _ = script;
         return Err(format!(
             "login shell resolution is not supported on windows (shell={})",
             shell.display()
@@ -379,25 +370,35 @@ fn run_in_login_shell(shell: &Path, script: &str) -> crate::shared::error::AppRe
         .into());
     }
 
-    let out = command_output_with_timeout(
-        cmd,
-        LOGIN_SHELL_TIMEOUT,
-        format!("login shell {}", shell.display()),
-    )?;
-    if !out.status.success() {
-        let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
-        let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
-        let msg = if !stderr.is_empty() { stderr } else { stdout };
-        return Err(if msg.is_empty() {
-            "unknown error"
+    #[cfg(not(windows))]
+    {
+        let mut cmd = Command::new(shell);
+        if is_fish_shell(shell) {
+            cmd.arg("-l").arg("-c").arg(script);
         } else {
-            &msg
+            cmd.arg("-lc").arg(script);
         }
-        .to_string()
-        .into());
-    }
 
-    Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
+        let out = command_output_with_timeout(
+            cmd,
+            LOGIN_SHELL_TIMEOUT,
+            format!("login shell {}", shell.display()),
+        )?;
+        if !out.status.success() {
+            let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+            let msg = if !stderr.is_empty() { stderr } else { stdout };
+            return Err(if msg.is_empty() {
+                "unknown error"
+            } else {
+                &msg
+            }
+            .to_string()
+            .into());
+        }
+
+        Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
+    }
 }
 
 fn resolve_executable_via_login_shell(

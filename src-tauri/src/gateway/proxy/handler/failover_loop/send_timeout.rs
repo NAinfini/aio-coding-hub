@@ -34,6 +34,16 @@ pub(super) async fn handle_timeout(
         ctx.max_attempts_per_provider,
     );
 
+    // Disk log: upstream first-byte timeout (failure path only).
+    tracing::warn!(
+        trace_id = %ctx.trace_id,
+        error_code = error_code,
+        provider = %provider_ctx.provider_name_base,
+        timeout_secs = ctx.upstream_first_byte_timeout_secs,
+        elapsed_ms = %attempt_ctx.attempt_started.elapsed().as_millis(),
+        "upstream request timed out waiting for first byte"
+    );
+
     let outcome = format!(
         "request_timeout: category={} code={} decision={} timeout_secs={}",
         ErrorCategory::SystemError.as_str(),

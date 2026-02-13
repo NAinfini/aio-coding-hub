@@ -5,6 +5,7 @@
 
 use serde::Serialize;
 use std::collections::HashSet;
+#[cfg(not(target_os = "windows"))]
 use tauri::Manager;
 
 #[derive(Debug, Clone, Serialize)]
@@ -151,6 +152,9 @@ pub fn check_env_conflicts<R: tauri::Runtime>(
             out.push(conflict);
         }
     }
+
+    // `app` is only consumed by `check_shell_configs` (non-Windows).
+    let _ = &app;
 
     #[cfg(not(target_os = "windows"))]
     check_shell_configs(app, &keywords, &mut out, &mut seen)?;

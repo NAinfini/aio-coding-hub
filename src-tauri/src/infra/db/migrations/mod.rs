@@ -56,7 +56,10 @@ pub(super) fn apply_migrations(conn: &mut Connection) -> crate::shared::error::A
         .into());
     }
 
+    let start_version = user_version;
+
     while user_version < LATEST_SCHEMA_VERSION {
+        let from_version = user_version;
         match user_version {
             0 => v0_to_v1::migrate_v0_to_v1(conn)?,
             1 => v1_to_v2::migrate_v1_to_v2(conn)?,
@@ -88,13 +91,30 @@ pub(super) fn apply_migrations(conn: &mut Connection) -> crate::shared::error::A
             27 => v27_to_v28::migrate_v27_to_v28(conn)?,
             28 => v28_to_v29::migrate_v28_to_v29(conn)?,
             v => {
+                tracing::error!(
+                    version = v,
+                    "unsupported sqlite schema version during migration"
+                );
                 return Err(format!(
                     "unsupported sqlite schema version: user_version={v} (expected 0..={MAX_COMPAT_SCHEMA_VERSION})"
                 )
-                .into())
+                .into());
             }
         }
         user_version = read_user_version(conn)?;
+        tracing::info!(
+            from_version = from_version,
+            to_version = user_version,
+            "sqlite migration step completed"
+        );
+    }
+
+    if start_version < user_version {
+        tracing::info!(
+            from_version = start_version,
+            to_version = user_version,
+            "sqlite migrations completed"
+        );
     }
 
     v29_to_v30::ensure_workspace_cluster(conn)?;

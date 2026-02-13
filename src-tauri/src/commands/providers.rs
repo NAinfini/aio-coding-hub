@@ -52,8 +52,12 @@ pub(crate) async fn provider_upsert(
     limit_monthly_usd: Option<f64>,
     limit_total_usd: Option<f64>,
 ) -> Result<providers::ProviderSummary, String> {
+    let is_create = provider_id.is_none();
+    let name_for_log = name.clone();
+    let cli_key_for_log = cli_key.clone();
+    let base_url_for_log = base_urls.first().cloned().unwrap_or_default();
     let db = ensure_db_ready(app, db_state.inner()).await?;
-    blocking::run("provider_upsert", move || {
+    let result = blocking::run("provider_upsert", move || {
         providers::upsert(
             &db,
             provider_id,
@@ -76,7 +80,28 @@ pub(crate) async fn provider_upsert(
         )
     })
     .await
-    .map_err(Into::into)
+    .map_err(Into::into);
+
+    if let Ok(ref provider) = result {
+        if is_create {
+            tracing::info!(
+                provider_id = provider.id,
+                provider_name = %name_for_log,
+                cli_key = %cli_key_for_log,
+                base_url = %base_url_for_log,
+                "provider created"
+            );
+        } else {
+            tracing::info!(
+                provider_id = provider.id,
+                provider_name = %name_for_log,
+                cli_key = %cli_key_for_log,
+                "provider updated"
+            );
+        }
+    }
+
+    result
 }
 
 #[tauri::command]
@@ -86,6 +111,11 @@ pub(crate) async fn provider_set_enabled(
     provider_id: i64,
     enabled: bool,
 ) -> Result<providers::ProviderSummary, String> {
+    tracing::info!(
+        provider_id = provider_id,
+        enabled = enabled,
+        "provider enabled state changed"
+    );
     let db = ensure_db_ready(app, db_state.inner()).await?;
     blocking::run("provider_set_enabled", move || {
         providers::set_enabled(&db, provider_id, enabled)
@@ -100,6 +130,7 @@ pub(crate) async fn provider_delete(
     db_state: tauri::State<'_, DbInitState>,
     provider_id: i64,
 ) -> Result<bool, String> {
+    tracing::info!(provider_id = provider_id, "provider deleted");
     let db = ensure_db_ready(app, db_state.inner()).await?;
     blocking::run(
         "provider_delete",
@@ -119,6 +150,7 @@ pub(crate) async fn providers_reorder(
     cli_key: String,
     ordered_provider_ids: Vec<i64>,
 ) -> Result<Vec<providers::ProviderSummary>, String> {
+    tracing::info!(cli_key = %cli_key, count = ordered_provider_ids.len(), "providers reordered");
     let db = ensure_db_ready(app, db_state.inner()).await?;
     blocking::run("providers_reorder", move || {
         providers::reorder(&db, &cli_key, ordered_provider_ids)

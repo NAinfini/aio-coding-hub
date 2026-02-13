@@ -52,6 +52,19 @@ pub fn run() {
         .setup(|app| {
             crate::app::logging::init(app.handle());
 
+            // Global panic hook: ensure any panic is written to disk logs for post-mortem diagnosis.
+            // Note: payload is intentionally NOT logged to avoid leaking user data (consistent with blocking.rs).
+            std::panic::set_hook(Box::new(|panic_info| {
+                let location = panic_info
+                    .location()
+                    .map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column()))
+                    .unwrap_or_else(|| "unknown".to_string());
+                tracing::error!(
+                    location = %location,
+                    "PANIC: application panicked at {location}. Check the log file for context leading up to this panic."
+                );
+            }));
+
             #[cfg(desktop)]
             {
                 if let Err(err) = app

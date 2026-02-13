@@ -74,6 +74,8 @@ pub fn db_disk_usage_get(app: &tauri::AppHandle) -> crate::shared::error::AppRes
 pub fn request_logs_clear_all(
     db: &db::Db,
 ) -> crate::shared::error::AppResult<ClearRequestLogsResult> {
+    tracing::warn!("clearing all request logs (user-initiated)");
+
     let mut conn = db.open_connection()?;
 
     let tx = conn
@@ -91,6 +93,12 @@ pub fn request_logs_clear_all(
     tx.commit()
         .map_err(|e| db_err!("failed to commit transaction: {e}"))?;
 
+    tracing::warn!(
+        request_logs_deleted = request_logs_deleted,
+        request_attempt_logs_deleted = request_attempt_logs_deleted,
+        "request logs cleared"
+    );
+
     // Best-effort: reclaim disk usage (WAL truncate + vacuum).
     let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
     let _ = conn.execute_batch("VACUUM;");
@@ -103,6 +111,10 @@ pub fn request_logs_clear_all(
 }
 
 pub fn app_data_reset(app: &tauri::AppHandle) -> crate::shared::error::AppResult<bool> {
+    tracing::error!(
+        "app data reset initiated (destructive operation: deleting settings and database)"
+    );
+
     // Ensure the app data dir exists.
     let dir = app_paths::app_data_dir(app)?;
 

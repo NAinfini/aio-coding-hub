@@ -80,7 +80,7 @@ describe("pages/ConsolePage", () => {
     renderWithProviders(<ConsolePage />);
 
     expect(screen.getByRole("heading", { level: 1, name: "控制台" })).toBeInTheDocument();
-    expect(screen.getByText("已隐藏 1 条调试日志")).toBeInTheDocument();
+    expect(screen.getByText("已隐藏 1 条日志")).toBeInTheDocument();
 
     // With virtualization, all visible logs are rendered (no "show all" button needed).
     // The badge should show the total visible count (202 = 203 total - 1 debug).

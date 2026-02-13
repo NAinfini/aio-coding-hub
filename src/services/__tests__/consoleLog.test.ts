@@ -36,6 +36,7 @@ describe("services/consoleLog", () => {
         trace_id: "t-1",
         cli_key: "claude",
         api_key: "SECRET",
+        base_url: "https://example.com/private",
         attempts: [{ provider_name: "P1" }, { providerName: "P2" }, { provider_name: "P1" }],
       });
     });
@@ -51,6 +52,7 @@ describe("services/consoleLog", () => {
         trace_id: "t-1",
         cli_key: "claude",
         api_key: "[REDACTED]",
+        base_url: "[REDACTED]",
       })
     );
     expect(entry.meta).toEqual(

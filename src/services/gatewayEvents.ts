@@ -166,12 +166,17 @@ export async function listenGatewayEvents(): Promise<() => void> {
 
       const method = payload.method ?? "未知";
       const path = payload.path ?? "/";
-      logToConsole("debug", `网关请求开始：${method} ${path}`, {
-        trace_id: payload.trace_id,
-        cli: payload.cli_key,
-        method,
-        path,
-      });
+      logToConsole(
+        "debug",
+        `网关请求开始：${method} ${path}`,
+        {
+          trace_id: payload.trace_id,
+          cli: payload.cli_key,
+          method,
+          path,
+        },
+        "gateway:request_start"
+      );
     }
   );
 
@@ -184,24 +189,29 @@ export async function listenGatewayEvents(): Promise<() => void> {
     // "started" events are high-frequency and intended for realtime UI routing updates.
     // Keep console noise low by only logging completion/failure events.
     if (payload.outcome === "started") return;
+
     if (!shouldLogToConsole("debug")) return;
 
-    logToConsole("debug", attemptTitle(payload), {
-      trace_id: payload.trace_id,
-      cli: payload.cli_key,
-      attempt_index: payload.attempt_index,
-      provider_id: payload.provider_id,
-      provider_name: payload.provider_name,
-      base_url: payload.base_url,
-      status: payload.status,
-      outcome: payload.outcome,
-      attempt_started_ms: payload.attempt_started_ms,
-      attempt_duration_ms: payload.attempt_duration_ms,
-      circuit_state_before: circuitStateText(payload.circuit_state_before),
-      circuit_state_after: circuitStateText(payload.circuit_state_after),
-      circuit_failure_count: payload.circuit_failure_count ?? null,
-      circuit_failure_threshold: payload.circuit_failure_threshold ?? null,
-    });
+    logToConsole(
+      "debug",
+      attemptTitle(payload),
+      {
+        trace_id: payload.trace_id,
+        cli: payload.cli_key,
+        attempt_index: payload.attempt_index,
+        provider_id: payload.provider_id,
+        provider_name: payload.provider_name,
+        status: payload.status,
+        outcome: payload.outcome,
+        attempt_started_ms: payload.attempt_started_ms,
+        attempt_duration_ms: payload.attempt_duration_ms,
+        circuit_state_before: circuitStateText(payload.circuit_state_before),
+        circuit_state_after: circuitStateText(payload.circuit_state_after),
+        circuit_failure_count: payload.circuit_failure_count ?? null,
+        circuit_failure_threshold: payload.circuit_failure_threshold ?? null,
+      },
+      "gateway:attempt"
+    );
   });
 
   const unlistenRequest = await listen<GatewayRequestEvent>("gateway:request", (event) => {
@@ -211,36 +221,41 @@ export async function listenGatewayEvents(): Promise<() => void> {
     ingestTraceRequest(payload);
     ingestCacheAnomalyRequest(payload);
 
-    if (!shouldLogToConsole("debug")) return;
+    const hasError = !!payload.error_code;
+    const level = hasError ? "warn" : "debug";
+    if (!shouldLogToConsole(level)) return;
 
     const attempts = payload.attempts ?? [];
 
     const method = payload.method ?? "未知";
     const path = payload.path ?? "/";
-    const title = payload.error_code
-      ? `网关请求失败：${method} ${path}`
-      : `网关请求：${method} ${path}`;
+    const title = hasError ? `网关请求失败：${method} ${path}` : `网关请求：${method} ${path}`;
 
     const outputTokensPerSecond = computeOutputTokensPerSecond(payload);
 
-    logToConsole("debug", title, {
-      trace_id: payload.trace_id,
-      cli: payload.cli_key,
-      status: payload.status,
-      error_category: payload.error_category ?? null,
-      error_code: payload.error_code,
-      duration_ms: payload.duration_ms,
-      ttfb_ms: payload.ttfb_ms ?? null,
-      output_tokens_per_second: outputTokensPerSecond,
-      input_tokens: payload.input_tokens,
-      output_tokens: payload.output_tokens,
-      total_tokens: payload.total_tokens,
-      cache_read_input_tokens: payload.cache_read_input_tokens,
-      cache_creation_input_tokens: payload.cache_creation_input_tokens,
-      cache_creation_5m_input_tokens: payload.cache_creation_5m_input_tokens,
-      cache_creation_1h_input_tokens: payload.cache_creation_1h_input_tokens ?? null,
-      attempts,
-    });
+    logToConsole(
+      level,
+      title,
+      {
+        trace_id: payload.trace_id,
+        cli: payload.cli_key,
+        status: payload.status,
+        error_category: payload.error_category ?? null,
+        error_code: payload.error_code,
+        duration_ms: payload.duration_ms,
+        ttfb_ms: payload.ttfb_ms ?? null,
+        output_tokens_per_second: outputTokensPerSecond,
+        input_tokens: payload.input_tokens,
+        output_tokens: payload.output_tokens,
+        total_tokens: payload.total_tokens,
+        cache_read_input_tokens: payload.cache_read_input_tokens,
+        cache_creation_input_tokens: payload.cache_creation_input_tokens,
+        cache_creation_5m_input_tokens: payload.cache_creation_5m_input_tokens,
+        cache_creation_1h_input_tokens: payload.cache_creation_1h_input_tokens ?? null,
+        attempts,
+      },
+      "gateway:request"
+    );
   });
 
   const unlistenLog = await listen<GatewayLogEvent>("gateway:log", (event) => {
@@ -252,13 +267,17 @@ export async function listenGatewayEvents(): Promise<() => void> {
         ? `端口被占用，已自动切换（${GatewayErrorCodes.PORT_IN_USE}）`
         : `网关日志：${payload.error_code}`;
 
-    logToConsole(normalizeLogLevel(payload.level), title, {
-      error_code: payload.error_code,
-      message: payload.message,
-      requested_port: payload.requested_port,
-      bound_port: payload.bound_port,
-      base_url: payload.base_url,
-    });
+    logToConsole(
+      normalizeLogLevel(payload.level),
+      title,
+      {
+        error_code: payload.error_code,
+        message: payload.message,
+        requested_port: payload.requested_port,
+        bound_port: payload.bound_port,
+      },
+      "gateway:log"
+    );
   });
 
   const unlistenCircuit = await listen<GatewayCircuitEvent>("gateway:circuit", (event) => {
@@ -278,21 +297,25 @@ export async function listenGatewayEvents(): Promise<() => void> {
     if (isTransition) {
       const title = `熔断状态变更：${provider} ${from} → ${to}`;
       const level = to === "熔断" ? "warn" : "info";
-      logToConsole(level, title, {
-        trace_id: payload.trace_id,
-        cli: payload.cli_key,
-        provider_id: payload.provider_id,
-        provider_name: payload.provider_name,
-        base_url: payload.base_url,
-        prev_state: from,
-        next_state: to,
-        failure_count: payload.failure_count,
-        failure_threshold: payload.failure_threshold,
-        open_until: payload.open_until,
-        cooldown_until: payload.cooldown_until ?? null,
-        reason,
-        ts: payload.ts,
-      });
+      logToConsole(
+        level,
+        title,
+        {
+          trace_id: payload.trace_id,
+          cli: payload.cli_key,
+          provider_id: payload.provider_id,
+          provider_name: payload.provider_name,
+          prev_state: from,
+          next_state: to,
+          failure_count: payload.failure_count,
+          failure_threshold: payload.failure_threshold,
+          open_until: payload.open_until,
+          cooldown_until: payload.cooldown_until ?? null,
+          reason,
+          ts: payload.ts,
+        },
+        "gateway:circuit"
+      );
       return;
     }
 
@@ -311,21 +334,25 @@ export async function listenGatewayEvents(): Promise<() => void> {
     if (circuitNonTransitionDedup.size > 500) circuitNonTransitionDedup.clear();
 
     const title = `Provider 跳过：${provider}（${reason}）`;
-    logToConsole("debug", title, {
-      trace_id: payload.trace_id,
-      cli: payload.cli_key,
-      provider_id: payload.provider_id,
-      provider_name: payload.provider_name,
-      base_url: payload.base_url,
-      prev_state: from,
-      next_state: to,
-      failure_count: payload.failure_count,
-      failure_threshold: payload.failure_threshold,
-      open_until: payload.open_until,
-      cooldown_until: payload.cooldown_until ?? null,
-      reason,
-      ts: payload.ts,
-    });
+    logToConsole(
+      "debug",
+      title,
+      {
+        trace_id: payload.trace_id,
+        cli: payload.cli_key,
+        provider_id: payload.provider_id,
+        provider_name: payload.provider_name,
+        prev_state: from,
+        next_state: to,
+        failure_count: payload.failure_count,
+        failure_threshold: payload.failure_threshold,
+        open_until: payload.open_until,
+        cooldown_until: payload.cooldown_until ?? null,
+        reason,
+        ts: payload.ts,
+      },
+      "gateway:circuit"
+    );
   });
 
   return () => {

@@ -218,14 +218,8 @@ pub(crate) async fn settings_gateway_rectifier_set(
     response_fixer_max_json_depth: u32,
     response_fixer_max_fix_size: u32,
 ) -> Result<settings::AppSettings, String> {
-    tracing::info!(
-        intercept_anthropic_warmup_requests = intercept_anthropic_warmup_requests,
-        enable_thinking_signature_rectifier = enable_thinking_signature_rectifier,
-        enable_response_fixer = enable_response_fixer,
-        "gateway rectifier settings updated"
-    );
     let app_for_work = app.clone();
-    blocking::run("settings_gateway_rectifier_set", move || {
+    let result = blocking::run("settings_gateway_rectifier_set", move || {
         let mut settings = settings::read(&app_for_work).unwrap_or_default();
         settings.schema_version = settings::SCHEMA_VERSION;
 
@@ -241,7 +235,18 @@ pub(crate) async fn settings_gateway_rectifier_set(
         settings::write(&app_for_work, &settings)
     })
     .await
-    .map_err(Into::into)
+    .map_err(Into::into);
+
+    if let Ok(ref settings) = result {
+        tracing::info!(
+            intercept_anthropic_warmup_requests = settings.intercept_anthropic_warmup_requests,
+            enable_thinking_signature_rectifier = settings.enable_thinking_signature_rectifier,
+            enable_response_fixer = settings.enable_response_fixer,
+            "gateway rectifier settings updated"
+        );
+    }
+
+    result
 }
 
 #[tauri::command]

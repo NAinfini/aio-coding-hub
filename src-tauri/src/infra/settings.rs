@@ -496,13 +496,55 @@ fn legacy_settings_path(app: &tauri::AppHandle) -> AppResult<PathBuf> {
     Ok(config_dir.join(LEGACY_IDENTIFIER).join("settings.json"))
 }
 
-fn parse_settings_json(content: &str) -> AppResult<(AppSettings, bool)> {
+fn parse_settings_json(content: &str) -> AppResult<(AppSettings, bool, serde_json::Value)> {
     let raw: serde_json::Value =
         serde_json::from_str(content).map_err(|e| format!("failed to parse settings.json: {e}"))?;
     let schema_version_present = raw.get("schema_version").is_some();
-    let settings: AppSettings =
-        serde_json::from_value(raw).map_err(|e| format!("failed to parse settings.json: {e}"))?;
-    Ok((settings, schema_version_present))
+    let settings: AppSettings = serde_json::from_value(raw.clone())
+        .map_err(|e| format!("failed to parse settings.json: {e}"))?;
+    Ok((settings, schema_version_present, raw))
+}
+
+fn canonical_settings_json(settings: &AppSettings) -> AppResult<serde_json::Value> {
+    let serialized =
+        serde_json::to_value(settings).map_err(|e| format!("failed to serialize settings: {e}"))?;
+    let serialized_defaults = serde_json::to_value(AppSettings::default())
+        .map_err(|e| format!("failed to serialize default settings: {e}"))?;
+
+    let serialized_obj = serialized.as_object().ok_or_else(|| {
+        "failed to serialize settings: expected settings to serialize as an object".to_string()
+    })?;
+    let defaults_obj = serialized_defaults.as_object().ok_or_else(|| {
+        "failed to serialize default settings: expected defaults to serialize as an object"
+            .to_string()
+    })?;
+
+    let mut compact = serde_json::Map::new();
+    // Always include schema_version to prevent migration heuristics from treating this as a legacy file.
+    if let Some(schema_version) = serialized_obj.get("schema_version") {
+        compact.insert("schema_version".to_string(), schema_version.clone());
+    } else {
+        compact.insert(
+            "schema_version".to_string(),
+            serde_json::json!(SCHEMA_VERSION),
+        );
+    }
+
+    for (key, value) in serialized_obj {
+        if key == "schema_version" {
+            continue;
+        }
+
+        if let Some(default_value) = defaults_obj.get(key) {
+            if value == default_value {
+                continue;
+            }
+        }
+
+        compact.insert(key.clone(), value.clone());
+    }
+
+    Ok(serde_json::Value::Object(compact))
 }
 
 pub fn read(app: &tauri::AppHandle) -> AppResult<AppSettings> {
@@ -523,7 +565,8 @@ pub fn read(app: &tauri::AppHandle) -> AppResult<AppSettings> {
         if legacy_path.exists() {
             let content = std::fs::read_to_string(&legacy_path)
                 .map_err(|e| format!("failed to read settings: {e}"))?;
-            let (settings, schema_version_present) = parse_settings_json(&content)?;
+            let (settings, schema_version_present, raw_settings_json) =
+                parse_settings_json(&content)?;
 
             if settings.preferred_port < 1024 {
                 return Err(
@@ -561,6 +604,8 @@ pub fn read(app: &tauri::AppHandle) -> AppResult<AppSettings> {
             repaired |= sanitize_provider_base_url_ping_cache_ttl_seconds(&mut settings);
             repaired |= sanitize_upstream_timeouts(&mut settings);
             repaired |= sanitize_response_fixer_limits(&mut settings);
+            let canonical = canonical_settings_json(&settings)?;
+            repaired |= raw_settings_json != canonical;
             if repaired {
                 // best-effort: persist sanitized defaults
             }
@@ -590,7 +635,7 @@ pub fn read(app: &tauri::AppHandle) -> AppResult<AppSettings> {
 
     let content =
         std::fs::read_to_string(&path).map_err(|e| format!("failed to read settings: {e}"))?;
-    let (mut settings, schema_version_present) = parse_settings_json(&content)?;
+    let (mut settings, schema_version_present, raw_settings_json) = parse_settings_json(&content)?;
 
     if settings.preferred_port < 1024 {
         return Err(
@@ -623,6 +668,8 @@ pub fn read(app: &tauri::AppHandle) -> AppResult<AppSettings> {
     repaired |= sanitize_provider_base_url_ping_cache_ttl_seconds(&mut settings);
     repaired |= sanitize_upstream_timeouts(&mut settings);
     repaired |= sanitize_response_fixer_limits(&mut settings);
+    let canonical = canonical_settings_json(&settings)?;
+    repaired |= raw_settings_json != canonical;
     if repaired {
         // Best-effort: persist repaired values while keeping read semantics.
         let _ = write(app, &settings);
@@ -774,7 +821,8 @@ pub fn write(app: &tauri::AppHandle, settings: &AppSettings) -> AppResult<AppSet
     let tmp_path = path.with_file_name("settings.json.tmp");
     let backup_path = path.with_file_name("settings.json.bak");
 
-    let content = serde_json::to_vec_pretty(settings)
+    let canonical = canonical_settings_json(settings)?;
+    let content = serde_json::to_vec_pretty(&canonical)
         .map_err(|e| format!("failed to serialize settings: {e}"))?;
 
     std::fs::write(&tmp_path, content)
@@ -1044,7 +1092,7 @@ mod tests {
     #[test]
     fn parse_settings_json_detects_schema_version_present() {
         let json = r#"{"schema_version": 14, "preferred_port": 37123}"#;
-        let (settings, schema_version_present) = parse_settings_json(json).unwrap();
+        let (settings, schema_version_present, _) = parse_settings_json(json).unwrap();
         assert!(schema_version_present);
         assert_eq!(settings.schema_version, 14);
         assert_eq!(settings.preferred_port, 37123);
@@ -1053,7 +1101,7 @@ mod tests {
     #[test]
     fn parse_settings_json_detects_schema_version_absent() {
         let json = r#"{"preferred_port": 37123}"#;
-        let (settings, schema_version_present) = parse_settings_json(json).unwrap();
+        let (settings, schema_version_present, _) = parse_settings_json(json).unwrap();
         assert!(!schema_version_present);
         // schema_version defaults via serde
         assert_eq!(settings.preferred_port, 37123);
@@ -1062,7 +1110,7 @@ mod tests {
     #[test]
     fn parse_settings_json_uses_defaults_for_missing_fields() {
         let json = r#"{}"#;
-        let (settings, _) = parse_settings_json(json).unwrap();
+        let (settings, _, _) = parse_settings_json(json).unwrap();
         assert_eq!(settings.preferred_port, DEFAULT_GATEWAY_PORT);
         assert_eq!(settings.log_retention_days, DEFAULT_LOG_RETENTION_DAYS);
         assert!(settings.tray_enabled);
@@ -1072,6 +1120,44 @@ mod tests {
     #[test]
     fn parse_settings_json_rejects_invalid_json() {
         assert!(parse_settings_json("not json").is_err());
+    }
+
+    #[test]
+    fn canonical_settings_json_drops_default_fields() {
+        let canonical = canonical_settings_json(&AppSettings::default()).unwrap();
+        assert_eq!(
+            canonical,
+            serde_json::json!({
+                "schema_version": SCHEMA_VERSION
+            })
+        );
+    }
+
+    #[test]
+    fn canonical_settings_json_keeps_non_default_fields() {
+        let settings = AppSettings {
+            auto_start: true,
+            ..Default::default()
+        };
+        let canonical = canonical_settings_json(&settings).unwrap();
+        assert_eq!(
+            canonical,
+            serde_json::json!({
+                "schema_version": SCHEMA_VERSION,
+                "auto_start": true
+            })
+        );
+    }
+
+    #[test]
+    fn canonical_settings_json_detects_extra_default_fields() {
+        let raw = serde_json::json!({
+            "schema_version": SCHEMA_VERSION,
+            "preferred_port": DEFAULT_GATEWAY_PORT
+        });
+        let settings = AppSettings::default();
+        let canonical = canonical_settings_json(&settings).unwrap();
+        assert_ne!(raw, canonical);
     }
 
     // -- migrate_bump_schema_version --

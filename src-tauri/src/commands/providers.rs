@@ -55,7 +55,6 @@ pub(crate) async fn provider_upsert(
     let is_create = provider_id.is_none();
     let name_for_log = name.clone();
     let cli_key_for_log = cli_key.clone();
-    let base_url_for_log = base_urls.first().cloned().unwrap_or_default();
     let db = ensure_db_ready(app, db_state.inner()).await?;
     let result = blocking::run("provider_upsert", move || {
         providers::upsert(
@@ -88,7 +87,6 @@ pub(crate) async fn provider_upsert(
                 provider_id = provider.id,
                 provider_name = %name_for_log,
                 cli_key = %cli_key_for_log,
-                base_url = %base_url_for_log,
                 "provider created"
             );
         } else {
@@ -111,17 +109,22 @@ pub(crate) async fn provider_set_enabled(
     provider_id: i64,
     enabled: bool,
 ) -> Result<providers::ProviderSummary, String> {
-    tracing::info!(
-        provider_id = provider_id,
-        enabled = enabled,
-        "provider enabled state changed"
-    );
     let db = ensure_db_ready(app, db_state.inner()).await?;
-    blocking::run("provider_set_enabled", move || {
+    let result = blocking::run("provider_set_enabled", move || {
         providers::set_enabled(&db, provider_id, enabled)
     })
     .await
-    .map_err(Into::into)
+    .map_err(Into::into);
+
+    if let Ok(ref provider) = result {
+        tracing::info!(
+            provider_id = provider.id,
+            enabled = provider.enabled,
+            "provider enabled state changed"
+        );
+    }
+
+    result
 }
 
 #[tauri::command]
@@ -130,9 +133,8 @@ pub(crate) async fn provider_delete(
     db_state: tauri::State<'_, DbInitState>,
     provider_id: i64,
 ) -> Result<bool, String> {
-    tracing::info!(provider_id = provider_id, "provider deleted");
     let db = ensure_db_ready(app, db_state.inner()).await?;
-    blocking::run(
+    let result = blocking::run(
         "provider_delete",
         move || -> crate::shared::error::AppResult<bool> {
             providers::delete(&db, provider_id)?;
@@ -140,7 +142,13 @@ pub(crate) async fn provider_delete(
         },
     )
     .await
-    .map_err(Into::into)
+    .map_err(Into::into);
+
+    if let Ok(true) = result {
+        tracing::info!(provider_id = provider_id, "provider deleted");
+    }
+
+    result
 }
 
 #[tauri::command]
@@ -150,13 +158,23 @@ pub(crate) async fn providers_reorder(
     cli_key: String,
     ordered_provider_ids: Vec<i64>,
 ) -> Result<Vec<providers::ProviderSummary>, String> {
-    tracing::info!(cli_key = %cli_key, count = ordered_provider_ids.len(), "providers reordered");
+    let cli_key_for_log = cli_key.clone();
     let db = ensure_db_ready(app, db_state.inner()).await?;
-    blocking::run("providers_reorder", move || {
+    let result = blocking::run("providers_reorder", move || {
         providers::reorder(&db, &cli_key, ordered_provider_ids)
     })
     .await
-    .map_err(Into::into)
+    .map_err(Into::into);
+
+    if let Ok(ref providers) = result {
+        tracing::info!(
+            cli_key = %cli_key_for_log,
+            count = providers.len(),
+            "providers reordered"
+        );
+    }
+
+    result
 }
 
 #[tauri::command]

@@ -6,6 +6,8 @@
       "release-type": "node",
       "include-v-in-tag": true,
       "draft": true,
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": true,
       "extra-files": [
         {
           "type": "toml",

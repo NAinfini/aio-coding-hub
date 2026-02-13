@@ -52,7 +52,6 @@ describe("settings/ModelPriceAliasesDialog", () => {
       mutateAsync,
     } as any);
 
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const { rerender } = render(
@@ -79,10 +78,10 @@ describe("settings/ModelPriceAliasesDialog", () => {
     expect(screen.getByPlaceholderText("例如：claude-opus-4-5")).toBeInTheDocument();
     expect(screen.getByText(/prefix：以 pattern 开头即命中/)).toBeInTheDocument();
 
-    // delete confirm cancel path
+    // delete rule directly (no confirmation dialog in Tauri WebView)
     fireEvent.click(screen.getByRole("button", { name: "删除" }));
-    expect(confirmSpy).toHaveBeenCalled();
-    expect(screen.getByText("规则 #1")).toBeInTheDocument();
+    expect(toast).toHaveBeenCalledWith("已删除规则，点击「保存」生效");
+    expect(screen.queryByText("规则 #1")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
     await waitFor(() =>
@@ -90,7 +89,6 @@ describe("settings/ModelPriceAliasesDialog", () => {
     );
     expect(onOpenChange).not.toHaveBeenCalled();
 
-    confirmSpy.mockRestore();
     consoleSpy.mockRestore();
   });
 
@@ -163,8 +161,6 @@ describe("settings/ModelPriceAliasesDialog", () => {
       mutateAsync,
     } as any);
 
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
-
     render(<ModelPriceAliasesDialog open={true} onOpenChange={onOpenChange} />);
 
     expect(screen.getByText("暂无规则")).toBeInTheDocument();
@@ -203,11 +199,10 @@ describe("settings/ModelPriceAliasesDialog", () => {
     expect(toast).toHaveBeenCalledWith("已保存定价匹配规则");
     expect(onOpenChange).toHaveBeenCalledWith(false);
 
-    // delete rule
+    // delete rule (no confirmation dialog)
     fireEvent.click(screen.getByRole("button", { name: "删除" }));
-    expect(confirmSpy).toHaveBeenCalled();
-
-    confirmSpy.mockRestore();
+    expect(toast).toHaveBeenCalledWith("已删除规则，点击「保存」生效");
+    expect(screen.queryByText("规则 #1")).not.toBeInTheDocument();
   });
 
   it("toasts when save returns null", async () => {

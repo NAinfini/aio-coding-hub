@@ -7,6 +7,8 @@ import { updateCheckNow } from "../../hooks/useUpdateMeta";
 import { AIO_RELEASES_URL } from "../../constants/urls";
 import { logToConsole } from "../../services/consoleLog";
 import {
+  getLastModelPricesSync,
+  setLastModelPricesSync,
   subscribeModelPricesUpdated,
   type ModelPricesSyncReport,
 } from "../../services/modelPrices";
@@ -44,8 +46,12 @@ export function SettingsSidebar({ updateMeta }: SettingsSidebarProps) {
   const dbDiskUsageQuery = useDbDiskUsageQuery();
   const clearRequestLogsMutation = useRequestLogsClearAllMutation();
 
+  const initialSync = getLastModelPricesSync();
   const [lastModelPricesSyncReport, setLastModelPricesSyncReport] =
-    useState<ModelPricesSyncReport | null>(null);
+    useState<ModelPricesSyncReport | null>(initialSync.report);
+  const [lastModelPricesSyncTime, setLastModelPricesSyncTime] = useState<number | null>(
+    initialSync.syncedAt
+  );
   const [lastModelPricesSyncError, setLastModelPricesSyncError] = useState<string | null>(null);
   const [modelPriceAliasesDialogOpen, setModelPriceAliasesDialogOpen] = useState(false);
 
@@ -178,6 +184,9 @@ export function SettingsSidebar({ updateMeta }: SettingsSidebarProps) {
   useEffect(() => {
     return subscribeModelPricesUpdated(() => {
       queryClient.invalidateQueries({ queryKey: modelPricesKeys.all });
+      const latest = getLastModelPricesSync();
+      setLastModelPricesSyncReport(latest.report);
+      setLastModelPricesSyncTime(latest.syncedAt);
     });
   }, [queryClient]);
 
@@ -192,7 +201,9 @@ export function SettingsSidebar({ updateMeta }: SettingsSidebarProps) {
         return;
       }
 
+      setLastModelPricesSync(report);
       setLastModelPricesSyncReport(report);
+      setLastModelPricesSyncTime(Date.now());
 
       if (isModelPricesSyncNotModified(report)) {
         toast("模型定价已是最新（无变更）");
@@ -234,6 +245,7 @@ export function SettingsSidebar({ updateMeta }: SettingsSidebarProps) {
           modelPricesCount={modelPricesCount}
           lastModelPricesSyncError={lastModelPricesSyncError}
           lastModelPricesSyncReport={lastModelPricesSyncReport}
+          lastModelPricesSyncTime={lastModelPricesSyncTime}
           openModelPriceAliasesDialog={() => setModelPriceAliasesDialogOpen(true)}
           todayRequestsAvailable={todayRequestsAvailable}
           todayRequestsTotal={todayRequestsTotal}

@@ -291,9 +291,8 @@ export function ModelPriceAliasesDialog({
                       variant="danger"
                       size="sm"
                       onClick={() => {
-                        const ok = window.confirm("确认删除该规则？");
-                        if (!ok) return;
                         deleteRule(idx);
+                        toast("已删除规则，点击「保存」生效");
                       }}
                     >
                       删除

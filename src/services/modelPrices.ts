@@ -20,6 +20,22 @@ export function notifyModelPricesUpdated() {
   emitUpdated();
 }
 
+let _lastSyncedAt: number | null = null;
+let _lastSyncReport: ModelPricesSyncReport | null = null;
+
+export function setLastModelPricesSync(report: ModelPricesSyncReport) {
+  _lastSyncedAt = Date.now();
+  _lastSyncReport = report;
+  emitUpdated();
+}
+
+export function getLastModelPricesSync(): {
+  syncedAt: number | null;
+  report: ModelPricesSyncReport | null;
+} {
+  return { syncedAt: _lastSyncedAt, report: _lastSyncReport };
+}
+
 export type ModelPricesSyncReport = {
   status: "updated" | "not_modified" | string;
   inserted: number;

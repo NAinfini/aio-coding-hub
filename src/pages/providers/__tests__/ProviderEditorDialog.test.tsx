@@ -32,6 +32,7 @@ function makeProvider(partial: Partial<ProviderSummary> = {}): ProviderSummary {
     limit_weekly_usd: null,
     limit_monthly_usd: null,
     limit_total_usd: null,
+    tags: [],
     created_at: 0,
     updated_at: 0,
     ...partial,

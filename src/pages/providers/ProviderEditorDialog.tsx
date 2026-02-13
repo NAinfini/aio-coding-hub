@@ -9,6 +9,7 @@ import {
   CalendarRange,
   Gauge,
   RotateCcw,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cliLongLabel } from "../../constants/clis";
@@ -76,6 +77,8 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
   const [baseUrlRows, setBaseUrlRows] = useState<BaseUrlRow[]>(() => [newBaseUrlRow()]);
   const [pingingAll, setPingingAll] = useState(false);
   const [claudeModels, setClaudeModels] = useState<ClaudeModels>({});
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
   const [saving, setSaving] = useState(false);
 
   const schema = useMemo(() => createProviderEditorDialogSchema({ mode }), [mode]);
@@ -120,6 +123,8 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
       setBaseUrlRows([newBaseUrlRow()]);
       setPingingAll(false);
       setClaudeModels({});
+      setTags([]);
+      setTagInput("");
       reset({
         name: "",
         api_key: "",
@@ -140,6 +145,8 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
     setBaseUrlRows(props.provider.base_urls.map((url) => newBaseUrlRow(url)));
     setPingingAll(false);
     setClaudeModels(props.provider.claude_models ?? {});
+    setTags(props.provider.tags ?? []);
+    setTagInput("");
     reset({
       name: props.provider.name,
       api_key: "",
@@ -246,6 +253,7 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
         limit_weekly_usd: values.limit_weekly_usd,
         limit_monthly_usd: values.limit_monthly_usd,
         limit_total_usd: values.limit_total_usd,
+        tags,
         ...(cliKey === "claude" ? { claude_models: claudeModels } : {}),
       });
 
@@ -271,6 +279,7 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
         limit_weekly_usd: saved.limit_weekly_usd,
         limit_monthly_usd: saved.limit_monthly_usd,
         limit_total_usd: saved.limit_total_usd,
+        tags: saved.tags,
       });
       toast(mode === "create" ? "Provider 已保存" : "Provider 已更新");
 
@@ -326,6 +335,48 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
             />
           </FormField>
         </div>
+
+        <FormField label="标签" hint="按 Enter 添加标签，用于分类筛选">
+          <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 py-1.5 dark:border-slate-700 dark:bg-slate-800">
+            {tags.map((tag) => (
+              <span
+                key={tag}
+                className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent"
+              >
+                {tag}
+                <button
+                  type="button"
+                  onClick={() => setTags((prev) => prev.filter((t) => t !== tag))}
+                  className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full hover:bg-accent/20"
+                  disabled={saving}
+                  aria-label={`移除标签 ${tag}`}
+                >
+                  <X className="h-2.5 w-2.5" />
+                </button>
+              </span>
+            ))}
+            <input
+              type="text"
+              value={tagInput}
+              onChange={(e) => setTagInput(e.currentTarget.value)}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter") return;
+                e.preventDefault();
+                const trimmed = tagInput.trim();
+                if (!trimmed) return;
+                if (tags.includes(trimmed)) {
+                  setTagInput("");
+                  return;
+                }
+                setTags((prev) => [...prev, trimmed]);
+                setTagInput("");
+              }}
+              placeholder={tags.length === 0 ? "输入标签后按 Enter" : ""}
+              className="min-w-[80px] flex-1 border-none bg-transparent text-sm outline-none placeholder:text-slate-400"
+              disabled={saving}
+            />
+          </div>
+        </FormField>
 
         <FormField label="Base URLs">
           <BaseUrlEditor

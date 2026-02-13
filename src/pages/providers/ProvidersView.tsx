@@ -111,6 +111,28 @@ export function ProvidersView({ activeCli, setActiveCli }: ProvidersViewProps) {
   const [validateDialogOpen, setValidateDialogOpen] = useState(false);
   const [validateProvider, setValidateProvider] = useState<ProviderSummary | null>(null);
 
+  const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
+
+  const tagCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const p of providers) {
+      for (const tag of p.tags ?? []) {
+        counts.set(tag, (counts.get(tag) ?? 0) + 1);
+      }
+    }
+    return counts;
+  }, [providers]);
+
+  const filteredProviders = useMemo(() => {
+    if (selectedTags.size === 0) return providers;
+    return providers.filter((p) => (p.tags ?? []).some((tag) => selectedTags.has(tag)));
+  }, [providers, selectedTags]);
+
+  // Reset selected tags when switching CLI or when tags no longer exist
+  useEffect(() => {
+    setSelectedTags(new Set());
+  }, [activeCli]);
+
   useEffect(() => {
     if (activeCli !== "claude" && validateDialogOpen) {
       setValidateDialogOpen(false);
@@ -400,8 +422,52 @@ export function ProvidersView({ activeCli, setActiveCli }: ProvidersViewProps) {
         </div>
 
         <div className="flex items-center justify-between gap-2">
-          <div className="text-[11px] text-slate-500 dark:text-slate-400">
-            路由顺序：按拖拽顺序（上→下）
+          <div className="flex flex-wrap items-center gap-1.5">
+            {tagCounts.size > 0 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setSelectedTags(new Set())}
+                  className={`rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+                    selectedTags.size === 0
+                      ? "border-accent bg-accent text-white shadow-sm"
+                      : "border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:bg-slate-50 dark:border-slate-500 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-slate-400 dark:hover:bg-slate-700"
+                  }`}
+                >
+                  全部({providers.length})
+                </button>
+                {Array.from(tagCounts.entries()).map(([tag, count]) => {
+                  const isSelected = selectedTags.has(tag);
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => {
+                        setSelectedTags((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(tag)) {
+                            next.delete(tag);
+                          } else {
+                            next.add(tag);
+                          }
+                          return next;
+                        });
+                      }}
+                      className={`rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+                        isSelected
+                          ? "border-accent bg-accent text-white shadow-sm"
+                          : "border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:bg-slate-50 dark:border-slate-500 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-slate-400 dark:hover:bg-slate-700"
+                      }`}
+                    >
+                      {tag}({count})
+                    </button>
+                  );
+                })}
+              </>
+            )}
+            <span className="text-[11px] text-slate-500 dark:text-slate-400">
+              路由顺序：按拖拽顺序（上→下）
+            </span>
           </div>
           <div className="flex items-center gap-2">
             {hasUnavailableCircuit ? (
@@ -440,6 +506,11 @@ export function ProvidersView({ activeCli, setActiveCli }: ProvidersViewProps) {
             </div>
           ) : providers.length === 0 ? (
             <EmptyState title="暂无 Provider" description="请点击「添加」新增。" />
+          ) : filteredProviders.length === 0 ? (
+            <EmptyState
+              title="无匹配的 Provider"
+              description="当前标签筛选无结果，请调整筛选条件。"
+            />
           ) : (
             <DndContext
               sensors={sensors}
@@ -447,11 +518,11 @@ export function ProvidersView({ activeCli, setActiveCli }: ProvidersViewProps) {
               onDragEnd={handleDragEnd}
             >
               <SortableContext
-                items={providers.map((p) => p.id)}
+                items={filteredProviders.map((p) => p.id)}
                 strategy={verticalListSortingStrategy}
               >
                 <div className="space-y-3">
-                  {providers.map((provider) => (
+                  {filteredProviders.map((provider) => (
                     <SortableProviderCard
                       key={provider.id}
                       provider={provider}

@@ -53,6 +53,7 @@ function makeProvider(
     limit_weekly_usd: partial.limit_weekly_usd ?? null,
     limit_monthly_usd: partial.limit_monthly_usd ?? null,
     limit_total_usd: partial.limit_total_usd ?? null,
+    tags: partial.tags ?? [],
     created_at: partial.created_at ?? 0,
     updated_at: partial.updated_at ?? 0,
   };

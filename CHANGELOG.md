@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.26.0](https://github.com/dyndynjyxa/aio-coding-hub/compare/aio-coding-hub-v0.25.0...aio-coding-hub-v0.26.0) (2026-02-13)
+
+
+### Features
+
+* **console:** 改进控制台界面并增加日志过滤和搜索功能 ([93badf8](https://github.com/dyndynjyxa/aio-coding-hub/commit/93badf8766c9a415c821c3f14084183d18d31687))
+* **providers:** 添加供应商标签功能，支持分类筛选 ([7671732](https://github.com/dyndynjyxa/aio-coding-hub/commit/76717329a119f9a65dc2f3a9dffe0a887063b0bd))
+
+
+### Bug Fixes
+
+* **cli_manager:** 修复 run_in_login_shell 的平台兼容性处理 ([9f81433](https://github.com/dyndynjyxa/aio-coding-hub/commit/9f814337d08f36c08e37486f95b9c9da62880fc1))
+
 ## [0.25.0](https://github.com/dyndynjyxa/aio-coding-hub/compare/aio-coding-hub-v0.24.1...aio-coding-hub-v0.25.0) (2026-02-12)
 
 

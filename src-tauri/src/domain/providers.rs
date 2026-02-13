@@ -203,6 +203,25 @@ fn claude_models_from_json(raw: &str) -> ClaudeModels {
         .normalized()
 }
 
+fn tags_from_json(raw: &str) -> Vec<String> {
+    serde_json::from_str::<Vec<String>>(raw)
+        .ok()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+        .collect()
+}
+
+fn normalize_tags(tags: Vec<String>) -> Vec<String> {
+    let mut seen = HashSet::new();
+    tags.into_iter()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+        .filter(|v| seen.insert(v.clone()))
+        .collect()
+}
+
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ProviderBaseUrlMode {
@@ -245,6 +264,7 @@ pub struct ProviderSummary {
     pub limit_weekly_usd: Option<f64>,
     pub limit_monthly_usd: Option<f64>,
     pub limit_total_usd: Option<f64>,
+    pub tags: Vec<String>,
     pub created_at: i64,
     pub updated_at: i64,
 }
@@ -338,6 +358,7 @@ fn row_to_summary(row: &rusqlite::Row<'_>) -> Result<ProviderSummary, rusqlite::
     let base_url_fallback: String = row.get("base_url")?;
     let base_urls_json: String = row.get("base_urls_json")?;
     let claude_models_json: String = row.get("claude_models_json")?;
+    let tags_json: String = row.get("tags_json")?;
     let base_url_mode_raw: String = row.get("base_url_mode")?;
     let daily_reset_mode_raw: String = row.get("daily_reset_mode")?;
     let daily_reset_time_raw: String = row.get("daily_reset_time")?;
@@ -368,6 +389,7 @@ fn row_to_summary(row: &rusqlite::Row<'_>) -> Result<ProviderSummary, rusqlite::
         limit_weekly_usd: row.get("limit_weekly_usd")?,
         limit_monthly_usd: row.get("limit_monthly_usd")?,
         limit_total_usd: row.get("limit_total_usd")?,
+        tags: tags_from_json(&tags_json),
         created_at: row.get("created_at")?,
         updated_at: row.get("updated_at")?,
     })
@@ -397,6 +419,7 @@ SELECT
   base_urls_json,
   base_url_mode,
   claude_models_json,
+  tags_json,
   enabled,
   priority,
   cost_multiplier,
@@ -536,6 +559,7 @@ SELECT
   base_urls_json,
   base_url_mode,
   claude_models_json,
+  tags_json,
 	  enabled,
 	  priority,
 	  cost_multiplier,
@@ -774,6 +798,7 @@ pub fn upsert(
     limit_weekly_usd: Option<f64>,
     limit_monthly_usd: Option<f64>,
     limit_total_usd: Option<f64>,
+    tags: Option<Vec<String>>,
 ) -> crate::shared::error::AppResult<ProviderSummary> {
     let cli_key = cli_key.trim();
     validate_cli_key(cli_key)?;
@@ -844,6 +869,10 @@ pub fn upsert(
             let daily_reset_time =
                 normalize_reset_time_hms_strict("daily_reset_time", daily_reset_time_raw)?;
 
+            let tags_normalized = normalize_tags(tags.unwrap_or_default());
+            let tags_json_value = serde_json::to_string(&tags_normalized)
+                .map_err(|e| format!("SYSTEM_ERROR: {e}"))?;
+
             conn.execute(
                 r#"
 INSERT INTO providers(
@@ -867,9 +896,10 @@ INSERT INTO providers(
   limit_weekly_usd,
   limit_monthly_usd,
   limit_total_usd,
+  tags_json,
   created_at,
   updated_at
-) VALUES (?1, ?2, ?3, ?4, ?5, ?6, '{}', '{}', ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)
+) VALUES (?1, ?2, ?3, ?4, ?5, ?6, '{}', '{}', ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21)
 "#,
                 params![
                     cli_key,
@@ -890,6 +920,7 @@ INSERT INTO providers(
                     limit_weekly_usd,
                     limit_monthly_usd,
                     limit_total_usd,
+                    tags_json_value,
                     now,
                     now
                 ],
@@ -913,11 +944,11 @@ INSERT INTO providers(
                 .transaction()
                 .map_err(|e| db_err!("failed to start transaction: {e}"))?;
 
-            let existing: Option<(String, String, i64, String, String, String)> = tx
+            let existing: Option<(String, String, i64, String, String, String, String)> = tx
                 .query_row(
-                    "SELECT cli_key, api_key_plaintext, priority, claude_models_json, daily_reset_mode, daily_reset_time FROM providers WHERE id = ?1",
+                    "SELECT cli_key, api_key_plaintext, priority, claude_models_json, daily_reset_mode, daily_reset_time, tags_json FROM providers WHERE id = ?1",
                     params![id],
-                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)),
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?)),
                 )
                 .optional()
                 .map_err(|e| db_err!("failed to query provider: {e}"))?;
@@ -929,6 +960,7 @@ INSERT INTO providers(
                 existing_claude_models_json,
                 existing_daily_reset_mode_raw,
                 existing_daily_reset_time_raw,
+                existing_tags_json,
             )) = existing
             else {
                 return Err("DB_NOT_FOUND: provider not found".to_string().into());
@@ -986,6 +1018,13 @@ INSERT INTO providers(
                 Some(v) => normalize_reset_time_hms_strict("daily_reset_time", v)?,
             };
 
+            let next_tags = match tags {
+                Some(t) => normalize_tags(t),
+                None => tags_from_json(&existing_tags_json),
+            };
+            let next_tags_json =
+                serde_json::to_string(&next_tags).map_err(|e| format!("SYSTEM_ERROR: {e}"))?;
+
             tx.execute(
                 r#"
 UPDATE providers
@@ -1008,8 +1047,9 @@ SET
   limit_weekly_usd = ?14,
   limit_monthly_usd = ?15,
   limit_total_usd = ?16,
-  updated_at = ?17
-WHERE id = ?18
+  tags_json = ?17,
+  updated_at = ?18
+WHERE id = ?19
 "#,
                 params![
                     name,
@@ -1028,6 +1068,7 @@ WHERE id = ?18
                     next_limit_weekly_usd,
                     next_limit_monthly_usd,
                     next_limit_total_usd,
+                    next_tags_json,
                     now,
                     id
                 ],

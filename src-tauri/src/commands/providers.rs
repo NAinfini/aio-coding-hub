@@ -51,6 +51,7 @@ pub(crate) async fn provider_upsert(
     limit_weekly_usd: Option<f64>,
     limit_monthly_usd: Option<f64>,
     limit_total_usd: Option<f64>,
+    tags: Option<Vec<String>>,
 ) -> Result<providers::ProviderSummary, String> {
     let is_create = provider_id.is_none();
     let name_for_log = name.clone();
@@ -76,6 +77,7 @@ pub(crate) async fn provider_upsert(
             limit_weekly_usd,
             limit_monthly_usd,
             limit_total_usd,
+            tags,
         )
     })
     .await

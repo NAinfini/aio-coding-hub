@@ -748,6 +748,81 @@ WHERE p.id = 2
 }
 
 #[test]
+fn baseline_v25_creates_complete_schema_for_fresh_install() {
+    let mut conn = Connection::open_in_memory().expect("open in-memory sqlite");
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .expect("enable foreign_keys");
+
+    // Fresh install: user_version = 0
+    apply_migrations(&mut conn).expect("apply migrations on fresh db");
+
+    let user_version: i64 = conn
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .expect("read user_version");
+    assert_eq!(user_version, 29);
+
+    // Verify all tables exist
+    let tables: Vec<String> = {
+        let mut stmt = conn
+            .prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
+            .expect("prepare");
+        let rows = stmt.query_map([], |row| row.get(0)).expect("query");
+        rows.filter_map(|r| r.ok()).collect()
+    };
+
+    // Core tables from baseline
+    assert!(tables.contains(&"providers".to_string()));
+    assert!(tables.contains(&"request_logs".to_string()));
+    assert!(tables.contains(&"request_attempt_logs".to_string()));
+    assert!(tables.contains(&"prompts".to_string()));
+    assert!(tables.contains(&"mcp_servers".to_string()));
+    assert!(tables.contains(&"skills".to_string()));
+    assert!(tables.contains(&"skill_repos".to_string()));
+    assert!(tables.contains(&"model_prices".to_string()));
+    assert!(tables.contains(&"sort_modes".to_string()));
+    assert!(tables.contains(&"sort_mode_providers".to_string()));
+    assert!(tables.contains(&"sort_mode_active".to_string()));
+    assert!(tables.contains(&"claude_model_validation_runs".to_string()));
+    assert!(tables.contains(&"schema_migrations".to_string()));
+
+    // Tables from ensure patches
+    assert!(tables.contains(&"workspaces".to_string()));
+    assert!(tables.contains(&"workspace_active".to_string()));
+    assert!(tables.contains(&"workspace_mcp_enabled".to_string()));
+    assert!(tables.contains(&"workspace_skill_enabled".to_string()));
+
+    // Verify ensure patches ran (provider limit columns)
+    assert!(test_has_column(&conn, "providers", "limit_5h_usd"));
+    assert!(test_has_column(&conn, "providers", "limit_daily_usd"));
+    assert!(test_has_column(&conn, "providers", "tags_json"));
+
+    // Verify v25->v26 migration ran (claude_models_json)
+    assert!(test_has_column(&conn, "providers", "claude_models_json"));
+
+    // Verify sort_mode_providers.enabled from ensure patch
+    assert!(test_has_column(&conn, "sort_mode_providers", "enabled"));
+
+    // Verify prompts was migrated to workspace_id
+    assert!(test_has_column(&conn, "prompts", "workspace_id"));
+    assert!(!test_has_column(&conn, "prompts", "cli_key"));
+
+    // Idempotent: second run should succeed
+    apply_migrations(&mut conn).expect("apply migrations twice");
+}
+
+#[test]
+fn rejects_unsupported_old_schema_version() {
+    let mut conn = Connection::open_in_memory().expect("open in-memory sqlite");
+    conn.execute_batch("PRAGMA user_version = 10;")
+        .expect("set old version");
+
+    let result = apply_migrations(&mut conn);
+    assert!(result.is_err());
+    let err = result.unwrap_err().to_string();
+    assert!(err.contains("minimum supported: 25"));
+}
+
+#[test]
 fn strict_v29_patch_accepts_dev_schema_and_normalizes_user_version_to_29() {
     let mut conn = Connection::open_in_memory().expect("open in-memory sqlite");
     conn.execute_batch("PRAGMA foreign_keys = ON;")

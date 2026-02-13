@@ -1,91 +1,48 @@
 //! Usage: SQLite schema migrations (user_version + incremental upgrades).
 
-mod v0_to_v1;
-mod v10_to_v11;
-mod v11_to_v12;
-mod v12_to_v13;
-mod v13_to_v14;
-mod v14_to_v15;
-mod v15_to_v16;
-mod v16_to_v17;
-mod v17_to_v18;
-mod v18_to_v19;
-mod v19_to_v20;
-mod v1_to_v2;
-mod v20_to_v21;
-mod v21_to_v22;
-mod v22_to_v23;
-mod v23_to_v24;
-mod v24_to_v25;
+mod baseline_v25;
+mod ensure;
 mod v25_to_v26;
 mod v26_to_v27;
 mod v27_to_v28;
 mod v28_to_v29;
-mod v29_to_v30;
-mod v29_to_v30_provider_limits;
-mod v29_to_v30_sort_mode_providers_enabled;
-mod v29_to_v30_usage_indexes;
-mod v2_to_v3;
-mod v3_to_v4;
-mod v4_to_v5;
-mod v5_to_v6;
-mod v6_to_v7;
-mod v7_to_v8;
-mod v8_to_v9;
-mod v9_to_v10;
 
 use rusqlite::Connection;
 
 const LATEST_SCHEMA_VERSION: i64 = 29;
 const MAX_COMPAT_SCHEMA_VERSION: i64 = 33;
+const MIN_SUPPORTED_SCHEMA_VERSION: i64 = 25;
 
 pub(super) fn apply_migrations(conn: &mut Connection) -> crate::shared::error::AppResult<()> {
     let mut user_version = read_user_version(conn)?;
 
-    if user_version < 0 {
+    if user_version < 0 || (user_version > 0 && user_version < MIN_SUPPORTED_SCHEMA_VERSION) {
         return Err(format!(
-            "unsupported sqlite schema version: user_version={user_version} (expected 0..={MAX_COMPAT_SCHEMA_VERSION})"
+            "unsupported sqlite schema version: user_version={user_version} (minimum supported: {MIN_SUPPORTED_SCHEMA_VERSION}, upgrade from an earlier app version first)"
         )
         .into());
     }
 
     if user_version > MAX_COMPAT_SCHEMA_VERSION {
         return Err(format!(
-            "unsupported sqlite schema version: user_version={user_version} (expected 0..={MAX_COMPAT_SCHEMA_VERSION})"
+            "unsupported sqlite schema version: user_version={user_version} (expected {MIN_SUPPORTED_SCHEMA_VERSION}..={MAX_COMPAT_SCHEMA_VERSION})"
         )
         .into());
     }
 
     let start_version = user_version;
 
+    // Fresh install: create complete schema at v25
+    if user_version == 0 {
+        baseline_v25::create_baseline_v25(conn)?;
+        user_version = read_user_version(conn)?;
+        tracing::info!(to_version = user_version, "sqlite baseline schema created");
+    }
+
+    // Incremental migrations from v25 to v29
     while user_version < LATEST_SCHEMA_VERSION {
         let from_version = user_version;
         match user_version {
-            0 => v0_to_v1::migrate_v0_to_v1(conn)?,
-            1 => v1_to_v2::migrate_v1_to_v2(conn)?,
-            2 => v2_to_v3::migrate_v2_to_v3(conn)?,
-            3 => v3_to_v4::migrate_v3_to_v4(conn)?,
-            4 => v4_to_v5::migrate_v4_to_v5(conn)?,
-            5 => v5_to_v6::migrate_v5_to_v6(conn)?,
-            6 => v6_to_v7::migrate_v6_to_v7(conn)?,
-            7 => v7_to_v8::migrate_v7_to_v8(conn)?,
-            8 => v8_to_v9::migrate_v8_to_v9(conn)?,
-            9 => v9_to_v10::migrate_v9_to_v10(conn)?,
-            10 => v10_to_v11::migrate_v10_to_v11(conn)?,
-            11 => v11_to_v12::migrate_v11_to_v12(conn)?,
-            12 => v12_to_v13::migrate_v12_to_v13(conn)?,
-            13 => v13_to_v14::migrate_v13_to_v14(conn)?,
-            14 => v14_to_v15::migrate_v14_to_v15(conn)?,
-            15 => v15_to_v16::migrate_v15_to_v16(conn)?,
-            16 => v16_to_v17::migrate_v16_to_v17(conn)?,
-            17 => v17_to_v18::migrate_v17_to_v18(conn)?,
-            18 => v18_to_v19::migrate_v18_to_v19(conn)?,
-            19 => v19_to_v20::migrate_v19_to_v20(conn)?,
-            20 => v20_to_v21::migrate_v20_to_v21(conn)?,
-            21 => v21_to_v22::migrate_v21_to_v22(conn)?,
-            22 => v22_to_v23::migrate_v22_to_v23(conn)?,
-            23 => v23_to_v24::migrate_v23_to_v24(conn)?,
-            24 => v24_to_v25::migrate_v24_to_v25(conn)?,
             25 => v25_to_v26::migrate_v25_to_v26(conn)?,
             26 => v26_to_v27::migrate_v26_to_v27(conn)?,
             27 => v27_to_v28::migrate_v27_to_v28(conn)?,
@@ -96,7 +53,7 @@ pub(super) fn apply_migrations(conn: &mut Connection) -> crate::shared::error::A
                     "unsupported sqlite schema version during migration"
                 );
                 return Err(format!(
-                    "unsupported sqlite schema version: user_version={v} (expected 0..={MAX_COMPAT_SCHEMA_VERSION})"
+                    "unsupported sqlite schema version: user_version={v} (expected {MIN_SUPPORTED_SCHEMA_VERSION}..={MAX_COMPAT_SCHEMA_VERSION})"
                 )
                 .into());
             }
@@ -117,11 +74,10 @@ pub(super) fn apply_migrations(conn: &mut Connection) -> crate::shared::error::A
         );
     }
 
-    v29_to_v30::ensure_workspace_cluster(conn)?;
-    v29_to_v30_provider_limits::ensure_provider_limits(conn)?;
-    v29_to_v30_sort_mode_providers_enabled::ensure_sort_mode_providers_enabled(conn)?;
-    v29_to_v30_usage_indexes::ensure_usage_indexes(conn)?;
+    // Idempotent ensure patches (always run)
+    ensure::apply_ensure_patches(conn)?;
 
+    // Normalize dev builds back to LATEST_SCHEMA_VERSION
     let user_version = read_user_version(conn)?;
     if user_version > LATEST_SCHEMA_VERSION {
         let tx = conn

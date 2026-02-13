@@ -1,10 +1,10 @@
 //! Usage: Best-effort enqueue to DB log tasks with backpressure and fallbacks.
 
-use crate::{db, request_attempt_logs, request_logs};
+use crate::{db, request_logs};
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::time::Duration;
 
-use super::super::events::{emit_gateway_log, GatewayAttemptEvent};
+use super::super::events::emit_gateway_log;
 use super::super::util::now_unix_seconds;
 use super::GatewayErrorCode;
 
@@ -24,91 +24,6 @@ fn next_request_log_write_through_count(now_unix: u64) -> u32 {
         REQUEST_LOG_WRITE_THROUGH_COUNT.store(0, Ordering::Relaxed);
     }
     REQUEST_LOG_WRITE_THROUGH_COUNT.fetch_add(1, Ordering::Relaxed) + 1
-}
-
-fn attempt_log_insert_from_event(
-    attempt: &GatewayAttemptEvent,
-    created_at: i64,
-) -> Option<request_attempt_logs::RequestAttemptLogInsert> {
-    if !crate::shared::cli_key::is_supported_cli_key(attempt.cli_key.as_str()) {
-        return None;
-    }
-
-    Some(request_attempt_logs::RequestAttemptLogInsert {
-        trace_id: attempt.trace_id.clone(),
-        cli_key: attempt.cli_key.clone(),
-        method: attempt.method.clone(),
-        path: attempt.path.clone(),
-        query: attempt.query.clone(),
-        attempt_index: attempt.attempt_index as i64,
-        provider_id: attempt.provider_id,
-        provider_name: attempt.provider_name.clone(),
-        base_url: attempt.base_url.clone(),
-        outcome: attempt.outcome.clone(),
-        status: attempt.status.map(|v| v as i64),
-        attempt_started_ms: attempt.attempt_started_ms.min(i64::MAX as u128) as i64,
-        attempt_duration_ms: attempt.attempt_duration_ms.min(i64::MAX as u128) as i64,
-        created_at,
-    })
-}
-
-pub(super) async fn enqueue_attempt_log_with_backpressure(
-    app: &tauri::AppHandle,
-    db: &db::Db,
-    attempt_log_tx: &tokio::sync::mpsc::Sender<request_attempt_logs::RequestAttemptLogInsert>,
-    attempt: &GatewayAttemptEvent,
-    created_at: i64,
-) {
-    let Some(insert) = attempt_log_insert_from_event(attempt, created_at) else {
-        return;
-    };
-
-    let reserve = tokio::time::timeout(LOG_ENQUEUE_MAX_WAIT, attempt_log_tx.reserve()).await;
-    match reserve {
-        Ok(Ok(permit)) => {
-            permit.send(insert);
-        }
-        Ok(Err(_)) => {
-            emit_gateway_log(
-                app,
-                "warn",
-                GatewayErrorCode::AttemptLogChannelClosed.as_str(),
-                format!(
-                    "attempt log channel closed; using write-through fallback trace_id={} cli={}",
-                    attempt.trace_id, attempt.cli_key
-                ),
-            );
-            request_attempt_logs::spawn_write_through(app.clone(), db.clone(), insert);
-        }
-        Err(_) => {
-            if attempt_log_tx.try_send(insert).is_ok() {
-                emit_gateway_log(
-                    app,
-                    "warn",
-                    GatewayErrorCode::AttemptLogEnqueueTimeout.as_str(),
-                    format!(
-                        "attempt log enqueue timed out ({}ms); used try_send fallback trace_id={} cli={}",
-                        LOG_ENQUEUE_MAX_WAIT.as_millis(),
-                        attempt.trace_id,
-                        attempt.cli_key
-                    ),
-                );
-                return;
-            }
-
-            emit_gateway_log(
-                app,
-                "error",
-                GatewayErrorCode::AttemptLogDropped.as_str(),
-                format!(
-                    "attempt log dropped (queue full after {}ms) trace_id={} cli={}",
-                    LOG_ENQUEUE_MAX_WAIT.as_millis(),
-                    attempt.trace_id,
-                    attempt.cli_key
-                ),
-            );
-        }
-    }
 }
 
 fn request_log_insert_from_args(

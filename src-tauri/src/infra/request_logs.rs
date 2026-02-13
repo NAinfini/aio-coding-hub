@@ -1,11 +1,11 @@
-//! Usage: Request log persistence (sqlite buffered writer, queries, and cleanup).
+//! Usage: Request log persistence (sqlite buffered writer and queries).
 
 use crate::shared::error::db_err;
 use crate::shared::time::now_unix_seconds;
-use crate::{cost, db, model_price_aliases, settings};
+use crate::{cost, db, model_price_aliases};
 use rusqlite::{params, params_from_iter, ErrorCode, OptionalExtension};
 use std::collections::{HashMap, HashSet};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::sync::mpsc;
 
 mod types;
@@ -17,9 +17,6 @@ pub use types::{
 mod costing;
 use costing::{has_any_cost_usage, is_success_status, usage_for_cost};
 
-mod cleanup;
-pub use cleanup::cleanup_expired;
-
 mod queries;
 use queries::{final_provider_from_attempts, parse_attempts, validate_cli_key};
 pub use queries::{
@@ -28,7 +25,6 @@ pub use queries::{
 
 const WRITE_BUFFER_CAPACITY: usize = 512;
 const WRITE_BATCH_MAX: usize = 50;
-const CLEANUP_MIN_INTERVAL: Duration = Duration::from_secs(10 * 60);
 const INSERT_RETRY_MAX_ATTEMPTS: u32 = 8;
 const INSERT_RETRY_BASE_DELAY_MS: u64 = 20;
 const INSERT_RETRY_MAX_DELAY_MS: u64 = 500;
@@ -201,9 +197,6 @@ pub fn spawn_write_through(app: tauri::AppHandle, db: db::Db, item: RequestLogIn
 
 fn writer_loop(app: tauri::AppHandle, db: db::Db, mut rx: mpsc::Receiver<RequestLogInsert>) {
     let mut buffer: Vec<RequestLogInsert> = Vec::with_capacity(WRITE_BATCH_MAX);
-    let now = Instant::now();
-    let mut last_cleanup = now.checked_sub(CLEANUP_MIN_INTERVAL).unwrap_or(now);
-    let mut cleanup_due = last_cleanup == now;
     let mut cache = InsertBatchCache::default();
 
     while let Some(item) = rx.blocking_recv() {
@@ -221,15 +214,6 @@ fn writer_loop(app: tauri::AppHandle, db: db::Db, mut rx: mpsc::Receiver<Request
             tracing::error!(error = %err.message, "请求日志批量插入失败");
         }
         buffer.clear();
-
-        if cleanup_due || last_cleanup.elapsed() >= CLEANUP_MIN_INTERVAL {
-            let retention_days = settings::log_retention_days_fail_open(&app);
-            if let Err(err) = cleanup_expired(&db, retention_days) {
-                tracing::warn!("请求日志清理失败: {}", err);
-            }
-            cleanup_due = false;
-            last_cleanup = Instant::now();
-        }
     }
 
     if !buffer.is_empty() {

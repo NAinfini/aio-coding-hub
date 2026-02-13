@@ -773,7 +773,6 @@ fn baseline_v25_creates_complete_schema_for_fresh_install() {
     // Core tables from baseline
     assert!(tables.contains(&"providers".to_string()));
     assert!(tables.contains(&"request_logs".to_string()));
-    assert!(tables.contains(&"request_attempt_logs".to_string()));
     assert!(tables.contains(&"prompts".to_string()));
     assert!(tables.contains(&"mcp_servers".to_string()));
     assert!(tables.contains(&"skills".to_string()));

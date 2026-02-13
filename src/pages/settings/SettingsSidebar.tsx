@@ -143,7 +143,7 @@ export function SettingsSidebar({ updateMeta }: SettingsSidebarProps) {
       }
 
       toast(
-        `已清理请求日志：request_logs ${result.request_logs_deleted} 条，request_attempt_logs ${result.request_attempt_logs_deleted} 条`
+        `已清理请求日志：request_logs ${result.request_logs_deleted} 条；legacy request_attempt_logs ${result.request_attempt_logs_deleted} 条`
       );
       logToConsole("info", "清理请求日志", result);
       setClearRequestLogsDialogOpen(false);

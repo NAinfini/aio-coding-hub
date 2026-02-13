@@ -57,7 +57,7 @@ describe("components/ProviderChainView", () => {
         ])}
       />
     );
-    expect(screen.getByText("数据源：尝试 JSON（兜底）")).toBeInTheDocument();
+    expect(screen.getByText("数据源：request_logs.attempts_json")).toBeInTheDocument();
     expect(screen.getAllByText("成功").length).toBeGreaterThan(0);
 
     rerender(
@@ -91,9 +91,7 @@ describe("components/ProviderChainView", () => {
         ])}
       />
     );
-    expect(
-      screen.getByText("数据源：尝试日志（实时落库）+ 尝试 JSON（增强字段）")
-    ).toBeInTheDocument();
+    expect(screen.getByText("数据源：request_logs.attempts_json（结构化）")).toBeInTheDocument();
     expect(screen.getAllByText("未知（id=99）").length).toBeGreaterThan(0);
     expect(screen.getByText("供应商 #1")).toBeInTheDocument();
     expect(screen.getByText("retry #2")).toBeInTheDocument();

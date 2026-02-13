@@ -306,7 +306,7 @@ describe("pages/settings/SettingsSidebar", () => {
     });
     expect(clearMutation.mutateAsync).toHaveBeenCalledTimes(2);
     expect(toast).toHaveBeenCalledWith(
-      "已清理请求日志：request_logs 1 条，request_attempt_logs 2 条"
+      "已清理请求日志：request_logs 1 条；legacy request_attempt_logs 2 条"
     );
 
     fireEvent.click(screen.getByRole("button", { name: "confirm-clear-logs" }));

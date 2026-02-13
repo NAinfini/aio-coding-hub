@@ -131,8 +131,7 @@ pub(crate) async fn stop_gateway_best_effort(app: &tauri::AppHandle) {
         manager.take_running()
     };
 
-    let Some((shutdown, mut task, mut log_task, mut attempt_log_task, mut circuit_task)) = running
-    else {
+    let Some((shutdown, mut task, mut log_task, mut circuit_task)) = running else {
         return;
     };
 
@@ -140,12 +139,7 @@ pub(crate) async fn stop_gateway_best_effort(app: &tauri::AppHandle) {
 
     let stop_timeout = Duration::from_secs(3);
     let join_all = async {
-        let _ = tokio::join!(
-            &mut task,
-            &mut log_task,
-            &mut attempt_log_task,
-            &mut circuit_task
-        );
+        let _ = tokio::join!(&mut task, &mut log_task, &mut circuit_task);
     };
 
     if tokio::time::timeout(stop_timeout, join_all).await.is_err() {
@@ -154,12 +148,7 @@ pub(crate) async fn stop_gateway_best_effort(app: &tauri::AppHandle) {
 
         let abort_grace = Duration::from_secs(1);
         let _ = tokio::time::timeout(abort_grace, async {
-            let _ = tokio::join!(
-                &mut task,
-                &mut log_task,
-                &mut attempt_log_task,
-                &mut circuit_task
-            );
+            let _ = tokio::join!(&mut task, &mut log_task, &mut circuit_task);
         })
         .await;
     }

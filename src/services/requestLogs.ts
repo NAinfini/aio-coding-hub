@@ -77,9 +77,6 @@ export type RequestAttemptLog = {
   id: number;
   trace_id: string;
   cli_key: CliKey;
-  method: string;
-  path: string;
-  query: string | null;
   attempt_index: number;
   provider_id: number;
   provider_name: string;

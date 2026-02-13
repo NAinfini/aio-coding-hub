@@ -131,10 +131,10 @@ export function ProviderChainView({
     if (attemptLogsLoading) return "加载中…";
     if (attemptLogs.length > 0) {
       return parsedAttemptsJson.ok
-        ? "数据源：尝试日志（实时落库）+ 尝试 JSON（增强字段）"
-        : "数据源：尝试日志（实时落库）";
+        ? "数据源：request_logs.attempts_json（结构化）"
+        : "数据源：attempts 兼容接口";
     }
-    if (parsedAttemptsJson.ok) return "数据源：尝试 JSON（兜底）";
+    if (parsedAttemptsJson.ok) return "数据源：request_logs.attempts_json";
     return "数据源：尝试 JSON（原始）";
   }, [attemptLogs.length, attemptLogsLoading, parsedAttemptsJson.ok]);
 

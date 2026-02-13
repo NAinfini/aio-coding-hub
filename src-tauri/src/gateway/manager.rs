@@ -1,6 +1,6 @@
 use crate::{
-    circuit_breaker, db, provider_circuit_breakers, providers, request_attempt_logs, request_logs,
-    session_manager, settings, wsl,
+    circuit_breaker, db, provider_circuit_breakers, providers, request_logs, session_manager,
+    settings, wsl,
 };
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
@@ -25,13 +25,11 @@ struct RunningGateway {
     shutdown: oneshot::Sender<()>,
     task: tauri::async_runtime::JoinHandle<()>,
     log_task: tauri::async_runtime::JoinHandle<()>,
-    attempt_log_task: tauri::async_runtime::JoinHandle<()>,
     circuit_task: tauri::async_runtime::JoinHandle<()>,
 }
 
 type RunningGatewayHandles = (
     oneshot::Sender<()>,
-    tauri::async_runtime::JoinHandle<()>,
     tauri::async_runtime::JoinHandle<()>,
     tauri::async_runtime::JoinHandle<()>,
     tauri::async_runtime::JoinHandle<()>,
@@ -50,8 +48,6 @@ pub(super) struct GatewayAppState {
     pub(super) db: db::Db,
     pub(super) client: reqwest::Client,
     pub(super) log_tx: tokio::sync::mpsc::Sender<request_logs::RequestLogInsert>,
-    pub(super) attempt_log_tx:
-        tokio::sync::mpsc::Sender<request_attempt_logs::RequestAttemptLogInsert>,
     pub(super) circuit: Arc<circuit_breaker::CircuitBreaker>,
     pub(super) session: Arc<session_manager::SessionManager>,
     pub(super) codex_session_cache: Arc<Mutex<CodexSessionIdCache>>,
@@ -218,22 +214,8 @@ impl GatewayManager {
             .map_err(|e| format!("{}: {e}", GatewayErrorCode::HttpClientInit.as_str()))?;
 
         let (log_tx, log_task) = request_logs::start_buffered_writer(app.clone(), db.clone());
-        let (attempt_log_tx, attempt_log_task) =
-            request_attempt_logs::start_buffered_writer(app.clone(), db.clone());
         let (circuit_tx, circuit_task) =
             provider_circuit_breakers::start_buffered_writer(db.clone());
-
-        let retention_days = settings::log_retention_days_fail_open(app);
-        let db_for_cleanup = db.clone();
-        std::mem::drop(tauri::async_runtime::spawn_blocking(move || {
-            if let Err(err) = request_logs::cleanup_expired(&db_for_cleanup, retention_days) {
-                tracing::warn!("请求日志启动清理失败: {}", err);
-            }
-            if let Err(err) = request_attempt_logs::cleanup_expired(&db_for_cleanup, retention_days)
-            {
-                tracing::warn!("尝试日志启动清理失败: {}", err);
-            }
-        }));
 
         let circuit_initial = match provider_circuit_breakers::load_all(&db) {
             Ok(v) => v,
@@ -267,7 +249,6 @@ impl GatewayManager {
             db,
             client,
             log_tx,
-            attempt_log_tx,
             circuit,
             session: session.clone(),
             codex_session_cache,
@@ -305,7 +286,6 @@ impl GatewayManager {
             shutdown: shutdown_tx,
             task,
             log_task,
-            attempt_log_task,
             circuit_task,
         });
 
@@ -435,14 +415,8 @@ impl GatewayManager {
     }
 
     pub fn take_running(&mut self) -> Option<RunningGatewayHandles> {
-        self.running.take().map(|r| {
-            (
-                r.shutdown,
-                r.task,
-                r.log_task,
-                r.attempt_log_task,
-                r.circuit_task,
-            )
-        })
+        self.running
+            .take()
+            .map(|r| (r.shutdown, r.task, r.log_task, r.circuit_task))
     }
 }

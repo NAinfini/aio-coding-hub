@@ -1,6 +1,5 @@
 //! Usage: Small helpers to build/emit attempt events consistently across failover_loop.
 
-use super::super::super::logging::enqueue_attempt_log_with_backpressure;
 use super::context::{AttemptCtx, CommonCtx, ProviderCtx};
 use crate::gateway::events::{emit_attempt_event, GatewayAttemptEvent};
 
@@ -57,15 +56,7 @@ pub(super) async fn emit_attempt_event_and_log(
     };
 
     let state = ctx.state;
-    emit_attempt_event(&state.app, attempt_event.clone());
-    enqueue_attempt_log_with_backpressure(
-        &state.app,
-        &state.db,
-        &state.attempt_log_tx,
-        &attempt_event,
-        ctx.created_at,
-    )
-    .await;
+    emit_attempt_event(&state.app, attempt_event);
 }
 
 pub(super) async fn emit_attempt_event_and_log_with_circuit_before(

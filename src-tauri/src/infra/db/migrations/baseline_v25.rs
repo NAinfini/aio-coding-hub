@@ -80,29 +80,6 @@ CREATE INDEX IF NOT EXISTS idx_request_logs_cli_created_at_ms ON request_logs(cl
 CREATE INDEX IF NOT EXISTS idx_request_logs_session_id ON request_logs(session_id);
 CREATE INDEX IF NOT EXISTS idx_request_logs_final_provider_id_created_at ON request_logs(final_provider_id, created_at);
 
-CREATE TABLE IF NOT EXISTS request_attempt_logs (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  trace_id TEXT NOT NULL,
-  cli_key TEXT NOT NULL,
-  method TEXT NOT NULL,
-  path TEXT NOT NULL,
-  query TEXT,
-  attempt_index INTEGER NOT NULL,
-  provider_id INTEGER NOT NULL,
-  provider_name TEXT NOT NULL,
-  base_url TEXT NOT NULL,
-  outcome TEXT NOT NULL,
-  status INTEGER,
-  attempt_started_ms INTEGER NOT NULL DEFAULT 0,
-  attempt_duration_ms INTEGER NOT NULL DEFAULT 0,
-  created_at INTEGER NOT NULL
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_request_attempt_logs_trace_attempt ON request_attempt_logs(trace_id, attempt_index);
-CREATE INDEX IF NOT EXISTS idx_request_attempt_logs_trace_id ON request_attempt_logs(trace_id);
-CREATE INDEX IF NOT EXISTS idx_request_attempt_logs_created_at ON request_attempt_logs(created_at);
-CREATE INDEX IF NOT EXISTS idx_request_attempt_logs_cli_created_at ON request_attempt_logs(cli_key, created_at);
-
 CREATE TABLE IF NOT EXISTS prompts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   cli_key TEXT NOT NULL,

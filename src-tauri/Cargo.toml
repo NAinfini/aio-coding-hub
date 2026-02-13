@@ -33,7 +33,7 @@ r2d2_sqlite = "0.24"
 reqwest = { version = "0.12.28", default-features = false, features = ["rustls-tls-native-roots", "stream"] }
 futures-core = "0.3"
 flate2 = "1.1.5"
-zip = "4.6.1"
+zip = { version = "4.6", default-features = false, features = ["deflate"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 tracing-appender = "0.2"
@@ -59,3 +59,9 @@ mac-notification-sys = { path = "patches/mac-notification-sys" }
 # Patch `auto-launch` to quote Windows Run entry executable paths that contain spaces
 # (e.g. MSI installs under `C:\Program Files\...`), otherwise Windows may try to run `C:\Program`.
 auto-launch = { path = "patches/auto-launch" }
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+opt-level = "s"

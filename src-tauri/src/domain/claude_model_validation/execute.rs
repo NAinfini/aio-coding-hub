@@ -284,6 +284,14 @@ pub(super) async fn perform_request(
 
     let raw_excerpt_text = String::from_utf8_lossy(&raw_excerpt).to_string();
 
+    // If the SSE stream completed successfully (message_delta seen → model finished
+    // generating), any subsequent stream_read_error is connection-closure noise
+    // (e.g. HTTP/2 RST_STREAM or unterminated chunked encoding) and should not fail
+    // the validation.
+    if sse_message_delta_seen && stream_read_error.is_some() {
+        stream_read_error = None;
+    }
+
     let mut status_out = status;
     if sse_error_event_seen && (200..300).contains(&status_out) {
         if let Some(s) = sse_error_status {

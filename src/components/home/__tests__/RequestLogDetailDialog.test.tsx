@@ -31,6 +31,7 @@ function createSelectedLog(overrides: Partial<RequestLogDetail> = {}): RequestLo
     cache_read_input_tokens: 5,
     cache_creation_input_tokens: 2,
     cache_creation_5m_input_tokens: 1,
+    cache_creation_1h_input_tokens: null,
     usage_json: JSON.stringify({ input_tokens: 10, cache_creation_1h_input_tokens: 999 }),
     requested_model: "claude-3",
     cost_usd: 0.12,
@@ -98,9 +99,9 @@ describe("home/RequestLogDetailDialog", () => {
     });
     expect(toast).toHaveBeenCalledWith("已复制 usage_json");
 
-    // pretty-printed JSON should remove cache_creation_1h_input_tokens
+    // pretty-printed JSON should now include cache_creation_1h_input_tokens
     expect(screen.getByText(/\"input_tokens\"/)).toBeInTheDocument();
-    expect(screen.queryByText(/cache_creation_1h_input_tokens/)).not.toBeInTheDocument();
+    expect(screen.getAllByText(/cache_creation_1h_input_tokens/).length).toBeGreaterThan(0);
 
     vi.mocked(copyText).mockRejectedValueOnce(new Error("nope"));
     fireEvent.click(screen.getByRole("button", { name: "复制 trace_id" }));

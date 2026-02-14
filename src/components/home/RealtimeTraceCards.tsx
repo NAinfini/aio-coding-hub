@@ -2,7 +2,7 @@
 // - Render in Home page "概览 / 使用记录" area to show up-to-date in-flight traces.
 // - Accepts a list of `TraceSession` candidates; component applies its own visibility + exit animation logic.
 
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { cliBadgeTone, cliShortLabel } from "../../constants/clis";
 import type { TraceSession } from "../../services/traceStore";
 import { cn } from "../../utils/cn";
@@ -39,7 +39,7 @@ const REALTIME_TRACE_EXIT_TOTAL_MS =
  */
 const STALE_TRACE_TIMEOUT_MS = 5 * 60 * 1000;
 
-export function RealtimeTraceCards({
+export const RealtimeTraceCards = memo(function RealtimeTraceCards({
   traces,
   formatUnixSeconds,
   showCustomTooltip,
@@ -200,15 +200,22 @@ export function RealtimeTraceCards({
           if (!s)
             return {
               tokens: null as number | null,
-              ttl: null as "5m" | null,
+              ttl: null as "5m" | "1h" | null,
             };
-          if (s.cache_creation_5m_input_tokens != null) {
+          // 优先 5m，其次 1h，最后用 cache_creation_input_tokens 汇总
+          if (s.cache_creation_5m_input_tokens != null && s.cache_creation_5m_input_tokens > 0) {
             return {
               tokens: s.cache_creation_5m_input_tokens,
               ttl: "5m" as const,
             };
           }
-          if (s.cache_creation_input_tokens != null) {
+          if (s.cache_creation_1h_input_tokens != null && s.cache_creation_1h_input_tokens > 0) {
+            return {
+              tokens: s.cache_creation_1h_input_tokens,
+              ttl: "1h" as const,
+            };
+          }
+          if (s.cache_creation_input_tokens != null && s.cache_creation_input_tokens > 0) {
             return { tokens: s.cache_creation_input_tokens, ttl: null };
           }
           return { tokens: null, ttl: null };
@@ -448,4 +455,4 @@ export function RealtimeTraceCards({
       })}
     </>
   );
-}
+});

@@ -253,6 +253,14 @@ export function RequestLogDetailDialog({
                       {selectedLog.cache_creation_5m_input_tokens ?? "—"}
                     </span>
                   </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 dark:text-slate-400">
+                      cache_creation_1h_input_tokens
+                    </span>
+                    <span className="font-mono">
+                      {selectedLog.cache_creation_1h_input_tokens ?? "—"}
+                    </span>
+                  </div>
                 </div>
 
                 {selectedLog.usage_json ? (
@@ -260,9 +268,6 @@ export function RequestLogDetailDialog({
                     {(() => {
                       try {
                         const parsed: unknown = JSON.parse(selectedLog.usage_json ?? "");
-                        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-                          delete (parsed as Record<string, unknown>).cache_creation_1h_input_tokens;
-                        }
                         return JSON.stringify(parsed, null, 2);
                       } catch {
                         return selectedLog.usage_json;

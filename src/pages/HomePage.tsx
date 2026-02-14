@@ -1,6 +1,6 @@
 // Usage: Dashboard / overview page. Backend commands: `request_logs_*`, `request_attempt_logs_*`, `usage_*`, `gateway_*`, `providers_*`, `sort_modes_*`, `provider_limit_usage_*`.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CLIS } from "../constants/clis";
 import { HomeCostPanel } from "../components/home/HomeCostPanel";
@@ -85,7 +85,8 @@ export function HomePage() {
       : providerLimitQuery.data != null;
 
   const requestLogsQuery = useRequestLogsListAllQuery(50, { enabled: tab === "overview" });
-  const requestLogs = requestLogsQuery.data ?? [];
+  const requestLogsRaw = requestLogsQuery.data;
+  const requestLogs = useMemo(() => requestLogsRaw ?? [], [requestLogsRaw]);
   const requestLogsLoading = requestLogsQuery.isLoading;
   const requestLogsRefreshing = requestLogsQuery.isFetching && !requestLogsQuery.isLoading;
   const requestLogsAvailable: boolean | null = !tauriRuntime

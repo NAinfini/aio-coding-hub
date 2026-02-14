@@ -45,12 +45,16 @@ import { RealtimeTraceCards } from "./RealtimeTraceCards";
 // Estimated height for each request log card (px): padding + 2 rows of content + margin
 const ESTIMATED_LOG_CARD_HEIGHT = 90;
 
-// Threshold below which we skip virtualization (overhead not worth it)
-const VIRTUALIZATION_THRESHOLD = 50;
+// Threshold below which we skip virtualization (overhead not worth it).
+// Set to 30 so the default 50-item HomePage list benefits from virtualization.
+const VIRTUALIZATION_THRESHOLD = 30;
+
+// Module-level stable reference: pure function, no need to recreate per render.
+const formatUnixSecondsStable = (ts: number) => formatRelativeTimeFromUnixSeconds(ts);
 
 type RequestLogCardProps = {
   log: RequestLogSummary;
-  selectedLogId: number | null;
+  isSelected: boolean;
   showCustomTooltip: boolean;
   onSelectLogId: (id: number | null) => void;
   formatUnixSeconds: (ts: number) => string;
@@ -58,7 +62,7 @@ type RequestLogCardProps = {
 
 const RequestLogCard = memo(function RequestLogCard({
   log,
-  selectedLogId,
+  isSelected,
   showCustomTooltip,
   onSelectLogId,
   formatUnixSeconds,
@@ -105,13 +109,20 @@ const RequestLogCard = memo(function RequestLogCard({
   const rawCostUsdText = formatUsdRaw(log.cost_usd);
 
   const cacheWrite = (() => {
-    if (log.cache_creation_5m_input_tokens != null) {
+    // 优先 5m，其次 1h，最后用 cache_creation_input_tokens 汇总
+    if (log.cache_creation_5m_input_tokens != null && log.cache_creation_5m_input_tokens > 0) {
       return {
         tokens: log.cache_creation_5m_input_tokens,
         ttl: "5m" as const,
       };
     }
-    if (log.cache_creation_input_tokens != null) {
+    if (log.cache_creation_1h_input_tokens != null && log.cache_creation_1h_input_tokens > 0) {
+      return {
+        tokens: log.cache_creation_1h_input_tokens,
+        ttl: "1h" as const,
+      };
+    }
+    if (log.cache_creation_input_tokens != null && log.cache_creation_input_tokens > 0) {
       return {
         tokens: log.cache_creation_input_tokens,
         ttl: null,
@@ -131,7 +142,7 @@ const RequestLogCard = memo(function RequestLogCard({
       <div
         className={cn(
           "relative transition-all duration-200 group/item mx-2 my-1.5 rounded-lg border",
-          selectedLogId === log.id
+          isSelected
             ? "bg-indigo-50/40 border-indigo-200 shadow-sm dark:bg-indigo-900/20 dark:border-indigo-700"
             : "bg-white border-slate-100 hover:bg-slate-50/60 hover:border-slate-200 hover:shadow-sm dark:bg-slate-800 dark:border-slate-700 dark:hover:bg-slate-700/60 dark:hover:border-slate-600"
         )}
@@ -140,7 +151,7 @@ const RequestLogCard = memo(function RequestLogCard({
         <div
           className={cn(
             "absolute left-0 top-2 bottom-2 w-1 rounded-r-full transition-all duration-200",
-            selectedLogId === log.id
+            isSelected
               ? "bg-indigo-500 opacity-100"
               : "bg-slate-300 opacity-0 group-hover/item:opacity-40"
           )}
@@ -367,10 +378,6 @@ export function HomeRequestLogsPanel({
       .slice(0, 20);
   }, [traces]);
 
-  function formatUnixSeconds(ts: number) {
-    return formatRelativeTimeFromUnixSeconds(ts);
-  }
-
   return (
     <Card padding="sm" className="flex flex-col gap-3 lg:col-span-7 h-full">
       <div className="flex flex-wrap items-center justify-between gap-3 shrink-0">
@@ -422,7 +429,7 @@ export function HomeRequestLogsPanel({
       <div className="border rounded-lg border-slate-200 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-800/30 shadow-sm overflow-hidden flex-1 min-h-0 flex flex-col">
         <RequestLogsList
           realtimeTraceCandidates={realtimeTraceCandidates}
-          formatUnixSeconds={formatUnixSeconds}
+          formatUnixSeconds={formatUnixSecondsStable}
           showCustomTooltip={showCustomTooltip}
           requestLogsAvailable={requestLogsAvailable}
           requestLogs={requestLogs}
@@ -447,7 +454,7 @@ type RequestLogsListProps = {
   onSelectLogId: (id: number | null) => void;
 };
 
-function RequestLogsList({
+const RequestLogsList = memo(function RequestLogsList({
   realtimeTraceCandidates,
   formatUnixSeconds,
   showCustomTooltip,
@@ -477,7 +484,7 @@ function RequestLogsList({
         <RequestLogCard
           key={log.id}
           log={log}
-          selectedLogId={selectedLogId}
+          isSelected={selectedLogId === log.id}
           showCustomTooltip={showCustomTooltip}
           onSelectLogId={onSelectLogId}
           formatUnixSeconds={formatUnixSeconds}
@@ -530,7 +537,7 @@ function RequestLogsList({
               >
                 <RequestLogCard
                   log={requestLogs[virtualRow.index]}
-                  selectedLogId={selectedLogId}
+                  isSelected={selectedLogId === requestLogs[virtualRow.index].id}
                   showCustomTooltip={showCustomTooltip}
                   onSelectLogId={onSelectLogId}
                   formatUnixSeconds={formatUnixSeconds}
@@ -544,4 +551,4 @@ function RequestLogsList({
       )}
     </div>
   );
-}
+});

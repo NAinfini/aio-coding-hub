@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.28.1](https://github.com/dyndynjyxa/aio-coding-hub/compare/aio-coding-hub-v0.28.0...aio-coding-hub-v0.28.1) (2026-02-16)
+
+
+### Bug Fixes
+
+* **domain:** 修复 SSE 流错误处理逻辑 ([4446939](https://github.com/dyndynjyxa/aio-coding-hub/commit/4446939c457735727f96dce0b09c91ae6b616c1d))
+
 ## [0.28.0](https://github.com/dyndynjyxa/aio-coding-hub/compare/aio-coding-hub-v0.27.0...aio-coding-hub-v0.28.0) (2026-02-13)
 
 

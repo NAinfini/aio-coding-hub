@@ -3,7 +3,7 @@
 use crate::shared::error::db_err;
 use crate::shared::time::now_unix_seconds;
 use crate::{circuit_breaker, db};
-use rusqlite::{params, params_from_iter};
+use rusqlite::{params, params_from_iter, TransactionBehavior};
 use std::collections::HashMap;
 use tokio::sync::mpsc;
 
@@ -77,12 +77,12 @@ fn insert_batch(
 
     let mut conn = db.open_connection()?;
     let tx = conn
-        .transaction()
+        .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(|e| db_err!("failed to start transaction: {e}"))?;
 
     {
         let mut stmt = tx
-            .prepare(
+            .prepare_cached(
                 r#"
 INSERT INTO provider_circuit_breakers (
   provider_id,

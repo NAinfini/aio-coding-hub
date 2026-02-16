@@ -3,7 +3,7 @@
 use crate::shared::error::db_err;
 use crate::shared::time::now_unix_seconds;
 use crate::{cost, db, model_price_aliases};
-use rusqlite::{params, params_from_iter, ErrorCode, OptionalExtension};
+use rusqlite::{params, params_from_iter, ErrorCode, OptionalExtension, TransactionBehavior};
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -238,7 +238,14 @@ fn insert_batch_with_retries(
                 if !err.is_retryable() || attempt >= INSERT_RETRY_MAX_ATTEMPTS {
                     return Err(err);
                 }
-                std::thread::sleep(retry_delay(attempt.saturating_sub(1)));
+                let delay = retry_delay(attempt.saturating_sub(1));
+                tracing::debug!(
+                    attempt = attempt,
+                    delay_ms = delay.as_millis(),
+                    error = %err.message,
+                    "sqlite busy/locked; retrying request_logs insert"
+                );
+                std::thread::sleep(delay);
             }
         }
     }
@@ -260,21 +267,21 @@ fn insert_batch_once(
         .open_connection()
         .map_err(|e| DbWriteError::other(e.to_string()))?;
     let tx = conn
-        .transaction()
+        .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(|e| DbWriteError::from_rusqlite("failed to start transaction", e))?;
 
     {
         let mut stmt_multiplier = tx
-            .prepare("SELECT cost_multiplier FROM providers WHERE id = ?1")
+            .prepare_cached("SELECT cost_multiplier FROM providers WHERE id = ?1")
             .map_err(|e| {
                 DbWriteError::from_rusqlite("failed to prepare cost_multiplier query", e)
             })?;
         let mut stmt_price_json = tx
-            .prepare("SELECT price_json FROM model_prices WHERE cli_key = ?1 AND model = ?2")
+            .prepare_cached("SELECT price_json FROM model_prices WHERE cli_key = ?1 AND model = ?2")
             .map_err(|e| DbWriteError::from_rusqlite("failed to prepare model_price query", e))?;
 
         let mut stmt = tx
-            .prepare(
+            .prepare_cached(
                 r#"
 		INSERT INTO request_logs (
 		  trace_id,

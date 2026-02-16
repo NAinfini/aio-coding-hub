@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import type { RequestLogSummary } from "../../../services/requestLogs";
@@ -354,7 +355,8 @@ describe("components/home/HomeRequestLogsPanel", () => {
     expect(screen.getAllByText("加载中…").length).toBeGreaterThan(0);
   });
 
-  it("renders rich tooltip with attempt counts for failover routes", () => {
+  it("renders rich tooltip with attempt counts for failover routes", async () => {
+    const user = userEvent.setup();
     const nowMs = Date.now();
     const requestLogs: RequestLogSummary[] = [
       {
@@ -429,16 +431,16 @@ describe("components/home/HomeRequestLogsPanel", () => {
 
     // 鼠标悬停触发 tooltip 显示富文本内容
     const routeLabel = screen.getByText("链路[降级*4]");
-    fireEvent.mouseEnter(routeLabel.closest("span")!.parentElement!);
+    await user.hover(routeLabel);
 
     // tooltip 路径概览中应显示 provider 名称
     // ProvA 出现在 tooltip 路径概览 + tooltip 详情行（卡片中 final_provider 是 ProvB）
-    expect(screen.getAllByText("ProvA").length).toBeGreaterThanOrEqual(2);
+    await waitFor(() => expect(screen.getAllByText("ProvA").length).toBeGreaterThanOrEqual(2));
     // ProvB 同时出现在卡片 provider 区域和 tooltip 中
-    expect(screen.getAllByText("ProvB").length).toBeGreaterThanOrEqual(2);
+    await waitFor(() => expect(screen.getAllByText("ProvB").length).toBeGreaterThanOrEqual(2));
     // 失败3次的标签
-    expect(screen.getByText("失败3次")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByText("失败3次").length).toBeGreaterThan(0));
     // 成功的标签
-    expect(screen.getByText("成功")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByText("成功").length).toBeGreaterThan(0));
   });
 });

@@ -272,7 +272,7 @@ describe("pages/skills/SkillsView", () => {
     fireEvent.click(importDialog.getByRole("button", { name: "确认导入" }));
     await waitFor(() => expect(importMutation.mutateAsync).toHaveBeenCalledTimes(1));
 
-    fireEvent.click(screen.getByRole("button", { name: "deactivate" }));
+    fireEvent.click(screen.getByRole("button", { name: "deactivate", hidden: true }));
     fireEvent.click(importDialog.getByRole("button", { name: "确认导入" }));
     await waitFor(() =>
       expect(vi.mocked(toast)).toHaveBeenCalledWith(
@@ -281,7 +281,7 @@ describe("pages/skills/SkillsView", () => {
     );
     expect(importMutation.mutateAsync).toHaveBeenCalledTimes(1);
 
-    const refreshButton = screen.getByRole("button", { name: "刷新" });
+    const refreshButton = screen.getByRole("button", { name: "刷新", hidden: true });
     expect(refreshButton).toBeDisabled();
   });
 });

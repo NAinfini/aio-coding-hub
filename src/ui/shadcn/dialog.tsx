@@ -1,0 +1,81 @@
+import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { forwardRef } from "react";
+import { cn } from "@/ui/shadcn/utils";
+
+export const Dialog = DialogPrimitive.Root;
+export const DialogTrigger = DialogPrimitive.Trigger;
+export const DialogClose = DialogPrimitive.Close;
+
+export const DialogOverlay = forwardRef<
+  React.ElementRef<typeof DialogPrimitive.Overlay>,
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
+>(function DialogOverlay({ className, ...props }, ref) {
+  return (
+    <DialogPrimitive.Overlay
+      ref={ref}
+      className={cn("fixed inset-0 z-50 bg-black/30", className)}
+      {...props}
+    />
+  );
+});
+
+export const DialogContent = forwardRef<
+  React.ElementRef<typeof DialogPrimitive.Content>,
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
+>(function DialogContent({ className, children, ...props }, ref) {
+  return (
+    <DialogPrimitive.Portal>
+      <DialogClose asChild>
+        <DialogOverlay />
+      </DialogClose>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <DialogPrimitive.Content
+          ref={ref}
+          className={cn(
+            [
+              "w-full overflow-hidden border border-slate-200 bg-white shadow-card",
+              "dark:bg-slate-800 dark:border-slate-700 dark:shadow-slate-900/50",
+              "flex max-h-[calc(100vh-2rem)] flex-col outline-none",
+              "rounded-xl sm:rounded-2xl",
+              "max-w-[calc(100vw-2rem)] sm:max-w-lg md:max-w-xl lg:max-w-3xl",
+            ].join(" "),
+            className
+          )}
+          {...props}
+        >
+          {children}
+        </DialogPrimitive.Content>
+      </div>
+    </DialogPrimitive.Portal>
+  );
+});
+
+export function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("flex flex-col gap-1.5", className)} {...props} />;
+}
+
+export const DialogTitle = forwardRef<
+  React.ElementRef<typeof DialogPrimitive.Title>,
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
+>(function DialogTitle({ className, ...props }, ref) {
+  return (
+    <DialogPrimitive.Title
+      ref={ref}
+      className={cn("truncate text-sm font-semibold dark:text-slate-100", className)}
+      {...props}
+    />
+  );
+});
+
+export const DialogDescription = forwardRef<
+  React.ElementRef<typeof DialogPrimitive.Description>,
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>
+>(function DialogDescription({ className, ...props }, ref) {
+  return (
+    <DialogPrimitive.Description
+      ref={ref}
+      className={cn("text-xs text-slate-500 dark:text-slate-400", className)}
+      {...props}
+    />
+  );
+});

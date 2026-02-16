@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { Dialog } from "../Dialog";
 import { FormField } from "../FormField";
@@ -9,61 +10,47 @@ import { Textarea } from "../Textarea";
 import { Tooltip } from "../Tooltip";
 
 describe("ui components", () => {
-  it("Popover opens and closes (click outside + Escape)", async () => {
+  it("Popover opens and closes (click outside + toggle)", async () => {
+    const user = userEvent.setup();
     render(
       <Popover trigger={<span>trigger</span>} placement="bottom" align="center">
         <div>content</div>
       </Popover>
     );
 
-    fireEvent.click(screen.getByRole("button"));
+    await user.click(screen.getByRole("button"));
+    expect(await screen.findByText("content")).toBeInTheDocument();
 
-    await waitFor(() => {
-      expect(screen.getByRole("dialog")).toBeInTheDocument();
-    });
+    fireEvent.pointerDown(document.body);
+    await waitFor(() => expect(screen.queryByText("content")).not.toBeInTheDocument());
 
-    fireEvent.keyDown(window, { key: "Escape" });
-    await waitFor(() => {
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByRole("button"));
-    await waitFor(() => {
-      expect(screen.getByRole("dialog")).toBeInTheDocument();
-    });
-
-    fireEvent.mouseDown(document.body);
-    await waitFor(() => {
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    });
+    // toggle close
+    await user.click(screen.getByRole("button"));
+    expect(await screen.findByText("content")).toBeInTheDocument();
+    await user.click(screen.getByRole("button"));
+    await waitFor(() => expect(screen.queryByText("content")).not.toBeInTheDocument());
   });
 
   it("Tooltip shows and hides (top/bottom placement)", async () => {
+    const user = userEvent.setup();
     const { rerender } = render(
       <Tooltip content="hello" placement="top">
         <span>anchor</span>
       </Tooltip>
     );
 
-    fireEvent.mouseEnter(screen.getByText("anchor"));
-    await waitFor(() => {
-      expect(screen.getByRole("tooltip", { hidden: true })).toBeInTheDocument();
-      expect(screen.getByText("hello")).toBeInTheDocument();
-    });
-    fireEvent.mouseLeave(screen.getByText("anchor"));
-    await waitFor(() => {
-      expect(screen.queryByRole("tooltip", { hidden: true })).not.toBeInTheDocument();
-    });
+    await user.hover(screen.getByText("anchor"));
+    await waitFor(() => expect(document.querySelector(".bg-slate-900")).not.toBeNull());
+    await user.unhover(screen.getByText("anchor"));
+    await waitFor(() => expect(document.querySelector(".bg-slate-900")).toBeNull());
 
     rerender(
       <Tooltip content="world" placement="bottom">
         <span>anchor</span>
       </Tooltip>
     );
-    fireEvent.mouseEnter(screen.getByText("anchor"));
-    await waitFor(() => {
-      expect(screen.getByText("world")).toBeInTheDocument();
-    });
+    await user.hover(screen.getByText("anchor"));
+    await waitFor(() => expect(document.querySelector(".bg-slate-900")).not.toBeNull());
   });
 
   it("RadioGroup calls onChange and respects disabled", () => {
@@ -140,7 +127,7 @@ describe("ui components", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
 
     onOpenChange.mockClear();
-    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });

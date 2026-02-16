@@ -7,6 +7,11 @@ const ROOT_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      "@": path.join(ROOT_DIR, "src"),
+    },
+  },
   test: {
     environment: "jsdom",
     setupFiles: ["src/test/setup.ts"],

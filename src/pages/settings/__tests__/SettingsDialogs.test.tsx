@@ -7,11 +7,9 @@ vi.mock("../../../components/settings/ModelPriceAliasesDialog", () => ({
 }));
 
 describe("pages/settings/SettingsDialogs", () => {
-  it("prevents closing dialogs while in progress", () => {
+  it("prevents closing clear request logs dialog while in progress", () => {
     const setClearOpen = vi.fn();
     const setClearing = vi.fn();
-    const setResetOpen = vi.fn();
-    const setResetting = vi.fn();
 
     render(
       <SettingsDialogs
@@ -22,32 +20,23 @@ describe("pages/settings/SettingsDialogs", () => {
         clearingRequestLogs={true}
         setClearingRequestLogs={setClearing}
         clearRequestLogs={vi.fn().mockResolvedValue(undefined)}
-        resetAllDialogOpen={true}
-        setResetAllDialogOpen={setResetOpen}
-        resettingAll={true}
-        setResettingAll={setResetting}
+        resetAllDialogOpen={false}
+        setResetAllDialogOpen={vi.fn()}
+        resettingAll={false}
+        setResettingAll={vi.fn()}
         resetAllData={vi.fn().mockResolvedValue(undefined)}
       />
     );
 
-    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
     expect(setClearOpen).not.toHaveBeenCalled();
-    expect(setResetOpen).not.toHaveBeenCalled();
-
-    const cancelButtons = screen.getAllByRole("button", { name: "取消" });
-    expect(cancelButtons.length).toBeGreaterThan(0);
-    for (const btn of cancelButtons) expect(btn).toBeDisabled();
-
-    const pendingButtons = screen.getAllByRole("button", { name: "清理中…" });
-    expect(pendingButtons).toHaveLength(2);
-    for (const btn of pendingButtons) expect(btn).toBeDisabled();
+    expect(screen.getByRole("button", { name: "取消" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "清理中…" })).toBeDisabled();
   });
 
-  it("closes dialogs and resets pending flags when dismissed", () => {
+  it("closes clear request logs dialog and resets pending flag when dismissed", () => {
     const setClearOpen = vi.fn();
     const setClearing = vi.fn();
-    const setResetOpen = vi.fn();
-    const setResetting = vi.fn();
 
     render(
       <SettingsDialogs
@@ -58,6 +47,60 @@ describe("pages/settings/SettingsDialogs", () => {
         clearingRequestLogs={false}
         setClearingRequestLogs={setClearing}
         clearRequestLogs={vi.fn().mockResolvedValue(undefined)}
+        resetAllDialogOpen={false}
+        setResetAllDialogOpen={vi.fn()}
+        resettingAll={false}
+        setResettingAll={vi.fn()}
+        resetAllData={vi.fn().mockResolvedValue(undefined)}
+      />
+    );
+
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+
+    expect(setClearOpen).toHaveBeenCalledWith(false);
+    expect(setClearing).toHaveBeenCalledWith(false);
+  });
+
+  it("prevents closing reset all dialog while in progress", () => {
+    const setResetOpen = vi.fn();
+    const setResetting = vi.fn();
+
+    render(
+      <SettingsDialogs
+        modelPriceAliasesDialogOpen={false}
+        setModelPriceAliasesDialogOpen={vi.fn()}
+        clearRequestLogsDialogOpen={false}
+        setClearRequestLogsDialogOpen={vi.fn()}
+        clearingRequestLogs={false}
+        setClearingRequestLogs={vi.fn()}
+        clearRequestLogs={vi.fn().mockResolvedValue(undefined)}
+        resetAllDialogOpen={true}
+        setResetAllDialogOpen={setResetOpen}
+        resettingAll={true}
+        setResettingAll={setResetting}
+        resetAllData={vi.fn().mockResolvedValue(undefined)}
+      />
+    );
+
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(setResetOpen).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "取消" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "清理中…" })).toBeDisabled();
+  });
+
+  it("closes reset all dialog and resets pending flag when dismissed", () => {
+    const setResetOpen = vi.fn();
+    const setResetting = vi.fn();
+
+    render(
+      <SettingsDialogs
+        modelPriceAliasesDialogOpen={false}
+        setModelPriceAliasesDialogOpen={vi.fn()}
+        clearRequestLogsDialogOpen={false}
+        setClearRequestLogsDialogOpen={vi.fn()}
+        clearingRequestLogs={false}
+        setClearingRequestLogs={vi.fn()}
+        clearRequestLogs={vi.fn().mockResolvedValue(undefined)}
         resetAllDialogOpen={true}
         setResetAllDialogOpen={setResetOpen}
         resettingAll={false}
@@ -66,10 +109,8 @@ describe("pages/settings/SettingsDialogs", () => {
       />
     );
 
-    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
 
-    expect(setClearOpen).toHaveBeenCalledWith(false);
-    expect(setClearing).toHaveBeenCalledWith(false);
     expect(setResetOpen).toHaveBeenCalledWith(false);
     expect(setResetting).toHaveBeenCalledWith(false);
   });

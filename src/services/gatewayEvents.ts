@@ -1,4 +1,5 @@
 import { GatewayErrorCodes } from "../constants/gatewayErrorCodes";
+import { computeOutputTokensPerSecond as computeOutputTokensPerSecondRaw } from "../utils/formatters";
 import { logToConsole, shouldLogToConsole } from "./consoleLog";
 import { hasTauriRuntime } from "./tauriInvoke";
 import { ingestTraceAttempt, ingestTraceRequest, ingestTraceStart } from "./traceStore";
@@ -135,15 +136,11 @@ function attemptTitle(event: GatewayAttemptEvent) {
 }
 
 function computeOutputTokensPerSecond(payload: GatewayRequestEvent) {
-  const output = payload.output_tokens;
-  const durationMs = payload.duration_ms;
-  const ttfbMs = payload.ttfb_ms ?? null;
-  if (output == null) return null;
-  if (!Number.isFinite(durationMs) || durationMs <= 0) return null;
-  if (ttfbMs == null || !Number.isFinite(ttfbMs)) return null;
-  const generationMs = durationMs - ttfbMs;
-  if (!Number.isFinite(generationMs) || generationMs <= 0) return null;
-  return output / (generationMs / 1000);
+  return computeOutputTokensPerSecondRaw(
+    payload.output_tokens,
+    payload.duration_ms,
+    payload.ttfb_ms ?? null
+  );
 }
 
 export async function listenGatewayEvents(): Promise<() => void> {

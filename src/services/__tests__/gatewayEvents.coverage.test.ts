@@ -285,7 +285,7 @@ describe("services/gatewayEvents (coverage)", () => {
     expect(payloads.some((p) => p?.trace_id === "t2" && p?.output_tokens_per_second === null)).toBe(
       true
     );
-    expect(payloads.some((p) => p?.trace_id === "t3" && p?.output_tokens_per_second === null)).toBe(
+    expect(payloads.some((p) => p?.trace_id === "t3" && p?.output_tokens_per_second != null)).toBe(
       true
     );
 

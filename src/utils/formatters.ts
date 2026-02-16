@@ -61,7 +61,13 @@ export function computeOutputTokensPerSecond(
   if (durationMs == null || !Number.isFinite(durationMs) || durationMs <= 0) return null;
   if (ttfbMs == null || !Number.isFinite(ttfbMs)) return null;
   const generationMs = durationMs - ttfbMs;
-  if (!Number.isFinite(generationMs) || generationMs <= 0) return null;
+  if (!Number.isFinite(generationMs) || generationMs <= 0) {
+    // 回退：非流式响应或精度截断导致 ttfb == duration 时，使用总耗时计算整体吞吐速率
+    if (outputTokens > 0) {
+      return outputTokens / (durationMs / 1000);
+    }
+    return null;
+  }
   return outputTokens / (generationMs / 1000);
 }
 

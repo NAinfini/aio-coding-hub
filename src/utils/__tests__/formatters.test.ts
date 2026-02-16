@@ -51,7 +51,8 @@ describe("utils/formatters", () => {
   it("tokens per second", () => {
     expect(computeOutputTokensPerSecond(null, 1000, 100)).toBeNull();
     expect(computeOutputTokensPerSecond(10, 0, 1)).toBeNull();
-    expect(computeOutputTokensPerSecond(10, 1000, 1000)).toBeNull();
+    expect(computeOutputTokensPerSecond(10, 1000, 1000)).toBeCloseTo(10 / 1.0);
+    expect(computeOutputTokensPerSecond(0, 1000, 1000)).toBeNull();
     expect(computeOutputTokensPerSecond(10, 1100, 100)).toBeCloseTo(10 / 1.0);
     expect(formatTokensPerSecond(1.23)).toContain("Token/秒");
   });

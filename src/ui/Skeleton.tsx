@@ -1,27 +1,2 @@
-import { cn } from "../utils/cn";
-
-export type SkeletonVariant = "text" | "circular" | "rectangular";
-
-export type SkeletonProps = {
-  className?: string;
-  variant?: SkeletonVariant;
-};
-
-const VARIANT_CLASS: Record<SkeletonVariant, string> = {
-  text: "h-4 w-full rounded",
-  circular: "rounded-full",
-  rectangular: "rounded-lg",
-};
-
-export function Skeleton({ variant = "text", className }: SkeletonProps) {
-  return (
-    <div
-      aria-hidden="true"
-      className={cn(
-        "animate-pulse bg-slate-200 dark:bg-slate-700",
-        VARIANT_CLASS[variant],
-        className
-      )}
-    />
-  );
-}
+export { Skeleton } from "@/ui/shadcn/skeleton";
+export type { SkeletonProps, SkeletonVariant } from "@/ui/shadcn/skeleton";

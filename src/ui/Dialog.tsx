@@ -1,3 +1,4 @@
+import { Button } from "./Button";
 import { cn } from "../utils/cn";
 import {
   Dialog as DialogRoot,
@@ -36,13 +37,9 @@ export function Dialog({
           </div>
 
           <DialogClose asChild>
-            <button
-              type="button"
-              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
-              aria-label="关闭"
-            >
+            <Button variant="secondary" size="sm" aria-label="关闭" className="text-xs">
               关闭
-            </button>
+            </Button>
           </DialogClose>
         </div>
 

@@ -28,8 +28,6 @@ pub struct CodexConfigState {
     pub features_exec_policy: Option<bool>,
     pub features_remote_compaction: Option<bool>,
     pub features_remote_models: Option<bool>,
-    pub features_collab: Option<bool>,
-    pub features_collaboration_modes: Option<bool>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -49,8 +47,6 @@ pub struct CodexConfigPatch {
     pub features_exec_policy: Option<bool>,
     pub features_remote_compaction: Option<bool>,
     pub features_remote_models: Option<bool>,
-    pub features_collab: Option<bool>,
-    pub features_collaboration_modes: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -547,7 +543,7 @@ enum TableStyle {
     Dotted,
 }
 
-const FEATURES_KEY_ORDER: [&str; 9] = [
+const FEATURES_KEY_ORDER: [&str; 7] = [
     // Keep in sync with the UI order (CliManagerCodexTab / Features section).
     "shell_snapshot",
     "unified_exec",
@@ -556,8 +552,6 @@ const FEATURES_KEY_ORDER: [&str; 9] = [
     "apply_patch_freeform",
     "remote_compaction",
     "remote_models",
-    "collab",
-    "collaboration_modes",
 ];
 
 fn table_style(lines: &[String], table: &str) -> TableStyle {
@@ -875,8 +869,6 @@ fn make_state_from_bytes(
         features_exec_policy: None,
         features_remote_compaction: None,
         features_remote_models: None,
-        features_collab: None,
-        features_collaboration_modes: None,
     };
 
     let Some(bytes) = bytes else {
@@ -963,10 +955,6 @@ fn make_state_from_bytes(
                 state.features_remote_compaction = parse_bool(&raw_value)
             }
             ("features", "remote_models") => state.features_remote_models = parse_bool(&raw_value),
-            ("features", "collab") => state.features_collab = parse_bool(&raw_value),
-            ("features", "collaboration_modes") => {
-                state.features_collaboration_modes = parse_bool(&raw_value)
-            }
 
             _ => {}
         }
@@ -1333,9 +1321,7 @@ fn patch_config_toml(
         || patch.features_shell_tool.is_some()
         || patch.features_exec_policy.is_some()
         || patch.features_remote_compaction.is_some()
-        || patch.features_remote_models.is_some()
-        || patch.features_collab.is_some()
-        || patch.features_collaboration_modes.is_some();
+        || patch.features_remote_models.is_some();
 
     if has_any_feature_patch {
         let mut items: Vec<(&str, Option<String>)> = Vec::new();
@@ -1361,12 +1347,6 @@ fn patch_config_toml(
         }
         if let Some(v) = patch.features_remote_models {
             items.push(("remote_models", v.then(|| "true".to_string())));
-        }
-        if let Some(v) = patch.features_collab {
-            items.push(("collab", v.then(|| "true".to_string())));
-        }
-        if let Some(v) = patch.features_collaboration_modes {
-            items.push(("collaboration_modes", v.then(|| "true".to_string())));
         }
 
         upsert_keys_auto_style(&mut lines, "features", &FEATURES_KEY_ORDER, items);

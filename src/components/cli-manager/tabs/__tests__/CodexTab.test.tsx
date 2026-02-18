@@ -33,8 +33,6 @@ function createCodexConfig(overrides: Partial<any> = {}) {
     features_apply_patch_freeform: false,
     features_remote_compaction: false,
     features_remote_models: false,
-    features_collab: false,
-    features_collaboration_modes: false,
     ...overrides,
   };
 }
@@ -90,10 +88,10 @@ describe("components/cli-manager/tabs/CodexTab", () => {
     expect(persistCodexConfig).toHaveBeenCalledWith({ sandbox_mode: "danger-full-access" });
 
     // Toggle a feature switch.
-    const collabItem = screen.getByText("collab").parentElement?.parentElement;
-    expect(collabItem).toBeTruthy();
-    fireEvent.click(within(collabItem as HTMLElement).getByRole("switch"));
-    expect(persistCodexConfig).toHaveBeenCalledWith({ features_collab: true });
+    const remoteModelsItem = screen.getByText("remote_models").parentElement?.parentElement;
+    expect(remoteModelsItem).toBeTruthy();
+    fireEvent.click(within(remoteModelsItem as HTMLElement).getByRole("switch"));
+    expect(persistCodexConfig).toHaveBeenCalledWith({ features_remote_models: true });
 
     // Radio group
     fireEvent.click(screen.getByRole("radio", { name: "禁用 (disabled)" }));

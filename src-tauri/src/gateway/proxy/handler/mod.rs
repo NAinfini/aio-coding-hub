@@ -917,7 +917,7 @@ pub(in crate::gateway) async fn proxy_impl(
         &body_bytes,
     );
 
-    trace_id = match apply_recent_error_cache_gate(&state, &fingerprints, trace_id) {
+    trace_id = match apply_recent_error_cache_gate(&state.recent_errors, &fingerprints, trace_id) {
         Ok(next_trace_id) => next_trace_id,
         Err(resp) => return *resp,
     };

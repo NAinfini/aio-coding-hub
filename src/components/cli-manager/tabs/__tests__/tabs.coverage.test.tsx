@@ -99,8 +99,6 @@ describe("cli-manager tabs (coverage)", () => {
           features_exec_policy: true,
           features_remote_compaction: true,
           features_remote_models: true,
-          features_collab: true,
-          features_collaboration_modes: true,
         }}
         codexConfigToml={{
           config_path: "/tmp/.codex/config.toml",

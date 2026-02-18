@@ -76,18 +76,21 @@ fn codex_config_updates_are_preserved_when_cli_proxy_enabled() {
     let _ = aio_coding_hub_lib::test_support::cli_manager_codex_config_set_json(
         &handle,
         serde_json::json!({
-            "features_collab": true,
-            "features_collaboration_modes": true
+            "features_remote_models": true,
+            "features_remote_compaction": true
         }),
     )
-    .expect("set codex collab features");
+    .expect("set codex features");
 
     let config_path =
         aio_coding_hub_lib::test_support::codex_config_toml_path(&handle).expect("codex path");
     let before_restore = read_text(&config_path);
-    assert!(before_restore.contains("collab = true"), "{before_restore}");
     assert!(
-        before_restore.contains("collaboration_modes = true"),
+        before_restore.contains("remote_models = true"),
+        "{before_restore}"
+    );
+    assert!(
+        before_restore.contains("remote_compaction = true"),
         "{before_restore}"
     );
 
@@ -116,9 +119,12 @@ fn codex_config_updates_are_preserved_when_cli_proxy_enabled() {
     );
 
     let after_restore = read_text(&config_path);
-    assert!(after_restore.contains("collab = true"), "{after_restore}");
     assert!(
-        after_restore.contains("collaboration_modes = true"),
+        after_restore.contains("remote_models = true"),
+        "{after_restore}"
+    );
+    assert!(
+        after_restore.contains("remote_compaction = true"),
         "{after_restore}"
     );
 }

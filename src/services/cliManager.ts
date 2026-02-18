@@ -118,8 +118,6 @@ export type CodexConfigState = {
   features_exec_policy: boolean | null;
   features_remote_compaction: boolean | null;
   features_remote_models: boolean | null;
-  features_collab: boolean | null;
-  features_collaboration_modes: boolean | null;
 };
 
 export type CodexConfigPatch = Partial<{
@@ -138,8 +136,6 @@ export type CodexConfigPatch = Partial<{
   features_exec_policy: boolean;
   features_remote_compaction: boolean;
   features_remote_models: boolean;
-  features_collab: boolean;
-  features_collaboration_modes: boolean;
 }>;
 
 export type CodexConfigTomlState = {

@@ -36,6 +36,7 @@ pub fn run() {
         .manage(DbInitState::default())
         .manage(GatewayState::default())
         .manage(resident::ResidentState::default())
+        .manage(crate::app::heartbeat_watchdog::HeartbeatWatchdogState::default())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init());
 
@@ -51,6 +52,7 @@ pub fn run() {
         .on_window_event(resident::on_window_event)
         .setup(|app| {
             crate::app::logging::init(app.handle());
+            crate::app::heartbeat_watchdog::install(app.handle());
 
             // Global panic hook: ensure any panic is written to disk logs for post-mortem diagnosis.
             // Note: payload is intentionally NOT logged to avoid leaking user data (consistent with blocking.rs).
@@ -303,6 +305,7 @@ pub fn run() {
             app_data_reset,
             app_exit,
             app_restart,
+            app_heartbeat_pong,
             app_frontend_error_report,
             gateway_circuit_status,
             gateway_circuit_reset_provider,

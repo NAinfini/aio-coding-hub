@@ -1,6 +1,7 @@
 //! Usage: App-level Tauri commands (about info, lifecycle, etc.).
 
 use tauri::utils::config::BundleType;
+use tauri::Manager;
 
 fn sanitize_text(input: Option<String>, max_len: usize) -> Option<String> {
     let value = input?;
@@ -62,6 +63,13 @@ pub(crate) fn app_restart(app: tauri::AppHandle) -> Result<bool, String> {
         tauri::async_runtime::block_on(crate::app::cleanup::cleanup_before_exit(&app));
         app.request_restart();
     });
+    Ok(true)
+}
+
+#[tauri::command]
+pub(crate) fn app_heartbeat_pong(app: tauri::AppHandle) -> Result<bool, String> {
+    let watchdog = app.state::<crate::app::heartbeat_watchdog::HeartbeatWatchdogState>();
+    watchdog.record_pong();
     Ok(true)
 }
 

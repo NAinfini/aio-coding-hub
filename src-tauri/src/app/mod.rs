@@ -2,6 +2,7 @@
 
 pub(crate) mod app_state;
 pub(crate) mod cleanup;
+pub(crate) mod heartbeat_watchdog;
 pub(crate) mod logging;
 pub(crate) mod notice;
 pub(crate) mod resident;

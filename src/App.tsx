@@ -7,6 +7,7 @@ import { AppLayout } from "./layout/AppLayout";
 import { HomePage } from "./pages/HomePage";
 import { useGatewayQuerySync } from "./hooks/useGatewayQuerySync";
 import { logToConsole } from "./services/consoleLog";
+import { listenAppHeartbeat } from "./services/appHeartbeat";
 import { setCacheAnomalyMonitorEnabled } from "./services/cacheAnomalyMonitor";
 import { listenGatewayEvents } from "./services/gatewayEvents";
 import { listenNoticeEvents } from "./services/noticeEvents";
@@ -75,6 +76,31 @@ function renderLazyPage(Page: ComponentType) {
 
 export default function App() {
   useGatewayQuerySync();
+
+  useEffect(() => {
+    let cancelled = false;
+    let cleanup: (() => void) | null = null;
+
+    listenAppHeartbeat()
+      .then((unlisten) => {
+        if (cancelled) {
+          unlisten();
+          return;
+        }
+        cleanup = unlisten;
+      })
+      .catch((error) => {
+        logToConsole("warn", "应用心跳监听初始化失败", {
+          stage: "listenAppHeartbeat",
+          error: String(error),
+        });
+      });
+
+    return () => {
+      cancelled = true;
+      cleanup?.();
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

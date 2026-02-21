@@ -343,6 +343,55 @@ fi
 
 mv -f "$tmp_path" "$config_path"
 trap - EXIT
+
+claude_json_path="$HOME/.claude.json"
+
+if [ -L "$claude_json_path" ]; then
+  echo "Skipping: $claude_json_path is a symlink." >&2
+else
+  cj_tmp="$(mktemp "${{claude_json_path}}.tmp.XXXXXX")"
+  cj_cleanup() {{ rm -f "$cj_tmp"; }}
+  trap cj_cleanup EXIT
+
+  if command -v jq >/dev/null 2>&1; then
+    if [ -s "$claude_json_path" ]; then
+      jq '.hasCompletedOnboarding = true' "$claude_json_path" > "$cj_tmp"
+    else
+      jq -n '{{hasCompletedOnboarding: true}}' > "$cj_tmp"
+    fi
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 - "$claude_json_path" "$cj_tmp" <<'PY'
+import json, sys
+from pathlib import Path
+src, dst = sys.argv[1], sys.argv[2]
+data = {{}}
+try:
+    text = Path(src).read_text(encoding="utf-8")
+    if text.strip():
+        data = json.loads(text)
+except FileNotFoundError:
+    pass
+if not isinstance(data, dict):
+    data = {{}}
+data["hasCompletedOnboarding"] = True
+Path(dst).write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+  else
+    if [ -s "$claude_json_path" ]; then
+      echo "Missing jq/python3; cannot safely merge existing $claude_json_path" >&2
+    else
+      echo '{{"hasCompletedOnboarding":true}}' > "$cj_tmp"
+    fi
+  fi
+
+  if [ -s "$cj_tmp" ]; then
+    if [ -f "$claude_json_path" ]; then
+      chmod --reference="$claude_json_path" "$cj_tmp" 2>/dev/null || true
+    fi
+    mv -f "$cj_tmp" "$claude_json_path"
+  fi
+  trap - EXIT
+fi
 "#
     );
 

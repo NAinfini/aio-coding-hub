@@ -5,6 +5,22 @@ use crate::shared::mutex_ext::MutexExt;
 use crate::{blocking, gateway, settings, wsl};
 use tauri::Manager;
 
+fn resolve_wsl_host(cfg: &settings::AppSettings) -> String {
+    match cfg.wsl_host_address_mode {
+        settings::WslHostAddressMode::Custom => {
+            let addr = cfg.wsl_custom_host_address.trim();
+            if addr.is_empty() {
+                "127.0.0.1".to_string()
+            } else {
+                addr.to_string()
+            }
+        }
+        settings::WslHostAddressMode::Auto => {
+            wsl::host_ipv4_best_effort().unwrap_or_else(|| "127.0.0.1".to_string())
+        }
+    }
+}
+
 #[tauri::command]
 pub(crate) async fn wsl_detect() -> wsl::WslDetection {
     blocking::run(
@@ -116,7 +132,7 @@ pub(crate) async fn wsl_configure_clients(
     let host = match cfg.gateway_listen_mode {
         settings::GatewayListenMode::Localhost => "127.0.0.1".to_string(),
         settings::GatewayListenMode::WslAuto | settings::GatewayListenMode::Lan => {
-            wsl::host_ipv4_best_effort().unwrap_or_else(|| "127.0.0.1".to_string())
+            resolve_wsl_host(&cfg)
         }
         settings::GatewayListenMode::Custom => {
             let parsed = match gateway::listen::parse_custom_listen_address(
@@ -132,7 +148,7 @@ pub(crate) async fn wsl_configure_clients(
                 }
             };
             if gateway::listen::is_wildcard_host(&parsed.host) {
-                wsl::host_ipv4_best_effort().unwrap_or_else(|| "127.0.0.1".to_string())
+                resolve_wsl_host(&cfg)
             } else {
                 parsed.host
             }

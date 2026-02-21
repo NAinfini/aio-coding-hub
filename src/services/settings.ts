@@ -2,6 +2,8 @@ import { invokeService } from "./invokeServiceCommand";
 
 export type GatewayListenMode = "localhost" | "wsl_auto" | "lan" | "custom";
 
+export type WslHostAddressMode = "auto" | "custom";
+
 export type WslTargetCli = {
   claude: boolean;
   codex: boolean;
@@ -15,6 +17,8 @@ export type AppSettings = {
   gateway_custom_listen_address: string;
   wsl_auto_config: boolean;
   wsl_target_cli: WslTargetCli;
+  wsl_host_address_mode: WslHostAddressMode;
+  wsl_custom_host_address: string;
   auto_start: boolean;
   tray_enabled: boolean;
   enable_cli_proxy_startup_recovery: boolean;
@@ -69,6 +73,8 @@ export type SettingsSetInput = {
   circuitBreakerOpenDurationMinutes?: number;
   wslAutoConfig?: boolean;
   wslTargetCli?: WslTargetCli;
+  wslHostAddressMode?: WslHostAddressMode;
+  wslCustomHostAddress?: string;
 };
 
 export async function settingsGet() {

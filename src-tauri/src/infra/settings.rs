@@ -9,7 +9,7 @@ use std::sync::{OnceLock, RwLock};
 use std::time::{Duration, Instant};
 use tauri::Manager;
 
-pub const SCHEMA_VERSION: u32 = 15;
+pub const SCHEMA_VERSION: u32 = 16;
 const SCHEMA_VERSION_DISABLE_UPSTREAM_TIMEOUTS: u32 = 7;
 const SCHEMA_VERSION_ADD_GATEWAY_RECTIFIERS: u32 = 8;
 const SCHEMA_VERSION_ADD_CIRCUIT_BREAKER_NOTICE: u32 = 9;
@@ -19,6 +19,7 @@ const SCHEMA_VERSION_ADD_GATEWAY_NETWORK_SETTINGS: u32 = 12;
 const SCHEMA_VERSION_ADD_RESPONSE_FIXER_LIMITS: u32 = 13;
 const SCHEMA_VERSION_ADD_CLI_PROXY_STARTUP_RECOVERY: u32 = 14;
 const SCHEMA_VERSION_ADD_CACHE_ANOMALY_MONITOR: u32 = 15;
+const SCHEMA_VERSION_ADD_WSL_HOST_ADDRESS_MODE: u32 = 16;
 pub const DEFAULT_GATEWAY_PORT: u16 = 37123;
 pub const MAX_GATEWAY_PORT: u16 = 37199;
 const DEFAULT_LOG_RETENTION_DAYS: u32 = 7;
@@ -84,6 +85,19 @@ impl Default for GatewayListenMode {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "snake_case")]
+pub enum WslHostAddressMode {
+    Auto,
+    Custom,
+}
+
+impl Default for WslHostAddressMode {
+    fn default() -> Self {
+        Self::Auto
+    }
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, specta::Type)]
 #[serde(default)]
 pub struct WslTargetCli {
@@ -114,6 +128,9 @@ pub struct AppSettings {
     // WSL auto-config enable switch and target CLI selection.
     pub wsl_auto_config: bool,
     pub wsl_target_cli: WslTargetCli,
+    // WSL host address mode (auto-detect or custom) and custom address.
+    pub wsl_host_address_mode: WslHostAddressMode,
+    pub wsl_custom_host_address: String,
     pub auto_start: bool,
     pub tray_enabled: bool,
     // Startup crash recovery for CLI proxy takeover (default enabled).
@@ -156,6 +173,8 @@ impl Default for AppSettings {
             gateway_custom_listen_address: String::new(),
             wsl_auto_config: false,
             wsl_target_cli: WslTargetCli::default(),
+            wsl_host_address_mode: WslHostAddressMode::Auto,
+            wsl_custom_host_address: "127.0.0.1".to_string(),
             auto_start: false,
             tray_enabled: true,
             enable_cli_proxy_startup_recovery: DEFAULT_ENABLE_CLI_PROXY_STARTUP_RECOVERY,
@@ -483,6 +502,17 @@ fn migrate_add_cache_anomaly_monitor(
     )
 }
 
+fn migrate_add_wsl_host_address_mode(
+    settings: &mut AppSettings,
+    schema_version_present: bool,
+) -> bool {
+    migrate_bump_schema_version(
+        settings,
+        schema_version_present,
+        SCHEMA_VERSION_ADD_WSL_HOST_ADDRESS_MODE,
+    )
+}
+
 fn settings_path(app: &tauri::AppHandle) -> AppResult<PathBuf> {
     Ok(app_paths::app_data_dir(app)?.join("settings.json"))
 }
@@ -598,6 +628,7 @@ pub fn read(app: &tauri::AppHandle) -> AppResult<AppSettings> {
             repaired |=
                 migrate_add_cli_proxy_startup_recovery(&mut settings, schema_version_present);
             repaired |= migrate_add_cache_anomaly_monitor(&mut settings, schema_version_present);
+            repaired |= migrate_add_wsl_host_address_mode(&mut settings, schema_version_present);
             repaired |= sanitize_failover_settings(&mut settings);
             repaired |= sanitize_circuit_breaker_settings(&mut settings);
             repaired |= sanitize_provider_cooldown_seconds(&mut settings);
@@ -662,6 +693,7 @@ pub fn read(app: &tauri::AppHandle) -> AppResult<AppSettings> {
     repaired |= migrate_add_response_fixer_limits(&mut settings, schema_version_present);
     repaired |= migrate_add_cli_proxy_startup_recovery(&mut settings, schema_version_present);
     repaired |= migrate_add_cache_anomaly_monitor(&mut settings, schema_version_present);
+    repaired |= migrate_add_wsl_host_address_mode(&mut settings, schema_version_present);
     repaired |= sanitize_failover_settings(&mut settings);
     repaired |= sanitize_circuit_breaker_settings(&mut settings);
     repaired |= sanitize_provider_cooldown_seconds(&mut settings);
@@ -1267,5 +1299,15 @@ mod tests {
         };
         assert!(migrate_add_cache_anomaly_monitor(&mut s, true));
         assert_eq!(s.schema_version, SCHEMA_VERSION_ADD_CACHE_ANOMALY_MONITOR);
+    }
+
+    #[test]
+    fn migrate_add_wsl_host_address_mode_bumps_schema_version() {
+        let mut s = AppSettings {
+            schema_version: 15,
+            ..Default::default()
+        };
+        assert!(migrate_add_wsl_host_address_mode(&mut s, true));
+        assert_eq!(s.schema_version, SCHEMA_VERSION_ADD_WSL_HOST_ADDRESS_MODE);
     }
 }

@@ -33,6 +33,8 @@ pub(crate) struct SettingsUpdate {
     pub update_releases_url: Option<String>,
     pub wsl_auto_config: Option<bool>,
     pub wsl_target_cli: Option<settings::WslTargetCli>,
+    pub wsl_host_address_mode: Option<settings::WslHostAddressMode>,
+    pub wsl_custom_host_address: Option<String>,
 }
 
 #[tauri::command]
@@ -76,6 +78,8 @@ pub(crate) async fn settings_set(
         update_releases_url,
         wsl_auto_config,
         wsl_target_cli,
+        wsl_host_address_mode,
+        wsl_custom_host_address,
     } = update;
 
     let app_for_work = app.clone();
@@ -96,6 +100,12 @@ pub(crate) async fn settings_set(
                 .to_string();
             let wsl_auto_config = wsl_auto_config.unwrap_or(previous.wsl_auto_config);
             let wsl_target_cli = wsl_target_cli.unwrap_or(previous.wsl_target_cli);
+            let wsl_host_address_mode =
+                wsl_host_address_mode.unwrap_or(previous.wsl_host_address_mode);
+            let wsl_custom_host_address = wsl_custom_host_address
+                .unwrap_or(previous.wsl_custom_host_address)
+                .trim()
+                .to_string();
             let provider_base_url_ping_cache_ttl_seconds = provider_base_url_ping_cache_ttl_seconds
                 .unwrap_or(previous.provider_base_url_ping_cache_ttl_seconds);
             let upstream_first_byte_timeout_seconds = upstream_first_byte_timeout_seconds
@@ -156,6 +166,8 @@ pub(crate) async fn settings_set(
                 gateway_custom_listen_address,
                 wsl_auto_config,
                 wsl_target_cli,
+                wsl_host_address_mode,
+                wsl_custom_host_address,
                 auto_start: next_auto_start,
                 tray_enabled,
                 enable_cli_proxy_startup_recovery,

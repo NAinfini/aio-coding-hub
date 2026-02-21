@@ -67,6 +67,8 @@ describe("components/cli-manager/WslSettingsCard", () => {
       wsl_auto_config: true,
       wsl_target_cli: { claude: true, codex: false, gemini: true },
       gateway_listen_mode: "wsl_auto",
+      wsl_host_address_mode: "auto",
+      wsl_custom_host_address: "127.0.0.1",
     } as any;
 
     const onPersistSettings = vi.fn(async (patch: any) => ({ ...settings, ...patch }));
@@ -123,6 +125,8 @@ describe("components/cli-manager/WslSettingsCard", () => {
       wsl_auto_config: true,
       wsl_target_cli: { claude: true, codex: false, gemini: false },
       gateway_listen_mode: "wsl_auto",
+      wsl_host_address_mode: "auto",
+      wsl_custom_host_address: "127.0.0.1",
     } as any;
 
     // Unsupported OS.
@@ -189,6 +193,8 @@ describe("components/cli-manager/WslSettingsCard", () => {
       wsl_auto_config: true,
       wsl_target_cli: { claude: true, codex: false, gemini: false },
       gateway_listen_mode: "wsl_auto",
+      wsl_host_address_mode: "auto",
+      wsl_custom_host_address: "127.0.0.1",
     } as any;
 
     const { rerender } = render(
@@ -261,6 +267,8 @@ describe("components/cli-manager/WslSettingsCard", () => {
             wsl_auto_config: true,
             wsl_target_cli: { claude: true, codex: false, gemini: false },
             gateway_listen_mode: "wsl_auto",
+            wsl_host_address_mode: "auto",
+            wsl_custom_host_address: "127.0.0.1",
           } as any
         }
         onPersistSettings={onPersistSettings}
@@ -273,5 +281,84 @@ describe("components/cli-manager/WslSettingsCard", () => {
     vi.mocked(toast).mockClear();
     fireEvent.click(screen.getByLabelText("Gemini"));
     await waitFor(() => expect(toast).toHaveBeenCalledWith("仅在 Tauri Desktop 环境可用"));
+  });
+
+  it("switches host address mode to custom and persists", async () => {
+    vi.mocked(useAppAboutQuery).mockReturnValue({ data: { os: "windows" } } as any);
+    vi.mocked(useWslOverviewQuery).mockReturnValue({
+      data: { detection: { detected: true, distros: [] }, hostIp: "172.20.0.1", statusRows: [] },
+      isFetched: true,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useWslConfigureClientsMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
+
+    const settings = {
+      wsl_auto_config: true,
+      wsl_target_cli: { claude: true, codex: false, gemini: false },
+      gateway_listen_mode: "wsl_auto",
+      wsl_host_address_mode: "auto",
+      wsl_custom_host_address: "127.0.0.1",
+    } as any;
+
+    const onPersistSettings = vi.fn(async (patch: any) => ({ ...settings, ...patch }));
+
+    render(
+      <WslSettingsCard
+        available={true}
+        saving={false}
+        settings={settings}
+        onPersistSettings={onPersistSettings}
+      />
+    );
+
+    const select = screen.getByDisplayValue("自动检测");
+    fireEvent.change(select, { target: { value: "custom" } });
+    await waitFor(() =>
+      expect(onPersistSettings).toHaveBeenCalledWith({ wsl_host_address_mode: "custom" })
+    );
+  });
+
+  it("persists custom host address on blur", async () => {
+    vi.mocked(useAppAboutQuery).mockReturnValue({ data: { os: "windows" } } as any);
+    vi.mocked(useWslOverviewQuery).mockReturnValue({
+      data: { detection: { detected: true, distros: [] }, hostIp: null, statusRows: [] },
+      isFetched: true,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useWslConfigureClientsMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
+
+    const settings = {
+      wsl_auto_config: true,
+      wsl_target_cli: { claude: true, codex: false, gemini: false },
+      gateway_listen_mode: "wsl_auto",
+      wsl_host_address_mode: "custom",
+      wsl_custom_host_address: "127.0.0.1",
+    } as any;
+
+    const onPersistSettings = vi.fn(async (patch: any) => ({ ...settings, ...patch }));
+
+    render(
+      <WslSettingsCard
+        available={true}
+        saving={false}
+        settings={settings}
+        onPersistSettings={onPersistSettings}
+      />
+    );
+
+    const input = screen.getByPlaceholderText("127.0.0.1");
+    fireEvent.change(input, { target: { value: "172.20.0.1" } });
+    fireEvent.blur(input);
+    await waitFor(() =>
+      expect(onPersistSettings).toHaveBeenCalledWith({ wsl_custom_host_address: "172.20.0.1" })
+    );
   });
 });

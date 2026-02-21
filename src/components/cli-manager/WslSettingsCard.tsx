@@ -1,11 +1,13 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import type { AppSettings, WslTargetCli } from "../../services/settings";
+import type { AppSettings, WslHostAddressMode, WslTargetCli } from "../../services/settings";
 import { logToConsole } from "../../services/consoleLog";
 import type { WslConfigureReport } from "../../services/wsl";
 import { useAppAboutQuery } from "../../query/appAbout";
 import { useWslConfigureClientsMutation, useWslOverviewQuery } from "../../query/wsl";
 import { Card } from "../../ui/Card";
+import { Input } from "../../ui/Input";
+import { Select } from "../../ui/Select";
 import { SettingsRow } from "../../ui/SettingsRow";
 import { Switch } from "../../ui/Switch";
 import { Button } from "../../ui/Button";
@@ -49,6 +51,11 @@ export function WslSettingsCard({
   const configuring = wslConfigureMutation.isPending;
 
   const [lastReport, setLastReport] = useState<WslConfigureReport | null>(null);
+  const [customHostAddress, setCustomHostAddress] = useState(settings.wsl_custom_host_address);
+
+  useEffect(() => {
+    setCustomHostAddress(settings.wsl_custom_host_address);
+  }, [settings.wsl_custom_host_address]);
 
   const wslDetected = Boolean(detection?.detected);
   const distros = detection?.distros ?? [];
@@ -92,6 +99,39 @@ export function WslSettingsCard({
     } catch (err) {
       logToConsole("error", "更新 WSL 目标 CLI 失败", { error: String(err), nextTargets });
       toast("更新失败：请稍后重试");
+    }
+  }
+
+  async function commitHostAddressMode(next: WslHostAddressMode) {
+    if (!available) return;
+    try {
+      const updated = await onPersistSettings({ wsl_host_address_mode: next });
+      if (!updated) {
+        toast("仅在 Tauri Desktop 环境可用");
+        return;
+      }
+      logToConsole("info", "更新 WSL 宿主机地址模式", { mode: next });
+    } catch (err) {
+      logToConsole("error", "更新 WSL 宿主机地址模式失败", { error: String(err) });
+      toast("更新失败：请稍后重试");
+    }
+  }
+
+  async function commitCustomHostAddress() {
+    if (!available) return;
+    const trimmed = customHostAddress.trim();
+    if (trimmed === settings.wsl_custom_host_address) return;
+    try {
+      const updated = await onPersistSettings({ wsl_custom_host_address: trimmed });
+      if (!updated) {
+        toast("仅在 Tauri Desktop 环境可用");
+        return;
+      }
+      logToConsole("info", "更新 WSL 自定义宿主机地址", { address: trimmed });
+    } catch (err) {
+      logToConsole("error", "更新 WSL 自定义宿主机地址失败", { error: String(err) });
+      toast("更新失败：请稍后重试");
+      setCustomHostAddress(settings.wsl_custom_host_address);
     }
   }
 
@@ -168,8 +208,32 @@ export function WslSettingsCard({
           </SettingsRow>
 
           <SettingsRow label="WSL 宿主机地址">
-            <div className="font-mono text-xs text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 px-3 py-2 rounded border border-slate-100 dark:border-slate-700">
-              {hostIp ?? "—"}
+            <div className="flex items-center gap-2">
+              <Select
+                value={settings.wsl_host_address_mode}
+                onChange={(e) =>
+                  void commitHostAddressMode(e.currentTarget.value as WslHostAddressMode)
+                }
+                disabled={saving}
+                className="w-32"
+              >
+                <option value="auto">自动检测</option>
+                <option value="custom">自定义</option>
+              </Select>
+              {settings.wsl_host_address_mode === "auto" ? (
+                <div className="font-mono text-xs text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 px-3 py-2 rounded border border-slate-100 dark:border-slate-700">
+                  {hostIp ?? "—"}
+                </div>
+              ) : (
+                <Input
+                  value={customHostAddress}
+                  placeholder="127.0.0.1"
+                  onChange={(e) => setCustomHostAddress(e.currentTarget.value)}
+                  onBlur={() => void commitCustomHostAddress()}
+                  disabled={saving}
+                  className="font-mono w-40"
+                />
+              )}
             </div>
           </SettingsRow>
 

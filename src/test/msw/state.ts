@@ -27,6 +27,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   gateway_custom_listen_address: "",
   wsl_auto_config: false,
   wsl_target_cli: { claude: true, codex: true, gemini: true },
+  wsl_host_address_mode: "auto",
+  wsl_custom_host_address: "127.0.0.1",
   auto_start: false,
   tray_enabled: true,
   enable_cli_proxy_startup_recovery: true,

@@ -61,8 +61,8 @@ export function useWslOverviewQuery(options?: { enabled?: boolean }) {
       }
 
       const [ip, statuses] = await Promise.all([
-        wslHostAddressGet(),
-        wslConfigStatusGet(det.distros),
+        wslHostAddressGet().catch(() => null),
+        wslConfigStatusGet(det.distros).catch(() => null),
       ]);
       return { detection: det, hostIp: ip ?? null, statusRows: statuses ?? null };
     },

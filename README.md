@@ -130,12 +130,44 @@ sudo xattr -cr /Applications/"AIO Coding Hub.app"
 
 ### 从源码构建
 
+<details>
+<summary>前置条件</summary>
+
+**通用要求：**
+- Node.js 18+、pnpm
+- Rust 1.90+（`rustup` 安装推荐）
+
+**Windows：**
+- [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)（安装时勾选"使用 C++ 的桌面开发"工作负载）
+- WebView2（Windows 10/11 已内置）
+- ARM64 构建额外需要：在 Visual Studio Installer → 单个组件 中勾选 `MSVC v143 - VS 2022 C++ ARM64 build tools`
+
+**macOS：**
+- Xcode Command Line Tools（`xcode-select --install`）
+
+**Linux (Ubuntu/Debian)：**
 ```bash
-# 前置：Node.js 18+、pnpm、Rust 1.70+
+sudo apt-get update
+sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+```
+
+</details>
+
+```bash
 git clone https://github.com/dyndynjyxa/aio-coding-hub.git
 cd aio-coding-hub
 pnpm install
+
+# 构建（当前平台）
 pnpm tauri:build
+
+# 指定平台构建
+pnpm tauri:build:mac:arm64       # macOS Apple Silicon
+pnpm tauri:build:mac:x64         # macOS Intel
+pnpm tauri:build:mac:universal   # macOS Universal
+pnpm tauri:build:win:x64         # Windows x64
+pnpm tauri:build:win:arm64       # Windows ARM64
+pnpm tauri:build:linux:x64       # Linux x64
 
 # 开发模式
 pnpm tauri:dev

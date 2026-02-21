@@ -85,7 +85,8 @@ describe("pages/skills/SkillsView", () => {
     fireEvent.click(uninstallDialog.getByRole("button", { name: "确认卸载" }));
     await waitFor(() => expect(uninstallMutation.mutateAsync).toHaveBeenCalledWith(1));
 
-    fireEvent.click(screen.getByRole("button", { name: "导入技能库" }));
+    const importButton = await screen.findByRole("button", { name: "导入技能库" });
+    fireEvent.click(importButton);
     const importDialog = within(screen.getByRole("dialog"));
     fireEvent.click(importDialog.getByRole("button", { name: "确认导入" }));
     await waitFor(() => expect(importMutation.mutateAsync).toHaveBeenCalledWith("local-skill"));
@@ -267,7 +268,8 @@ describe("pages/skills/SkillsView", () => {
     fireEvent.click(uninstallDialog.getByRole("button", { name: "取消" }));
 
     // import: tauri-only null branch, then guard branch after becoming inactive
-    fireEvent.click(screen.getByRole("button", { name: "导入技能库" }));
+    const importButton = await screen.findByRole("button", { name: "导入技能库" });
+    fireEvent.click(importButton);
     const importDialog = within(screen.getByRole("dialog"));
     fireEvent.click(importDialog.getByRole("button", { name: "确认导入" }));
     await waitFor(() => expect(importMutation.mutateAsync).toHaveBeenCalledTimes(1));

@@ -25,9 +25,11 @@ export function Dialog({
   children,
   className,
 }: DialogProps) {
+  const contentProps = description ? {} : { "aria-describedby": undefined };
+
   return (
     <DialogRoot open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn(className)}>
+      <DialogContent className={cn(className)} {...contentProps}>
         <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3 sm:gap-4 sm:px-5 sm:py-4 dark:border-slate-700">
           <div className="min-w-0">
             <DialogTitle>{title}</DialogTitle>

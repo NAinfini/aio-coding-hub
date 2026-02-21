@@ -32,8 +32,11 @@ export function WslSettingsCard({
   const aboutQuery = useAppAboutQuery({ enabled: available });
   const aboutOs = aboutQuery.data?.os ?? null;
 
+  const wslSupported = useMemo(() => aboutOs === "windows", [aboutOs]);
+  const listenModeOk = settings.gateway_listen_mode !== "localhost";
+
   const wslOverviewQuery = useWslOverviewQuery({
-    enabled: available && Boolean(settings.wsl_auto_config),
+    enabled: available && wslSupported,
   });
   const wslConfigureMutation = useWslConfigureClientsMutation();
 
@@ -47,8 +50,6 @@ export function WslSettingsCard({
 
   const [lastReport, setLastReport] = useState<WslConfigureReport | null>(null);
 
-  const wslSupported = useMemo(() => aboutOs === "windows", [aboutOs]);
-  const listenModeOk = settings.gateway_listen_mode !== "localhost";
   const wslDetected = Boolean(detection?.detected);
   const distros = detection?.distros ?? [];
 
@@ -184,7 +185,7 @@ export function WslSettingsCard({
                 {!checkedOnce
                   ? loading
                     ? "检测中..."
-                    : "未检测（默认关闭）"
+                    : "等待检测"
                   : wslDetected
                     ? "已检测到 WSL"
                     : "未检测到 WSL"}

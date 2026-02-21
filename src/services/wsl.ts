@@ -1,4 +1,4 @@
-import { invokeService } from "./invokeServiceCommand";
+import { invokeService, invokeServiceCommand } from "./invokeServiceCommand";
 import type { WslTargetCli } from "./settings";
 
 export type WslDetection = {
@@ -36,7 +36,12 @@ export async function wslDetect() {
 }
 
 export async function wslHostAddressGet() {
-  return invokeService<string | null>("读取 WSL 主机地址失败", "wsl_host_address_get");
+  return invokeServiceCommand<string | null, null>({
+    title: "读取 WSL 主机地址失败",
+    cmd: "wsl_host_address_get",
+    fallback: null,
+    nullResultBehavior: "return_fallback",
+  });
 }
 
 export async function wslConfigStatusGet(distros?: string[]) {

@@ -181,7 +181,24 @@ fn run_wsl_bash_script(distro: &str, script: &str) -> crate::shared::error::AppR
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    // wsl.exe on non-English Windows may emit UTF-16LE warnings on stderr;
+    // bash/python errors inside the distro are UTF-8.  Try UTF-8 first and
+    // fall back to UTF-16LE when null bytes are present (a strong indicator).
+    let stderr_raw = &output.stderr;
+    let stderr = {
+        let utf8 = String::from_utf8_lossy(stderr_raw).trim().to_string();
+        if utf8.contains('\0') {
+            let decoded = decode_utf16_le(stderr_raw);
+            let trimmed = decoded.trim().to_string();
+            if trimmed.is_empty() {
+                utf8
+            } else {
+                trimmed
+            }
+        } else {
+            utf8
+        }
+    };
     let msg = if !stderr.is_empty() { stderr } else { stdout };
     Err(format!(
         "WSL_ERROR: {}",
@@ -261,7 +278,7 @@ try:
 except FileNotFoundError:
     data = {{}}
 except Exception as e:
-    sys.stderr.write(f"Failed to parse existing settings.json: {{e}}\\n")
+    sys.stderr.write(f"Failed to parse existing settings.json: {{e}}\n")
     sys.exit(2)
 
 if not isinstance(data, dict):
@@ -279,7 +296,7 @@ env["ANTHROPIC_BASE_URL"] = base_url
 env["ANTHROPIC_AUTH_TOKEN"] = auth_token
 data["env"] = env
 
-Path(dst).write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8")
+Path(dst).write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 PY
 
   python3 - "$base_url" "$auth_token" "$tmp_path" <<'PY'

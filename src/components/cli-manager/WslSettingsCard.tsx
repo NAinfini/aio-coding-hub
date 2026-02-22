@@ -1,41 +1,33 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import type { AppSettings, WslHostAddressMode, WslTargetCli } from "../../services/settings";
+import type { AppSettings, WslHostAddressMode } from "../../services/settings";
 import { logToConsole } from "../../services/consoleLog";
 import type { WslConfigureReport } from "../../services/wsl";
 import { useAppAboutQuery } from "../../query/appAbout";
+import { useSettingsSetMutation } from "../../query/settings";
 import { useWslConfigureClientsMutation, useWslOverviewQuery } from "../../query/wsl";
 import { Card } from "../../ui/Card";
 import { Input } from "../../ui/Input";
-import { Select } from "../../ui/Select";
 import { SettingsRow } from "../../ui/SettingsRow";
 import { Switch } from "../../ui/Switch";
 import { Button } from "../../ui/Button";
 import { cn } from "../../utils/cn";
-import { Boxes, RefreshCw, Terminal, Bot, Cpu } from "lucide-react";
+import { Boxes, RefreshCw, Check, X, Info } from "lucide-react";
 
 export type WslSettingsCardProps = {
   available: boolean;
   saving: boolean;
   settings: AppSettings;
-  onPersistSettings: (patch: Partial<AppSettings>) => Promise<AppSettings | null>;
 };
 
-function toggleTarget(prev: WslTargetCli, key: keyof WslTargetCli, next: boolean): WslTargetCli {
-  return { ...prev, [key]: next };
-}
-
-export function WslSettingsCard({
-  available,
-  saving,
-  settings,
-  onPersistSettings,
-}: WslSettingsCardProps) {
+export function WslSettingsCard({ available, saving, settings }: WslSettingsCardProps) {
   const aboutQuery = useAppAboutQuery({ enabled: available });
   const aboutOs = aboutQuery.data?.os ?? null;
 
   const wslSupported = useMemo(() => aboutOs === "windows", [aboutOs]);
-  const listenModeOk = settings.gateway_listen_mode !== "localhost";
+
+  const settingsSetMutation = useSettingsSetMutation();
+  const settingsMutating = settingsSetMutation.isPending;
 
   const wslOverviewQuery = useWslOverviewQuery({
     enabled: available && wslSupported,
@@ -51,14 +43,50 @@ export function WslSettingsCard({
   const configuring = wslConfigureMutation.isPending;
 
   const [lastReport, setLastReport] = useState<WslConfigureReport | null>(null);
+
+  const wslDetected = Boolean(detection?.detected);
+  const distros = detection?.distros ?? [];
+
+  const [hostAddressMode, setHostAddressMode] = useState<WslHostAddressMode>(
+    settings.wsl_host_address_mode
+  );
   const [customHostAddress, setCustomHostAddress] = useState(settings.wsl_custom_host_address);
+
+  useEffect(() => {
+    setHostAddressMode(settings.wsl_host_address_mode);
+  }, [settings.wsl_host_address_mode]);
 
   useEffect(() => {
     setCustomHostAddress(settings.wsl_custom_host_address);
   }, [settings.wsl_custom_host_address]);
 
-  const wslDetected = Boolean(detection?.detected);
-  const distros = detection?.distros ?? [];
+  // 监听后端启动时自动配置结果事件
+  useEffect(() => {
+    if (!available || !wslSupported) return;
+
+    let cancelled = false;
+    let cleanupFn: (() => void) | null = null;
+
+    import("@tauri-apps/api/event").then(({ listen }) => {
+      if (cancelled) return;
+      listen<WslConfigureReport>("wsl:auto_config_result", (event) => {
+        setLastReport(event.payload);
+        void wslOverviewQuery.refetch();
+      }).then((unlisten) => {
+        if (cancelled) {
+          unlisten();
+        } else {
+          cleanupFn = unlisten;
+        }
+      });
+    });
+
+    return () => {
+      cancelled = true;
+      cleanupFn?.();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [available, wslSupported]);
 
   async function refreshAll() {
     if (!available) return;
@@ -72,78 +100,11 @@ export function WslSettingsCard({
     }
   }
 
-  async function commitAutoConfig(next: boolean) {
-    if (!available) return;
-    try {
-      const updated = await onPersistSettings({ wsl_auto_config: next });
-      if (!updated) {
-        toast("仅在 Tauri Desktop 环境可用");
-        return;
-      }
-      logToConsole("info", "更新 WSL 自动配置开关", { enabled: next });
-    } catch (err) {
-      logToConsole("error", "更新 WSL 自动配置开关失败", { error: String(err), enabled: next });
-      toast("更新失败：请稍后重试");
-    }
-  }
-
-  async function commitTargets(nextTargets: WslTargetCli) {
-    if (!available) return;
-    try {
-      const updated = await onPersistSettings({ wsl_target_cli: nextTargets });
-      if (!updated) {
-        toast("仅在 Tauri Desktop 环境可用");
-        return;
-      }
-      logToConsole("info", "更新 WSL 目标 CLI", nextTargets);
-    } catch (err) {
-      logToConsole("error", "更新 WSL 目标 CLI 失败", { error: String(err), nextTargets });
-      toast("更新失败：请稍后重试");
-    }
-  }
-
-  async function commitHostAddressMode(next: WslHostAddressMode) {
-    if (!available) return;
-    try {
-      const updated = await onPersistSettings({ wsl_host_address_mode: next });
-      if (!updated) {
-        toast("仅在 Tauri Desktop 环境可用");
-        return;
-      }
-      logToConsole("info", "更新 WSL 宿主机地址模式", { mode: next });
-    } catch (err) {
-      logToConsole("error", "更新 WSL 宿主机地址模式失败", { error: String(err) });
-      toast("更新失败：请稍后重试");
-    }
-  }
-
-  async function commitCustomHostAddress() {
-    if (!available) return;
-    const trimmed = customHostAddress.trim();
-    if (trimmed === settings.wsl_custom_host_address) return;
-    try {
-      const updated = await onPersistSettings({ wsl_custom_host_address: trimmed });
-      if (!updated) {
-        toast("仅在 Tauri Desktop 环境可用");
-        return;
-      }
-      logToConsole("info", "更新 WSL 自定义宿主机地址", { address: trimmed });
-    } catch (err) {
-      logToConsole("error", "更新 WSL 自定义宿主机地址失败", { error: String(err) });
-      toast("更新失败：请稍后重试");
-      setCustomHostAddress(settings.wsl_custom_host_address);
-    }
-  }
-
   async function configureNow() {
     if (!available) return;
     if (configuring) return;
     if (!wslSupported) {
       toast("仅 Windows 支持 WSL 配置");
-      return;
-    }
-    if (!listenModeOk) {
-      toast("请先将监听模式切换到：WSL 自动检测 / 局域网 / 自定义地址");
       return;
     }
     if (!wslDetected) {
@@ -153,7 +114,7 @@ export function WslSettingsCard({
 
     setLastReport(null);
     try {
-      const report = await wslConfigureMutation.mutateAsync({ targets: settings.wsl_target_cli });
+      const report = await wslConfigureMutation.mutateAsync();
       if (!report) {
         toast("仅在 Tauri Desktop 环境可用");
         return;
@@ -167,6 +128,94 @@ export function WslSettingsCard({
       toast("WSL 一键配置失败：请查看控制台日志");
     }
   }
+
+  function validateCustomHostAddress(value: string): string | null {
+    const trimmed = value.trim();
+    if (!trimmed) return "请输入 IP（例如 172.20.0.1）";
+    if (trimmed.includes("://") || trimmed.includes("/") || trimmed.includes("\\")) {
+      return "宿主机地址仅支持 IP（不要包含协议或路径）";
+    }
+    if (trimmed.includes(":")) {
+      return "宿主机地址不支持端口；请只填写 IP（例如 172.20.0.1）";
+    }
+    return null;
+  }
+
+  async function commitHostAddressMode(next: WslHostAddressMode) {
+    if (!available) return;
+    if (saving || settingsMutating) return;
+
+    setHostAddressMode(next);
+
+    try {
+      const updated = await settingsSetMutation.mutateAsync({
+        preferredPort: settings.preferred_port,
+        autoStart: settings.auto_start,
+        logRetentionDays: settings.log_retention_days,
+        failoverMaxAttemptsPerProvider: settings.failover_max_attempts_per_provider,
+        failoverMaxProvidersToTry: settings.failover_max_providers_to_try,
+        wslHostAddressMode: next,
+      });
+      if (!updated) {
+        toast("仅在 Tauri Desktop 环境可用");
+        setHostAddressMode(settings.wsl_host_address_mode);
+        return;
+      }
+      toast("已保存");
+    } catch (err) {
+      logToConsole("error", "更新 WSL 宿主机地址模式失败", { error: String(err), next });
+      toast("更新失败：请稍后重试");
+      setHostAddressMode(settings.wsl_host_address_mode);
+    }
+  }
+
+  async function commitCustomHostAddress() {
+    if (!available) return;
+    if (saving || settingsMutating) return;
+    if (hostAddressMode !== "custom") return;
+
+    const trimmed = customHostAddress.trim();
+    const current = settings.wsl_custom_host_address.trim();
+    if (trimmed === current) return;
+
+    const err = validateCustomHostAddress(trimmed);
+    if (err) {
+      toast(err);
+      setCustomHostAddress(settings.wsl_custom_host_address);
+      return;
+    }
+
+    try {
+      const updated = await settingsSetMutation.mutateAsync({
+        preferredPort: settings.preferred_port,
+        autoStart: settings.auto_start,
+        logRetentionDays: settings.log_retention_days,
+        failoverMaxAttemptsPerProvider: settings.failover_max_attempts_per_provider,
+        failoverMaxProvidersToTry: settings.failover_max_providers_to_try,
+        wslHostAddressMode: "custom",
+        wslCustomHostAddress: trimmed,
+      });
+      if (!updated) {
+        toast("仅在 Tauri Desktop 环境可用");
+        setCustomHostAddress(settings.wsl_custom_host_address);
+        return;
+      }
+      toast("已保存");
+    } catch (err) {
+      logToConsole("error", "更新 WSL 宿主机地址失败", {
+        error: String(err),
+        address: trimmed,
+      });
+      toast("更新失败：请稍后重试");
+      setCustomHostAddress(settings.wsl_custom_host_address);
+    }
+  }
+
+  const listenModeIsLocalhost = settings.gateway_listen_mode === "localhost";
+  const effectiveHost =
+    hostAddressMode === "custom"
+      ? customHostAddress.trim() || "127.0.0.1"
+      : (hostIp ?? "127.0.0.1");
 
   return (
     <Card className="md:col-span-2">
@@ -199,44 +248,6 @@ export function WslSettingsCard({
         </div>
       ) : (
         <div className="space-y-1">
-          <SettingsRow label="WSL 自动配置">
-            <Switch
-              checked={settings.wsl_auto_config}
-              onCheckedChange={(checked) => void commitAutoConfig(checked)}
-              disabled={saving}
-            />
-          </SettingsRow>
-
-          <SettingsRow label="WSL 宿主机地址">
-            <div className="flex items-center gap-2">
-              <Select
-                value={settings.wsl_host_address_mode}
-                onChange={(e) =>
-                  void commitHostAddressMode(e.currentTarget.value as WslHostAddressMode)
-                }
-                disabled={saving}
-                className="w-32"
-              >
-                <option value="auto">自动检测</option>
-                <option value="custom">自定义</option>
-              </Select>
-              {settings.wsl_host_address_mode === "auto" ? (
-                <div className="font-mono text-xs text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 px-3 py-2 rounded border border-slate-100 dark:border-slate-700">
-                  {hostIp ?? "—"}
-                </div>
-              ) : (
-                <Input
-                  value={customHostAddress}
-                  placeholder="127.0.0.1"
-                  onChange={(e) => setCustomHostAddress(e.currentTarget.value)}
-                  onBlur={() => void commitCustomHostAddress()}
-                  disabled={saving}
-                  className="font-mono w-40"
-                />
-              )}
-            </div>
-          </SettingsRow>
-
           <SettingsRow label="WSL 状态">
             <div className="flex items-center gap-2">
               <span
@@ -277,77 +288,138 @@ export function WslSettingsCard({
             </SettingsRow>
           ) : null}
 
-          {settings.wsl_auto_config ? (
-            <SettingsRow label="目标 CLI">
-              <div className="flex flex-wrap gap-3">
-                <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-                  <input
-                    type="checkbox"
-                    checked={settings.wsl_target_cli.claude}
-                    onChange={(e) =>
-                      void commitTargets(
-                        toggleTarget(settings.wsl_target_cli, "claude", e.currentTarget.checked)
-                      )
-                    }
-                    disabled={saving}
-                  />
-                  <Bot className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-                  Claude
-                </label>
-                <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-                  <input
-                    type="checkbox"
-                    checked={settings.wsl_target_cli.codex}
-                    onChange={(e) =>
-                      void commitTargets(
-                        toggleTarget(settings.wsl_target_cli, "codex", e.currentTarget.checked)
-                      )
-                    }
-                    disabled={saving}
-                  />
-                  <Terminal className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-                  Codex
-                </label>
-                <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-                  <input
-                    type="checkbox"
-                    checked={settings.wsl_target_cli.gemini}
-                    onChange={(e) =>
-                      void commitTargets(
-                        toggleTarget(settings.wsl_target_cli, "gemini", e.currentTarget.checked)
-                      )
-                    }
-                    disabled={saving}
-                  />
-                  <Cpu className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-                  Gemini
-                </label>
+          {statusRows && statusRows.length > 0 ? (
+            <div className="mt-3">
+              <div className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                配置状态
               </div>
-            </SettingsRow>
-          ) : null}
-
-          {settings.wsl_auto_config ? (
-            <div className="mt-3 flex items-start justify-between gap-3">
-              <div className="text-xs text-slate-500 dark:text-slate-400">
-                {listenModeOk ? null : "提示：监听模式为“仅本地(127.0.0.1)”时，WSL 无法访问网关。"}
-                {statusRows ? (
-                  <div className="mt-1">
-                    已检测配置文件：
-                    {statusRows.filter((r) => r.claude || r.codex || r.gemini).length}/
-                    {statusRows.length} 个 distro
-                  </div>
-                ) : null}
+              <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                      <th className="text-left px-3 py-2 font-medium">发行版</th>
+                      <th className="text-center px-3 py-2 font-medium">Claude</th>
+                      <th className="text-center px-3 py-2 font-medium">Codex</th>
+                      <th className="text-center px-3 py-2 font-medium">Gemini</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {statusRows.map((row) => (
+                      <tr
+                        key={row.distro}
+                        className="border-t border-slate-100 dark:border-slate-700"
+                      >
+                        <td className="px-3 py-2 text-slate-700 dark:text-slate-300 font-mono text-xs">
+                          {row.distro}
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          {row.claude ? (
+                            <Check className="inline h-4 w-4 text-emerald-500" />
+                          ) : (
+                            <X className="inline h-4 w-4 text-rose-400" />
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          {row.codex ? (
+                            <Check className="inline h-4 w-4 text-emerald-500" />
+                          ) : (
+                            <X className="inline h-4 w-4 text-rose-400" />
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          {row.gemini ? (
+                            <Check className="inline h-4 w-4 text-emerald-500" />
+                          ) : (
+                            <X className="inline h-4 w-4 text-rose-400" />
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-              <Button
-                onClick={() => void configureNow()}
-                disabled={configuring || saving}
-                className="gap-2"
-              >
-                <RefreshCw className={cn("h-4 w-4", configuring && "animate-spin")} />
-                立即配置
-              </Button>
             </div>
           ) : null}
+
+          <div className="mt-3 space-y-2">
+            <div className="flex items-start gap-2 text-xs text-slate-500 dark:text-slate-400">
+              <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>应用启动时会自动检测并配置 WSL 环境。</span>
+            </div>
+            {listenModeIsLocalhost ? (
+              <div className="flex items-start gap-2 text-xs text-amber-600 dark:text-amber-400">
+                <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                <span>当前监听模式为"仅本地"，应用会在启动时自动切换监听模式以支持 WSL。</span>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <div className="text-xs text-slate-500 dark:text-slate-400">
+              {statusRows ? (
+                <span>
+                  已检测配置文件：
+                  {statusRows.filter((r) => r.claude || r.codex || r.gemini).length}/
+                  {statusRows.length} 个 distro
+                </span>
+              ) : null}
+            </div>
+            <Button
+              onClick={() => void configureNow()}
+              disabled={configuring || saving}
+              className="gap-2"
+            >
+              <RefreshCw className={cn("h-4 w-4", configuring && "animate-spin")} />
+              立即配置
+            </Button>
+          </div>
+
+          <details className="mt-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/40">
+            <summary className="cursor-pointer select-none px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+              高级选项（地址兜底）
+            </summary>
+            <div className="px-3 pb-3 space-y-2">
+              <div className="text-xs text-slate-500 dark:text-slate-400">
+                当自动检测到的宿主机地址不可用（WSL 无法访问网关）时，可手动指定一个可用的
+                IP；修改后通常需要重启应用/网关后生效。
+              </div>
+
+              <SettingsRow label="生效宿主机地址">
+                <div className="font-mono text-xs text-slate-700 dark:text-slate-300 bg-white/60 dark:bg-slate-900/20 px-2 py-1 rounded border border-slate-200/60 dark:border-slate-700 break-all">
+                  {effectiveHost}
+                </div>
+              </SettingsRow>
+
+              <SettingsRow label="自动检测地址">
+                <div className="font-mono text-xs text-slate-700 dark:text-slate-300 bg-white/60 dark:bg-slate-900/20 px-2 py-1 rounded border border-slate-200/60 dark:border-slate-700 break-all">
+                  {hostIp ?? "（未检测到）"}
+                </div>
+              </SettingsRow>
+
+              <SettingsRow label="使用自定义地址">
+                <Switch
+                  checked={hostAddressMode === "custom"}
+                  onCheckedChange={(checked) =>
+                    void commitHostAddressMode(checked ? "custom" : "auto")
+                  }
+                  disabled={saving || settingsMutating}
+                />
+              </SettingsRow>
+
+              {hostAddressMode === "custom" ? (
+                <SettingsRow label="自定义地址">
+                  <Input
+                    value={customHostAddress}
+                    placeholder={hostIp ?? "172.20.0.1"}
+                    onChange={(e) => setCustomHostAddress(e.currentTarget.value)}
+                    onBlur={() => void commitCustomHostAddress()}
+                    disabled={saving || settingsMutating}
+                    className="font-mono"
+                  />
+                </SettingsRow>
+              ) : null}
+            </div>
+          </details>
 
           {lastReport ? (
             <div

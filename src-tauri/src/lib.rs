@@ -135,6 +135,8 @@ pub fn run() {
 
                 let preferred_port = settings.preferred_port;
                 let enable_cli_proxy_startup_recovery = settings.enable_cli_proxy_startup_recovery;
+                #[cfg(windows)]
+                let gateway_listen_mode = settings.gateway_listen_mode;
 
                 if enable_cli_proxy_startup_recovery {
                     match blocking::run("startup_cli_proxy_repair_incomplete_enable", {
@@ -210,6 +212,27 @@ pub fn run() {
                         move || cli_proxy::sync_enabled(&app_handle, &base_origin)
                     })
                     .await;
+                }
+
+                // WSL auto-detect and auto-configure (Windows only)
+                #[cfg(windows)]
+                {
+                    let auto_cfg_app = app_handle.clone();
+                    let auto_cfg_db = db.clone();
+                    let auto_cfg_port = status.port;
+
+                    tauri::async_runtime::spawn(async move {
+                        if let Err(err) = commands::wsl::wsl_auto_configure_on_startup(
+                            &auto_cfg_app,
+                            auto_cfg_db,
+                            gateway_listen_mode,
+                            auto_cfg_port,
+                        )
+                        .await
+                        {
+                            tracing::warn!("WSL startup auto-configure failed: {}", err);
+                        }
+                    });
                 }
             });
 

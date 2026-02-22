@@ -1,5 +1,4 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { WslTargetCli } from "../services/settings";
 import {
   wslConfigStatusGet,
   wslConfigureClients,
@@ -75,7 +74,7 @@ export function useWslConfigureClientsMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (input: { targets: WslTargetCli }) => wslConfigureClients(input),
+    mutationFn: () => wslConfigureClients(),
     onSuccess: (_report: WslConfigureReport | null) => {
       queryClient.invalidateQueries({ queryKey: wslKeys.all });
     },

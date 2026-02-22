@@ -313,7 +313,6 @@ export function CliManagerGeneralTab({
               available={rectifierAvailable === "available"}
               saving={commonSettingsSaving}
               settings={appSettings}
-              onPersistSettings={onPersistCommonSettings}
             />
           </>
         ) : null}

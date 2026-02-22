@@ -245,7 +245,7 @@ describe("query/wsl", () => {
     const { result } = renderHook(() => useWslConfigureClientsMutation(), { wrapper });
 
     await act(async () => {
-      await result.current.mutateAsync({ targets: { claude: true, codex: false, gemini: false } });
+      await result.current.mutateAsync();
     });
 
     expect(wslConfigureClients).toHaveBeenCalled();

@@ -70,11 +70,7 @@ describe("services/wsl", () => {
       distros: ["Ubuntu"],
     });
 
-    await wslConfigureClients({
-      targets: { claude: true, codex: false, gemini: true } as any,
-    });
-    expect(invokeTauriOrNull).toHaveBeenCalledWith("wsl_configure_clients", {
-      targets: { claude: true, codex: false, gemini: true },
-    });
+    await wslConfigureClients();
+    expect(invokeTauriOrNull).toHaveBeenCalledWith("wsl_configure_clients");
   });
 });

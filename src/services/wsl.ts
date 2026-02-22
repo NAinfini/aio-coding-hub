@@ -1,5 +1,4 @@
 import { invokeService, invokeServiceCommand } from "./invokeServiceCommand";
-import type { WslTargetCli } from "./settings";
 
 export type WslDetection = {
   detected: boolean;
@@ -52,8 +51,6 @@ export async function wslConfigStatusGet(distros?: string[]) {
   );
 }
 
-export async function wslConfigureClients(input: { targets: WslTargetCli }) {
-  return invokeService<WslConfigureReport>("配置 WSL 客户端失败", "wsl_configure_clients", {
-    targets: input.targets,
-  });
+export async function wslConfigureClients() {
+  return invokeService<WslConfigureReport>("配置 WSL 客户端失败", "wsl_configure_clients");
 }

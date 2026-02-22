@@ -110,6 +110,27 @@ pub fn detect() -> WslDetection {
     out
 }
 
+/// Resolve the host address that WSL distros should use to reach the gateway.
+///
+/// This is used by:
+/// - Gateway listen mode `wsl_auto` (bind host)
+/// - WSL client configuration (base origin host)
+pub fn resolve_wsl_host(cfg: &settings::AppSettings) -> String {
+    match cfg.wsl_host_address_mode {
+        settings::WslHostAddressMode::Custom => {
+            let addr = cfg.wsl_custom_host_address.trim();
+            if addr.is_empty() {
+                "127.0.0.1".to_string()
+            } else {
+                addr.to_string()
+            }
+        }
+        settings::WslHostAddressMode::Auto => {
+            host_ipv4_best_effort().unwrap_or_else(|| "127.0.0.1".to_string())
+        }
+    }
+}
+
 pub fn host_ipv4_best_effort() -> Option<String> {
     if !cfg!(windows) {
         return None;

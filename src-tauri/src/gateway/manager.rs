@@ -153,10 +153,7 @@ impl GatewayManager {
         let (bind_host, fixed_port) = match cfg.gateway_listen_mode {
             settings::GatewayListenMode::Localhost => ("127.0.0.1".to_string(), None),
             settings::GatewayListenMode::Lan => ("0.0.0.0".to_string(), None),
-            settings::GatewayListenMode::WslAuto => (
-                wsl::host_ipv4_best_effort().unwrap_or_else(|| "127.0.0.1".to_string()),
-                None,
-            ),
+            settings::GatewayListenMode::WslAuto => (wsl::resolve_wsl_host(&cfg), None),
             settings::GatewayListenMode::Custom => {
                 let parsed =
                     listen::parse_custom_listen_address(&cfg.gateway_custom_listen_address)?;

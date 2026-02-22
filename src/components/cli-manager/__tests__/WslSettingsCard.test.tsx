@@ -2,8 +2,10 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { WslSettingsCard } from "../WslSettingsCard";
 import { useAppAboutQuery } from "../../../query/appAbout";
+import { useSettingsSetMutation } from "../../../query/settings";
 import { useWslConfigureClientsMutation, useWslOverviewQuery } from "../../../query/wsl";
 import { toast } from "sonner";
+import { emitTauriEvent, tauriListen } from "../../../test/mocks/tauri";
 
 vi.mock("sonner", () => ({ toast: vi.fn() }));
 
@@ -13,6 +15,12 @@ vi.mock("../../../query/appAbout", async () => {
   return { ...actual, useAppAboutQuery: vi.fn() };
 });
 
+vi.mock("../../../query/settings", async () => {
+  const actual =
+    await vi.importActual<typeof import("../../../query/settings")>("../../../query/settings");
+  return { ...actual, useSettingsSetMutation: vi.fn() };
+});
+
 vi.mock("../../../query/wsl", async () => {
   const actual = await vi.importActual<typeof import("../../../query/wsl")>("../../../query/wsl");
   return { ...actual, useWslOverviewQuery: vi.fn(), useWslConfigureClientsMutation: vi.fn() };
@@ -20,6 +28,10 @@ vi.mock("../../../query/wsl", async () => {
 
 describe("components/cli-manager/WslSettingsCard", () => {
   it("renders unavailable state when not available", () => {
+    vi.mocked(useSettingsSetMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
     vi.mocked(useAppAboutQuery).mockReturnValue({ data: null } as any);
     vi.mocked(useWslOverviewQuery).mockReturnValue({
       data: null,
@@ -32,21 +44,18 @@ describe("components/cli-manager/WslSettingsCard", () => {
       mutateAsync: vi.fn(),
     } as any);
 
-    render(
-      <WslSettingsCard
-        available={false}
-        saving={false}
-        settings={{} as any}
-        onPersistSettings={vi.fn(async () => null)}
-      />
-    );
+    render(<WslSettingsCard available={false} saving={false} settings={{} as any} />);
 
     expect(screen.getByText("WSL 配置")).toBeInTheDocument();
     expect(screen.getByText("仅在 Tauri Desktop 环境可用")).toBeInTheDocument();
   });
 
-  it("refreshes overview, toggles auto-config, updates targets, and runs configure flow", async () => {
+  it("refreshes overview and runs configure flow", async () => {
     const overviewRefetch = vi.fn().mockResolvedValue({ data: {} });
+    vi.mocked(useSettingsSetMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
     vi.mocked(useAppAboutQuery).mockReturnValue({ data: { os: "windows" } } as any);
     vi.mocked(useWslOverviewQuery).mockReturnValue({
       data: {
@@ -69,46 +78,33 @@ describe("components/cli-manager/WslSettingsCard", () => {
       gateway_listen_mode: "wsl_auto",
       wsl_host_address_mode: "auto",
       wsl_custom_host_address: "127.0.0.1",
+      preferred_port: 37123,
+      auto_start: false,
+      log_retention_days: 7,
+      failover_max_attempts_per_provider: 5,
+      failover_max_providers_to_try: 5,
     } as any;
 
-    const onPersistSettings = vi.fn(async (patch: any) => ({ ...settings, ...patch }));
+    render(<WslSettingsCard available={true} saving={false} settings={settings} />);
 
-    render(
-      <WslSettingsCard
-        available={true}
-        saving={false}
-        settings={settings}
-        onPersistSettings={onPersistSettings}
-      />
-    );
-
-    expect(screen.getByText("WSL 宿主机地址")).toBeInTheDocument();
-    expect(screen.getByText("172.20.0.1")).toBeInTheDocument();
-    expect(screen.getByText("Ubuntu")).toBeInTheDocument();
+    expect(screen.getAllByText("Ubuntu").length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("button", { name: "刷新" }));
     await waitFor(() => expect(overviewRefetch).toHaveBeenCalled());
 
-    fireEvent.click(screen.getAllByRole("switch")[0]);
-    await waitFor(() => expect(onPersistSettings).toHaveBeenCalledWith({ wsl_auto_config: false }));
-
-    fireEvent.click(screen.getByLabelText("Codex"));
-    await waitFor(() =>
-      expect(onPersistSettings).toHaveBeenCalledWith({
-        wsl_target_cli: { claude: true, codex: true, gemini: true },
-      })
-    );
-
+    // Configure now always configures all targets.
     fireEvent.click(screen.getByRole("button", { name: "立即配置" }));
     await waitFor(() => {
-      expect(configureMutation.mutateAsync).toHaveBeenCalledWith({
-        targets: settings.wsl_target_cli,
-      });
+      expect(configureMutation.mutateAsync).toHaveBeenCalledWith();
     });
     await waitFor(() => expect(overviewRefetch).toHaveBeenCalledTimes(2));
   });
 
-  it("shows configure guard toasts (unsupported OS / listen mode / not detected)", async () => {
+  it("shows configure guard toasts (unsupported OS / not detected)", async () => {
+    vi.mocked(useSettingsSetMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
     vi.mocked(useWslConfigureClientsMutation).mockReturnValue({
       isPending: false,
       mutateAsync: vi.fn(),
@@ -127,60 +123,44 @@ describe("components/cli-manager/WslSettingsCard", () => {
       gateway_listen_mode: "wsl_auto",
       wsl_host_address_mode: "auto",
       wsl_custom_host_address: "127.0.0.1",
+      preferred_port: 37123,
+      auto_start: false,
+      log_retention_days: 7,
+      failover_max_attempts_per_provider: 5,
+      failover_max_providers_to_try: 5,
     } as any;
 
     // Unsupported OS.
     vi.mocked(useAppAboutQuery).mockReturnValue({ data: { os: "mac" } } as any);
     const { rerender } = render(
-      <WslSettingsCard
-        available={true}
-        saving={false}
-        settings={settings}
-        onPersistSettings={vi.fn(async () => settings)}
-      />
+      <WslSettingsCard available={true} saving={false} settings={settings} />
     );
     expect(screen.getByText("仅 Windows 支持 WSL 配置")).toBeInTheDocument();
 
-    // listen mode localhost.
-    vi.mocked(toast).mockClear();
-    vi.mocked(useAppAboutQuery).mockReturnValue({ data: { os: "windows" } } as any);
-    rerender(
-      <WslSettingsCard
-        available={true}
-        saving={false}
-        settings={{ ...settings, gateway_listen_mode: "localhost" }}
-        onPersistSettings={vi.fn(async () => settings)}
-      />
-    );
-    fireEvent.click(screen.getByRole("button", { name: "立即配置" }));
-    expect(toast).toHaveBeenCalledWith("请先将监听模式切换到：WSL 自动检测 / 局域网 / 自定义地址");
-
     // not detected.
     vi.mocked(toast).mockClear();
+    vi.mocked(useAppAboutQuery).mockReturnValue({ data: { os: "windows" } } as any);
     vi.mocked(useWslOverviewQuery).mockReturnValue({
       data: { detection: { detected: false, distros: [] }, hostIp: null, statusRows: null },
       isFetched: true,
       isFetching: false,
       refetch: vi.fn(),
     } as any);
-    rerender(
-      <WslSettingsCard
-        available={true}
-        saving={false}
-        settings={settings}
-        onPersistSettings={vi.fn(async () => settings)}
-      />
-    );
+    rerender(<WslSettingsCard available={true} saving={false} settings={settings} />);
     fireEvent.click(screen.getByRole("button", { name: "立即配置" }));
     expect(toast).toHaveBeenCalledWith("未检测到 WSL");
   });
 
   it("handles configure report null + failure fallback + errors", async () => {
+    vi.mocked(useSettingsSetMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
     vi.mocked(useAppAboutQuery).mockReturnValue({ data: { os: "windows" } } as any);
 
     const overviewRefetch = vi.fn().mockResolvedValue({ data: {} });
     vi.mocked(useWslOverviewQuery).mockReturnValue({
-      data: { detection: { detected: true, distros: [] }, hostIp: null, statusRows: [] },
+      data: { detection: { detected: true, distros: ["Ubuntu"] }, hostIp: null, statusRows: [] },
       isFetched: true,
       isFetching: false,
       refetch: overviewRefetch,
@@ -195,15 +175,15 @@ describe("components/cli-manager/WslSettingsCard", () => {
       gateway_listen_mode: "wsl_auto",
       wsl_host_address_mode: "auto",
       wsl_custom_host_address: "127.0.0.1",
+      preferred_port: 37123,
+      auto_start: false,
+      log_retention_days: 7,
+      failover_max_attempts_per_provider: 5,
+      failover_max_providers_to_try: 5,
     } as any;
 
     const { rerender } = render(
-      <WslSettingsCard
-        available={true}
-        saving={false}
-        settings={settings}
-        onPersistSettings={vi.fn(async () => settings)}
-      />
+      <WslSettingsCard available={true} saving={false} settings={settings} />
     );
 
     // report=null -> tauri unavailable toast.
@@ -227,27 +207,31 @@ describe("components/cli-manager/WslSettingsCard", () => {
     // refreshAll catch path on refresh button.
     vi.mocked(toast).mockClear();
     vi.mocked(useWslOverviewQuery).mockReturnValue({
-      data: { detection: { detected: true, distros: [] }, hostIp: null, statusRows: [] },
+      data: { detection: { detected: true, distros: ["Ubuntu"] }, hostIp: null, statusRows: [] },
       isFetched: true,
       isFetching: false,
       refetch: vi.fn().mockRejectedValue(new Error("nope")),
     } as any);
-    rerender(
-      <WslSettingsCard
-        available={true}
-        saving={false}
-        settings={settings}
-        onPersistSettings={vi.fn(async () => settings)}
-      />
-    );
+    rerender(<WslSettingsCard available={true} saving={false} settings={settings} />);
     fireEvent.click(screen.getByRole("button", { name: "刷新" }));
     await waitFor(() => expect(toast).toHaveBeenCalledWith("刷新 WSL 状态失败：请稍后重试"));
   });
 
-  it("toasts when persisting settings returns null (non-tauri)", async () => {
+  it("renders config status table when statusRows available", () => {
+    vi.mocked(useSettingsSetMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
     vi.mocked(useAppAboutQuery).mockReturnValue({ data: { os: "windows" } } as any);
     vi.mocked(useWslOverviewQuery).mockReturnValue({
-      data: { detection: { detected: true, distros: [] }, hostIp: null, statusRows: [] },
+      data: {
+        detection: { detected: true, distros: ["Ubuntu-22.04", "Debian"] },
+        hostIp: "172.20.0.1",
+        statusRows: [
+          { distro: "Ubuntu-22.04", claude: true, codex: true, gemini: true },
+          { distro: "Debian", claude: true, codex: false, gemini: true },
+        ],
+      },
       isFetched: true,
       isFetching: false,
       refetch: vi.fn(),
@@ -257,301 +241,323 @@ describe("components/cli-manager/WslSettingsCard", () => {
       mutateAsync: vi.fn(),
     } as any);
 
-    const onPersistSettings = vi.fn(async () => null);
     render(
       <WslSettingsCard
         available={true}
         saving={false}
         settings={
           {
-            wsl_auto_config: true,
-            wsl_target_cli: { claude: true, codex: false, gemini: false },
             gateway_listen_mode: "wsl_auto",
             wsl_host_address_mode: "auto",
             wsl_custom_host_address: "127.0.0.1",
+            preferred_port: 37123,
+            auto_start: false,
+            log_retention_days: 7,
+            failover_max_attempts_per_provider: 5,
+            failover_max_providers_to_try: 5,
           } as any
         }
-        onPersistSettings={onPersistSettings}
       />
     );
 
-    fireEvent.click(screen.getAllByRole("switch")[0]);
-    await waitFor(() => expect(toast).toHaveBeenCalledWith("仅在 Tauri Desktop 环境可用"));
+    expect(screen.getByText("配置状态")).toBeInTheDocument();
+    expect(screen.getAllByText("Ubuntu-22.04").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Debian").length).toBeGreaterThan(0);
+
+    // Table headers
+    expect(screen.getByText("Claude")).toBeInTheDocument();
+    expect(screen.getByText("Codex")).toBeInTheDocument();
+    expect(screen.getByText("Gemini")).toBeInTheDocument();
+  });
+
+  it("shows localhost listen mode warning", () => {
+    vi.mocked(useSettingsSetMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
+    vi.mocked(useAppAboutQuery).mockReturnValue({ data: { os: "windows" } } as any);
+    vi.mocked(useWslOverviewQuery).mockReturnValue({
+      data: { detection: { detected: false, distros: [] }, hostIp: null, statusRows: null },
+      isFetched: true,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useWslConfigureClientsMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
+
+    render(
+      <WslSettingsCard
+        available={true}
+        saving={false}
+        settings={
+          {
+            gateway_listen_mode: "localhost",
+            wsl_host_address_mode: "auto",
+            wsl_custom_host_address: "127.0.0.1",
+            preferred_port: 37123,
+            auto_start: false,
+            log_retention_days: 7,
+            failover_max_attempts_per_provider: 5,
+            failover_max_providers_to_try: 5,
+          } as any
+        }
+      />
+    );
+
+    expect(screen.getByText(/应用会在启动时自动切换监听模式以支持 WSL/)).toBeInTheDocument();
+  });
+
+  it("does not show localhost warning when listen mode is not localhost", () => {
+    vi.mocked(useSettingsSetMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
+    vi.mocked(useAppAboutQuery).mockReturnValue({ data: { os: "windows" } } as any);
+    vi.mocked(useWslOverviewQuery).mockReturnValue({
+      data: { detection: { detected: false, distros: [] }, hostIp: null, statusRows: null },
+      isFetched: true,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useWslConfigureClientsMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
+
+    render(
+      <WslSettingsCard
+        available={true}
+        saving={false}
+        settings={
+          {
+            gateway_listen_mode: "wsl_auto",
+            wsl_host_address_mode: "auto",
+            wsl_custom_host_address: "127.0.0.1",
+            preferred_port: 37123,
+            auto_start: false,
+            log_retention_days: 7,
+            failover_max_attempts_per_provider: 5,
+            failover_max_providers_to_try: 5,
+          } as any
+        }
+      />
+    );
+
+    expect(screen.queryByText(/应用会在启动时自动切换监听模式以支持 WSL/)).not.toBeInTheDocument();
+  });
+
+  it("shows auto-config hint", () => {
+    vi.mocked(useSettingsSetMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
+    vi.mocked(useAppAboutQuery).mockReturnValue({ data: { os: "windows" } } as any);
+    vi.mocked(useWslOverviewQuery).mockReturnValue({
+      data: { detection: { detected: false, distros: [] }, hostIp: null, statusRows: null },
+      isFetched: true,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useWslConfigureClientsMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
+
+    render(
+      <WslSettingsCard
+        available={true}
+        saving={false}
+        settings={
+          {
+            gateway_listen_mode: "wsl_auto",
+            wsl_host_address_mode: "auto",
+            wsl_custom_host_address: "127.0.0.1",
+            preferred_port: 37123,
+            auto_start: false,
+            log_retention_days: 7,
+            failover_max_attempts_per_provider: 5,
+            failover_max_providers_to_try: 5,
+          } as any
+        }
+      />
+    );
+
+    expect(screen.getByText("应用启动时会自动检测并配置 WSL 环境。")).toBeInTheDocument();
+  });
+
+  it("listens for wsl:auto_config_result event and updates state", async () => {
+    const overviewRefetch = vi.fn().mockResolvedValue({ data: {} });
+    vi.mocked(useSettingsSetMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
+    vi.mocked(useAppAboutQuery).mockReturnValue({ data: { os: "windows" } } as any);
+    vi.mocked(useWslOverviewQuery).mockReturnValue({
+      data: { detection: { detected: true, distros: ["Ubuntu"] }, hostIp: null, statusRows: [] },
+      isFetched: true,
+      isFetching: false,
+      refetch: overviewRefetch,
+    } as any);
+    vi.mocked(useWslConfigureClientsMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
+
+    render(
+      <WslSettingsCard
+        available={true}
+        saving={false}
+        settings={
+          {
+            gateway_listen_mode: "wsl_auto",
+            wsl_host_address_mode: "auto",
+            wsl_custom_host_address: "127.0.0.1",
+            preferred_port: 37123,
+            auto_start: false,
+            log_retention_days: 7,
+            failover_max_attempts_per_provider: 5,
+            failover_max_providers_to_try: 5,
+          } as any
+        }
+      />
+    );
+
+    // tauriListen should have been called with "wsl:auto_config_result"
+    await waitFor(() => {
+      expect(tauriListen).toHaveBeenCalledWith("wsl:auto_config_result", expect.any(Function));
+    });
+
+    // Emit the event and verify the report is displayed
+    emitTauriEvent("wsl:auto_config_result", {
+      ok: true,
+      message: "自动配置完成",
+      distros: [],
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("自动配置完成")).toBeInTheDocument();
+    });
+    expect(overviewRefetch).toHaveBeenCalled();
+  });
+
+  it("shows distro config summary count", () => {
+    vi.mocked(useSettingsSetMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
+    vi.mocked(useAppAboutQuery).mockReturnValue({ data: { os: "windows" } } as any);
+    vi.mocked(useWslOverviewQuery).mockReturnValue({
+      data: {
+        detection: { detected: true, distros: ["Ubuntu", "Debian"] },
+        hostIp: null,
+        statusRows: [
+          { distro: "Ubuntu", claude: true, codex: true, gemini: true },
+          { distro: "Debian", claude: false, codex: false, gemini: false },
+        ],
+      },
+      isFetched: true,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useWslConfigureClientsMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
+
+    render(
+      <WslSettingsCard
+        available={true}
+        saving={false}
+        settings={
+          {
+            gateway_listen_mode: "wsl_auto",
+            wsl_host_address_mode: "auto",
+            wsl_custom_host_address: "127.0.0.1",
+            preferred_port: 37123,
+            auto_start: false,
+            log_retention_days: 7,
+            failover_max_attempts_per_provider: 5,
+            failover_max_providers_to_try: 5,
+          } as any
+        }
+      />
+    );
+
+    // 1/2 because Ubuntu has at least one CLI configured, Debian has none
+    expect(screen.getByText(/1\/\s*2 个 distro/)).toBeInTheDocument();
+  });
+
+  it("persists custom host address via advanced options", async () => {
+    const settingsSetMutation = { isPending: false, mutateAsync: vi.fn() };
+    settingsSetMutation.mutateAsync.mockResolvedValue({});
+    vi.mocked(useSettingsSetMutation).mockReturnValue(settingsSetMutation as any);
+
+    vi.mocked(useAppAboutQuery).mockReturnValue({ data: { os: "windows" } } as any);
+    vi.mocked(useWslOverviewQuery).mockReturnValue({
+      data: {
+        detection: { detected: true, distros: ["Ubuntu"] },
+        hostIp: "172.20.0.1",
+        statusRows: [],
+      },
+      isFetched: true,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useWslConfigureClientsMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
 
     vi.mocked(toast).mockClear();
-    fireEvent.click(screen.getByLabelText("Gemini"));
-    await waitFor(() => expect(toast).toHaveBeenCalledWith("仅在 Tauri Desktop 环境可用"));
-  });
-
-  it("switches host address mode to custom and persists", async () => {
-    vi.mocked(useAppAboutQuery).mockReturnValue({ data: { os: "windows" } } as any);
-    vi.mocked(useWslOverviewQuery).mockReturnValue({
-      data: { detection: { detected: true, distros: [] }, hostIp: "172.20.0.1", statusRows: [] },
-      isFetched: true,
-      isFetching: false,
-      refetch: vi.fn(),
-    } as any);
-    vi.mocked(useWslConfigureClientsMutation).mockReturnValue({
-      isPending: false,
-      mutateAsync: vi.fn(),
-    } as any);
 
     const settings = {
-      wsl_auto_config: true,
-      wsl_target_cli: { claude: true, codex: false, gemini: false },
       gateway_listen_mode: "wsl_auto",
       wsl_host_address_mode: "auto",
       wsl_custom_host_address: "127.0.0.1",
+      preferred_port: 37123,
+      auto_start: false,
+      log_retention_days: 7,
+      failover_max_attempts_per_provider: 5,
+      failover_max_providers_to_try: 5,
     } as any;
 
-    const onPersistSettings = vi.fn(async (patch: any) => ({ ...settings, ...patch }));
+    render(<WslSettingsCard available={true} saving={false} settings={settings} />);
 
-    render(
-      <WslSettingsCard
-        available={true}
-        saving={false}
-        settings={settings}
-        onPersistSettings={onPersistSettings}
-      />
-    );
+    // Open advanced section (details content is hidden from accessibility tree when collapsed).
+    fireEvent.click(screen.getByText("高级选项（地址兜底）"));
 
-    const select = screen.getByDisplayValue("自动检测");
-    fireEvent.change(select, { target: { value: "custom" } });
-    await waitFor(() =>
-      expect(onPersistSettings).toHaveBeenCalledWith({ wsl_host_address_mode: "custom" })
-    );
-  });
+    // Enable custom host address mode.
+    fireEvent.click(screen.getByRole("switch", { hidden: true }));
 
-  it("toasts when host address mode persist returns null", async () => {
-    vi.mocked(useAppAboutQuery).mockReturnValue({ data: { os: "windows" } } as any);
-    vi.mocked(useWslOverviewQuery).mockReturnValue({
-      data: { detection: { detected: true, distros: [] }, hostIp: "172.20.0.1", statusRows: [] },
-      isFetched: true,
-      isFetching: false,
-      refetch: vi.fn(),
-    } as any);
-    vi.mocked(useWslConfigureClientsMutation).mockReturnValue({
-      isPending: false,
-      mutateAsync: vi.fn(),
-    } as any);
-
-    const settings = {
-      wsl_auto_config: true,
-      wsl_target_cli: { claude: true, codex: false, gemini: false },
-      gateway_listen_mode: "wsl_auto",
-      wsl_host_address_mode: "auto",
-      wsl_custom_host_address: "127.0.0.1",
-    } as any;
-
-    const onPersistSettings = vi.fn(async () => null);
-
-    render(
-      <WslSettingsCard
-        available={true}
-        saving={false}
-        settings={settings}
-        onPersistSettings={onPersistSettings}
-      />
-    );
-
-    const select = screen.getByDisplayValue("自动检测");
-    fireEvent.change(select, { target: { value: "custom" } });
-    await waitFor(() => expect(toast).toHaveBeenCalledWith("仅在 Tauri Desktop 环境可用"));
-  });
-
-  it("toasts when host address mode persist throws", async () => {
-    vi.mocked(useAppAboutQuery).mockReturnValue({ data: { os: "windows" } } as any);
-    vi.mocked(useWslOverviewQuery).mockReturnValue({
-      data: { detection: { detected: true, distros: [] }, hostIp: "172.20.0.1", statusRows: [] },
-      isFetched: true,
-      isFetching: false,
-      refetch: vi.fn(),
-    } as any);
-    vi.mocked(useWslConfigureClientsMutation).mockReturnValue({
-      isPending: false,
-      mutateAsync: vi.fn(),
-    } as any);
-
-    const settings = {
-      wsl_auto_config: true,
-      wsl_target_cli: { claude: true, codex: false, gemini: false },
-      gateway_listen_mode: "wsl_auto",
-      wsl_host_address_mode: "auto",
-      wsl_custom_host_address: "127.0.0.1",
-    } as any;
-
-    const onPersistSettings = vi.fn(async () => {
-      throw new Error("fail");
+    await waitFor(() => {
+      expect(settingsSetMutation.mutateAsync).toHaveBeenCalledWith({
+        preferredPort: 37123,
+        autoStart: false,
+        logRetentionDays: 7,
+        failoverMaxAttemptsPerProvider: 5,
+        failoverMaxProvidersToTry: 5,
+        wslHostAddressMode: "custom",
+      });
     });
+    expect(toast).toHaveBeenCalledWith("已保存");
 
-    render(
-      <WslSettingsCard
-        available={true}
-        saving={false}
-        settings={settings}
-        onPersistSettings={onPersistSettings}
-      />
-    );
-
-    const select = screen.getByDisplayValue("自动检测");
-    fireEvent.change(select, { target: { value: "custom" } });
-    await waitFor(() => expect(toast).toHaveBeenCalledWith("更新失败：请稍后重试"));
-  });
-
-  it("skips custom host address persist when value unchanged", async () => {
-    vi.mocked(useAppAboutQuery).mockReturnValue({ data: { os: "windows" } } as any);
-    vi.mocked(useWslOverviewQuery).mockReturnValue({
-      data: { detection: { detected: true, distros: [] }, hostIp: null, statusRows: [] },
-      isFetched: true,
-      isFetching: false,
-      refetch: vi.fn(),
-    } as any);
-    vi.mocked(useWslConfigureClientsMutation).mockReturnValue({
-      isPending: false,
-      mutateAsync: vi.fn(),
-    } as any);
-
-    const settings = {
-      wsl_auto_config: true,
-      wsl_target_cli: { claude: true, codex: false, gemini: false },
-      gateway_listen_mode: "wsl_auto",
-      wsl_host_address_mode: "custom",
-      wsl_custom_host_address: "127.0.0.1",
-    } as any;
-
-    const onPersistSettings = vi.fn(async (patch: any) => ({ ...settings, ...patch }));
-
-    render(
-      <WslSettingsCard
-        available={true}
-        saving={false}
-        settings={settings}
-        onPersistSettings={onPersistSettings}
-      />
-    );
-
-    // blur without changing value => should not call persist
-    const input = screen.getByPlaceholderText("127.0.0.1");
+    // Update custom host address.
+    const input = screen.getByPlaceholderText("172.20.0.1");
+    fireEvent.change(input, { target: { value: "172.20.0.99" } });
     fireEvent.blur(input);
-    // Give async a tick
-    await waitFor(() => expect(onPersistSettings).not.toHaveBeenCalled());
-  });
 
-  it("toasts when custom host address persist returns null", async () => {
-    vi.mocked(useAppAboutQuery).mockReturnValue({ data: { os: "windows" } } as any);
-    vi.mocked(useWslOverviewQuery).mockReturnValue({
-      data: { detection: { detected: true, distros: [] }, hostIp: null, statusRows: [] },
-      isFetched: true,
-      isFetching: false,
-      refetch: vi.fn(),
-    } as any);
-    vi.mocked(useWslConfigureClientsMutation).mockReturnValue({
-      isPending: false,
-      mutateAsync: vi.fn(),
-    } as any);
-
-    const settings = {
-      wsl_auto_config: true,
-      wsl_target_cli: { claude: true, codex: false, gemini: false },
-      gateway_listen_mode: "wsl_auto",
-      wsl_host_address_mode: "custom",
-      wsl_custom_host_address: "127.0.0.1",
-    } as any;
-
-    const onPersistSettings = vi.fn(async () => null);
-
-    render(
-      <WslSettingsCard
-        available={true}
-        saving={false}
-        settings={settings}
-        onPersistSettings={onPersistSettings}
-      />
-    );
-
-    const input = screen.getByPlaceholderText("127.0.0.1");
-    fireEvent.change(input, { target: { value: "10.0.0.1" } });
-    fireEvent.blur(input);
-    await waitFor(() => expect(toast).toHaveBeenCalledWith("仅在 Tauri Desktop 环境可用"));
-  });
-
-  it("toasts and reverts when custom host address persist throws", async () => {
-    vi.mocked(useAppAboutQuery).mockReturnValue({ data: { os: "windows" } } as any);
-    vi.mocked(useWslOverviewQuery).mockReturnValue({
-      data: { detection: { detected: true, distros: [] }, hostIp: null, statusRows: [] },
-      isFetched: true,
-      isFetching: false,
-      refetch: vi.fn(),
-    } as any);
-    vi.mocked(useWslConfigureClientsMutation).mockReturnValue({
-      isPending: false,
-      mutateAsync: vi.fn(),
-    } as any);
-
-    const settings = {
-      wsl_auto_config: true,
-      wsl_target_cli: { claude: true, codex: false, gemini: false },
-      gateway_listen_mode: "wsl_auto",
-      wsl_host_address_mode: "custom",
-      wsl_custom_host_address: "127.0.0.1",
-    } as any;
-
-    const onPersistSettings = vi.fn(async () => {
-      throw new Error("boom");
+    await waitFor(() => {
+      expect(settingsSetMutation.mutateAsync).toHaveBeenCalledWith({
+        preferredPort: 37123,
+        autoStart: false,
+        logRetentionDays: 7,
+        failoverMaxAttemptsPerProvider: 5,
+        failoverMaxProvidersToTry: 5,
+        wslHostAddressMode: "custom",
+        wslCustomHostAddress: "172.20.0.99",
+      });
     });
-
-    render(
-      <WslSettingsCard
-        available={true}
-        saving={false}
-        settings={settings}
-        onPersistSettings={onPersistSettings}
-      />
-    );
-
-    const input = screen.getByPlaceholderText("127.0.0.1");
-    fireEvent.change(input, { target: { value: "10.0.0.1" } });
-    fireEvent.blur(input);
-    await waitFor(() => expect(toast).toHaveBeenCalledWith("更新失败：请稍后重试"));
-  });
-
-  it("persists custom host address on blur", async () => {
-    vi.mocked(useAppAboutQuery).mockReturnValue({ data: { os: "windows" } } as any);
-    vi.mocked(useWslOverviewQuery).mockReturnValue({
-      data: { detection: { detected: true, distros: [] }, hostIp: null, statusRows: [] },
-      isFetched: true,
-      isFetching: false,
-      refetch: vi.fn(),
-    } as any);
-    vi.mocked(useWslConfigureClientsMutation).mockReturnValue({
-      isPending: false,
-      mutateAsync: vi.fn(),
-    } as any);
-
-    const settings = {
-      wsl_auto_config: true,
-      wsl_target_cli: { claude: true, codex: false, gemini: false },
-      gateway_listen_mode: "wsl_auto",
-      wsl_host_address_mode: "custom",
-      wsl_custom_host_address: "127.0.0.1",
-    } as any;
-
-    const onPersistSettings = vi.fn(async (patch: any) => ({ ...settings, ...patch }));
-
-    render(
-      <WslSettingsCard
-        available={true}
-        saving={false}
-        settings={settings}
-        onPersistSettings={onPersistSettings}
-      />
-    );
-
-    const input = screen.getByPlaceholderText("127.0.0.1");
-    fireEvent.change(input, { target: { value: "172.20.0.1" } });
-    fireEvent.blur(input);
-    await waitFor(() =>
-      expect(onPersistSettings).toHaveBeenCalledWith({ wsl_custom_host_address: "172.20.0.1" })
-    );
   });
 });

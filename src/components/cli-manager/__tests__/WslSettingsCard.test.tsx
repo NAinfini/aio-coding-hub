@@ -198,6 +198,13 @@ describe("components/cli-manager/WslSettingsCard", () => {
     await waitFor(() => expect(toast).toHaveBeenCalledWith("配置失败"));
     await waitFor(() => expect(overviewRefetch).toHaveBeenCalled());
 
+    // ok=true + empty message -> fallback "配置成功" + refresh called.
+    vi.mocked(toast).mockClear();
+    configureMutation.mutateAsync.mockResolvedValueOnce({ ok: true, message: "" });
+    fireEvent.click(screen.getByRole("button", { name: "立即配置" }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith("配置成功"));
+    await waitFor(() => expect(overviewRefetch).toHaveBeenCalled());
+
     // throw -> error toast.
     vi.mocked(toast).mockClear();
     configureMutation.mutateAsync.mockRejectedValueOnce(new Error("boom"));
@@ -559,5 +566,64 @@ describe("components/cli-manager/WslSettingsCard", () => {
         wslCustomHostAddress: "172.20.0.99",
       });
     });
+  });
+
+  it("toasts when custom host address is invalid and does not persist", async () => {
+    const settingsSetMutation = { isPending: false, mutateAsync: vi.fn() };
+    settingsSetMutation.mutateAsync.mockResolvedValue({});
+    vi.mocked(useSettingsSetMutation).mockReturnValue(settingsSetMutation as any);
+
+    vi.mocked(useAppAboutQuery).mockReturnValue({ data: { os: "windows" } } as any);
+    vi.mocked(useWslOverviewQuery).mockReturnValue({
+      data: {
+        detection: { detected: true, distros: ["Ubuntu"] },
+        hostIp: "172.20.0.1",
+        statusRows: [],
+      },
+      isFetched: true,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useWslConfigureClientsMutation).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn(),
+    } as any);
+
+    vi.mocked(toast).mockClear();
+
+    const settings = {
+      gateway_listen_mode: "wsl_auto",
+      wsl_host_address_mode: "auto",
+      wsl_custom_host_address: "127.0.0.1",
+      preferred_port: 37123,
+      auto_start: false,
+      log_retention_days: 7,
+      failover_max_attempts_per_provider: 5,
+      failover_max_providers_to_try: 5,
+    } as any;
+
+    render(<WslSettingsCard available={true} saving={false} settings={settings} />);
+
+    // Open advanced section and enable custom mode.
+    fireEvent.click(screen.getByText("高级选项（地址兜底）"));
+    fireEvent.click(screen.getByRole("switch", { hidden: true }));
+    await waitFor(() => {
+      expect(settingsSetMutation.mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ wslHostAddressMode: "custom" })
+      );
+    });
+
+    // Enter invalid address (contains port) and blur.
+    vi.mocked(toast).mockClear();
+    const input = screen.getByPlaceholderText("172.20.0.1");
+    fireEvent.change(input, { target: { value: "172.20.0.1:123" } });
+    fireEvent.blur(input);
+
+    await waitFor(() => {
+      expect(toast).toHaveBeenCalledWith("宿主机地址不支持端口；请只填写 IP（例如 172.20.0.1）");
+    });
+    expect(settingsSetMutation.mutateAsync).not.toHaveBeenCalledWith(
+      expect.objectContaining({ wslCustomHostAddress: "172.20.0.1:123" })
+    );
   });
 });

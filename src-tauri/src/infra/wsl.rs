@@ -137,12 +137,25 @@ pub fn host_ipv4_best_effort() -> Option<String> {
     }
 
     let output = hide_window_cmd("ipconfig").output().ok()?;
-    let text = String::from_utf8_lossy(&output.stdout).to_string();
+    let stdout = {
+        let utf8 = String::from_utf8_lossy(&output.stdout).to_string();
+        if utf8.contains('\0') {
+            let decoded = decode_utf16_le(&output.stdout);
+            let trimmed = decoded.trim().to_string();
+            if trimmed.is_empty() {
+                utf8
+            } else {
+                trimmed
+            }
+        } else {
+            utf8
+        }
+    };
     use std::net::Ipv4Addr;
 
     let mut in_wsl_adapter = false;
-    for raw_line in text.lines() {
-        let line = raw_line.trim();
+    for raw_line in stdout.lines() {
+        let line = raw_line.trim().trim_matches('\0');
 
         if line.contains("vEthernet (WSL)")
             || line.contains("vEthernet(WSL)")
@@ -152,8 +165,12 @@ pub fn host_ipv4_best_effort() -> Option<String> {
             continue;
         }
 
-        // "adapter" boundary (English output). If localized, we keep scanning until we see IPv4.
-        if in_wsl_adapter && line.contains("adapter") && !line.contains("WSL") {
+        // Adapter section boundary (English + Chinese output). If localized, we keep scanning until we see IPv4.
+        if in_wsl_adapter
+            && line.ends_with(':')
+            && (line.contains("adapter") || line.contains("适配器"))
+            && !line.contains("WSL")
+        {
             break;
         }
 
@@ -162,7 +179,9 @@ pub fn host_ipv4_best_effort() -> Option<String> {
         }
 
         if line.contains("IPv4") || line.contains("IP Address") {
-            let (_, tail) = line.rsplit_once(':')?;
+            let Some((_, tail)) = line.rsplit_once(':').or_else(|| line.rsplit_once('：')) else {
+                continue;
+            };
             let ip = tail.trim();
             if ip.is_empty() || ip.contains(':') {
                 continue;
@@ -849,6 +868,13 @@ pub fn get_config_status(distros: &[String]) -> Vec<WslDistroConfigStatus> {
     }
 
     const STATUS_SCRIPT: &str = r#"
+# Normalize HOME: Windows environment may inject HOME=C:\Users\...
+home_from_getent="$(getent passwd "$(whoami)" | cut -d: -f6 2>/dev/null || true)"
+if [ -n "$home_from_getent" ]; then
+  HOME="$home_from_getent"
+fi
+export HOME
+
 claude=0
 codex=0
 gemini=0
@@ -870,11 +896,15 @@ fi
 [ -f "$p/config.toml" ] && codex=1
 [ -f "$HOME/.gemini/.env" ] && gemini=1
 
-printf '%s%s%s\n' "$claude" "$codex" "$gemini"
+printf 'AIO_WSL_STATUS=%s%s%s\n' "$claude" "$codex" "$gemini"
 "#;
 
     fn parse_status_triplet(text: &str) -> Option<(bool, bool, bool)> {
-        let mut bits = text.chars().filter(|c| *c == '0' || *c == '1');
+        let slice = match text.split_once("AIO_WSL_STATUS=") {
+            Some((_, tail)) => tail,
+            None => text,
+        };
+        let mut bits = slice.chars().filter(|c| *c == '0' || *c == '1');
         let claude = bits.next()?;
         let codex = bits.next()?;
         let gemini = bits.next()?;
@@ -883,17 +913,55 @@ printf '%s%s%s\n' "$claude" "$codex" "$gemini"
 
     let mut out = Vec::new();
     for distro in distros {
-        let (claude, codex, gemini) = hide_window_cmd("wsl")
-            .args(["-d", distro, "bash", "-lc", STATUS_SCRIPT])
+        let (claude, codex, gemini) = match hide_window_cmd("wsl")
+            .args(["-d", distro, "bash", "-c", STATUS_SCRIPT])
             .output()
-            .ok()
-            .and_then(|output| {
+        {
+            Ok(output) => {
                 if !output.status.success() {
-                    return None;
+                    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                    let stderr = {
+                        let utf8 = String::from_utf8_lossy(&output.stderr).trim().to_string();
+                        if utf8.contains('\0') {
+                            let decoded = decode_utf16_le(&output.stderr);
+                            let trimmed = decoded.trim().to_string();
+                            if trimmed.is_empty() {
+                                utf8
+                            } else {
+                                trimmed
+                            }
+                        } else {
+                            utf8
+                        }
+                    };
+                    tracing::warn!(
+                        distro = distro,
+                        code = ?output.status.code(),
+                        stdout = stdout,
+                        stderr = stderr,
+                        "WSL config status script failed"
+                    );
+                    (false, false, false)
+                } else {
+                    let stdout = String::from_utf8_lossy(&output.stdout);
+                    match parse_status_triplet(&stdout) {
+                        Some(v) => v,
+                        None => {
+                            tracing::warn!(
+                                distro = distro,
+                                stdout = stdout.trim().to_string(),
+                                "WSL config status output parse failed"
+                            );
+                            (false, false, false)
+                        }
+                    }
                 }
-                parse_status_triplet(&String::from_utf8_lossy(&output.stdout))
-            })
-            .unwrap_or((false, false, false));
+            }
+            Err(err) => {
+                tracing::warn!(distro = distro, error = %err, "WSL config status spawn failed");
+                (false, false, false)
+            }
+        };
 
         out.push(WslDistroConfigStatus {
             distro: distro.clone(),

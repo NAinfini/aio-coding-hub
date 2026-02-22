@@ -412,24 +412,148 @@ fn build_claude_settings_json(
     Ok(out)
 }
 
-fn remove_toml_table_block(lines: &mut Vec<String>, table_header: &str) {
-    let mut start: Option<usize> = None;
-    for (idx, line) in lines.iter().enumerate() {
-        if line.trim() == table_header {
-            start = Some(idx);
-            break;
+fn find_next_table_header(lines: &[String], from: usize) -> usize {
+    lines[from..]
+        .iter()
+        .position(|line| line.trim().starts_with('['))
+        .map(|offset| from + offset)
+        .unwrap_or(lines.len())
+}
+
+fn insert_model_provider_section(
+    lines: &mut Vec<String>,
+    insert_at: usize,
+    provider_key: &str,
+    base_url: &str,
+) {
+    let header = format!("[model_providers.{provider_key}]");
+    let section = [
+        header,
+        format!("name = \"{provider_key}\""),
+        format!("base_url = \"{base_url}\""),
+        "wire_api = \"responses\"".to_string(),
+        "requires_openai_auth = true".to_string(),
+    ];
+
+    lines.splice(insert_at..insert_at, section);
+}
+
+fn is_model_provider_base_header_line(trimmed: &str, provider_key: &str) -> bool {
+    trimmed == format!("[model_providers.{provider_key}]")
+        || trimmed == format!("[model_providers.\"{provider_key}\"]")
+        || trimmed == format!("[model_providers.'{provider_key}']")
+}
+
+fn find_model_provider_base_table_indices(lines: &[String], provider_key: &str) -> Vec<usize> {
+    lines
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, line)| {
+            is_model_provider_base_header_line(line.trim(), provider_key).then_some(idx)
+        })
+        .collect()
+}
+
+fn find_model_provider_nested_table_index(lines: &[String], provider_key: &str) -> Option<usize> {
+    let prefix_unquoted = format!("[model_providers.{provider_key}.");
+    let prefix_double = format!("[model_providers.\"{provider_key}\".");
+    let prefix_single = format!("[model_providers.'{provider_key}'.");
+
+    lines.iter().position(|line| {
+        let trimmed = line.trim();
+        trimmed.starts_with(&prefix_unquoted)
+            || trimmed.starts_with(&prefix_double)
+            || trimmed.starts_with(&prefix_single)
+    })
+}
+
+fn patch_model_provider_base_table(
+    lines: &mut Vec<String>,
+    start: usize,
+    provider_key: &str,
+    base_url: &str,
+) {
+    let end = find_next_table_header(lines, start.saturating_add(1));
+
+    let mut body: Vec<String> = Vec::new();
+    for line in lines[start.saturating_add(1)..end].iter() {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with('#') {
+            body.push(line.clone());
+            continue;
+        }
+
+        let Some((k, _)) = trimmed.split_once('=') else {
+            body.push(line.clone());
+            continue;
+        };
+
+        match k.trim() {
+            "name" | "base_url" | "wire_api" | "requires_openai_auth" => {}
+            _ => body.push(line.clone()),
         }
     }
 
-    let Some(start) = start else { return };
+    let managed = [
+        format!("name = \"{provider_key}\""),
+        format!("base_url = \"{base_url}\""),
+        "wire_api = \"responses\"".to_string(),
+        "requires_openai_auth = true".to_string(),
+    ];
 
-    let end = lines[start.saturating_add(1)..]
-        .iter()
-        .position(|line| line.trim().starts_with('['))
-        .map(|offset| start + 1 + offset)
-        .unwrap_or(lines.len());
+    let mut patched: Vec<String> = Vec::with_capacity(managed.len() + body.len());
+    patched.extend(managed);
+    if !body.is_empty()
+        && !body.first().is_some_and(|l| l.trim().is_empty())
+        && !patched.last().is_some_and(|l| l.trim().is_empty())
+    {
+        patched.push(String::new());
+    }
+    patched.extend(body);
 
-    lines.drain(start..end);
+    lines.splice(start.saturating_add(1)..end, patched);
+}
+
+fn upsert_model_provider_base_table(lines: &mut Vec<String>, provider_key: &str, base_url: &str) {
+    let mut bases = find_model_provider_base_table_indices(lines, provider_key);
+    bases.sort();
+
+    // Ensure there is exactly one base table, and keep nested tables intact.
+    if let Some(&keep_start) = bases.first() {
+        let nested_start = find_model_provider_nested_table_index(lines, provider_key);
+
+        // Remove duplicates first (from bottom) to keep indices stable.
+        for start in bases.into_iter().rev() {
+            if start == keep_start {
+                continue;
+            }
+            let end = find_next_table_header(lines, start.saturating_add(1));
+            lines.drain(start..end);
+        }
+
+        patch_model_provider_base_table(lines, keep_start, provider_key, base_url);
+
+        // TOML requires parent tables appear before nested child tables. If the base table
+        // is currently after a nested table, move it before the first nested occurrence.
+        if let Some(nested_start) = nested_start {
+            if keep_start > nested_start {
+                let end = find_next_table_header(lines, keep_start.saturating_add(1));
+                let block: Vec<String> = lines.drain(keep_start..end).collect();
+                lines.splice(nested_start..nested_start, block);
+            }
+        }
+        return;
+    }
+
+    // No base table found: insert before the first nested table if it exists, otherwise append.
+    let mut insert_at =
+        find_model_provider_nested_table_index(lines, provider_key).unwrap_or(lines.len());
+    if insert_at > 0 && !lines[insert_at.saturating_sub(1)].trim().is_empty() {
+        lines.insert(insert_at, String::new());
+        insert_at += 1;
+    }
+
+    insert_model_provider_section(lines, insert_at, provider_key, base_url);
 }
 
 fn upsert_root_model_provider(lines: &mut Vec<String>, value: &str) {
@@ -508,20 +632,7 @@ fn build_codex_config_toml(
 
     upsert_root_model_provider(&mut lines, CODEX_PROVIDER_KEY);
     upsert_root_preferred_auth_method(&mut lines, "apikey");
-    remove_toml_table_block(
-        &mut lines,
-        &format!("[model_providers.{CODEX_PROVIDER_KEY}]"),
-    );
-
-    if !lines.is_empty() && !lines.last().unwrap_or(&String::new()).trim().is_empty() {
-        lines.push(String::new());
-    }
-
-    lines.push(format!("[model_providers.{CODEX_PROVIDER_KEY}]"));
-    lines.push(format!("name = \"{CODEX_PROVIDER_KEY}\""));
-    lines.push(format!("base_url = \"{base_url}\""));
-    lines.push("wire_api = \"responses\"".to_string());
-    lines.push("requires_openai_auth = true".to_string());
+    upsert_model_provider_base_table(&mut lines, CODEX_PROVIDER_KEY, base_url);
 
     let mut out = lines.join("\n");
     out.push('\n');
@@ -647,11 +758,17 @@ fn is_proxy_config_applied<R: tauri::Runtime>(
 
             let expected_base = format!("base_url = \"{base_origin}/v1\"");
             let expected_provider = format!("model_provider = \"{CODEX_PROVIDER_KEY}\"");
-            let expected_table = format!("[model_providers.{CODEX_PROVIDER_KEY}]");
+            let expected_table_unquoted = format!("[model_providers.{CODEX_PROVIDER_KEY}]");
+            let expected_table_double = format!("[model_providers.\"{CODEX_PROVIDER_KEY}\"]");
+            let expected_table_single = format!("[model_providers.'{CODEX_PROVIDER_KEY}']");
 
-            if !config.contains(&expected_provider)
-                || !config.contains(&expected_table)
-                || !config.contains(&expected_base)
+            if !config.contains(&expected_provider) || !config.contains(&expected_base) {
+                return false;
+            }
+
+            if !config.contains(&expected_table_unquoted)
+                && !config.contains(&expected_table_double)
+                && !config.contains(&expected_table_single)
             {
                 return false;
             }
@@ -1036,3 +1153,6 @@ pub fn restore_enabled_keep_state<R: tauri::Runtime>(
     }
     Ok(out)
 }
+
+#[cfg(test)]
+mod tests;

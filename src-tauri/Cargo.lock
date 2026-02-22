@@ -37,7 +37,7 @@ dependencies = [
 
 [[package]]
 name = "aio-coding-hub"
-version = "0.28.1"
+version = "0.28.2"
 dependencies = [
  "axum",
  "flate2",

@@ -144,6 +144,8 @@ jobs:
           releaseId: ${{ needs.release-please.outputs.release_id }}
           tagName: ${{ needs.release-please.outputs.tag_name }}
           args: --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+          # Avoid matrix race on the shared `latest.json` asset; we generate/upload it in a dedicated job.
+          uploadUpdaterJson: false
       - name: Prepare stable updater assets (+ macOS zip)
         shell: bash
         run: |

@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.28.2](https://github.com/dyndynjyxa/aio-coding-hub/compare/aio-coding-hub-v0.28.1...aio-coding-hub-v0.28.2) (2026-02-22)
+
+
+### Features
+
+* **app:** 添加应用心跳机制与监听支持 ([df78171](https://github.com/dyndynjyxa/aio-coding-hub/commit/df781712d16a2f5ccc99e37a687d39cb4e4f56c5))
+* **wsl:** 支持WSL宿主机地址模式自动检测与自定义 ([f809e86](https://github.com/dyndynjyxa/aio-coding-hub/commit/f809e86ab3690214ba2407c14e4dee1febd9ab14))
+* **wsl:** 添加启动时自动检测和配置 WSL 环境功能 ([707bd55](https://github.com/dyndynjyxa/aio-coding-hub/commit/707bd5518fd9881715ec5f3df0ef9250970570bb))
+
+
+### Bug Fixes
+
+* **wsl:** 修复 WSL 脚本错误消息编码和路径写入问题 ([bccd5c9](https://github.com/dyndynjyxa/aio-coding-hub/commit/bccd5c93110641898e04cd1cde031df604af637b))
+* **wsl:** 修复WSL适配器IPv4解析和状态脚本处理 ([06ae9b1](https://github.com/dyndynjyxa/aio-coding-hub/commit/06ae9b1f462572550f327c3afe4034179b1da491))
+
 ## [0.28.1](https://github.com/dyndynjyxa/aio-coding-hub/compare/aio-coding-hub-v0.28.0...aio-coding-hub-v0.28.1) (2026-02-16)
 
 

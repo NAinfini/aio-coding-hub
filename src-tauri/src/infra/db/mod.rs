@@ -226,6 +226,32 @@ pub fn init<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> AppResult<Db> {
     Ok(Db { pool })
 }
 
+#[cfg(test)]
+pub(crate) fn init_for_tests(path: &std::path::Path) -> AppResult<Db> {
+    let config = DbRuntimeConfig::from_env();
+    let manager = SqliteConnectionManager::file(path).with_init({
+        let config = config.clone();
+        move |conn| {
+            conn.busy_timeout(config.busy_timeout)?;
+            configure_connection(conn, &config)
+        }
+    });
+
+    let pool = Pool::builder()
+        .max_size(1)
+        .min_idle(Some(1))
+        .connection_timeout(config.pool_connection_timeout)
+        .build(manager)
+        .map_err(|e| db_err!("failed to create test db pool: {e}"))?;
+    let mut conn = pool
+        .get()
+        .map_err(|e| db_err!("failed to get startup connection: {e}"))?;
+
+    migrations::apply_migrations(&mut conn).map_err(|e| format!("sqlite migration failed: {e}"))?;
+
+    Ok(Db { pool })
+}
+
 fn db_optimize_enabled() -> bool {
     env::var("AIO_DB_ENABLE_OPTIMIZE")
         .ok()

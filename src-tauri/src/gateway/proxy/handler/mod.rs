@@ -839,71 +839,47 @@ pub(in crate::gateway) async fn proxy_impl(
         }
     };
 
-    if providers.is_empty() {
-        let contract = early_error_contract(EarlyErrorKind::NoEnabledProvider);
-        let message = no_enabled_provider_message(&cli_key);
-        let log_ctx = build_early_error_log_ctx(
-            &state,
-            &started,
-            trace_id.as_str(),
-            cli_key.as_str(),
-            method_hint.as_str(),
-            forwarded_path.as_str(),
-            query.as_deref(),
-            created_at_ms,
-            created_at,
-        );
-
-        return respond_early_error_with_enqueue(
-            &log_ctx,
-            contract,
-            message,
-            None,
-            session_id,
-            requested_model,
-        )
-        .await;
-    }
-
     force_provider_if_requested(&mut providers, forced_provider_id, &special_settings);
-
-    if providers.is_empty() {
-        let contract = early_error_contract(EarlyErrorKind::NoEnabledProvider);
-        let message = no_enabled_provider_message(&cli_key);
-        let log_ctx = build_early_error_log_ctx(
-            &state,
-            &started,
-            trace_id.as_str(),
-            cli_key.as_str(),
-            method_hint.as_str(),
-            forwarded_path.as_str(),
-            query.as_deref(),
-            created_at_ms,
-            created_at,
-        );
-
-        return respond_early_error_with_enqueue(
-            &log_ctx,
-            contract,
-            message,
-            None,
-            session_id,
-            requested_model,
-        )
-        .await;
-    }
 
     // NOTE: model whitelist filtering removed (Claude uses slot-based model mapping).
 
     let session_bound_provider_id = resolve_session_bound_provider_id(
-        &state,
+        &state.db,
+        state.session.as_ref(),
         &cli_key,
         session_id.as_deref(),
         created_at,
         allow_session_reuse,
+        forced_provider_id,
         &mut providers,
         bound_provider_order.as_deref(),
     );
+
+    if providers.is_empty() {
+        let contract = early_error_contract(EarlyErrorKind::NoEnabledProvider);
+        let message = no_enabled_provider_message(&cli_key);
+        let log_ctx = build_early_error_log_ctx(
+            &state,
+            &started,
+            trace_id.as_str(),
+            cli_key.as_str(),
+            method_hint.as_str(),
+            forwarded_path.as_str(),
+            query.as_deref(),
+            created_at_ms,
+            created_at,
+        );
+
+        return respond_early_error_with_enqueue(
+            &log_ctx,
+            contract,
+            message,
+            None,
+            session_id,
+            requested_model,
+        )
+        .await;
+    }
 
     let fingerprints = build_request_fingerprints(
         &cli_key,

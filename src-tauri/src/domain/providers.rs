@@ -769,6 +769,48 @@ pub(crate) fn list_enabled_for_gateway_in_mode(
     }
 }
 
+pub(crate) fn get_for_gateway_by_id(
+    db: &db::Db,
+    cli_key: &str,
+    provider_id: i64,
+) -> crate::shared::error::AppResult<Option<ProviderForGateway>> {
+    if provider_id <= 0 {
+        return Err(format!("SEC_INVALID_INPUT: invalid provider_id={provider_id}").into());
+    }
+
+    let cli_key = cli_key.trim();
+    validate_cli_key(cli_key)?;
+    let conn = db.open_connection()?;
+
+    let cli_key_owned = cli_key.to_string();
+    conn.query_row(
+        r#"
+SELECT
+  id,
+  name,
+  base_url,
+  base_urls_json,
+  base_url_mode,
+  api_key_plaintext,
+  claude_models_json,
+  limit_5h_usd,
+  limit_daily_usd,
+  daily_reset_mode,
+  daily_reset_time,
+  limit_weekly_usd,
+  limit_monthly_usd,
+  limit_total_usd
+FROM providers
+WHERE id = ?1
+  AND cli_key = ?2
+"#,
+        params![provider_id, cli_key],
+        |row| map_gateway_provider_row(row, &cli_key_owned),
+    )
+    .optional()
+    .map_err(|e| db_err!("failed to query gateway provider by id: {e}"))
+}
+
 fn next_sort_order(conn: &Connection, cli_key: &str) -> crate::shared::error::AppResult<i64> {
     conn.query_row(
         "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM providers WHERE cli_key = ?1",

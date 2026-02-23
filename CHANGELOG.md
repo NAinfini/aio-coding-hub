@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.30.1](https://github.com/dyndynjyxa/aio-coding-hub/compare/aio-coding-hub-v0.30.0...aio-coding-hub-v0.30.1) (2026-02-23)
+
+
+### Features
+
+* **settings:** 新增任务结束提醒开关和相关功能 ([2fb4022](https://github.com/dyndynjyxa/aio-coding-hub/commit/2fb4022ff2f1078238ced25188960f19da188260))
+* **taskCompleteNotifyEvents:** 改进任务完成通知的请求追踪与静默期控制 ([e3f03d4](https://github.com/dyndynjyxa/aio-coding-hub/commit/e3f03d4bf2276db371e170ee4739cd379b6d3fe5))
+
 ## [0.30.0](https://github.com/dyndynjyxa/aio-coding-hub/compare/aio-coding-hub-v0.29.1...aio-coding-hub-v0.30.0) (2026-02-23)
 
 

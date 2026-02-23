@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.30.2](https://github.com/dyndynjyxa/aio-coding-hub/compare/aio-coding-hub-v0.30.1...aio-coding-hub-v0.30.2) (2026-02-23)
+
+
+### Bug Fixes
+
+* **router:** 修复侧边栏快速点击导航卡死问题 ([8b1f862](https://github.com/dyndynjyxa/aio-coding-hub/commit/8b1f862542b8bd94770ab5f937772a53a4bd1d22))
+* **tauri:** 修复 Cargo.lock 同步及 CLI 代理切换后 MCP 同步问题 ([1854b00](https://github.com/dyndynjyxa/aio-coding-hub/commit/1854b00205b4b3a257b984b5a6c5271067b2545e))
+
 ## [0.30.1](https://github.com/dyndynjyxa/aio-coding-hub/compare/aio-coding-hub-v0.30.0...aio-coding-hub-v0.30.1) (2026-02-23)
 
 

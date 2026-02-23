@@ -19,11 +19,6 @@ import type { GatewayRequestEvent, GatewayRequestStartEvent } from "./gatewayEve
 
 /** 静默期：最后一次请求完成后等待多久判定任务结束（ms） */
 const QUIET_PERIOD_MS_DEFAULT = 30_000;
-const QUIET_PERIOD_MS_CODEX = 120_000;
-
-function quietPeriodMsForCli(cliKey: string): number {
-  return cliKey === "codex" ? QUIET_PERIOD_MS_CODEX : QUIET_PERIOD_MS_DEFAULT;
-}
 
 // ---------------------------------------------------------------------------
 // Module-level enabled flag (reactive via useSyncExternalStore)
@@ -205,10 +200,9 @@ function handleRequestComplete(payload: GatewayRequestEvent) {
   }
 
   if (session.inFlightTraceIds.size === 0) {
-    const quietPeriodMs = quietPeriodMsForCli(cli_key);
     session.pendingTimer = setTimeout(() => {
       void maybeNotify(cli_key);
-    }, quietPeriodMs);
+    }, QUIET_PERIOD_MS_DEFAULT);
   }
 }
 

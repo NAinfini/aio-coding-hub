@@ -77,5 +77,36 @@ fi
 
 if [ "$has_tauri_changes" = true ]; then
   echo "[pre-commit] Running Rust fast checks..."
-  pnpm run check:precommit:tauri
+  # 中文说明：当 src-tauri/Cargo.toml 发生变更但 Cargo.lock 未同步更新时，
+  # cargo --locked 会直接失败，问题常常被拖到 pre-push 才暴露。
+  # 这里在检测到典型报错后自动更新 Cargo.lock 并重新校验，减少反复踩坑。
+  tauri_log="$(mktemp -t aio-precommit-tauri.XXXXXX)"
+  if pnpm run check:precommit:tauri 2>&1 | tee "$tauri_log"; then
+    rm -f "$tauri_log"
+  else
+    if grep -q "needs to be updated but --locked was passed" "$tauri_log"; then
+      # Avoid auto-fixing when Cargo.lock is partially staged.
+      if ! git diff --quiet -- "src-tauri/Cargo.lock"; then
+        echo "[pre-commit] Detected unstaged changes in src-tauri/Cargo.lock."
+        echo "[pre-commit] Please stage it completely (or stash unstaged hunks), then retry the commit."
+        rm -f "$tauri_log"
+        exit 1
+      fi
+
+      echo "[pre-commit] Cargo.lock is stale, attempting to update it (offline first)..."
+      if (cd "src-tauri" && cargo check --offline); then
+        true
+      else
+        (cd "src-tauri" && cargo check)
+      fi
+      git add -- "src-tauri/Cargo.lock"
+
+      echo "[pre-commit] Re-running Rust fast checks with --locked..."
+      pnpm run check:precommit:tauri
+      rm -f "$tauri_log"
+    else
+      rm -f "$tauri_log"
+      exit 1
+    fi
+  fi
 fi

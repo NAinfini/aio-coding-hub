@@ -2,7 +2,7 @@
 
 use crate::app_state::{ensure_db_ready, DbInitState, GatewayState};
 use crate::shared::mutex_ext::MutexExt;
-use crate::{blocking, cli_proxy, settings};
+use crate::{blocking, cli_proxy, mcp, settings};
 use tauri::Emitter;
 use tauri::Manager;
 
@@ -62,11 +62,38 @@ pub(crate) async fn cli_proxy_set_enabled(
         .await?
     };
 
-    let result = blocking::run("cli_proxy_set_enabled_apply", move || {
-        cli_proxy::set_enabled(&app, &cli_key, enabled, &base_origin)
+    let result = blocking::run("cli_proxy_set_enabled_apply", {
+        let app = app.clone();
+        let cli_key = cli_key.clone();
+        move || cli_proxy::set_enabled(&app, &cli_key, enabled, &base_origin)
     })
     .await
     .map_err(Into::into);
+
+    // After successful proxy toggle, re-sync MCP servers to CLI config file.
+    // cli_proxy and mcp_sync both write to the same config file (e.g. ~/.codex/config.toml).
+    // Without this re-sync, MCP entries get lost during the backup/restore cycle.
+    if let Ok(ref r) = result {
+        if r.ok {
+            match ensure_db_ready(app.clone(), db_state.inner()).await {
+                Ok(db) => {
+                    let sync_app = app.clone();
+                    let sync_cli_key = cli_key.clone();
+                    if let Err(err) = blocking::run("cli_proxy_mcp_resync", move || {
+                        let conn = db.open_connection()?;
+                        mcp::sync_one_cli(&sync_app, &conn, &sync_cli_key)
+                    })
+                    .await
+                    {
+                        tracing::warn!(cli_key = %cli_key, "mcp re-sync after proxy toggle failed: {err}");
+                    }
+                }
+                Err(err) => {
+                    tracing::warn!(cli_key = %cli_key, "mcp re-sync skipped, db unavailable: {err}");
+                }
+            }
+        }
+    }
 
     match &result {
         Ok(r) if !r.ok => {

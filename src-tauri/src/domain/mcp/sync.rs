@@ -153,7 +153,7 @@ pub(super) fn sync_all_cli<R: tauri::Runtime>(
     Ok(())
 }
 
-pub(super) fn sync_one_cli<R: tauri::Runtime>(
+pub(crate) fn sync_one_cli<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     conn: &Connection,
     cli_key: &str,

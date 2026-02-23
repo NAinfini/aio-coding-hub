@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.29.1](https://github.com/dyndynjyxa/aio-coding-hub/compare/aio-coding-hub-v0.29.0...aio-coding-hub-v0.29.1) (2026-02-23)
+
+
+### Features
+
+* **ClaudeModelValidationDialog:** 添加综合协议验证功能与UI展示 ([b6ede30](https://github.com/dyndynjyxa/aio-coding-hub/commit/b6ede30e61e19f9af69e8d7153cbc711b3e3a180))
+* **gateway:** 支持会话绑定提供者的查询与恢复 ([cbfb17e](https://github.com/dyndynjyxa/aio-coding-hub/commit/cbfb17e385f6ee4689148c8630f56bed0c281c95))
+
+
+### Bug Fixes
+
+* **ci:** 修正发布流程中更新器 JSON 文件参数名称 ([9a4c0f0](https://github.com/dyndynjyxa/aio-coding-hub/commit/9a4c0f063bd645e3286e67f1607334a84a5cb6fd))
+* **proxy:** 允许 resolve_session_bound_provider_id 函数有多个参数 ([705457e](https://github.com/dyndynjyxa/aio-coding-hub/commit/705457eac5092ccd98a0f3523ea1986c67dd9d9c))
+
 ## [0.29.0](https://github.com/dyndynjyxa/aio-coding-hub/compare/aio-coding-hub-v0.28.2...aio-coding-hub-v0.29.0) (2026-02-22)
 
 

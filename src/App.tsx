@@ -217,7 +217,8 @@ export default function App() {
   return (
     <>
       <Toaster richColors closeButton position="top-center" style={TOASTER_STYLE} />
-      <HashRouter>
+      {/* 避免导航更新被 startTransition 降级后在启动高频更新阶段“饿死”，导致侧边栏快速点击无法切换 */}
+      <HashRouter unstable_useTransitions={false}>
         <Routes>
           <Route element={<AppLayout />}>
             <Route index element={<HomePage />} />

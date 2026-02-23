@@ -1,0 +1,34 @@
+import { render } from "@testing-library/react";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { describe, expect, it, vi } from "vitest";
+import { createTestQueryClient } from "../test/utils/reactQuery";
+
+const hashRouterPropsRef = vi.hoisted(() => ({
+  current: null as any,
+}));
+
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
+  return {
+    ...actual,
+    HashRouter: (props: any) => {
+      hashRouterPropsRef.current = props;
+      return <actual.HashRouter {...props} />;
+    },
+  };
+});
+
+describe("router config", () => {
+  it("disables startTransition-wrapped router updates to keep navigation responsive", async () => {
+    const { default: App } = await import("../App");
+
+    const client = createTestQueryClient();
+    render(
+      <QueryClientProvider client={client}>
+        <App />
+      </QueryClientProvider>
+    );
+
+    expect(hashRouterPropsRef.current?.unstable_useTransitions).toBe(false);
+  });
+});

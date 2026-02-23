@@ -181,9 +181,11 @@ function MetricCard({
   subValue?: string;
 }) {
   return (
-    <div className="flex flex-col gap-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 shadow-sm">
-      <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
-        {Icon && <Icon className="h-3.5 w-3.5" />}
+    <div className="group flex flex-col gap-1.5 rounded-xl border border-slate-200/60 dark:border-slate-700/60 bg-white/50 dark:bg-slate-800/50 p-3.5 shadow-sm transition-all hover:bg-white dark:hover:bg-slate-800 hover:shadow-md">
+      <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        {Icon && (
+          <Icon className="h-4 w-4 text-slate-400 group-hover:text-indigo-500 transition-colors" />
+        )}
         {label}
       </div>
       <div className="flex items-baseline gap-1.5">

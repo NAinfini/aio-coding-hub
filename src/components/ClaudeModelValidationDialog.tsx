@@ -1840,7 +1840,7 @@ export function ClaudeModelValidationDialog({
       open={open}
       onOpenChange={handleOpenChange}
       title={title}
-      className="sm:max-w-6xl md:max-w-6xl lg:max-w-6xl"
+      className="max-w-[95vw] sm:max-w-[95vw] md:max-w-[95vw] lg:max-w-[95vw] xl:max-w-[1600px] 2xl:max-w-[1800px] w-full"
     >
       {!provider ? (
         <div className="flex h-40 items-center justify-center text-sm text-slate-500 dark:text-slate-400">
@@ -1849,31 +1849,35 @@ export function ClaudeModelValidationDialog({
       ) : (
         <div className="space-y-6">
           {/* Provider Info Banner */}
-          <div className="flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 px-4 py-3 text-sm backdrop-blur-sm">
-            <div className="flex items-center gap-4 text-slate-700 dark:text-slate-300">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white dark:bg-slate-700 shadow-sm ring-1 ring-slate-200 dark:ring-slate-600">
-                  <Server className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+          <div className="flex flex-wrap items-center justify-between rounded-2xl border border-slate-200/60 dark:border-slate-700/60 bg-white/50 dark:bg-slate-900/30 px-5 py-4 text-sm shadow-sm backdrop-blur-md">
+            <div className="flex flex-wrap items-center gap-6 text-slate-700 dark:text-slate-300">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-50 to-white dark:from-indigo-950/50 dark:to-slate-900 shadow-sm ring-1 ring-indigo-100 dark:ring-indigo-800/50">
+                  <Server className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
                 </div>
                 <div>
-                  <div className="text-xs text-slate-500 dark:text-slate-400">服务商</div>
-                  <div className="font-semibold text-slate-900 dark:text-slate-100">
+                  <div className="text-[11px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    服务商
+                  </div>
+                  <div className="font-semibold text-slate-900 dark:text-slate-100 text-base">
                     {provider.name}
                   </div>
                 </div>
               </div>
-              <div className="h-8 w-px bg-slate-200 dark:bg-slate-700" />
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white dark:bg-slate-700 shadow-sm ring-1 ring-slate-200 dark:ring-slate-600">
-                  <Network className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+              <div className="hidden h-10 w-px bg-slate-200 dark:bg-slate-700 sm:block" />
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-sky-50 to-white dark:from-sky-950/50 dark:to-slate-900 shadow-sm ring-1 ring-sky-100 dark:ring-sky-800/50">
+                  <Network className="h-5 w-5 text-sky-600 dark:text-sky-400" />
                 </div>
                 <div>
-                  <div className="text-xs text-slate-500 dark:text-slate-400">模式</div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-medium text-slate-900 dark:text-slate-100">
+                  <div className="text-[11px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    模式
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-slate-900 dark:text-slate-100">
                       {provider.base_url_mode === "ping" ? "自动测速" : "顺序轮询"}
                     </span>
-                    <span className="inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 text-[10px] text-slate-500 dark:text-slate-400">
+                    <span className="inline-flex items-center rounded-md bg-slate-100/80 dark:bg-slate-800 px-2 py-0.5 text-xs font-medium text-slate-600 dark:text-slate-300 ring-1 ring-inset ring-slate-200 dark:ring-slate-700">
                       {provider.base_urls.length} 个地址
                     </span>
                   </div>
@@ -1882,21 +1886,21 @@ export function ClaudeModelValidationDialog({
             </div>
           </div>
 
-          <div className="grid gap-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-800/30 p-4 sm:grid-cols-12">
+          <div className="grid gap-5 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 bg-slate-50/40 dark:bg-slate-800/40 p-5 sm:grid-cols-12 shadow-sm">
             <div className="sm:col-span-4">
               <FormField
-                label="服务端点 (Endpoint)"
-                hint={provider.base_url_mode === "ping" && baseUrlPicking ? "测试中..." : null}
+                label="Endpoint"
+                hint={provider.base_url_mode === "ping" && baseUrlPicking ? "测速中..." : null}
               >
                 <Select
                   value={baseUrl}
                   onChange={(e) => setBaseUrl(e.currentTarget.value)}
                   disabled={validating}
                   mono
-                  className="h-9 bg-white dark:bg-slate-800 text-xs"
+                  className="h-10 bg-white/80 dark:bg-slate-900/80 text-xs shadow-sm"
                 >
                   <option value="" disabled>
-                    选择服务端点...
+                    选择 Endpoint...
                   </option>
                   {provider.base_urls.map((url) => (
                     <option key={url} value={url}>
@@ -1908,16 +1912,16 @@ export function ClaudeModelValidationDialog({
             </div>
 
             <div className="sm:col-span-4">
-              <FormField label="模型 (Model)" hint={modelPricesLoading ? "加载中..." : null}>
+              <FormField label="Model">
                 <Select
                   value={model}
                   onChange={(e) => setModel(e.currentTarget.value)}
                   disabled={validating || modelPricesLoading || modelOptions.length === 0}
                   mono
-                  className="h-9 bg-white dark:bg-slate-900 text-xs"
+                  className="h-10 bg-white/80 dark:bg-slate-900/80 text-xs shadow-sm"
                 >
                   <option value="" disabled>
-                    {modelOptions.length === 0 ? "无可用模型" : "选择模型..."}
+                    {modelOptions.length === 0 ? "无可用模型" : "选择 Model..."}
                   </option>
                   {!modelOptions.includes(model) && model.trim() ? (
                     <option value={model}>{model} (当前)</option>
@@ -1937,7 +1941,7 @@ export function ClaudeModelValidationDialog({
                 variant="primary"
                 size="md"
                 disabled={validating}
-                className="w-full h-9 shadow-sm"
+                className="w-full h-10 shadow-sm"
               >
                 {validating ? (
                   <>
@@ -1959,8 +1963,8 @@ export function ClaudeModelValidationDialog({
             {hasCrossProviderTemplate && crossProviderOptions.length > 0 && (
               <div className="sm:col-span-12">
                 <FormField
-                  label="跨供应商验证（官方供应商）"
-                  hint="用于跨供应商 signature 验证：Step3 将发送到此供应商进行签名验证"
+                  label="Cross-Provider Validation"
+                  hint="用于 Step3 的跨供应商 Signature 验证"
                 >
                   <Select
                     value={crossProviderId?.toString() ?? ""}
@@ -1969,7 +1973,7 @@ export function ClaudeModelValidationDialog({
                       setCrossProviderId(val ? parseInt(val, 10) : null);
                     }}
                     disabled={validating}
-                    className="h-9 bg-white dark:bg-slate-900 text-xs"
+                    className="h-10 bg-white/80 dark:bg-slate-900/80 text-xs shadow-sm"
                   >
                     <option value="">选择官方供应商...</option>
                     {crossProviderOptions.map((p) => (
@@ -1983,15 +1987,15 @@ export function ClaudeModelValidationDialog({
             )}
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-7 h-[600px]">
-            {/* Left Column: History List (2/7) */}
-            <div className="flex flex-col gap-4 lg:col-span-2 h-full min-h-0">
+          <div className="grid gap-6 lg:grid-cols-12 h-[70vh] min-h-[600px] max-h-[800px]">
+            {/* Left Column: History List */}
+            <div className="flex flex-col gap-4 lg:col-span-4 h-full min-h-0">
               <Card padding="none" className="flex h-full flex-col overflow-hidden">
                 <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 px-4 py-3">
                   <div className="flex items-center gap-2">
                     <History className="h-4 w-4 text-slate-500 dark:text-slate-400" />
                     <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                      历史记录
+                      History
                     </span>
                   </div>
                   <div className="flex items-center gap-1">
@@ -2034,7 +2038,7 @@ export function ClaudeModelValidationDialog({
                   ) : historyGroups.length === 0 ? (
                     <div className="flex h-40 flex-col items-center justify-center gap-2 text-slate-400 dark:text-slate-500">
                       <History className="h-8 w-8 text-slate-200 dark:text-slate-600" />
-                      <span className="text-xs">暂无历史记录</span>
+                      <span className="text-xs">No History</span>
                     </div>
                   ) : (
                     <div className="custom-scrollbar h-full overflow-y-auto p-3 space-y-2">
@@ -2204,8 +2208,8 @@ export function ClaudeModelValidationDialog({
               </Card>
             </div>
 
-            {/* Right Column: Details Pane (5/7) */}
-            <div className="flex flex-col gap-4 lg:col-span-5 h-full min-h-0 overflow-y-auto custom-scrollbar pr-1">
+            {/* Right Column: Details Pane */}
+            <div className="flex flex-col gap-4 lg:col-span-8 h-full min-h-0 overflow-y-auto custom-scrollbar pr-1">
               <div className="sticky top-0 z-20 bg-white/90 dark:bg-slate-900/80 backdrop-blur border-b border-slate-100 dark:border-slate-700 pb-3 pt-2">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
@@ -2213,30 +2217,30 @@ export function ClaudeModelValidationDialog({
                       {suiteSteps.length > 0 && !selectedHistoryGroup ? (
                         <>
                           <Activity className="h-4 w-4 text-sky-500" />
-                          当前运行
+                          Running
                         </>
                       ) : selectedHistoryGroup ? (
                         <>
                           <History className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-                          历史记录详情
+                          Details
                         </>
                       ) : (
                         <>
                           <Settings2 className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-                          准备就绪
+                          Ready
                         </>
                       )}
                     </div>
                     <div className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">
                       {selectedHistoryGroup
                         ? selectedHistoryGroup.isSuite
-                          ? `测试套件 #${selectedHistoryGroup.latestRunId} · ${formatUnixSeconds(selectedHistoryGroup.createdAt)}${suiteHeaderMetaText ? ` · ${suiteHeaderMetaText}` : ""}`
-                          : `验证记录 #${selectedHistoryGroup.latestRunId} · ${formatUnixSeconds(selectedHistoryGroup.createdAt)}`
+                          ? `Suite #${selectedHistoryGroup.latestRunId} · ${formatUnixSeconds(selectedHistoryGroup.createdAt)}${suiteHeaderMetaText ? ` · ${suiteHeaderMetaText}` : ""}`
+                          : `Log #${selectedHistoryGroup.latestRunId} · ${formatUnixSeconds(selectedHistoryGroup.createdAt)}`
                         : suiteSteps.length > 0
-                          ? `正在执行 ${suiteProgress?.current ?? 0}/${suiteSteps.length} 个模板...${suiteHeaderMetaText ? ` · ${suiteHeaderMetaText}` : ""}`
+                          ? `Running ${suiteProgress?.current ?? 0}/${suiteSteps.length} templates...${suiteHeaderMetaText ? ` · ${suiteHeaderMetaText}` : ""}`
                           : activeResult
-                            ? "最新结果 (未保存)"
-                            : "等待验证..."}
+                            ? "Latest (Unsaved)"
+                            : "Waiting..."}
                     </div>
                   </div>
                 </div>
@@ -3176,11 +3180,11 @@ export function ClaudeModelValidationDialog({
                       确认清空历史？
                     </div>
                     <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                      将清空{" "}
+                      即将清空{" "}
                       <span className="font-medium text-slate-900 dark:text-slate-100">
-                        {provider?.name ?? "当前 Provider"}
+                        {provider?.name ?? "Provider"}
                       </span>{" "}
-                      的模型验证历史（按 provider_id 隔离），且无法撤销。
+                      的验证历史，操作不可撤销。
                     </div>
                   </div>
                   <div className="flex items-center justify-end gap-2 px-5 py-4">

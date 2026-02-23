@@ -37,7 +37,7 @@ export const DialogContent = forwardRef<
               "dark:bg-slate-800 dark:border-slate-700 dark:shadow-slate-900/50",
               "flex max-h-[calc(100vh-2rem)] flex-col outline-none",
               "rounded-xl sm:rounded-2xl",
-              "max-w-[calc(100vw-2rem)] sm:max-w-lg md:max-w-xl lg:max-w-3xl",
+              "max-w-[calc(100vw-2rem)]",
             ].join(" "),
             className
           )}

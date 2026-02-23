@@ -2,7 +2,7 @@
  * 任务结束提醒模块
  *
  * 监听 gateway:request / gateway:request_start 事件，使用去抖机制检测 AI CLI 任务完成。
- * 当某个 cli_key 在静默期（QUIET_PERIOD_MS_*）内无新请求时，判定任务完成并发送系统通知。
+ * 当某个 cli_key 在静默期（QUIET_PERIOD_MS_DEFAULT）内无新请求时，判定任务完成并发送系统通知。
  *
  * 参考：https://github.com/ZekerTop/ai-cli-complete-notify
  */

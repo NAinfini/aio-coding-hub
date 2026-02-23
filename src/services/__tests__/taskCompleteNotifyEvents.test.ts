@@ -258,7 +258,7 @@ describe("services/taskCompleteNotifyEvents", () => {
     vi.useRealTimers();
   });
 
-  it("uses longer quiet period for codex to avoid mid-task idle gaps", async () => {
+  it("uses default quiet period for codex (no extra delay)", async () => {
     setTauriRuntime();
     vi.useFakeTimers();
     vi.setSystemTime(1_700_000_000_000);
@@ -271,12 +271,17 @@ describe("services/taskCompleteNotifyEvents", () => {
     emitTauriEvent("gateway:request_start", requestStartWithTrace("codex", "t-1", "gpt-4.1"));
     emitTauriEvent("gateway:request", requestEvent("codex", "t-1"));
 
-    // Codex quiet period is 120s, so 30s should not trigger.
-    await vi.advanceTimersByTimeAsync(30_000);
+    // Quiet period is 30s; verify it doesn't fire early.
+    await vi.advanceTimersByTimeAsync(25_000);
     expect(noticeSend).not.toHaveBeenCalled();
 
-    await vi.advanceTimersByTimeAsync(90_000);
+    await vi.advanceTimersByTimeAsync(5_000);
     expect(noticeSend).toHaveBeenCalledTimes(1);
+    expect(noticeSend).toHaveBeenCalledWith({
+      level: "info",
+      title: "任务完成",
+      body: expect.stringContaining("Codex 请求已完成（gpt-4.1）"),
+    });
 
     cleanup();
     vi.useRealTimers();

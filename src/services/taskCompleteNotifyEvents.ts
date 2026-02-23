@@ -2,7 +2,7 @@
  * 任务结束提醒模块
  *
  * 监听 gateway:request / gateway:request_start 事件，使用去抖机制检测 AI CLI 任务完成。
- * 当某个 cli_key 在静默期（QUIET_PERIOD_MS）内无新请求时，判定任务完成并发送系统通知。
+ * 当某个 cli_key 在静默期（QUIET_PERIOD_MS_*）内无新请求时，判定任务完成并发送系统通知。
  *
  * 参考：https://github.com/ZekerTop/ai-cli-complete-notify
  */
@@ -19,6 +19,11 @@ import type { GatewayRequestEvent, GatewayRequestStartEvent } from "./gatewayEve
 
 /** 静默期：最后一次请求完成后等待多久判定任务结束（ms） */
 const QUIET_PERIOD_MS_DEFAULT = 30_000;
+const QUIET_PERIOD_MS_CODEX = 120_000;
+
+function quietPeriodMsForCli(cliKey: string): number {
+  return cliKey === "codex" ? QUIET_PERIOD_MS_CODEX : QUIET_PERIOD_MS_DEFAULT;
+}
 
 // ---------------------------------------------------------------------------
 // Module-level enabled flag (reactive via useSyncExternalStore)
@@ -64,8 +69,15 @@ type SessionState = {
   lastRequestAt: number;
   /** 本轮会话请求计数 */
   requestCount: number;
-  /** 当前 in-flight 请求数（用于避免并发/长请求导致的误通知） */
-  inFlight: number;
+  /**
+   * 当前 in-flight 请求集合（按 trace_id 去重）。
+   *
+   * 关键点：
+   * - 必须按 trace_id 追踪，否则当出现“request 完成事件但缺失对应 start 事件”
+   *   （例如某些早期错误路径未 emit request_start）时，会把其它正在 in-flight 的请求错误减到 0，
+   *   导致静默定时器误触发通知。
+   */
+  inFlightTraceIds: Set<string>;
   /** 最后使用的模型名（来自 request_start） */
   lastRequestedModel: string | null;
   /** 去抖定时器 ID */
@@ -125,7 +137,7 @@ function resetSessions() {
 function handleRequestStart(payload: GatewayRequestStartEvent) {
   if (!enabled) return;
 
-  const { cli_key, requested_model } = payload;
+  const { cli_key, requested_model, trace_id } = payload;
   const now = Date.now();
   let session = sessions.get(cli_key);
 
@@ -141,7 +153,7 @@ function handleRequestStart(payload: GatewayRequestStartEvent) {
       firstRequestAt: now,
       lastRequestAt: now,
       requestCount: 0,
-      inFlight: 0,
+      inFlightTraceIds: new Set(),
       lastRequestedModel: null,
       pendingTimer: null,
       notified: false,
@@ -155,7 +167,7 @@ function handleRequestStart(payload: GatewayRequestStartEvent) {
     session.pendingTimer = null;
   }
 
-  session.inFlight += 1;
+  if (trace_id) session.inFlightTraceIds.add(trace_id);
 
   const model = normalizeModelName(requested_model);
   if (model) session.lastRequestedModel = model;
@@ -164,7 +176,7 @@ function handleRequestStart(payload: GatewayRequestStartEvent) {
 function handleRequestComplete(payload: GatewayRequestEvent) {
   if (!enabled) return;
 
-  const { cli_key } = payload;
+  const { cli_key, trace_id } = payload;
   const now = Date.now();
 
   let session = sessions.get(cli_key);
@@ -173,7 +185,7 @@ function handleRequestComplete(payload: GatewayRequestEvent) {
       firstRequestAt: now,
       lastRequestAt: now,
       requestCount: 0,
-      inFlight: 0,
+      inFlightTraceIds: new Set(),
       lastRequestedModel: null,
       pendingTimer: null,
       notified: false,
@@ -184,7 +196,7 @@ function handleRequestComplete(payload: GatewayRequestEvent) {
   session.lastRequestAt = now;
   session.requestCount += 1;
   session.notified = false;
-  session.inFlight = Math.max(0, session.inFlight - 1);
+  if (trace_id) session.inFlightTraceIds.delete(trace_id);
 
   // 清除旧定时器（若仍有 in-flight 请求，不应开启静默结束倒计时）
   if (session.pendingTimer != null) {
@@ -192,10 +204,11 @@ function handleRequestComplete(payload: GatewayRequestEvent) {
     session.pendingTimer = null;
   }
 
-  if (session.inFlight === 0) {
+  if (session.inFlightTraceIds.size === 0) {
+    const quietPeriodMs = quietPeriodMsForCli(cli_key);
     session.pendingTimer = setTimeout(() => {
       void maybeNotify(cli_key);
-    }, QUIET_PERIOD_MS_DEFAULT);
+    }, quietPeriodMs);
   }
 }
 
@@ -203,7 +216,7 @@ async function maybeNotify(cliKey: string) {
   const session = sessions.get(cliKey);
   if (!session) return;
   if (session.notified) return;
-  if (session.inFlight > 0) return;
+  if (session.inFlightTraceIds.size > 0) return;
 
   // 检查 enabled 标志（实时生效）
   if (!enabled) {

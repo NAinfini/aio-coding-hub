@@ -105,6 +105,7 @@ pub(super) fn apply_session_reuse_provider_binding(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn resolve_session_bound_provider_id(
     db: &crate::db::Db,
     session: &session_manager::SessionManager,

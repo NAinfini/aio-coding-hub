@@ -48,6 +48,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   enable_thinking_signature_rectifier: true,
   enable_codex_session_id_completion: true,
   enable_cache_anomaly_monitor: false,
+  enable_task_complete_notify: true,
   enable_response_fixer: true,
   response_fixer_fix_encoding: true,
   response_fixer_fix_sse_format: true,

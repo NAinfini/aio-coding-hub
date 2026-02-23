@@ -11,7 +11,7 @@ import { SettingsRow } from "../../../ui/SettingsRow";
 import { Switch } from "../../../ui/Switch";
 import { NetworkSettingsCard } from "../NetworkSettingsCard";
 import { WslSettingsCard } from "../WslSettingsCard";
-import { AlertTriangle, Shield, TrendingDown } from "lucide-react";
+import { AlertTriangle, Bell, Shield, TrendingDown } from "lucide-react";
 
 export type CliManagerAvailability = "checking" | "available" | "unavailable";
 
@@ -32,6 +32,10 @@ export type CliManagerGeneralTabProps = {
   cacheAnomalyMonitorEnabled: boolean;
   cacheAnomalyMonitorSaving: boolean;
   onPersistCacheAnomalyMonitor: (enable: boolean) => Promise<void> | void;
+
+  taskCompleteNotifyEnabled: boolean;
+  taskCompleteNotifySaving: boolean;
+  onPersistTaskCompleteNotify: (enable: boolean) => Promise<void> | void;
 
   appSettings: AppSettings | null;
   commonSettingsSaving: boolean;
@@ -70,6 +74,9 @@ export function CliManagerGeneralTab({
   cacheAnomalyMonitorEnabled,
   cacheAnomalyMonitorSaving,
   onPersistCacheAnomalyMonitor,
+  taskCompleteNotifyEnabled,
+  taskCompleteNotifySaving,
+  onPersistTaskCompleteNotify,
   appSettings,
   commonSettingsSaving,
   onPersistCommonSettings,
@@ -265,6 +272,39 @@ export function CliManagerGeneralTab({
                   checked={cacheAnomalyMonitorEnabled}
                   onCheckedChange={(checked) => void onPersistCacheAnomalyMonitor(checked)}
                   disabled={cacheAnomalyMonitorSaving || rectifierAvailable !== "available"}
+                />
+              )}
+            </div>
+          </div>
+        </Card>
+
+        <Card className="md:col-span-2">
+          <div className="mb-4 flex items-start gap-4">
+            <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg text-blue-600 dark:text-blue-400">
+              <Bell className="h-6 w-6" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                任务结束提醒
+              </h3>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                当 AI CLI 工具（Claude/Gemini：30 秒；Codex：120 秒）请求结束后静默无新请求时，
+                发送系统通知提醒你任务已完成。
+              </p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                <span className="text-xs text-amber-600/80 dark:text-amber-400/80">
+                  * 需在系统设置中授予通知权限
+                </span>
+              </p>
+            </div>
+            <div className="pt-1">
+              {rectifierAvailable === "unavailable" ? (
+                <span className="text-xs text-slate-400">不可用</span>
+              ) : (
+                <Switch
+                  checked={taskCompleteNotifyEnabled}
+                  onCheckedChange={(checked) => void onPersistTaskCompleteNotify(checked)}
+                  disabled={taskCompleteNotifySaving || rectifierAvailable !== "available"}
                 />
               )}
             </div>

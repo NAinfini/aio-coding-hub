@@ -9,7 +9,7 @@ use std::sync::{OnceLock, RwLock};
 use std::time::{Duration, Instant};
 use tauri::Manager;
 
-pub const SCHEMA_VERSION: u32 = 16;
+pub const SCHEMA_VERSION: u32 = 17;
 const SCHEMA_VERSION_DISABLE_UPSTREAM_TIMEOUTS: u32 = 7;
 const SCHEMA_VERSION_ADD_GATEWAY_RECTIFIERS: u32 = 8;
 const SCHEMA_VERSION_ADD_CIRCUIT_BREAKER_NOTICE: u32 = 9;
@@ -20,6 +20,7 @@ const SCHEMA_VERSION_ADD_RESPONSE_FIXER_LIMITS: u32 = 13;
 const SCHEMA_VERSION_ADD_CLI_PROXY_STARTUP_RECOVERY: u32 = 14;
 const SCHEMA_VERSION_ADD_CACHE_ANOMALY_MONITOR: u32 = 15;
 const SCHEMA_VERSION_ADD_WSL_HOST_ADDRESS_MODE: u32 = 16;
+const SCHEMA_VERSION_ADD_TASK_COMPLETE_NOTIFY: u32 = 17;
 pub const DEFAULT_GATEWAY_PORT: u16 = 37123;
 pub const MAX_GATEWAY_PORT: u16 = 37199;
 const DEFAULT_LOG_RETENTION_DAYS: u32 = 7;
@@ -37,6 +38,7 @@ const DEFAULT_INTERCEPT_ANTHROPIC_WARMUP_REQUESTS: bool = false;
 const DEFAULT_ENABLE_THINKING_SIGNATURE_RECTIFIER: bool = true;
 const DEFAULT_ENABLE_CODEX_SESSION_ID_COMPLETION: bool = true;
 const DEFAULT_ENABLE_CACHE_ANOMALY_MONITOR: bool = false;
+const DEFAULT_ENABLE_TASK_COMPLETE_NOTIFY: bool = true;
 const DEFAULT_ENABLE_RESPONSE_FIXER: bool = true;
 const DEFAULT_ENABLE_CLI_PROXY_STARTUP_RECOVERY: bool = true;
 const DEFAULT_RESPONSE_FIXER_FIX_ENCODING: bool = true;
@@ -155,6 +157,8 @@ pub struct AppSettings {
     pub enable_codex_session_id_completion: bool,
     // Cache anomaly monitor (default disabled).
     pub enable_cache_anomaly_monitor: bool,
+    // Task complete notification (default enabled).
+    pub enable_task_complete_notify: bool,
     // Response fixer (default enabled).
     pub enable_response_fixer: bool,
     pub response_fixer_fix_encoding: bool,
@@ -196,6 +200,7 @@ impl Default for AppSettings {
             enable_thinking_signature_rectifier: DEFAULT_ENABLE_THINKING_SIGNATURE_RECTIFIER,
             enable_codex_session_id_completion: DEFAULT_ENABLE_CODEX_SESSION_ID_COMPLETION,
             enable_cache_anomaly_monitor: DEFAULT_ENABLE_CACHE_ANOMALY_MONITOR,
+            enable_task_complete_notify: DEFAULT_ENABLE_TASK_COMPLETE_NOTIFY,
             enable_response_fixer: DEFAULT_ENABLE_RESPONSE_FIXER,
             response_fixer_fix_encoding: DEFAULT_RESPONSE_FIXER_FIX_ENCODING,
             response_fixer_fix_sse_format: DEFAULT_RESPONSE_FIXER_FIX_SSE_FORMAT,
@@ -513,6 +518,18 @@ fn migrate_add_wsl_host_address_mode(
     )
 }
 
+fn migrate_add_task_complete_notify(
+    settings: &mut AppSettings,
+    schema_version_present: bool,
+) -> bool {
+    // v17: Add task complete notification toggle (default enabled).
+    migrate_bump_schema_version(
+        settings,
+        schema_version_present,
+        SCHEMA_VERSION_ADD_TASK_COMPLETE_NOTIFY,
+    )
+}
+
 fn settings_path(app: &tauri::AppHandle) -> AppResult<PathBuf> {
     Ok(app_paths::app_data_dir(app)?.join("settings.json"))
 }
@@ -629,6 +646,7 @@ pub fn read(app: &tauri::AppHandle) -> AppResult<AppSettings> {
                 migrate_add_cli_proxy_startup_recovery(&mut settings, schema_version_present);
             repaired |= migrate_add_cache_anomaly_monitor(&mut settings, schema_version_present);
             repaired |= migrate_add_wsl_host_address_mode(&mut settings, schema_version_present);
+            repaired |= migrate_add_task_complete_notify(&mut settings, schema_version_present);
             repaired |= sanitize_failover_settings(&mut settings);
             repaired |= sanitize_circuit_breaker_settings(&mut settings);
             repaired |= sanitize_provider_cooldown_seconds(&mut settings);
@@ -694,6 +712,7 @@ pub fn read(app: &tauri::AppHandle) -> AppResult<AppSettings> {
     repaired |= migrate_add_cli_proxy_startup_recovery(&mut settings, schema_version_present);
     repaired |= migrate_add_cache_anomaly_monitor(&mut settings, schema_version_present);
     repaired |= migrate_add_wsl_host_address_mode(&mut settings, schema_version_present);
+    repaired |= migrate_add_task_complete_notify(&mut settings, schema_version_present);
     repaired |= sanitize_failover_settings(&mut settings);
     repaired |= sanitize_circuit_breaker_settings(&mut settings);
     repaired |= sanitize_provider_cooldown_seconds(&mut settings);

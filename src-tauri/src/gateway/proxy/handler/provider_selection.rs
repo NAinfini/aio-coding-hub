@@ -184,7 +184,7 @@ mod tests {
     }
 
     #[test]
-    fn resolve_session_bound_provider_id_inserts_disabled_bound_provider() {
+    fn resolve_session_bound_provider_id_skips_disabled_bound_provider() {
         let dir = tempfile::tempdir().expect("tempdir");
         let db_path = dir.path().join("test.db");
         let db = crate::db::init_for_tests(&db_path).expect("init db");
@@ -217,8 +217,9 @@ mod tests {
             Some(&order),
         );
 
-        assert_eq!(selected, Some(id1));
-        assert_eq!(ids(&enabled), vec![id1, id2]);
+        // Disabled provider must NOT be re-inserted; fall through to next enabled provider
+        assert_eq!(selected, None);
+        assert_eq!(ids(&enabled), vec![id2]);
     }
 
     #[test]

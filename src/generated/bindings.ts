@@ -55,6 +55,7 @@ export type AppSettings = {
   enable_thinking_signature_rectifier: boolean;
   enable_codex_session_id_completion: boolean;
   enable_cache_anomaly_monitor: boolean;
+  enable_task_complete_notify: boolean;
   enable_response_fixer: boolean;
   response_fixer_fix_encoding: boolean;
   response_fixer_fix_sse_format: boolean;
@@ -82,6 +83,7 @@ export type SettingsUpdate = {
   interceptAnthropicWarmupRequests: boolean | null;
   enableThinkingSignatureRectifier: boolean | null;
   enableCacheAnomalyMonitor: boolean | null;
+  enableTaskCompleteNotify: boolean | null;
   enableResponseFixer: boolean | null;
   responseFixerFixEncoding: boolean | null;
   responseFixerFixSseFormat: boolean | null;

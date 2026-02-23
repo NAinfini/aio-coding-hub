@@ -13,6 +13,10 @@ import { listenGatewayEvents } from "./services/gatewayEvents";
 import { listenNoticeEvents } from "./services/noticeEvents";
 import { settingsGet } from "./services/settings";
 import {
+  listenTaskCompleteNotifyEvents,
+  setTaskCompleteNotifyEnabled,
+} from "./services/taskCompleteNotifyEvents";
+import {
   startupSyncDefaultPromptsFromFilesOncePerSession,
   startupSyncModelPricesOnce,
 } from "./services/startup";
@@ -153,10 +157,36 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    let cleanup: (() => void) | null = null;
+
+    listenTaskCompleteNotifyEvents()
+      .then((unlisten) => {
+        if (cancelled) {
+          unlisten();
+          return;
+        }
+        cleanup = unlisten;
+      })
+      .catch((error) => {
+        logToConsole("warn", "任务结束提醒监听初始化失败", {
+          stage: "listenTaskCompleteNotifyEvents",
+          error: String(error),
+        });
+      });
+
+    return () => {
+      cancelled = true;
+      cleanup?.();
+    };
+  }, []);
+
+  useEffect(() => {
     settingsGet()
       .then((settings) => {
         if (!settings) return;
         setCacheAnomalyMonitorEnabled(settings.enable_cache_anomaly_monitor ?? false);
+        setTaskCompleteNotifyEnabled(settings.enable_task_complete_notify ?? true);
       })
       .catch((error) => {
         logToConsole("warn", "启动缓存异常监测开关同步失败", {

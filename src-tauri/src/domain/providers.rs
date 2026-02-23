@@ -803,6 +803,7 @@ SELECT
 FROM providers
 WHERE id = ?1
   AND cli_key = ?2
+  AND enabled = 1
 "#,
         params![provider_id, cli_key],
         |row| map_gateway_provider_row(row, &cli_key_owned),

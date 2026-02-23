@@ -18,6 +18,10 @@ import {
   useCacheAnomalyMonitorEnabled,
 } from "../services/cacheAnomalyMonitor";
 import {
+  setTaskCompleteNotifyEnabled,
+  useTaskCompleteNotifyEnabled,
+} from "../services/taskCompleteNotifyEvents";
+import {
   useSettingsCircuitBreakerNoticeSetMutation,
   useSettingsCodexSessionIdCompletionSetMutation,
   useSettingsGatewayRectifierSetMutation,
@@ -106,6 +110,7 @@ export function CliManagerPage() {
   const [circuitBreakerNoticeEnabled, setCircuitBreakerNoticeEnabled] = useState(false);
   const [codexSessionIdCompletionEnabled, setCodexSessionIdCompletionEnabled] = useState(true);
   const cacheAnomalyMonitorEnabled = useCacheAnomalyMonitorEnabled();
+  const taskCompleteNotifyEnabled = useTaskCompleteNotifyEnabled();
   const [upstreamFirstByteTimeoutSeconds, setUpstreamFirstByteTimeoutSeconds] = useState<number>(0);
   const [upstreamStreamIdleTimeoutSeconds, setUpstreamStreamIdleTimeoutSeconds] =
     useState<number>(0);
@@ -176,6 +181,7 @@ export function CliManagerPage() {
     setCircuitBreakerNoticeEnabled(appSettings.enable_circuit_breaker_notice ?? false);
     setCodexSessionIdCompletionEnabled(appSettings.enable_codex_session_id_completion ?? true);
     setCacheAnomalyMonitorEnabled(appSettings.enable_cache_anomaly_monitor ?? false);
+    setTaskCompleteNotifyEnabled(appSettings.enable_task_complete_notify ?? true);
     setUpstreamFirstByteTimeoutSeconds(appSettings.upstream_first_byte_timeout_seconds);
     setUpstreamStreamIdleTimeoutSeconds(appSettings.upstream_stream_idle_timeout_seconds);
     setUpstreamRequestTimeoutNonStreamingSeconds(
@@ -286,6 +292,27 @@ export function CliManagerPage() {
     }
   }
 
+  async function persistTaskCompleteNotify(enable: boolean) {
+    if (commonSettingsSaving) return;
+    if (rectifierAvailable !== "available") return;
+
+    const prev = taskCompleteNotifyEnabled;
+    setTaskCompleteNotifyEnabled(enable);
+    try {
+      const updated = await persistCommonSettings({ enable_task_complete_notify: enable });
+      if (!updated) {
+        setTaskCompleteNotifyEnabled(prev);
+        return;
+      }
+
+      const next = updated.enable_task_complete_notify ?? enable;
+      setTaskCompleteNotifyEnabled(next);
+      toast(next ? "已开启任务结束提醒" : "已关闭任务结束提醒");
+    } catch {
+      setTaskCompleteNotifyEnabled(prev);
+    }
+  }
+
   async function persistCommonSettings(patch: Partial<AppSettings>): Promise<AppSettings | null> {
     if (commonSettingsSaving) return null;
     if (rectifierAvailable !== "available") return null;
@@ -309,6 +336,7 @@ export function CliManagerPage() {
         upstreamRequestTimeoutNonStreamingSeconds:
           next.upstream_request_timeout_non_streaming_seconds,
         enableCacheAnomalyMonitor: next.enable_cache_anomaly_monitor,
+        enableTaskCompleteNotify: next.enable_task_complete_notify,
         failoverMaxAttemptsPerProvider: next.failover_max_attempts_per_provider,
         failoverMaxProvidersToTry: next.failover_max_providers_to_try,
         circuitBreakerFailureThreshold: next.circuit_breaker_failure_threshold,
@@ -481,6 +509,9 @@ export function CliManagerPage() {
             cacheAnomalyMonitorEnabled={cacheAnomalyMonitorEnabled}
             cacheAnomalyMonitorSaving={commonSettingsSaving}
             onPersistCacheAnomalyMonitor={persistCacheAnomalyMonitor}
+            taskCompleteNotifyEnabled={taskCompleteNotifyEnabled}
+            taskCompleteNotifySaving={commonSettingsSaving}
+            onPersistTaskCompleteNotify={persistTaskCompleteNotify}
             appSettings={appSettings}
             commonSettingsSaving={commonSettingsSaving}
             onPersistCommonSettings={persistCommonSettings}

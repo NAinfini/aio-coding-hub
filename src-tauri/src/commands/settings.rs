@@ -22,6 +22,7 @@ pub(crate) struct SettingsUpdate {
     pub intercept_anthropic_warmup_requests: Option<bool>,
     pub enable_thinking_signature_rectifier: Option<bool>,
     pub enable_cache_anomaly_monitor: Option<bool>,
+    pub enable_task_complete_notify: Option<bool>,
     pub enable_response_fixer: Option<bool>,
     pub response_fixer_fix_encoding: Option<bool>,
     pub response_fixer_fix_sse_format: Option<bool>,
@@ -67,6 +68,7 @@ pub(crate) async fn settings_set(
         intercept_anthropic_warmup_requests,
         enable_thinking_signature_rectifier,
         enable_cache_anomaly_monitor,
+        enable_task_complete_notify,
         enable_response_fixer,
         response_fixer_fix_encoding,
         response_fixer_fix_sse_format,
@@ -121,6 +123,8 @@ pub(crate) async fn settings_set(
                 .unwrap_or(previous.enable_thinking_signature_rectifier);
             let enable_cache_anomaly_monitor =
                 enable_cache_anomaly_monitor.unwrap_or(previous.enable_cache_anomaly_monitor);
+            let enable_task_complete_notify =
+                enable_task_complete_notify.unwrap_or(previous.enable_task_complete_notify);
             let enable_response_fixer =
                 enable_response_fixer.unwrap_or(previous.enable_response_fixer);
             let response_fixer_fix_encoding =
@@ -187,6 +191,7 @@ pub(crate) async fn settings_set(
                 enable_thinking_signature_rectifier,
                 enable_codex_session_id_completion: previous.enable_codex_session_id_completion,
                 enable_cache_anomaly_monitor,
+                enable_task_complete_notify,
                 enable_response_fixer,
                 response_fixer_fix_encoding,
                 response_fixer_fix_sse_format,

@@ -228,7 +228,6 @@ export function SessionsPage() {
                 if (node) parentRef.current = node;
               }}
               className="mt-2 lg:min-h-0 lg:flex-1 lg:overflow-auto lg:pr-1 scrollbar-overlay"
-              style={{ height: "600px" }}
             >
               <div
                 style={{

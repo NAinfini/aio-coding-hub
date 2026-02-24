@@ -1,8 +1,9 @@
 // Usage: Session viewer entry (projects list). Backend commands: `cli_sessions_projects_list`.
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Clock, FolderOpen, Hash, Search } from "lucide-react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { toast } from "sonner";
 import type { CliSessionsSource, CliSessionsProjectSummary } from "../services/cliSessions";
 import { copyText } from "../services/clipboard";
@@ -79,6 +80,7 @@ export function SessionsPage() {
   });
   const [filterText, setFilterText] = useState("");
   const [sortKey, setSortKey] = useState<ProjectSortKey>("recent");
+  const parentRef = useRef<HTMLDivElement>(null);
 
   const projectsQuery = useCliSessionsProjectsListQuery(source);
   const projects = useMemo(() => pickProjects(projectsQuery.data), [projectsQuery.data]);
@@ -87,6 +89,13 @@ export function SessionsPage() {
     const next = q ? projects.filter((p) => projectMatchesQuery(p, q)) : projects;
     return [...next].sort((a, b) => compareProject(sortKey, a, b));
   }, [filterText, projects, sortKey]);
+
+  const rowVirtualizer = useVirtualizer({
+    count: filteredProjects.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 120,
+    overscan: 5,
+  });
 
   const stats = useMemo(() => {
     const totalProjects = projects.length;
@@ -214,68 +223,93 @@ export function SessionsPage() {
               <span className="text-right">最近更新</span>
             </div>
 
-            <div className="mt-2 space-y-2 lg:min-h-0 lg:flex-1 lg:overflow-auto lg:pr-1 scrollbar-overlay">
-              {filteredProjects.map((project) => {
-                const modifiedLabel =
-                  project.last_modified != null
-                    ? formatRelativeTimeFromUnixSeconds(project.last_modified)
-                    : "—";
-                const modifiedTitle =
-                  project.last_modified != null ? formatUnixSeconds(project.last_modified) : "—";
+            <div
+              ref={(node) => {
+                if (node) parentRef.current = node;
+              }}
+              className="mt-2 lg:min-h-0 lg:flex-1 lg:overflow-auto lg:pr-1 scrollbar-overlay"
+              style={{ height: "600px" }}
+            >
+              <div
+                style={{
+                  height: `${rowVirtualizer.getTotalSize()}px`,
+                  position: "relative",
+                }}
+              >
+                {rowVirtualizer.getVirtualItems().map((virtualItem) => {
+                  const project = filteredProjects[virtualItem.index];
+                  const modifiedLabel =
+                    project.last_modified != null
+                      ? formatRelativeTimeFromUnixSeconds(project.last_modified)
+                      : "—";
+                  const modifiedTitle =
+                    project.last_modified != null ? formatUnixSeconds(project.last_modified) : "—";
 
-                return (
-                  <button
-                    key={project.id}
-                    type="button"
-                    onClick={() => {
-                      if (!project.id.trim()) {
-                        toast("无效项目 ID");
-                        return;
-                      }
-                      navigate(`/sessions/${source}/${encodeURIComponent(project.id)}`);
-                    }}
-                    className={cn(
-                      "w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-left shadow-card transition",
-                      "hover:border-slate-300 hover:bg-slate-50",
-                      "dark:border-slate-700 dark:bg-slate-900/40 dark:hover:border-slate-600 dark:hover:bg-slate-900/60"
-                    )}
-                  >
-                    <div className="grid gap-2 sm:grid-cols-[1fr_110px_140px] sm:items-center sm:gap-3">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
-                            {projectDisplayName(project)}
-                          </div>
-                          {project.model_provider ? (
-                            <span className="shrink-0 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                              {project.model_provider}
-                            </span>
-                          ) : null}
-                        </div>
-                        <div
-                          className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400"
-                          title={project.display_path}
-                        >
-                          {project.display_path}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1 text-xs text-slate-600 dark:text-slate-300 sm:justify-end">
-                        <Hash className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
-                        <span className="font-semibold">{project.session_count}</span>
-                      </div>
-
-                      <div
-                        className="flex items-center gap-1 text-xs text-slate-600 dark:text-slate-300 sm:justify-end"
-                        title={modifiedTitle}
+                  return (
+                    <div
+                      key={virtualItem.key}
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        width: "100%",
+                        transform: `translateY(${virtualItem.start}px)`,
+                        paddingBottom: "8px",
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!project.id.trim()) {
+                            toast("无效项目 ID");
+                            return;
+                          }
+                          navigate(`/sessions/${source}/${encodeURIComponent(project.id)}`);
+                        }}
+                        className={cn(
+                          "w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-left shadow-card transition",
+                          "hover:border-slate-300 hover:bg-slate-50",
+                          "dark:border-slate-700 dark:bg-slate-900/40 dark:hover:border-slate-600 dark:hover:bg-slate-900/60"
+                        )}
                       >
-                        <Clock className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
-                        <span className="font-semibold">{modifiedLabel}</span>
-                      </div>
+                        <div className="grid gap-2 sm:grid-cols-[1fr_110px_140px] sm:items-center sm:gap-3">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                {projectDisplayName(project)}
+                              </div>
+                              {project.model_provider ? (
+                                <span className="shrink-0 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                                  {project.model_provider}
+                                </span>
+                              ) : null}
+                            </div>
+                            <div
+                              className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400"
+                              title={project.display_path}
+                            >
+                              {project.display_path}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1 text-xs text-slate-600 dark:text-slate-300 sm:justify-end">
+                            <Hash className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+                            <span className="font-semibold">{project.session_count}</span>
+                          </div>
+
+                          <div
+                            className="flex items-center gap-1 text-xs text-slate-600 dark:text-slate-300 sm:justify-end"
+                            title={modifiedTitle}
+                          >
+                            <Clock className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+                            <span className="font-semibold">{modifiedLabel}</span>
+                          </div>
+                        </div>
+                      </button>
                     </div>
-                  </button>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           </Card>
 

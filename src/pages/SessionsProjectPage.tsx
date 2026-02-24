@@ -1,12 +1,13 @@
 // Usage: Project sessions list. Backend command: `cli_sessions_sessions_list`.
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Clock, Copy, GitBranch, MessageSquare, Search } from "lucide-react";
 import { toast } from "sonner";
 import { type CliSessionsSource, type CliSessionsSessionSummary } from "../services/cliSessions";
 import { copyText } from "../services/clipboard";
 import { hasTauriRuntime } from "../services/tauriInvoke";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   useCliSessionsProjectsListQuery,
   useCliSessionsSessionsListQuery,
@@ -114,6 +115,13 @@ export function SessionsProjectPage() {
     const providerList = [...providers.values()].slice(0, 5);
     return { totalSessions, totalMessages, lastModified, topBranches, providerList, sidechains };
   }, [sessions]);
+  const parentRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: filteredSessions.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 100,
+    overscan: 10,
+  });
 
   if (!tauriRuntime) {
     return (
@@ -318,7 +326,12 @@ export function SessionsProjectPage() {
             <span className="text-right">操作</span>
           </div>
 
-          <div className="mt-2 space-y-2 lg:min-h-0 lg:flex-1 lg:overflow-auto lg:pr-1 scrollbar-overlay">
+          <div
+            ref={(node) => {
+              if (node) parentRef.current = node;
+            }}
+            className="mt-2 h-[600px] lg:min-h-0 lg:flex-1 lg:h-auto overflow-auto lg:pr-1 scrollbar-overlay"
+          >
             {sessionsQuery.error ? (
               <ErrorState
                 title="加载会话失败"
@@ -335,102 +348,122 @@ export function SessionsProjectPage() {
                 variant="dashed"
               />
             ) : (
-              filteredSessions.map((session) => {
-                const title = sessionTitle(session);
-                const modifiedLabel =
-                  session.modified_at != null
-                    ? formatRelativeTimeFromUnixSeconds(session.modified_at)
-                    : "—";
-                const modifiedTitle =
-                  session.modified_at != null ? formatUnixSeconds(session.modified_at) : "—";
-                const createdText =
-                  session.created_at != null ? formatUnixSeconds(session.created_at) : "—";
+              <div
+                style={{
+                  height: `${rowVirtualizer.getTotalSize()}px`,
+                  width: "100%",
+                  position: "relative",
+                }}
+              >
+                {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                  const session = filteredSessions[virtualRow.index];
+                  const title = sessionTitle(session);
+                  const modifiedLabel =
+                    session.modified_at != null
+                      ? formatRelativeTimeFromUnixSeconds(session.modified_at)
+                      : "—";
+                  const modifiedTitle =
+                    session.modified_at != null ? formatUnixSeconds(session.modified_at) : "—";
+                  const createdText =
+                    session.created_at != null ? formatUnixSeconds(session.created_at) : "—";
 
-                return (
-                  <div
-                    key={`${session.session_id}:${session.file_path}`}
-                    className={cn(
-                      "rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-card transition",
-                      "hover:border-slate-300 hover:bg-slate-50",
-                      "dark:border-slate-700 dark:bg-slate-900/40 dark:hover:border-slate-600 dark:hover:bg-slate-900/60"
-                    )}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() =>
-                      navigate(
-                        `/sessions/${source}/${encodeURIComponent(projectId)}/session/${encodeURIComponent(session.file_path)}`,
-                        { state: { session } }
-                      )
-                    }
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        navigate(
-                          `/sessions/${source}/${encodeURIComponent(projectId)}/session/${encodeURIComponent(session.file_path)}`,
-                          { state: { session } }
-                        );
-                      }
-                    }}
-                  >
-                    <div className="grid gap-2 sm:grid-cols-[1fr_90px_140px_120px] sm:items-center sm:gap-3">
-                      <div className="min-w-0">
-                        <div className="line-clamp-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
-                          {title}
-                        </div>
-                        <div className="mt-1 flex flex-wrap items-center gap-3 text-[11px] text-slate-500 dark:text-slate-400">
-                          {session.git_branch ? (
-                            <span className="inline-flex items-center gap-1">
-                              <GitBranch className="h-3.5 w-3.5" />
-                              {session.git_branch}
-                            </span>
-                          ) : null}
-                          {session.model_provider ? (
-                            <span className="inline-flex items-center gap-1">
-                              <span className="font-semibold">{session.model_provider}</span>
-                            </span>
-                          ) : null}
-                          <span className="text-slate-400 dark:text-slate-500">
-                            创建于 {createdText}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-end gap-1 text-xs text-slate-600 dark:text-slate-300">
-                        <span className="font-semibold">{session.message_count}</span>
-                      </div>
-
+                  return (
+                    <div
+                      key={virtualRow.key}
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        width: "100%",
+                        transform: `translateY(${virtualRow.start}px)`,
+                      }}
+                      className="px-1 pb-2"
+                    >
                       <div
-                        className="flex items-center justify-end gap-1 text-xs text-slate-600 dark:text-slate-300"
-                        title={modifiedTitle}
+                        className={cn(
+                          "rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-card transition",
+                          "hover:border-slate-300 hover:bg-slate-50",
+                          "dark:border-slate-700 dark:bg-slate-900/40 dark:hover:border-slate-600 dark:hover:bg-slate-900/60"
+                        )}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() =>
+                          navigate(
+                            `/sessions/${source}/${encodeURIComponent(projectId)}/session/${encodeURIComponent(session.file_path)}`,
+                            { state: { session } }
+                          )
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            navigate(
+                              `/sessions/${source}/${encodeURIComponent(projectId)}/session/${encodeURIComponent(session.file_path)}`,
+                              { state: { session } }
+                            );
+                          }
+                        }}
                       >
-                        <Clock className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
-                        <span className="font-semibold">{modifiedLabel}</span>
-                      </div>
+                        <div className="grid gap-2 sm:grid-cols-[1fr_90px_140px_120px] sm:items-center sm:gap-3">
+                          <div className="min-w-0">
+                            <div className="line-clamp-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                              {title}
+                            </div>
+                            <div className="mt-1 flex flex-wrap items-center gap-3 text-[11px] text-slate-500 dark:text-slate-400">
+                              {session.git_branch ? (
+                                <span className="inline-flex items-center gap-1">
+                                  <GitBranch className="h-3.5 w-3.5" />
+                                  {session.git_branch}
+                                </span>
+                              ) : null}
+                              {session.model_provider ? (
+                                <span className="inline-flex items-center gap-1">
+                                  <span className="font-semibold">{session.model_provider}</span>
+                                </span>
+                              ) : null}
+                              <span className="text-slate-400 dark:text-slate-500">
+                                创建于 {createdText}
+                              </span>
+                            </div>
+                          </div>
 
-                      <div className="flex items-center justify-end">
-                        <Button
-                          size="sm"
-                          variant="primary"
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            if (!session.session_id.trim()) {
-                              toast("无效 sessionId");
-                              return;
-                            }
-                            const cmd = buildResumeCommand(source, session.session_id);
-                            await copyText(cmd);
-                            toast("已复制恢复命令");
-                          }}
-                          title="复制恢复命令"
-                          className="h-8"
-                        >
-                          <Copy className="h-3.5 w-3.5" />
-                          复制
-                        </Button>
+                          <div className="flex items-center justify-end gap-1 text-xs text-slate-600 dark:text-slate-300">
+                            <span className="font-semibold">{session.message_count}</span>
+                          </div>
+
+                          <div
+                            className="flex items-center justify-end gap-1 text-xs text-slate-600 dark:text-slate-300"
+                            title={modifiedTitle}
+                          >
+                            <Clock className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+                            <span className="font-semibold">{modifiedLabel}</span>
+                          </div>
+
+                          <div className="flex items-center justify-end">
+                            <Button
+                              size="sm"
+                              variant="primary"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (!session.session_id.trim()) {
+                                  toast("无效 sessionId");
+                                  return;
+                                }
+                                const cmd = buildResumeCommand(source, session.session_id);
+                                await copyText(cmd);
+                                toast("已复制恢复命令");
+                              }}
+                              title="复制恢复命令"
+                              className="h-8"
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                              复制
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })
+                  );
+                })}
+              </div>
             )}
           </div>
         </Card>

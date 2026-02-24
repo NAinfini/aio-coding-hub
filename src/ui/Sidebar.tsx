@@ -13,6 +13,7 @@ type NavItem = {
 const NAV: NavItem[] = [
   { to: "/", label: "首页" },
   { to: "/providers", label: "供应商" },
+  { to: "/sessions", label: "Session 会话" },
   { to: "/workspaces", label: "工作区" },
   { to: "/prompts", label: "提示词" },
   { to: "/mcp", label: "MCP" },

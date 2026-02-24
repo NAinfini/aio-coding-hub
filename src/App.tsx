@@ -37,6 +37,15 @@ const PromptsPage = lazy(() =>
 const ProvidersPage = lazy(() =>
   import("./pages/ProvidersPage").then((m) => ({ default: m.ProvidersPage }))
 );
+const SessionsPage = lazy(() =>
+  import("./pages/SessionsPage").then((m) => ({ default: m.SessionsPage }))
+);
+const SessionsProjectPage = lazy(() =>
+  import("./pages/SessionsProjectPage").then((m) => ({ default: m.SessionsProjectPage }))
+);
+const SessionsMessagesPage = lazy(() =>
+  import("./pages/SessionsMessagesPage").then((m) => ({ default: m.SessionsMessagesPage }))
+);
 const SettingsPage = lazy(() =>
   import("./pages/SettingsPage").then((m) => ({ default: m.SettingsPage }))
 );
@@ -223,6 +232,15 @@ export default function App() {
           <Route element={<AppLayout />}>
             <Route index element={<HomePage />} />
             <Route path="/providers" element={renderLazyPage(ProvidersPage)} />
+            <Route path="/sessions" element={renderLazyPage(SessionsPage)} />
+            <Route
+              path="/sessions/:source/:projectId"
+              element={renderLazyPage(SessionsProjectPage)}
+            />
+            <Route
+              path="/sessions/:source/:projectId/session/*"
+              element={renderLazyPage(SessionsMessagesPage)}
+            />
             <Route path="/workspaces" element={renderLazyPage(WorkspacesPage)} />
             <Route path="/prompts" element={renderLazyPage(PromptsPage)} />
             <Route path="/mcp" element={renderLazyPage(McpPage)} />

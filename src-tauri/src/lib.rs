@@ -8,9 +8,9 @@ pub mod test_support;
 
 pub(crate) use app::{app_state, notice, resident};
 pub(crate) use domain::{
-    claude_model_validation, claude_model_validation_history, claude_plugins, cost, cost_stats,
-    mcp, prompts, provider_limit_usage, providers, skills, sort_modes, usage, usage_stats,
-    workspace_switch, workspaces,
+    claude_model_validation, claude_model_validation_history, claude_plugins, cli_sessions, cost,
+    cost_stats, mcp, prompts, provider_limit_usage, providers, skills, sort_modes, usage,
+    usage_stats, workspace_switch, workspaces,
 };
 pub(crate) use gateway::session_manager;
 pub(crate) use infra::{
@@ -266,6 +266,9 @@ pub fn run() {
             wsl_config_status_get,
             wsl_configure_clients,
             gateway_sessions_list,
+            cli_sessions_projects_list,
+            cli_sessions_sessions_list,
+            cli_sessions_messages_get,
             providers_list,
             provider_upsert,
             provider_set_enabled,

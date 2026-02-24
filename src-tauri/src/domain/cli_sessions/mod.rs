@@ -1,0 +1,186 @@
+//! Usage: Browse historical sessions from local Claude/Codex CLI logs (projects → sessions → messages).
+
+mod claude;
+mod codex;
+mod types;
+
+pub use types::{
+    CliSessionsDisplayContentBlock, CliSessionsDisplayMessage, CliSessionsPaginatedMessages,
+    CliSessionsProjectSummary, CliSessionsSessionSummary,
+};
+
+use crate::shared::error::{AppError, AppResult};
+use std::path::{Path, PathBuf};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CliSessionsSource {
+    Claude,
+    Codex,
+}
+
+impl std::str::FromStr for CliSessionsSource {
+    type Err = AppError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.trim() {
+            "claude" => Ok(CliSessionsSource::Claude),
+            "codex" => Ok(CliSessionsSource::Codex),
+            other => Err(AppError::new(
+                "SEC_INVALID_INPUT",
+                format!("unknown source: {other}"),
+            )),
+        }
+    }
+}
+
+const DEFAULT_PAGE_SIZE: usize = 50;
+const MAX_PAGE_SIZE: usize = 200;
+
+fn normalize_page_size(raw: usize) -> usize {
+    let v = if raw == 0 { DEFAULT_PAGE_SIZE } else { raw };
+    v.clamp(1, MAX_PAGE_SIZE)
+}
+
+pub fn projects_list(
+    app: &tauri::AppHandle,
+    source: CliSessionsSource,
+) -> AppResult<Vec<CliSessionsProjectSummary>> {
+    match source {
+        CliSessionsSource::Claude => claude::projects_list(app),
+        CliSessionsSource::Codex => codex::projects_list(app),
+    }
+}
+
+pub fn sessions_list(
+    app: &tauri::AppHandle,
+    source: CliSessionsSource,
+    project_id: &str,
+) -> AppResult<Vec<CliSessionsSessionSummary>> {
+    match source {
+        CliSessionsSource::Claude => claude::sessions_list(app, project_id),
+        CliSessionsSource::Codex => codex::sessions_list(app, project_id),
+    }
+}
+
+pub fn messages_get(
+    app: &tauri::AppHandle,
+    source: CliSessionsSource,
+    file_path: &str,
+    page: usize,
+    page_size: usize,
+    from_end: bool,
+) -> AppResult<CliSessionsPaginatedMessages> {
+    let page_size = normalize_page_size(page_size);
+    match source {
+        CliSessionsSource::Claude => {
+            claude::messages_get(app, file_path, page, page_size, from_end)
+        }
+        CliSessionsSource::Codex => codex::messages_get(app, file_path, page, page_size, from_end),
+    }
+}
+
+pub(super) fn truncate_string(raw: &str, max_len: usize) -> String {
+    if raw.len() <= max_len {
+        return raw.to_string();
+    }
+    raw.chars().take(max_len).collect::<String>()
+}
+
+/// Validates that a path is within the specified root directory.
+/// Prevents path traversal attacks by canonicalizing both paths and checking boundaries.
+///
+/// # Arguments
+/// * `path` - The path to validate
+/// * `root` - The root directory that path must be within
+///
+/// # Returns
+/// * `Ok(PathBuf)` - The canonicalized path if valid
+/// * `Err(AppError)` - If path is outside root or cannot be resolved
+///
+/// # Security
+/// This function defends against:
+/// - Symlink attacks
+/// - Relative path traversal (../, ../../etc/passwd)
+/// - Absolute path escapes
+pub fn validate_path_under_root(path: &Path, root: &Path) -> AppResult<PathBuf> {
+    let canonical_root = std::fs::canonicalize(root).map_err(|e| {
+        AppError::new(
+            "SEC_INVALID_INPUT",
+            format!("root directory not found: {e}"),
+        )
+    })?;
+
+    let canonical_path = std::fs::canonicalize(path)
+        .map_err(|e| AppError::new("SEC_INVALID_INPUT", format!("path not found: {e}")))?;
+
+    if !canonical_path.starts_with(&canonical_root) {
+        return Err(AppError::new(
+            "SEC_PATH_TRAVERSAL",
+            "path is outside root directory",
+        ));
+    }
+
+    Ok(canonical_path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_validate_path_under_root_valid() {
+        let temp_dir = std::env::temp_dir();
+        let test_root = temp_dir.join("cli_sessions_test_root");
+        fs::create_dir_all(&test_root).unwrap();
+
+        let test_file = test_root.join("valid_file.txt");
+        fs::write(&test_file, "test").unwrap();
+
+        let result = validate_path_under_root(&test_file, &test_root);
+        assert!(result.is_ok());
+
+        fs::remove_dir_all(&test_root).ok();
+    }
+
+    #[test]
+    fn test_validate_path_under_root_relative_traversal() {
+        let temp_dir = std::env::temp_dir();
+        let test_root = temp_dir.join("cli_sessions_test_root2");
+        fs::create_dir_all(&test_root).unwrap();
+
+        // Try to escape using relative path
+        let malicious_path = test_root.join("../../etc/passwd");
+
+        let result = validate_path_under_root(&malicious_path, &test_root);
+        // Should fail because canonicalize will resolve to actual /etc/passwd
+        // which is outside test_root, OR file doesn't exist
+        assert!(result.is_err());
+
+        fs::remove_dir_all(&test_root).ok();
+    }
+
+    #[test]
+    fn test_validate_path_under_root_absolute_escape() {
+        let temp_dir = std::env::temp_dir();
+        let test_root = temp_dir.join("cli_sessions_test_root3");
+        fs::create_dir_all(&test_root).unwrap();
+
+        // Try to use absolute path outside root
+        let outside_path = if cfg!(windows) {
+            PathBuf::from("C:\\Windows\\System32")
+        } else {
+            PathBuf::from("/etc")
+        };
+
+        let result = validate_path_under_root(&outside_path, &test_root);
+        // Should fail because path is outside root
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert!(e.to_string().contains("SEC_PATH_TRAVERSAL"));
+        }
+
+        fs::remove_dir_all(&test_root).ok();
+    }
+}

@@ -1,6 +1,7 @@
 import type { CliKey } from "../services/providers";
 import type { CostPeriod } from "../services/cost";
 import type { UsagePeriod, UsageRange, UsageScope } from "../services/usage";
+import type { CliSessionsSource } from "../services/cliSessions";
 
 const providersAllKey = ["providers"] as const;
 export const providersKeys = {
@@ -202,4 +203,14 @@ const providerLimitUsageAllKey = ["providerLimitUsage"] as const;
 export const providerLimitUsageKeys = {
   all: providerLimitUsageAllKey,
   list: (cliKey: CliKey | null) => [...providerLimitUsageAllKey, "list", cliKey] as const,
+};
+
+const cliSessionsAllKey = ["cliSessions"] as const;
+export const cliSessionsKeys = {
+  all: cliSessionsAllKey,
+  projectsList: (source: CliSessionsSource) => [...cliSessionsAllKey, "projects", source] as const,
+  sessionsList: (source: CliSessionsSource, projectId: string) =>
+    [...cliSessionsAllKey, "sessions", source, projectId] as const,
+  messages: (source: CliSessionsSource, filePath: string) =>
+    [...cliSessionsAllKey, "messages", source, filePath] as const,
 };

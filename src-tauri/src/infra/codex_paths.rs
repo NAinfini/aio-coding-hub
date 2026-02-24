@@ -75,3 +75,9 @@ pub fn codex_skills_dir<R: tauri::Runtime>(
 ) -> crate::shared::error::AppResult<PathBuf> {
     Ok(codex_home_dir(app)?.join("skills"))
 }
+
+pub fn codex_sessions_dir<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> crate::shared::error::AppResult<PathBuf> {
+    Ok(codex_home_dir(app)?.join("sessions"))
+}

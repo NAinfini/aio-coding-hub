@@ -1,0 +1,636 @@
+//! Usage: Claude Code session scanning/parsing from `~/.claude/projects/*/*.jsonl`.
+
+use super::{
+    truncate_string, CliSessionsDisplayContentBlock, CliSessionsDisplayMessage,
+    CliSessionsPaginatedMessages, CliSessionsProjectSummary, CliSessionsSessionSummary,
+};
+use crate::shared::error::{AppError, AppResult};
+use serde::Deserialize;
+use std::collections::{HashMap, HashSet};
+use std::fs;
+use std::io::{BufRead, BufReader};
+use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
+use tauri::Manager;
+
+const FIRST_PROMPT_MAX_LEN: usize = 200;
+const MAX_TEXT_BLOCK_SIZE: usize = 20_000;
+const MAX_ARGS_SIZE: usize = 10_000;
+const MAX_OUTPUT_BLOCK_SIZE: usize = 30_000;
+
+/// Types of records to skip during parsing (large/irrelevant).
+const SKIP_TYPES: &[&str] = &["file-history-snapshot", "progress"];
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawRecord {
+    #[serde(rename = "type")]
+    record_type: String,
+    uuid: Option<String>,
+    timestamp: Option<String>,
+    message: Option<RawMessage>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct RawMessage {
+    role: String,
+    content: ContentValue,
+    model: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+enum ContentValue {
+    Text(String),
+    Blocks(Vec<ContentBlock>),
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(tag = "type")]
+enum ContentBlock {
+    #[serde(rename = "text")]
+    Text { text: String },
+    #[serde(rename = "thinking")]
+    Thinking { thinking: String },
+    #[serde(rename = "tool_use")]
+    ToolUse {
+        id: String,
+        name: String,
+        input: serde_json::Value,
+    },
+    #[serde(rename = "tool_result")]
+    ToolResult {
+        tool_use_id: String,
+        content: Option<serde_json::Value>,
+        #[serde(default)]
+        is_error: Option<bool>,
+    },
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SessionsIndex {
+    #[allow(dead_code)]
+    version: Option<u32>,
+    #[serde(default)]
+    entries: Vec<SessionsIndexFileEntry>,
+    original_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SessionsIndexFileEntry {
+    session_id: String,
+    full_path: Option<String>,
+    first_prompt: Option<String>,
+    message_count: Option<u32>,
+    git_branch: Option<String>,
+    project_path: Option<String>,
+    is_sidechain: Option<bool>,
+}
+
+fn unix_seconds_from_system_time(time: SystemTime) -> Option<i64> {
+    time.duration_since(UNIX_EPOCH)
+        .ok()
+        .map(|d| d.as_secs() as i64)
+}
+
+fn file_times(path: &Path) -> (Option<i64>, Option<i64>) {
+    let meta = match fs::metadata(path) {
+        Ok(m) => m,
+        Err(_) => return (None, None),
+    };
+    let created = meta.created().ok().and_then(unix_seconds_from_system_time);
+    let modified = meta.modified().ok().and_then(unix_seconds_from_system_time);
+    (created, modified)
+}
+
+fn home_dir(app: &tauri::AppHandle) -> AppResult<PathBuf> {
+    app.path()
+        .home_dir()
+        .map_err(|e| AppError::new("INTERNAL_ERROR", format!("failed to resolve home dir: {e}")))
+}
+
+fn claude_projects_dir(app: &tauri::AppHandle) -> AppResult<PathBuf> {
+    Ok(home_dir(app)?.join(".claude").join("projects"))
+}
+
+fn decode_project_path(encoded: &str) -> String {
+    if cfg!(windows) {
+        if encoded.len() >= 2 && encoded.chars().nth(1) == Some('-') {
+            let drive = &encoded[0..1];
+            let rest = &encoded[2..];
+            let path_part = rest.replace('-', "\\");
+            format!("{}:{}", drive, path_part)
+        } else {
+            encoded.replace('-', "\\")
+        }
+    } else {
+        encoded.replace('-', "/")
+    }
+}
+
+fn short_name_from_path(path: &str) -> String {
+    let path = path.trim_end_matches(['/', '\\']);
+    if let Some(pos) = path.rfind(['/', '\\']) {
+        path[pos + 1..].to_string()
+    } else {
+        path.to_string()
+    }
+}
+
+fn validate_project_id(project_id: &str) -> AppResult<()> {
+    let trimmed = project_id.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::new("SEC_INVALID_INPUT", "projectId is required"));
+    }
+    if trimmed.contains('/') || trimmed.contains('\\') || trimmed.contains("..") {
+        return Err(AppError::new(
+            "SEC_INVALID_INPUT",
+            format!("invalid projectId: {trimmed}"),
+        ));
+    }
+    Ok(())
+}
+
+fn read_sessions_index(project_dir: &Path) -> Option<SessionsIndex> {
+    let path = project_dir.join("sessions-index.json");
+    let bytes = fs::read(&path).ok()?;
+    serde_json::from_slice::<SessionsIndex>(&bytes).ok()
+}
+
+fn count_jsonl_files(project_dir: &Path) -> usize {
+    fs::read_dir(project_dir)
+        .map(|rd| {
+            rd.flatten()
+                .filter(|e| {
+                    e.path()
+                        .extension()
+                        .map(|ext| ext == "jsonl")
+                        .unwrap_or(false)
+                })
+                .count()
+        })
+        .unwrap_or(0)
+}
+
+fn convert_content(content: &ContentValue) -> Vec<CliSessionsDisplayContentBlock> {
+    match content {
+        ContentValue::Text(s) => {
+            let t = s.trim();
+            if t.is_empty() {
+                Vec::new()
+            } else {
+                vec![CliSessionsDisplayContentBlock::Text {
+                    text: truncate_string(t, MAX_TEXT_BLOCK_SIZE),
+                }]
+            }
+        }
+        ContentValue::Blocks(blocks) => {
+            let mut result = Vec::new();
+            for block in blocks {
+                match block {
+                    ContentBlock::Text { text } => {
+                        let t = text.trim();
+                        if !t.is_empty() {
+                            result.push(CliSessionsDisplayContentBlock::Text {
+                                text: truncate_string(t, MAX_TEXT_BLOCK_SIZE),
+                            });
+                        }
+                    }
+                    ContentBlock::Thinking { thinking } => {
+                        let t = thinking.trim();
+                        if !t.is_empty() {
+                            result.push(CliSessionsDisplayContentBlock::Thinking {
+                                thinking: truncate_string(t, MAX_TEXT_BLOCK_SIZE),
+                            });
+                        }
+                    }
+                    ContentBlock::ToolUse { id, name, input } => {
+                        let input_str = serde_json::to_string_pretty(input)
+                            .unwrap_or_else(|_| input.to_string());
+                        result.push(CliSessionsDisplayContentBlock::ToolUse {
+                            id: id.clone(),
+                            name: name.clone(),
+                            input: truncate_string(&input_str, MAX_ARGS_SIZE),
+                        });
+                    }
+                    ContentBlock::ToolResult {
+                        tool_use_id,
+                        content,
+                        is_error,
+                    } => {
+                        let content_str = match content {
+                            Some(v) => match v {
+                                serde_json::Value::String(s) => s.clone(),
+                                serde_json::Value::Array(arr) => {
+                                    let mut parts = Vec::new();
+                                    for item in arr {
+                                        if let Some(text) =
+                                            item.get("text").and_then(|t| t.as_str())
+                                        {
+                                            if !text.trim().is_empty() {
+                                                parts.push(text.to_string());
+                                            }
+                                        }
+                                    }
+                                    parts.join("\n")
+                                }
+                                _ => serde_json::to_string_pretty(v)
+                                    .unwrap_or_else(|_| v.to_string()),
+                            },
+                            None => String::new(),
+                        };
+                        result.push(CliSessionsDisplayContentBlock::ToolResult {
+                            tool_use_id: tool_use_id.clone(),
+                            content: truncate_string(&content_str, MAX_OUTPUT_BLOCK_SIZE),
+                            is_error: is_error.unwrap_or(false),
+                        });
+                    }
+                    ContentBlock::Unknown => {}
+                }
+            }
+            result
+        }
+    }
+}
+
+fn parse_all_messages(path: &Path) -> Result<Vec<CliSessionsDisplayMessage>, String> {
+    let file = fs::File::open(path).map_err(|e| format!("failed to open file: {e}"))?;
+    let reader = BufReader::new(file);
+
+    let mut messages: Vec<CliSessionsDisplayMessage> = Vec::new();
+
+    for line in reader.lines() {
+        let line = match line {
+            Ok(l) => l,
+            Err(_) => continue,
+        };
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if SKIP_TYPES
+            .iter()
+            .any(|t| trimmed.contains(&format!("\"type\":\"{t}\"")))
+        {
+            continue;
+        }
+
+        let record: RawRecord = match serde_json::from_str(trimmed) {
+            Ok(r) => r,
+            Err(_) => continue,
+        };
+
+        if record.record_type != "user" && record.record_type != "assistant" {
+            continue;
+        }
+        let Some(msg) = record.message else {
+            continue;
+        };
+
+        let blocks = convert_content(&msg.content);
+        if blocks.is_empty() {
+            continue;
+        }
+
+        messages.push(CliSessionsDisplayMessage {
+            uuid: record.uuid,
+            role: msg.role,
+            timestamp: record.timestamp,
+            model: msg.model,
+            content: blocks,
+        });
+    }
+
+    Ok(messages)
+}
+
+fn extract_first_prompt(path: &Path) -> Option<String> {
+    let file = fs::File::open(path).ok()?;
+    let reader = BufReader::new(file);
+
+    for line in reader.lines() {
+        let line = line.ok()?;
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if SKIP_TYPES
+            .iter()
+            .any(|t| trimmed.contains(&format!("\"type\":\"{t}\"")))
+        {
+            continue;
+        }
+
+        let record: RawRecord = serde_json::from_str(trimmed).ok()?;
+        if record.record_type != "user" {
+            continue;
+        }
+        let msg = record.message?;
+        if msg.role != "user" {
+            continue;
+        }
+
+        match msg.content {
+            ContentValue::Text(s) => {
+                let t = s.trim();
+                if !t.is_empty() {
+                    return Some(truncate_string(t, FIRST_PROMPT_MAX_LEN));
+                }
+            }
+            ContentValue::Blocks(blocks) => {
+                for block in blocks {
+                    if let ContentBlock::Text { text } = block {
+                        let t = text.trim();
+                        if !t.is_empty() {
+                            return Some(truncate_string(t, FIRST_PROMPT_MAX_LEN));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+fn count_messages(path: &Path) -> u32 {
+    let Ok(file) = fs::File::open(path) else {
+        return 0;
+    };
+    let reader = BufReader::new(file);
+    let mut count: u32 = 0;
+
+    for line in reader.lines() {
+        let line = match line {
+            Ok(l) => l,
+            Err(_) => continue,
+        };
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if SKIP_TYPES
+            .iter()
+            .any(|t| trimmed.contains(&format!("\"type\":\"{t}\"")))
+        {
+            continue;
+        }
+        let record: RawRecord = match serde_json::from_str(trimmed) {
+            Ok(r) => r,
+            Err(_) => continue,
+        };
+        if record.record_type != "user" && record.record_type != "assistant" {
+            continue;
+        }
+        let Some(msg) = record.message else {
+            continue;
+        };
+        if convert_content(&msg.content).is_empty() {
+            continue;
+        }
+        count = count.saturating_add(1);
+    }
+    count
+}
+
+fn resolve_and_validate_session_file_path(
+    app: &tauri::AppHandle,
+    file_path: &str,
+) -> AppResult<PathBuf> {
+    let root = claude_projects_dir(app)?;
+    let root = fs::canonicalize(&root).map_err(|e| {
+        AppError::new(
+            "SEC_INVALID_INPUT",
+            format!("claude projects dir not found: {e}"),
+        )
+    })?;
+
+    let raw = PathBuf::from(file_path);
+    if raw.extension().map(|e| e != "jsonl").unwrap_or(true) {
+        return Err(AppError::new(
+            "SEC_INVALID_INPUT",
+            "filePath must be a .jsonl file",
+        ));
+    }
+
+    let resolved = fs::canonicalize(&raw)
+        .map_err(|e| AppError::new("SEC_INVALID_INPUT", format!("session file not found: {e}")))?;
+
+    if !resolved.starts_with(&root) {
+        return Err(AppError::new(
+            "SEC_INVALID_INPUT",
+            "filePath is outside ~/.claude/projects",
+        ));
+    }
+
+    Ok(resolved)
+}
+
+pub fn projects_list(app: &tauri::AppHandle) -> AppResult<Vec<CliSessionsProjectSummary>> {
+    let projects_dir = claude_projects_dir(app)?;
+    if !projects_dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    let mut out: Vec<CliSessionsProjectSummary> = Vec::new();
+
+    let entries = fs::read_dir(&projects_dir).map_err(|e| {
+        AppError::new(
+            "INTERNAL_ERROR",
+            format!("failed to read claude projects dir: {e}"),
+        )
+    })?;
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+
+        let encoded_name = match path.file_name().and_then(|n| n.to_str()) {
+            Some(name) if !name.trim().is_empty() => name.to_string(),
+            _ => continue,
+        };
+
+        let session_count = count_jsonl_files(&path);
+        if session_count == 0 {
+            continue;
+        }
+
+        let original_path = read_sessions_index(&path)
+            .and_then(|idx| idx.original_path)
+            .unwrap_or_else(|| decode_project_path(&encoded_name));
+
+        let short_name = short_name_from_path(&original_path);
+        let (_, modified) = file_times(&path);
+
+        out.push(CliSessionsProjectSummary {
+            source: "claude".to_string(),
+            id: encoded_name,
+            display_path: original_path,
+            short_name,
+            session_count,
+            last_modified: modified,
+            model_provider: None,
+        });
+    }
+
+    out.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
+    Ok(out)
+}
+
+pub fn sessions_list(
+    app: &tauri::AppHandle,
+    project_id: &str,
+) -> AppResult<Vec<CliSessionsSessionSummary>> {
+    validate_project_id(project_id)?;
+
+    let projects_dir = claude_projects_dir(app)?;
+    let project_dir = projects_dir.join(project_id);
+    if !project_dir.is_dir() {
+        return Err(AppError::new(
+            "SEC_INVALID_INPUT",
+            format!("project not found: {project_id}"),
+        ));
+    }
+
+    let index = read_sessions_index(&project_dir);
+    let original_path = index.as_ref().and_then(|idx| idx.original_path.clone());
+    let default_project_path = original_path
+        .clone()
+        .unwrap_or_else(|| decode_project_path(project_id));
+
+    let mut disk_sessions: HashMap<String, PathBuf> = HashMap::new();
+    if let Ok(rd) = fs::read_dir(&project_dir) {
+        for entry in rd.flatten() {
+            let path = entry.path();
+            if path.extension().map(|e| e == "jsonl").unwrap_or(false) {
+                if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                    if !stem.trim().is_empty() {
+                        disk_sessions.insert(stem.to_string(), path);
+                    }
+                }
+            }
+        }
+    }
+
+    let mut out: Vec<CliSessionsSessionSummary> = Vec::new();
+    let mut indexed: HashSet<String> = HashSet::new();
+
+    if let Some(index) = index {
+        for entry in index.entries {
+            indexed.insert(entry.session_id.clone());
+            let file_path = entry
+                .full_path
+                .clone()
+                .map(PathBuf::from)
+                .unwrap_or_else(|| project_dir.join(format!("{}.jsonl", entry.session_id)));
+
+            if !file_path.exists() {
+                continue;
+            }
+
+            let (created_at, modified_at) = file_times(&file_path);
+            let first_prompt = entry
+                .first_prompt
+                .clone()
+                .or_else(|| extract_first_prompt(&file_path));
+            let message_count = entry
+                .message_count
+                .unwrap_or_else(|| count_messages(&file_path));
+
+            out.push(CliSessionsSessionSummary {
+                source: "claude".to_string(),
+                session_id: entry.session_id,
+                file_path: file_path.to_string_lossy().to_string(),
+                first_prompt,
+                message_count,
+                created_at,
+                modified_at,
+                git_branch: entry.git_branch,
+                project_path: entry
+                    .project_path
+                    .or_else(|| original_path.clone())
+                    .or_else(|| Some(default_project_path.clone())),
+                is_sidechain: entry.is_sidechain,
+                cwd: None,
+                model_provider: None,
+                cli_version: None,
+            });
+        }
+    }
+
+    for (session_id, file_path) in disk_sessions {
+        if indexed.contains(&session_id) {
+            continue;
+        }
+        let (created_at, modified_at) = file_times(&file_path);
+        let first_prompt = extract_first_prompt(&file_path);
+        let message_count = count_messages(&file_path);
+        if message_count == 0 {
+            continue;
+        }
+
+        out.push(CliSessionsSessionSummary {
+            source: "claude".to_string(),
+            session_id,
+            file_path: file_path.to_string_lossy().to_string(),
+            first_prompt,
+            message_count,
+            created_at,
+            modified_at,
+            git_branch: None,
+            project_path: original_path
+                .clone()
+                .or_else(|| Some(default_project_path.clone())),
+            is_sidechain: None,
+            cwd: None,
+            model_provider: None,
+            cli_version: None,
+        });
+    }
+
+    out.sort_by(|a, b| b.modified_at.cmp(&a.modified_at));
+    Ok(out)
+}
+
+pub fn messages_get(
+    app: &tauri::AppHandle,
+    file_path: &str,
+    page: usize,
+    page_size: usize,
+    from_end: bool,
+) -> AppResult<CliSessionsPaginatedMessages> {
+    let resolved = resolve_and_validate_session_file_path(app, file_path)?;
+    let messages = parse_all_messages(&resolved).map_err(AppError::from)?;
+
+    let total = messages.len();
+    let (start, end, has_more) = if from_end {
+        let end = total.saturating_sub(page * page_size);
+        let start = end.saturating_sub(page_size);
+        let has_more = start > 0;
+        (start, end, has_more)
+    } else {
+        let start = page * page_size;
+        let end = (start + page_size).min(total);
+        let has_more = end < total;
+        (start, end, has_more)
+    };
+
+    let page_messages = if start < end && end <= total {
+        messages[start..end].to_vec()
+    } else {
+        Vec::new()
+    };
+
+    Ok(CliSessionsPaginatedMessages {
+        messages: page_messages,
+        total,
+        page,
+        page_size,
+        has_more,
+    })
+}

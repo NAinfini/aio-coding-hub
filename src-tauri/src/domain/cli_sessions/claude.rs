@@ -1,8 +1,9 @@
 //! Usage: Claude Code session scanning/parsing from `~/.claude/projects/*/*.jsonl`.
 
 use super::{
-    truncate_string, CliSessionsDisplayContentBlock, CliSessionsDisplayMessage,
-    CliSessionsPaginatedMessages, CliSessionsProjectSummary, CliSessionsSessionSummary,
+    truncate_string, validate_path_under_root, CliSessionsDisplayContentBlock,
+    CliSessionsDisplayMessage, CliSessionsPaginatedMessages, CliSessionsProjectSummary,
+    CliSessionsSessionSummary,
 };
 use crate::shared::error::{AppError, AppResult};
 use serde::Deserialize;
@@ -416,15 +417,7 @@ fn resolve_and_validate_session_file_path(
         ));
     }
 
-    let resolved = fs::canonicalize(&raw)
-        .map_err(|e| AppError::new("SEC_INVALID_INPUT", format!("session file not found: {e}")))?;
-
-    if !resolved.starts_with(&root) {
-        return Err(AppError::new(
-            "SEC_INVALID_INPUT",
-            "filePath is outside ~/.claude/projects",
-        ));
-    }
+    let resolved = super::validate_path_under_root(&raw, &root)?;
 
     Ok(resolved)
 }
@@ -528,6 +521,10 @@ pub fn sessions_list(
                 .clone()
                 .map(PathBuf::from)
                 .unwrap_or_else(|| project_dir.join(format!("{}.jsonl", entry.session_id)));
+            // Validate path is within projects directory
+            if let Err(_) = validate_path_under_root(&file_path, &projects_dir) {
+                continue;
+            }
 
             if !file_path.exists() {
                 continue;
@@ -565,6 +562,10 @@ pub fn sessions_list(
 
     for (session_id, file_path) in disk_sessions {
         if indexed.contains(&session_id) {
+            continue;
+        }
+        // Validate path is within projects directory
+        if let Err(_) = validate_path_under_root(&file_path, &projects_dir) {
             continue;
         }
         let (created_at, modified_at) = file_times(&file_path);

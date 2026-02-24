@@ -1,8 +1,9 @@
 //! Usage: Codex CLI session scanning/parsing from `$CODEX_HOME/sessions/**.jsonl` (or `~/.codex/sessions`).
 
 use super::{
-    truncate_string, CliSessionsDisplayContentBlock, CliSessionsDisplayMessage,
-    CliSessionsPaginatedMessages, CliSessionsProjectSummary, CliSessionsSessionSummary,
+    truncate_string, validate_path_under_root, CliSessionsDisplayContentBlock,
+    CliSessionsDisplayMessage, CliSessionsPaginatedMessages, CliSessionsProjectSummary,
+    CliSessionsSessionSummary,
 };
 use crate::shared::error::{AppError, AppResult};
 use serde_json::Value;
@@ -469,15 +470,7 @@ fn resolve_and_validate_session_file_path(
         ));
     }
 
-    let resolved = fs::canonicalize(&raw)
-        .map_err(|e| AppError::new("SEC_INVALID_INPUT", format!("session file not found: {e}")))?;
-
-    if !resolved.starts_with(&root) {
-        return Err(AppError::new(
-            "SEC_INVALID_INPUT",
-            "filePath is outside $CODEX_HOME/sessions",
-        ));
-    }
+    let resolved = super::validate_path_under_root(&raw, &root)?;
     Ok(resolved)
 }
 
@@ -545,6 +538,11 @@ pub fn sessions_list(
     let mut out: Vec<CliSessionsSessionSummary> = Vec::new();
 
     for file_path in files {
+        // Validate path is within sessions directory
+        let sessions_dir = crate::codex_paths::codex_sessions_dir(app)?;
+        if let Err(_) = validate_path_under_root(&file_path, &sessions_dir) {
+            continue;
+        }
         let meta = extract_session_meta(&file_path);
         let matches = meta
             .as_ref()

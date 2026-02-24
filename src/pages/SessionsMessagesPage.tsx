@@ -1,18 +1,17 @@
 // Usage: Session messages viewer. Backend command: `cli_sessions_messages_get`.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { ArrowDown, ArrowLeft, Copy, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import {
-  cliSessionsMessagesGet,
   type CliSessionsDisplayContentBlock,
-  type CliSessionsDisplayMessage,
   type CliSessionsSource,
+  type CliSessionsSessionSummary,
 } from "../services/cliSessions";
 import { copyText } from "../services/clipboard";
 import { hasTauriRuntime } from "../services/tauriInvoke";
-import { useCliSessionsSessionsListQuery } from "../query/cliSessions";
+import { useCliSessionsMessagesInfiniteQuery } from "../query/cliSessions";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { EmptyState } from "../ui/EmptyState";
@@ -26,8 +25,6 @@ import {
   formatRelativeTimeFromUnixSeconds,
   formatUnixSeconds,
 } from "../utils/formatters";
-
-const PAGE_SIZE = 50;
 
 function normalizeSource(raw: string | undefined): CliSessionsSource | null {
   if (raw === "claude" || raw === "codex") return raw;
@@ -136,10 +133,6 @@ function renderBlock(block: CliSessionsDisplayContentBlock, key: string) {
   return null;
 }
 
-function pickMessages(data: CliSessionsDisplayMessage[] | null | undefined) {
-  return data ?? [];
-}
-
 type MessageSide = "left" | "right" | "center";
 
 function messageSide(roleRaw: string): MessageSide {
@@ -179,116 +172,47 @@ export function SessionsMessagesPage() {
   const rawFilePath = params["*"] || "";
   const filePath = rawFilePath ? safeDecodeURIComponent(rawFilePath) : "";
 
-  const sessionsQuery = useCliSessionsSessionsListQuery(safeSource, projectId, {
-    enabled: tauriRuntime && source != null && projectId.trim().length > 0,
-  });
-  const session = useMemo(() => {
-    const sessions = sessionsQuery.data ?? [];
-    return sessions.find((s) => s.file_path === filePath) ?? null;
-  }, [filePath, sessionsQuery.data]);
+  const location = useLocation();
+  const sessionFromState = location.state?.session as CliSessionsSessionSummary | undefined;
+  const session = sessionFromState ?? null;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const prevScrollHeightRef = useRef<number>(0);
-
-  const [messages, setMessages] = useState<CliSessionsDisplayMessage[]>([]);
-  const [total, setTotal] = useState<number>(0);
-  const [hasMore, setHasMore] = useState<boolean>(false);
-  const [page, setPage] = useState<number>(0);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [loadingMore, setLoadingMore] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
   const [showTimestamp, setShowTimestamp] = useState<boolean>(true);
   const [showModel, setShowModel] = useState<boolean>(false);
 
   const enabled = tauriRuntime && source != null && filePath.trim().length > 0;
+  const messagesQuery = useCliSessionsMessagesInfiniteQuery(safeSource, filePath, {
+    enabled,
+  });
+  const allMessages = useMemo(() => {
+    return messagesQuery.data?.pages.flatMap((page) => page?.messages ?? []) ?? [];
+  }, [messagesQuery.data]);
+  const total = messagesQuery.data?.pages[0]?.total ?? 0;
+  const hasMore = messagesQuery.hasNextPage ?? false;
+  const loading = messagesQuery.isLoading;
+  const loadingMore = messagesQuery.isFetchingNextPage;
+  const error = messagesQuery.error ? String(messagesQuery.error) : null;
 
-  const loadInitial = useCallback(async () => {
-    if (!enabled) return;
-    setLoading(true);
-    setError(null);
-    setPage(0);
-
-    try {
-      const result = await cliSessionsMessagesGet({
-        source: safeSource,
-        file_path: filePath,
-        page: 0,
-        page_size: PAGE_SIZE,
-        from_end: true,
-      });
-
-      if (!result) {
-        throw new Error("IPC_NULL_RESULT");
-      }
-
-      setMessages(pickMessages(result.messages));
-      setTotal(result.total);
-      setHasMore(result.has_more);
-
-      requestAnimationFrame(() => {
-        if (containerRef.current) {
-          containerRef.current.scrollTop = containerRef.current.scrollHeight;
-        }
-      });
-    } catch (err) {
-      setError(String(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [enabled, filePath, safeSource]);
-
-  useEffect(() => {
-    void loadInitial();
-  }, [loadInitial]);
-
-  const loadOlder = useCallback(async () => {
-    if (!enabled) return;
-    if (!hasMore) return;
-    if (loading || loadingMore) return;
-
-    const nextPage = page + 1;
+  const handleFetchNextPage = async () => {
+    if (!hasMore || loading || loadingMore) return;
     const container = containerRef.current;
     prevScrollHeightRef.current = container?.scrollHeight ?? 0;
+    await messagesQuery.fetchNextPage();
+    requestAnimationFrame(() => {
+      const el = containerRef.current;
+      if (!el) return;
+      const nextScrollHeight = el.scrollHeight;
+      const delta = nextScrollHeight - prevScrollHeightRef.current;
+      el.scrollTop += delta;
+    });
+  };
 
-    setLoadingMore(true);
-    setError(null);
-    try {
-      const result = await cliSessionsMessagesGet({
-        source: safeSource,
-        file_path: filePath,
-        page: nextPage,
-        page_size: PAGE_SIZE,
-        from_end: true,
-      });
-
-      if (!result) {
-        throw new Error("IPC_NULL_RESULT");
-      }
-
-      setMessages((prev) => [...pickMessages(result.messages), ...prev]);
-      setTotal(result.total);
-      setHasMore(result.has_more);
-      setPage(nextPage);
-
-      requestAnimationFrame(() => {
-        const el = containerRef.current;
-        if (!el) return;
-        const nextScrollHeight = el.scrollHeight;
-        const delta = nextScrollHeight - prevScrollHeightRef.current;
-        el.scrollTop += delta;
-      });
-    } catch (err) {
-      setError(String(err));
-    } finally {
-      setLoadingMore(false);
-    }
-  }, [enabled, filePath, hasMore, loading, loadingMore, page, safeSource]);
-
-  const scrollToBottom = useCallback(() => {
+  const scrollToBottom = () => {
     const el = containerRef.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
-  }, []);
+  };
 
   if (!tauriRuntime) {
     return (
@@ -310,6 +234,18 @@ export function SessionsMessagesPage() {
     );
   }
 
+  if (!session) {
+    return (
+      <ErrorState
+        title="会话信息缺失"
+        message="无法获取会话元数据。请从会话列表页进入。"
+        onRetry={() =>
+          navigate(`/sessions/${source}/${encodeURIComponent(projectId)}`, { replace: true })
+        }
+      />
+    );
+  }
+
   const title = session?.first_prompt?.trim() || session?.session_id || "Session";
   const subtitleParts: string[] = [];
   if (session?.session_id) subtitleParts.push(`Session ID：${session.session_id}`);
@@ -317,7 +253,7 @@ export function SessionsMessagesPage() {
   if (session?.model_provider) subtitleParts.push(`Provider：${session.model_provider}`);
   const subtitle = subtitleParts.length > 0 ? subtitleParts.join(" · ") : undefined;
   const canCopyResume = Boolean(session?.session_id?.trim());
-  const loadedCount = messages.length;
+  const loadedCount = allMessages.length;
   const globalStartIndex = total > 0 ? Math.max(0, total - loadedCount) : 0;
 
   return (
@@ -337,7 +273,11 @@ export function SessionsMessagesPage() {
       />
 
       {error ? (
-        <ErrorState title="加载消息失败" message={error} onRetry={() => void loadInitial()} />
+        <ErrorState
+          title="加载消息失败"
+          message={error}
+          onRetry={() => void messagesQuery.refetch()}
+        />
       ) : null}
 
       <div className="grid gap-4 lg:flex-1 lg:min-h-0 lg:grid-cols-[360px_1fr] lg:items-stretch lg:overflow-hidden">
@@ -532,7 +472,7 @@ export function SessionsMessagesPage() {
                 size="sm"
                 variant="secondary"
                 disabled={!hasMore || loading || loadingMore}
-                onClick={() => void loadOlder()}
+                onClick={() => void handleFetchNextPage()}
                 title="加载更早的消息"
                 className="h-9"
               >
@@ -559,7 +499,7 @@ export function SessionsMessagesPage() {
               <div className="flex items-center justify-center py-10">
                 <Spinner />
               </div>
-            ) : messages.length === 0 ? (
+            ) : allMessages.length === 0 ? (
               <EmptyState title="此会话没有可显示的消息" variant="dashed" />
             ) : (
               <div className="mx-auto flex w-full max-w-4xl flex-col gap-3">
@@ -568,7 +508,7 @@ export function SessionsMessagesPage() {
                     — 会话开始 —
                   </div>
                 ) : null}
-                {messages.map((msg, idx) => {
+                {allMessages.map((msg, idx) => {
                   const role = (msg.role || "unknown").trim() || "unknown";
                   const side = messageSide(role);
                   const timeText =

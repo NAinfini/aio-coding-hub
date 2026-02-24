@@ -596,6 +596,19 @@ export function CliManagerCodexTab({
                     disabled={saving}
                   />
                 </SettingItem>
+
+                <SettingItem
+                  label="multi_agent"
+                  subtitle="实验性：通过并行生成多个专门化代理来协作完成复杂任务，最后整合结果。开启写入 multi_agent=true；"
+                >
+                  <Switch
+                    checked={boolOrDefault(codexConfig.features_multi_agent, false)}
+                    onCheckedChange={(checked) =>
+                      void persistCodexConfig({ features_multi_agent: checked })
+                    }
+                    disabled={saving}
+                  />
+                </SettingItem>
               </div>
             </div>
 

@@ -201,6 +201,10 @@ pub(super) struct SseTextAccumulator {
     pub(super) error_event_seen: bool,
     pub(super) error_status: Option<u16>,
     pub(super) error_message: String,
+    pub(super) server_tool_use_seen: bool,
+    pub(super) web_search_tool_result_seen: bool,
+    pub(super) web_search_result_urls: Vec<String>,
+    pub(super) web_search_requests_count: Option<i64>,
 
     current_thinking_block_index: Option<i64>,
     capturing_thinking_block: bool,
@@ -407,6 +411,21 @@ impl SseTextAccumulator {
         }
     }
 
+    /// Extract `web_search_requests` from `usage.server_tool_use.web_search_requests`.
+    fn try_extract_web_search_requests(&mut self, value: &serde_json::Value) {
+        if self.web_search_requests_count.is_some() {
+            return; // already captured
+        }
+        let count = value
+            .get("usage")
+            .and_then(|u| u.get("server_tool_use"))
+            .and_then(|s| s.get("web_search_requests"))
+            .and_then(|v| v.as_i64());
+        if let Some(c) = count {
+            self.web_search_requests_count = Some(c);
+        }
+    }
+
     fn ingest_event(&mut self, event: &[u8], data: &serde_json::Value) {
         let event_name = std::str::from_utf8(event).unwrap_or("").trim();
         let data_type = data
@@ -432,6 +451,16 @@ impl SseTextAccumulator {
             return;
         }
 
+        // Best-effort server tool detection: content_block_start with type="server_tool_use"/"web_search_tool_result",
+        // or any event whose data.type matches (some proxies may send different event shapes).
+        if data_type == "server_tool_use" {
+            self.server_tool_use_seen = true;
+        }
+        if data_type == "web_search_tool_result" {
+            self.web_search_tool_result_seen = true;
+            extract_web_search_urls_from_block(data, &mut self.web_search_result_urls);
+        }
+
         if data_type == "content_block_start" {
             if let Some(block) = data.get("content_block").and_then(|v| v.as_object()) {
                 let block_type = block.get("type").and_then(|v| v.as_str()).unwrap_or("");
@@ -449,6 +478,16 @@ impl SseTextAccumulator {
                     if let Some(signature) = block.get("signature").and_then(|v| v.as_str()) {
                         self.ingest_signature(signature);
                     }
+                }
+                if block_type == "server_tool_use" {
+                    self.server_tool_use_seen = true;
+                }
+                if block_type == "web_search_tool_result" {
+                    self.web_search_tool_result_seen = true;
+                    extract_web_search_urls_from_block(
+                        &serde_json::Value::Object(block.clone()),
+                        &mut self.web_search_result_urls,
+                    );
                 }
             }
         }
@@ -476,6 +515,13 @@ impl SseTextAccumulator {
                     self.message_delta_stop_reason = Some(stop_reason);
                 }
             }
+        }
+
+        // Extract web_search_requests from usage.server_tool_use in message_start/message_delta.
+        // The SseUsageTracker only normalizes scalar token fields, so server_tool_use is lost there.
+        self.try_extract_web_search_requests(data);
+        if let Some(message) = data.get("message") {
+            self.try_extract_web_search_requests(message);
         }
 
         // 先尽可能从 message 或根对象里提取结构字段（不会影响 text/thinking 的计数口径）。
@@ -909,6 +955,77 @@ pub(super) fn extract_thinking_full_and_signature_from_message_json(
     }
 
     (has_block, thinking_full, signature_full)
+}
+
+pub(super) fn extract_server_tool_flags_from_message_json(
+    value: &serde_json::Value,
+) -> (bool, bool, Vec<String>) {
+    // Returns: (server_tool_use_seen, web_search_tool_result_seen, web_search_result_urls)
+    if let Some(message) = value.get("message") {
+        return extract_server_tool_flags_from_message_json(message);
+    }
+
+    let mut server_tool_use = false;
+    let mut web_search_result = false;
+    let mut urls = Vec::new();
+
+    let Some(content) = value.get("content") else {
+        return (false, false, Vec::new());
+    };
+    let Some(arr) = content.as_array() else {
+        return (false, false, Vec::new());
+    };
+
+    for block in arr {
+        let Some(obj) = block.as_object() else {
+            continue;
+        };
+        let block_type = obj.get("type").and_then(|v| v.as_str()).unwrap_or("");
+        if block_type == "server_tool_use" {
+            server_tool_use = true;
+        }
+        if block_type == "web_search_tool_result" {
+            web_search_result = true;
+            extract_web_search_urls_from_block(block, &mut urls);
+        }
+    }
+
+    (server_tool_use, web_search_result, urls)
+}
+
+/// Extract URLs from a `web_search_tool_result` block's `content` array.
+fn extract_web_search_urls_from_block(block: &serde_json::Value, urls: &mut Vec<String>) {
+    let Some(content) = block.get("content").and_then(|v| v.as_array()) else {
+        return;
+    };
+    for item in content {
+        let Some(obj) = item.as_object() else {
+            continue;
+        };
+        if obj.get("type").and_then(|v| v.as_str()) != Some("web_search_result") {
+            continue;
+        }
+        if let Some(url) = obj.get("url").and_then(|v| v.as_str()) {
+            let trimmed = url.trim();
+            if !trimmed.is_empty() {
+                urls.push(trimmed.to_string());
+            }
+        }
+    }
+}
+
+/// Extract `web_search_requests` count from a non-streaming JSON response.
+pub(super) fn extract_web_search_requests_from_message_json(
+    value: &serde_json::Value,
+) -> Option<i64> {
+    if let Some(message) = value.get("message") {
+        return extract_web_search_requests_from_message_json(message);
+    }
+    value
+        .get("usage")
+        .and_then(|u| u.get("server_tool_use"))
+        .and_then(|s| s.get("web_search_requests"))
+        .and_then(|v| v.as_i64())
 }
 
 #[cfg(test)]

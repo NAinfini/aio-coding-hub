@@ -337,6 +337,7 @@ export type ClaudeValidationEvaluation = {
     toolSupport?: { ok: boolean; label: string; title: string };
     multiTurn?: { ok: boolean; label: string; title: string };
     reverseProxy?: { ok: boolean; label: string; title: string };
+    webSearchResponse?: { ok: boolean; label: string; title: string };
   };
   derived: {
     requestedModel: string | null;
@@ -1065,6 +1066,91 @@ export function evaluateClaudeValidation(
     };
   }
 
+  // Web search response check (server_tool_use + web_search_tool_result)
+  const requireWebSearchResponse = Boolean(evaluationRecord.requireWebSearchResponse);
+  const webSearchRequests = (() => {
+    // Primary source: extracted directly by Rust SseTextAccumulator from SSE usage events.
+    // The generic SseUsageTracker only normalizes scalar token fields and drops
+    // the nested `server_tool_use` object, so `result.usage.server_tool_use` is always null.
+    const fromSignals = get<number>(signalsRaw, "web_search_requests_count");
+    if (typeof fromSignals === "number" && Number.isFinite(fromSignals)) return fromSignals;
+
+    // Fallback: try usage.server_tool_use.web_search_requests (works for non-streaming JSON).
+    const usage = result?.usage as unknown;
+    const serverToolUse = get<Record<string, unknown>>(usage, "server_tool_use");
+    if (!serverToolUse) return null;
+    const v = get<number>(serverToolUse, "web_search_requests");
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+    return null;
+  })();
+  const serverToolUseSeen = get<boolean>(signalsRaw, "server_tool_use_seen") === true;
+  const webSearchToolResultSeen = get<boolean>(signalsRaw, "web_search_tool_result_seen") === true;
+
+  const webSearchResultUrls = (() => {
+    const raw = get<unknown[]>(signalsRaw, "web_search_result_urls");
+    if (!Array.isArray(raw)) return [];
+    return raw.filter((v): v is string => typeof v === "string" && v.trim().length > 0);
+  })();
+
+  const webSearchExpectedUrlPrefix = (() => {
+    const v = (evaluationRecord as Record<string, unknown>).webSearchExpectedUrlPrefix;
+    if (typeof v === "string" && v.trim()) return v.trim();
+    return null;
+  })();
+
+  const webSearchUrlMatchOk = (() => {
+    if (!webSearchExpectedUrlPrefix) return true; // no URL requirement configured
+    return webSearchResultUrls.some((url) =>
+      url.toLowerCase().startsWith(webSearchExpectedUrlPrefix.toLowerCase())
+    );
+  })();
+
+  const webSearchResponseOk =
+    serverToolUseSeen &&
+    webSearchToolResultSeen &&
+    (webSearchRequests ?? 0) >= 1 &&
+    webSearchUrlMatchOk;
+
+  if (requireWebSearchResponse) {
+    const urlMatchDetail = webSearchExpectedUrlPrefix
+      ? webSearchUrlMatchOk
+        ? `url_match=✓ (${webSearchExpectedUrlPrefix})`
+        : `url_match=✗ (期望 ${webSearchExpectedUrlPrefix}；实际=${webSearchResultUrls.length > 0 ? webSearchResultUrls.slice(0, 3).join(", ") : "无"})`
+      : "";
+
+    checksOut.webSearchResponse = {
+      ok: webSearchResponseOk,
+      label: "Web Search 响应",
+      title: webSearchResponseOk
+        ? [
+            "server_tool_use + web_search_tool_result 已确认",
+            `web_search_requests=${webSearchRequests ?? "—"}`,
+            urlMatchDetail,
+          ]
+            .filter(Boolean)
+            .join("; ")
+        : [
+            `server_tool_use=${serverToolUseSeen ? "true" : "false"}`,
+            `web_search_tool_result=${webSearchToolResultSeen ? "true" : "false"}`,
+            `web_search_requests=${webSearchRequests ?? "—"}`,
+            urlMatchDetail,
+            "web_search 需走 Claude 官方服务器（强第一方信号）",
+          ]
+            .filter(Boolean)
+            .join("; "),
+    };
+  } else if (result && (serverToolUseSeen || webSearchToolResultSeen)) {
+    checksOut.webSearchResponse = {
+      ok: webSearchResponseOk,
+      label: "Web Search 响应",
+      title: [
+        `server_tool_use=${serverToolUseSeen ? "true" : "false"}`,
+        `web_search_tool_result=${webSearchToolResultSeen ? "true" : "false"}`,
+        `web_search_requests=${webSearchRequests ?? "—"}`,
+      ].join("; "),
+    };
+  }
+
   const overallPass = (() => {
     if (!result) return null;
     if (!result.ok) return false;
@@ -1106,6 +1192,8 @@ export function evaluateClaudeValidation(
     if (requireToolSupport && checksOut.toolSupport && !checksOut.toolSupport.ok) return false;
     if (requireMultiTurn && checksOut.multiTurn && !checksOut.multiTurn.ok) return false;
     if (requireCacheReadHit && checksOut.cacheReadHit && !checksOut.cacheReadHit.ok) return false;
+    if (requireWebSearchResponse && checksOut.webSearchResponse && !checksOut.webSearchResponse.ok)
+      return false;
 
     return true;
   })();
@@ -1225,6 +1313,28 @@ export function evaluateClaudeValidation(
         level: "C" as const,
         label: "弱证据",
         title: "未观察到 cache_creation 明细（可能不支持或被代理剥离）",
+      };
+    }
+
+    if (requireWebSearchResponse) {
+      if (webSearchResponseOk && Boolean(serviceTier)) {
+        return {
+          level: "A" as const,
+          label: "第一方（强）",
+          title: "web_search server tool 响应成功（强第一方信号）",
+        };
+      }
+      if (webSearchResponseOk) {
+        return {
+          level: "B" as const,
+          label: "第一方（中）",
+          title: "web_search 响应成功但缺少 service_tier",
+        };
+      }
+      return {
+        level: "D" as const,
+        label: "高风险",
+        title: "web_search server tool 验证失败（疑似非第一方链路）",
       };
     }
 

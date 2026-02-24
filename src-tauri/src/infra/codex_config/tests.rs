@@ -15,6 +15,7 @@ fn empty_patch() -> CodexConfigPatch {
         features_exec_policy: None,
         features_remote_compaction: None,
         features_remote_models: None,
+        features_multi_agent: None,
     }
 }
 

@@ -90,6 +90,10 @@ pub(super) async fn perform_request(
         sse_error_message,
         response_id,
         service_tier,
+        server_tool_use_seen,
+        web_search_tool_result_seen,
+        web_search_result_urls,
+        web_search_requests_count,
     ) = if is_sse_by_header {
         let mut usage_tracker = usage::SseUsageTracker::new("claude");
         let mut text_tracker = response::SseTextAccumulator::default();
@@ -154,6 +158,10 @@ pub(super) async fn perform_request(
             } else {
                 Some(text_tracker.service_tier)
             },
+            text_tracker.server_tool_use_seen,
+            text_tracker.web_search_tool_result_seen,
+            text_tracker.web_search_result_urls,
+            text_tracker.web_search_requests_count,
         )
     } else {
         let mut buf = Vec::<u8>::new();
@@ -194,6 +202,9 @@ pub(super) async fn perform_request(
             let (thinking_block2, thinking_full, signature_full) =
                 response::extract_thinking_full_and_signature_from_message_json(&value);
             let (resp_id, service_tier) = response::extract_response_meta_from_message_json(&value);
+            let (srv_tool_use, ws_tool_result, ws_urls) =
+                response::extract_server_tool_flags_from_message_json(&value);
+            let ws_requests_count = response::extract_web_search_requests_from_message_json(&value);
             (
                 responded_model,
                 usage_json_value,
@@ -214,6 +225,10 @@ pub(super) async fn perform_request(
                 String::new(),
                 resp_id,
                 service_tier,
+                srv_tool_use,
+                ws_tool_result,
+                ws_urls,
+                ws_requests_count,
             )
         } else if stream_requested {
             response_parse_mode = "sse_fallback".to_string();
@@ -256,6 +271,10 @@ pub(super) async fn perform_request(
                 } else {
                     Some(text_tracker.service_tier)
                 },
+                text_tracker.server_tool_use_seen,
+                text_tracker.web_search_tool_result_seen,
+                text_tracker.web_search_result_urls,
+                text_tracker.web_search_requests_count,
             )
         } else {
             (
@@ -277,6 +296,10 @@ pub(super) async fn perform_request(
                 None,
                 String::new(),
                 None,
+                None,
+                false,
+                false,
+                Vec::new(),
                 None,
             )
         }
@@ -354,6 +377,10 @@ pub(super) async fn perform_request(
         sse_error_event_seen,
         sse_error_status,
         sse_error_message,
+        server_tool_use_seen,
+        web_search_tool_result_seen,
+        web_search_result_urls,
+        web_search_requests_count,
         response_id,
         service_tier,
         response_headers,

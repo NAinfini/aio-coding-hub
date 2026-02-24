@@ -1987,9 +1987,9 @@ export function ClaudeModelValidationDialog({
             )}
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-12 h-[70vh] min-h-[600px] max-h-[800px]">
+          <div className="flex flex-col gap-6 lg:flex-row h-[70vh] min-h-[600px] max-h-[800px]">
             {/* Left Column: History List */}
-            <div className="flex flex-col gap-4 lg:col-span-4 h-full min-h-0">
+            <div className="flex flex-col gap-4 h-full min-h-0 w-full lg:flex-[0_1_420px] lg:max-w-[420px]">
               <Card padding="none" className="flex h-full flex-col overflow-hidden">
                 <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 px-4 py-3">
                   <div className="flex items-center gap-2">
@@ -2209,7 +2209,7 @@ export function ClaudeModelValidationDialog({
             </div>
 
             {/* Right Column: Details Pane */}
-            <div className="flex flex-col gap-4 lg:col-span-8 h-full min-h-0 overflow-y-auto custom-scrollbar pr-1">
+            <div className="flex flex-col gap-4 h-full min-h-0 min-w-0 flex-1 overflow-y-auto custom-scrollbar pr-1">
               <div className="sticky top-0 z-20 bg-white/90 dark:bg-slate-900/80 backdrop-blur border-b border-slate-100 dark:border-slate-700 pb-3 pt-2">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">

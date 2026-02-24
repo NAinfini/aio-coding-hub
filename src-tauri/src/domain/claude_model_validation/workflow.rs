@@ -245,6 +245,29 @@ pub(super) async fn validate_provider_model(
         obj.insert_bool("signature_from_delta", step1.signature_from_delta);
         obj.insert_opt_str("response_id", step1.response_id.as_deref());
         obj.insert_opt_str("service_tier", step1.service_tier.as_deref());
+        obj.insert_bool("server_tool_use_seen", step1.server_tool_use_seen);
+        obj.insert_bool(
+            "web_search_tool_result_seen",
+            step1.web_search_tool_result_seen,
+        );
+        if !step1.web_search_result_urls.is_empty() {
+            obj.insert(
+                "web_search_result_urls".to_string(),
+                serde_json::Value::Array(
+                    step1
+                        .web_search_result_urls
+                        .iter()
+                        .map(|u| serde_json::Value::String(u.clone()))
+                        .collect(),
+                ),
+            );
+        }
+        if let Some(count) = step1.web_search_requests_count {
+            obj.insert(
+                "web_search_requests_count".to_string(),
+                serde_json::Value::Number(count.into()),
+            );
+        }
         obj.insert_bool("response_bytes_truncated", step1.response_bytes_truncated);
         obj.insert_str("response_content_type", &step1.response_content_type);
         obj.insert_str("response_parse_mode", &step1.response_parse_mode);
@@ -267,6 +290,10 @@ pub(super) async fn validate_provider_model(
         "sse_error_event_seen": step1.sse_error_event_seen,
         "sse_error_status": step1.sse_error_status.map(|s| s as i64),
         "sse_error_message": step1.sse_error_message,
+        "server_tool_use_seen": step1.server_tool_use_seen,
+        "web_search_tool_result_seen": step1.web_search_tool_result_seen,
+        "web_search_result_urls": step1.web_search_result_urls,
+        "web_search_requests_count": step1.web_search_requests_count,
     });
     if let Some(max_chars) = parsed.expect_max_output_chars {
         if let Some(obj) = checks.as_object_mut() {

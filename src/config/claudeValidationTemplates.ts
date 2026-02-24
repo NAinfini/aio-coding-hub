@@ -1,3 +1,5 @@
+import claudeCodeCliTools from "./claude-code-cli-tools.json";
+
 export const CLAUDE_VALIDATION_TEMPLATES = [
   {
     key: "official_max_tokens_5",
@@ -23,11 +25,12 @@ export const CLAUDE_VALIDATION_TEMPLATES = [
           },
         ],
         temperature: 1,
+        tools: claudeCodeCliTools,
         system: [
           {
             type: "text",
             text: "You are Claude Code, Anthropic's official CLI for Claude.",
-            cache_control: { type: "ephemeral", ttl: "5m" },
+            cache_control: { type: "ephemeral" },
           },
         ],
       },
@@ -126,11 +129,12 @@ Claude Code 是 Anthropic 官方的 CLI 工具，提供以下核心能力：
           type: "enabled",
           budget_tokens: 1024,
         },
+        tools: claudeCodeCliTools,
         system: [
           {
             type: "text",
             text: "You are Claude Code, Anthropic's official CLI for Claude.",
-            cache_control: { type: "ephemeral", ttl: "5m" },
+            cache_control: { type: "ephemeral" },
           },
         ],
       },
@@ -186,6 +190,7 @@ Claude Code 是 Anthropic 官方的 CLI 工具，提供以下核心能力：
         ],
         temperature: 0,
         output_config: { effort: "medium" },
+        tools: claudeCodeCliTools,
         system: "You are Claude Code, Anthropic's official CLI for Claude.",
       },
     },
@@ -287,11 +292,12 @@ Claude Code 是 Anthropic 官方的 CLI 工具，提供以下核心能力：
           type: "enabled",
           budget_tokens: 1024,
         },
+        tools: claudeCodeCliTools,
         system: [
           {
             type: "text",
             text: "You are Claude Code, Anthropic's official CLI for Claude.",
-            cache_control: { type: "ephemeral", ttl: "5m" },
+            cache_control: { type: "ephemeral" },
           },
         ],
       },
@@ -319,6 +325,71 @@ Claude Code 是 Anthropic 官方的 CLI 工具，提供以下核心能力：
       requireToolSupport: true,
       requireMultiTurn: true,
       multiTurnSecret: "AIO_MULTI_TURN_OK",
+    },
+  },
+  {
+    key: "official_web_search_probe",
+    label: "官方渠道（web_search 服务端工具验证）",
+    hint: "验证 web_search 服务端工具是否可用（需走 Claude 官方服务器），检查 server_tool_use + web_search_tool_result 响应",
+    channelLabel: "官方渠道",
+    summary: "验证 web_search server tool（强第一方信号）",
+    request: {
+      path: "/v1/messages",
+      query: "beta=true",
+      headers: {
+        "anthropic-beta": "claude-code-20250219",
+      },
+      expect: {},
+      body: {
+        max_tokens: 21333,
+        stream: true,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: "Perform a web search for the query: helpaio",
+                cache_control: { type: "ephemeral" },
+              },
+            ],
+          },
+        ],
+        tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 8 }],
+        thinking: {
+          type: "adaptive",
+        },
+        system: [
+          {
+            type: "text",
+            text: "You are Claude Code, Anthropic's official CLI for Claude.",
+            cache_control: { type: "ephemeral" },
+          },
+          {
+            type: "text",
+            text: "You are an assistant for performing a web search tool use",
+            cache_control: { type: "ephemeral" },
+          },
+        ],
+      },
+    },
+    evaluation: {
+      requireCacheDetail: false,
+      requireModelConsistency: true,
+      requireSseStopReasonMaxTokens: false,
+      requireThinkingOutput: false,
+      requireSignature: false,
+      requireSignatureRoundtrip: false,
+      requireCacheReadHit: false,
+      signatureMinChars: 100,
+      requireResponseId: true,
+      requireServiceTier: true,
+      requireOutputConfig: false,
+      requireToolSupport: false,
+      requireMultiTurn: false,
+      multiTurnSecret: "",
+      requireWebSearchResponse: true,
+      webSearchExpectedUrlPrefix: "https://www.helpaio.com",
     },
   },
 ] as const;

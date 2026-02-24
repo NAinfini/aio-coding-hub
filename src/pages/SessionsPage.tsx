@@ -164,7 +164,7 @@ export function SessionsPage() {
           variant="dashed"
         />
       ) : (
-        <div className="grid gap-4 lg:flex-1 lg:min-h-0 lg:grid-cols-[1fr_360px] lg:items-stretch lg:overflow-hidden">
+        <div className="grid gap-4 lg:flex-1 lg:min-h-0 lg:grid-cols-[360px_1fr] lg:items-stretch lg:overflow-hidden">
           <Card padding="sm" className="flex flex-col lg:min-h-0">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
@@ -176,7 +176,7 @@ export function SessionsPage() {
                   </span>
                 </div>
                 <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  在右侧查看数据源与统计；点击项目进入会话列表。
+                  在左侧查看数据源与统计;点击项目进入会话列表。
                 </div>
               </div>
 

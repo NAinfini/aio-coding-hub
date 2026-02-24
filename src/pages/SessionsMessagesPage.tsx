@@ -9,6 +9,7 @@ import {
   type CliSessionsDisplayContentBlock,
   type CliSessionsSource,
   type CliSessionsSessionSummary,
+  escapeShellArg,
 } from "../services/cliSessions";
 import { copyText } from "../services/clipboard";
 import { hasTauriRuntime } from "../services/tauriInvoke";
@@ -41,7 +42,8 @@ function safeDecodeURIComponent(raw: string) {
 }
 
 function buildResumeCommand(source: CliSessionsSource, sessionId: string) {
-  return source === "claude" ? `claude --resume ${sessionId}` : `codex resume ${sessionId}`;
+  const escapedId = escapeShellArg(sessionId);
+  return source === "claude" ? `claude --resume ${escapedId}` : `codex resume ${escapedId}`;
 }
 
 function renderBlock(block: CliSessionsDisplayContentBlock, key: string) {
@@ -363,21 +365,41 @@ export function SessionsMessagesPage() {
             <div className="mt-3 space-y-3 text-xs text-slate-600 dark:text-slate-400">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="font-semibold text-slate-700 dark:text-slate-200">显示时间</div>
+                  <label
+                    htmlFor="switch-show-timestamp"
+                    className="font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                  >
+                    显示时间
+                  </label>
                   <div className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-500">
                     消息头部展示时间戳
                   </div>
                 </div>
-                <Switch checked={showTimestamp} onCheckedChange={setShowTimestamp} size="sm" />
+                <Switch
+                  id="switch-show-timestamp"
+                  checked={showTimestamp}
+                  onCheckedChange={setShowTimestamp}
+                  size="sm"
+                />
               </div>
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="font-semibold text-slate-700 dark:text-slate-200">显示模型</div>
+                  <label
+                    htmlFor="switch-show-model"
+                    className="font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                  >
+                    显示模型
+                  </label>
                   <div className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-500">
                     消息头部展示模型名
                   </div>
                 </div>
-                <Switch checked={showModel} onCheckedChange={setShowModel} size="sm" />
+                <Switch
+                  id="switch-show-model"
+                  checked={showModel}
+                  onCheckedChange={setShowModel}
+                  size="sm"
+                />
               </div>
             </div>
           </div>

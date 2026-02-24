@@ -93,3 +93,37 @@ export async function cliSessionsMessagesGet(input: {
     }
   );
 }
+
+/**
+ * Escapes a shell argument for safe command execution across platforms.
+ *
+ * - Windows: Uses double quotes and escapes internal double quotes by doubling them
+ * - Unix/Linux/macOS: Uses single quotes and escapes internal single quotes with '\''
+ *
+ * This prevents shell injection attacks when building commands with user-provided input.
+ *
+ * @param arg - The argument string to escape
+ * @returns The escaped argument safe for shell execution
+ *
+ * @example
+ * // Windows: escapeShellArg('hello "world"') => '"hello ""world"""'
+ * // Unix: escapeShellArg("it's fine") => '\'it'\''s fine\''
+ */
+export function escapeShellArg(arg: string): string {
+  // Detect platform using navigator (browser environment)
+  const isWindows = typeof navigator !== "undefined" && /Win/.test(navigator.userAgent);
+
+  // Handle empty string
+  if (arg === "") {
+    return isWindows ? '""' : "''";
+  }
+
+  // Windows: Use double quotes, escape internal double quotes by doubling them
+  if (isWindows) {
+    return `"${arg.replace(/"/g, '""')}"`;
+  }
+
+  // Unix-like systems: Use single quotes, escape single quotes with '\''
+  // The pattern '\'' ends the current quote, adds an escaped single quote, and starts a new quote
+  return `'${arg.replace(/'/g, "'\\''")}'`;
+}

@@ -4,7 +4,11 @@ import { useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Clock, Copy, GitBranch, MessageSquare, Search } from "lucide-react";
 import { toast } from "sonner";
-import { type CliSessionsSource, type CliSessionsSessionSummary } from "../services/cliSessions";
+import {
+  type CliSessionsSource,
+  type CliSessionsSessionSummary,
+  escapeShellArg,
+} from "../services/cliSessions";
 import { copyText } from "../services/clipboard";
 import { hasTauriRuntime } from "../services/tauriInvoke";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -35,7 +39,8 @@ function pickSessions(data: CliSessionsSessionSummary[] | null | undefined) {
 }
 
 function buildResumeCommand(source: CliSessionsSource, sessionId: string) {
-  return source === "claude" ? `claude --resume ${sessionId}` : `codex resume ${sessionId}`;
+  const escapedId = escapeShellArg(sessionId);
+  return source === "claude" ? `claude --resume ${escapedId}` : `codex resume ${escapedId}`;
 }
 
 function sessionTitle(session: CliSessionsSessionSummary) {

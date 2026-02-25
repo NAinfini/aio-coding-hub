@@ -93,7 +93,7 @@ export function SessionsPage() {
   const rowVirtualizer = useVirtualizer({
     count: filteredProjects.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 120,
+    estimateSize: () => 80,
     overscan: 5,
   });
 
@@ -165,7 +165,79 @@ export function SessionsPage() {
         />
       ) : (
         <div className="grid gap-4 lg:flex-1 lg:min-h-0 lg:grid-cols-[360px_1fr] lg:items-stretch lg:overflow-hidden">
-          <Card padding="sm" className="flex flex-col lg:min-h-0 lg:flex-1">
+          <Card padding="md" className="flex flex-col gap-4 lg:min-h-0">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">概览</div>
+                <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  当前来源：<span className="font-semibold">{source}</span>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => void copyText(sourceDirHint(source))}
+                className="h-9"
+                title="复制数据源路径提示"
+              >
+                复制路径提示
+              </Button>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/30">
+                <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                  项目
+                </div>
+                <div className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">
+                  {stats.totalProjects}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/30">
+                <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                  会话总数
+                </div>
+                <div className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">
+                  {stats.totalSessions}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/30">
+                <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                  最近更新
+                </div>
+                <div className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">
+                  {stats.lastModified != null
+                    ? formatRelativeTimeFromUnixSeconds(stats.lastModified)
+                    : "—"}
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900/40">
+              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">数据源</div>
+              <div className="mt-2 text-xs text-slate-600 dark:text-slate-400">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="shrink-0 text-slate-500 dark:text-slate-500">目录</span>
+                  <span className="min-w-0 text-right font-mono text-[11px] text-slate-700 dark:text-slate-300">
+                    {sourceDirHint(source)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900/40">
+              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                操作提示
+              </div>
+              <ul className="mt-2 space-y-1 text-xs text-slate-600 dark:text-slate-400">
+                <li>1) 选择项目进入会话列表</li>
+                <li>2) 在会话列表中复制恢复命令或查看消息</li>
+                <li>3) 消息页支持"加载更早"</li>
+              </ul>
+            </div>
+          </Card>
+
+          <Card padding="sm" className="flex flex-col lg:h-full">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
@@ -253,7 +325,7 @@ export function SessionsPage() {
                         left: 0,
                         width: "100%",
                         transform: `translateY(${virtualItem.start}px)`,
-                        paddingBottom: "8px",
+                        paddingBottom: "4px",
                       }}
                     >
                       <button
@@ -309,81 +381,6 @@ export function SessionsPage() {
                   );
                 })}
               </div>
-            </div>
-          </Card>
-
-          <Card padding="md" className="flex flex-col gap-4 lg:min-h-0">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">概览</div>
-                <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  当前来源：<span className="font-semibold">{source}</span>
-                </div>
-              </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => void copyText(sourceDirHint(source))}
-                className="h-9"
-                title="复制数据源路径提示"
-              >
-                复制路径提示
-              </Button>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/30">
-                <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                  项目
-                </div>
-                <div className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">
-                  {stats.totalProjects}
-                </div>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/30">
-                <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                  会话总数
-                </div>
-                <div className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">
-                  {stats.totalSessions}
-                </div>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/30">
-                <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                  最近更新
-                </div>
-                <div className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">
-                  {stats.lastModified != null
-                    ? formatRelativeTimeFromUnixSeconds(stats.lastModified)
-                    : "—"}
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900/40">
-              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">数据源</div>
-              <div className="mt-2 text-xs text-slate-600 dark:text-slate-400">
-                <div className="flex items-start justify-between gap-2">
-                  <span className="shrink-0 text-slate-500 dark:text-slate-500">目录</span>
-                  <span className="min-w-0 text-right font-mono text-[11px] text-slate-700 dark:text-slate-300">
-                    {sourceDirHint(source)}
-                  </span>
-                </div>
-                <div className="mt-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3 text-slate-600 dark:border-slate-700 dark:bg-slate-900/30 dark:text-slate-400">
-                  不会读取目录外的任意文件路径；消息渲染为纯文本（不引入 markdown/highlight 依赖）。
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900/40">
-              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                操作提示
-              </div>
-              <ul className="mt-2 space-y-1 text-xs text-slate-600 dark:text-slate-400">
-                <li>1) 选择项目进入会话列表</li>
-                <li>2) 在会话列表中复制恢复命令或查看消息</li>
-                <li>3) 消息页支持“加载更早”</li>
-              </ul>
             </div>
           </Card>
         </div>

@@ -522,7 +522,7 @@ pub fn sessions_list(
                 .map(PathBuf::from)
                 .unwrap_or_else(|| project_dir.join(format!("{}.jsonl", entry.session_id)));
             // Validate path is within projects directory
-            if let Err(_) = validate_path_under_root(&file_path, &projects_dir) {
+            if validate_path_under_root(&file_path, &projects_dir).is_err() {
                 continue;
             }
 
@@ -565,7 +565,7 @@ pub fn sessions_list(
             continue;
         }
         // Validate path is within projects directory
-        if let Err(_) = validate_path_under_root(&file_path, &projects_dir) {
+        if validate_path_under_root(&file_path, &projects_dir).is_err() {
             continue;
         }
         let (created_at, modified_at) = file_times(&file_path);

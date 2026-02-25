@@ -540,7 +540,7 @@ pub fn sessions_list(
     for file_path in files {
         // Validate path is within sessions directory
         let sessions_dir = crate::codex_paths::codex_sessions_dir(app)?;
-        if let Err(_) = validate_path_under_root(&file_path, &sessions_dir) {
+        if validate_path_under_root(&file_path, &sessions_dir).is_err() {
             continue;
         }
         let meta = extract_session_meta(&file_path);

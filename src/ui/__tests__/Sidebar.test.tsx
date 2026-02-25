@@ -36,6 +36,12 @@ vi.mock("@tauri-apps/plugin-opener", () => ({
   openUrl: vi.fn(),
 }));
 
+const setThemeMock = vi.hoisted(() => vi.fn());
+
+vi.mock("../../hooks/useTheme", () => ({
+  useTheme: () => ({ theme: "system" as const, setTheme: setThemeMock }),
+}));
+
 describe("ui/Sidebar", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -116,5 +122,34 @@ describe("ui/Sidebar", () => {
       expect(windowOpen).toHaveBeenCalledWith(AIO_RELEASES_URL, "_blank", "noopener,noreferrer");
     });
     windowOpen.mockRestore();
+  });
+
+  it("calls setTheme when theme buttons are clicked", () => {
+    render(
+      <MemoryRouter>
+        <Sidebar />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByText("Light"));
+    expect(setThemeMock).toHaveBeenCalledWith("light");
+
+    fireEvent.click(screen.getByText("Dark"));
+    expect(setThemeMock).toHaveBeenCalledWith("dark");
+
+    fireEvent.click(screen.getByText("System"));
+    expect(setThemeMock).toHaveBeenCalledWith("system");
+  });
+
+  it("calls onNavClick when a nav item is clicked", () => {
+    const onNavClick = vi.fn();
+    render(
+      <MemoryRouter>
+        <Sidebar onNavClick={onNavClick} />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByText("首页"));
+    expect(onNavClick).toHaveBeenCalledTimes(1);
   });
 });

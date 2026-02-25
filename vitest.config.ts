@@ -37,6 +37,8 @@ export default defineConfig({
         "src/services/claudeModelValidation*.ts",
         "src/services/claudeValidationTemplates.ts",
         "src/test/**",
+        "src/generated/**",
+        "src/pages/providers/types.ts",
       ],
     },
   },

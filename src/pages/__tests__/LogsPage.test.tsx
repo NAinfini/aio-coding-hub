@@ -134,4 +134,139 @@ describe("pages/LogsPage", () => {
     });
     expect(screen.getByText("1 / 3")).toBeInTheDocument();
   });
+  it("filters logs by negated status expression (!200)", () => {
+    setTauriRuntime();
+    vi.mocked(useRequestLogsListAllQuery).mockReturnValue({
+      data: [
+        { id: 1, cli_key: "claude", status: 200, error_code: null, method: "GET", path: "/" },
+        { id: 2, cli_key: "claude", status: 499, error_code: null, method: "POST", path: "/v1" },
+        { id: 3, cli_key: "claude", status: 524, error_code: null, method: "POST", path: "/v1" },
+      ],
+      isLoading: false,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useRequestLogsIncrementalPollQuery).mockReturnValue({ isFetching: false } as any);
+    vi.mocked(useRequestLogDetailQuery).mockReturnValue({ data: null, isFetching: false } as any);
+    vi.mocked(useRequestAttemptLogsByTraceIdQuery).mockReturnValue({
+      data: [],
+      isFetching: false,
+    } as any);
+    renderWithProviders(<LogsPage />);
+    fireEvent.change(screen.getByPlaceholderText("例：499 / 524 / !200 / >=400"), {
+      target: { value: "!200" },
+    });
+    expect(screen.getByText("2 / 3")).toBeInTheDocument();
+  });
+
+  it("filters logs by >=400 status expression", () => {
+    setTauriRuntime();
+    vi.mocked(useRequestLogsListAllQuery).mockReturnValue({
+      data: [
+        { id: 1, cli_key: "claude", status: 200, error_code: null, method: "GET", path: "/" },
+        { id: 2, cli_key: "claude", status: 400, error_code: null, method: "POST", path: "/v1" },
+        { id: 3, cli_key: "claude", status: 524, error_code: null, method: "POST", path: "/v1" },
+      ],
+      isLoading: false,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useRequestLogsIncrementalPollQuery).mockReturnValue({ isFetching: false } as any);
+    vi.mocked(useRequestLogDetailQuery).mockReturnValue({ data: null, isFetching: false } as any);
+    vi.mocked(useRequestAttemptLogsByTraceIdQuery).mockReturnValue({
+      data: [],
+      isFetching: false,
+    } as any);
+    renderWithProviders(<LogsPage />);
+    fireEvent.change(screen.getByPlaceholderText("例：499 / 524 / !200 / >=400"), {
+      target: { value: ">=400" },
+    });
+    expect(screen.getByText("2 / 3")).toBeInTheDocument();
+  });
+
+  it("filters logs by <=399 status expression", () => {
+    setTauriRuntime();
+    vi.mocked(useRequestLogsListAllQuery).mockReturnValue({
+      data: [
+        { id: 1, cli_key: "claude", status: 200, error_code: null, method: "GET", path: "/" },
+        { id: 2, cli_key: "claude", status: 400, error_code: null, method: "POST", path: "/v1" },
+      ],
+      isLoading: false,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useRequestLogsIncrementalPollQuery).mockReturnValue({ isFetching: false } as any);
+    vi.mocked(useRequestLogDetailQuery).mockReturnValue({ data: null, isFetching: false } as any);
+    vi.mocked(useRequestAttemptLogsByTraceIdQuery).mockReturnValue({
+      data: [],
+      isFetching: false,
+    } as any);
+    renderWithProviders(<LogsPage />);
+    fireEvent.change(screen.getByPlaceholderText("例：499 / 524 / !200 / >=400"), {
+      target: { value: "<=399" },
+    });
+    expect(screen.getByText("1 / 2")).toBeInTheDocument();
+  });
+
+  it("filters logs by error_code", () => {
+    setTauriRuntime();
+    vi.mocked(useRequestLogsListAllQuery).mockReturnValue({
+      data: [
+        { id: 1, cli_key: "claude", status: 200, error_code: null, method: "GET", path: "/" },
+        {
+          id: 2,
+          cli_key: "claude",
+          status: 499,
+          error_code: "GW_ABORTED",
+          method: "POST",
+          path: "/v1",
+        },
+      ],
+      isLoading: false,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useRequestLogsIncrementalPollQuery).mockReturnValue({ isFetching: false } as any);
+    vi.mocked(useRequestLogDetailQuery).mockReturnValue({ data: null, isFetching: false } as any);
+    vi.mocked(useRequestAttemptLogsByTraceIdQuery).mockReturnValue({
+      data: [],
+      isFetching: false,
+    } as any);
+    renderWithProviders(<LogsPage />);
+    fireEvent.change(screen.getByPlaceholderText("例：GW_UPSTREAM_TIMEOUT"), {
+      target: { value: "ABORTED" },
+    });
+    expect(screen.getByText("1 / 2")).toBeInTheDocument();
+  });
+
+  it("filters logs by path", () => {
+    setTauriRuntime();
+    vi.mocked(useRequestLogsListAllQuery).mockReturnValue({
+      data: [
+        { id: 1, cli_key: "claude", status: 200, error_code: null, method: "GET", path: "/" },
+        {
+          id: 2,
+          cli_key: "claude",
+          status: 200,
+          error_code: null,
+          method: "POST",
+          path: "/v1/messages",
+        },
+      ],
+      isLoading: false,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useRequestLogsIncrementalPollQuery).mockReturnValue({ isFetching: false } as any);
+    vi.mocked(useRequestLogDetailQuery).mockReturnValue({ data: null, isFetching: false } as any);
+    vi.mocked(useRequestAttemptLogsByTraceIdQuery).mockReturnValue({
+      data: [],
+      isFetching: false,
+    } as any);
+    renderWithProviders(<LogsPage />);
+    fireEvent.change(screen.getByPlaceholderText("例：/v1/messages"), {
+      target: { value: "messages" },
+    });
+    expect(screen.getByText("1 / 2")).toBeInTheDocument();
+  });
 });

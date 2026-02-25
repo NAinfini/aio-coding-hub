@@ -43,8 +43,15 @@ function buildResumeCommand(source: CliSessionsSource, sessionId: string) {
   return source === "claude" ? `claude --resume ${escapedId}` : `codex resume ${escapedId}`;
 }
 
+/** 剥离 U+FFFD 替换字符（由后端 lossy UTF-8 解码产生） */
+function stripReplacementChars(text: string) {
+  return text.replace(/\uFFFD/g, "");
+}
+
 function sessionTitle(session: CliSessionsSessionSummary) {
-  return session.first_prompt?.trim() || session.session_id || "Session";
+  const raw = session.first_prompt?.trim() || "";
+  const clean = stripReplacementChars(raw);
+  return clean || session.session_id || "Session";
 }
 
 function sessionMatchesQuery(session: CliSessionsSessionSummary, query: string) {
@@ -387,7 +394,7 @@ export function SessionsProjectPage() {
                       <button
                         type="button"
                         className={cn(
-                          "rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-card transition",
+                          "w-full text-left rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-card transition",
                           "hover:border-slate-300 hover:bg-slate-50",
                           "dark:border-slate-700 dark:bg-slate-900/40 dark:hover:border-slate-600 dark:hover:bg-slate-900/60"
                         )}

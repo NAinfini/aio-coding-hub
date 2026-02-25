@@ -1,4 +1,10 @@
-import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
 import type { CliKey } from "../services/providers";
 import {
   sortModeActiveList,
@@ -27,6 +33,7 @@ export function useSortModesListQuery() {
     queryKey: sortModesKeys.list(),
     queryFn: () => sortModesList(),
     enabled: hasTauriRuntime(),
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -35,6 +42,7 @@ export function useSortModeActiveListQuery() {
     queryKey: sortModesKeys.activeList(),
     queryFn: () => sortModeActiveList(),
     enabled: hasTauriRuntime(),
+    placeholderData: keepPreviousData,
   });
 }
 

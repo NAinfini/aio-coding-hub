@@ -69,7 +69,7 @@ pub(super) fn read_manifest<R: tauri::Runtime>(
 
     if !path.exists() {
         if let Err(err) = try_migrate_legacy_mcp_sync_dir(app, cli_key) {
-            tracing::warn!("MCP 同步迁移失败: {}", err);
+            tracing::warn!("MCP sync migration failed: {}", err);
         }
     }
 

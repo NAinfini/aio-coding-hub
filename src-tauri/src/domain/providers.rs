@@ -549,7 +549,7 @@ pub fn list_by_cli(
     let conn = db.open_connection()?;
 
     let mut stmt = conn
-        .prepare(
+        .prepare_cached(
             r#"
 SELECT
   id,
@@ -636,7 +636,7 @@ fn list_enabled_for_gateway_in_sort_mode(
 ) -> crate::shared::error::AppResult<Vec<ProviderForGateway>> {
     let cli_key_owned = cli_key.to_string();
     let mut stmt = conn
-        .prepare(
+        .prepare_cached(
             r#"
 SELECT
   p.id,
@@ -683,7 +683,7 @@ fn list_enabled_for_gateway_default(
 ) -> crate::shared::error::AppResult<Vec<ProviderForGateway>> {
     let cli_key_owned = cli_key.to_string();
     let mut stmt = conn
-        .prepare(
+        .prepare_cached(
             r#"
 SELECT
   id,
@@ -1191,7 +1191,9 @@ pub fn reorder(
     let mut existing_ids = Vec::new();
     {
         let mut stmt = tx
-            .prepare("SELECT id FROM providers WHERE cli_key = ?1 ORDER BY sort_order ASC, id DESC")
+            .prepare_cached(
+                "SELECT id FROM providers WHERE cli_key = ?1 ORDER BY sort_order ASC, id DESC",
+            )
             .map_err(|e| db_err!("failed to prepare existing id list: {e}"))?;
         let rows = stmt
             .query_map(params![cli_key], |row| row.get::<_, i64>(0))

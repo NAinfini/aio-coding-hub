@@ -188,7 +188,7 @@ fn read_manifest(
 
     if !path.exists() {
         if let Err(err) = try_migrate_legacy_prompt_sync_dir(app, cli_key) {
-            tracing::warn!("提示词同步迁移失败: {}", err);
+            tracing::warn!("prompt sync migration failed: {}", err);
         }
     }
 
@@ -332,7 +332,7 @@ fn restore_from_manifest(
             }
         }
 
-        tracing::warn!(cli_key = %cli_key, "提示词同步: 未找到备份");
+        tracing::warn!(cli_key = %cli_key, "prompt sync: backup not found");
         return Ok(());
     }
 
@@ -433,7 +433,7 @@ pub fn restore_disabled_prompt(
                 let safe_path = safety_dir.join(safe_name);
                 let _ = write_file_atomic(&safe_path, &bytes);
             }
-            tracing::warn!(cli_key = %cli_key, "提示词同步: manifest 缺失，保留当前文件");
+            tracing::warn!(cli_key = %cli_key, "prompt sync: manifest missing, keeping current files");
         }
 
         let now = now_unix_seconds();

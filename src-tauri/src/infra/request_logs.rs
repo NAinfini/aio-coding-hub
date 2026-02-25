@@ -190,7 +190,7 @@ pub fn spawn_write_through(app: tauri::AppHandle, db: db::Db, item: RequestLogIn
         let mut cache = InsertBatchCache::default();
         let items = [item];
         if let Err(err) = insert_batch_with_retries(&app, &db, &items, &mut cache) {
-            tracing::error!(error = %err.message, "请求日志直写插入失败");
+            tracing::error!(error = %err.message, "request log write-through insert failed");
         }
     });
 }
@@ -211,14 +211,14 @@ fn writer_loop(app: tauri::AppHandle, db: db::Db, mut rx: mpsc::Receiver<Request
         }
 
         if let Err(err) = insert_batch_with_retries(&app, &db, &buffer, &mut cache) {
-            tracing::error!(error = %err.message, "请求日志批量插入失败");
+            tracing::error!(error = %err.message, "request log batch insert failed");
         }
         buffer.clear();
     }
 
     if !buffer.is_empty() {
         if let Err(err) = insert_batch_with_retries(&app, &db, &buffer, &mut cache) {
-            tracing::error!(error = %err.message, "请求日志最终批量插入失败");
+            tracing::error!(error = %err.message, "request log final batch insert failed");
         }
     }
 }

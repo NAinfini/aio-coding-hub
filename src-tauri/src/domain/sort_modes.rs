@@ -122,7 +122,7 @@ WHERE cli_key = ?1
 pub fn list_modes(db: &db::Db) -> crate::shared::error::AppResult<Vec<SortModeSummary>> {
     let conn = db.open_connection()?;
     let mut stmt = conn
-        .prepare(
+        .prepare_cached(
             r#"
 SELECT
   id,
@@ -248,7 +248,7 @@ pub fn delete_mode(db: &db::Db, mode_id: i64) -> crate::shared::error::AppResult
 pub fn list_active(db: &db::Db) -> crate::shared::error::AppResult<Vec<SortModeActiveRow>> {
     let conn = db.open_connection()?;
     let mut stmt = conn
-        .prepare(
+        .prepare_cached(
             r#"
 SELECT
   cli_key,
@@ -320,7 +320,7 @@ pub fn list_mode_providers(
     ensure_mode_exists(&conn, mode_id)?;
 
     let mut stmt = conn
-        .prepare(
+        .prepare_cached(
             r#"
 SELECT
   provider_id,
@@ -421,7 +421,7 @@ pub fn set_mode_providers_order(
     let mut existing_enabled: HashMap<i64, bool> = HashMap::new();
     {
         let mut stmt = tx
-            .prepare(
+            .prepare_cached(
                 r#"
 SELECT
   provider_id,

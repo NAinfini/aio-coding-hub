@@ -100,7 +100,7 @@ export function Sidebar({ isOpen = true, onNavClick, className }: SidebarProps) 
           </div>
         </div>
 
-        <nav className="flex-1 space-y-1 px-3">
+        <nav aria-label="Main navigation" className="flex-1 space-y-1 px-3">
           {NAV.map((item) => (
             <NavLink
               key={item.to}

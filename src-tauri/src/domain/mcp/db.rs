@@ -170,27 +170,27 @@ pub fn list_for_workspace(
     let _ = workspaces::get_cli_key_by_id(&conn, workspace_id)?;
 
     let mut stmt = conn
-        .prepare(
+        .prepare_cached(
             r#"
-SELECT
-  s.id,
-  s.server_key,
-  s.name,
-  s.transport,
-  s.command,
-  s.args_json,
-  s.env_json,
-  s.cwd,
-  s.url,
-  s.headers_json,
-  CASE WHEN e.server_id IS NULL THEN 0 ELSE 1 END AS enabled,
-  s.created_at,
-  s.updated_at
-FROM mcp_servers s
-LEFT JOIN workspace_mcp_enabled e
-  ON e.workspace_id = ?1 AND e.server_id = s.id
-ORDER BY s.updated_at DESC, s.id DESC
-"#,
+    SELECT
+      s.id,
+      s.server_key,
+      s.name,
+      s.transport,
+      s.command,
+      s.args_json,
+      s.env_json,
+      s.cwd,
+      s.url,
+      s.headers_json,
+      CASE WHEN e.server_id IS NULL THEN 0 ELSE 1 END AS enabled,
+      s.created_at,
+      s.updated_at
+    FROM mcp_servers s
+    LEFT JOIN workspace_mcp_enabled e
+      ON e.workspace_id = ?1 AND e.server_id = s.id
+    ORDER BY s.updated_at DESC, s.id DESC
+    "#,
         )
         .map_err(|e| db_err!("failed to prepare query: {e}"))?;
 

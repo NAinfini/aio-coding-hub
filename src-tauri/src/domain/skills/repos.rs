@@ -42,18 +42,18 @@ WHERE id = ?1
 pub fn repos_list(db: &db::Db) -> crate::shared::error::AppResult<Vec<SkillRepoSummary>> {
     let conn = db.open_connection()?;
     let mut stmt = conn
-        .prepare(
+        .prepare_cached(
             r#"
-SELECT
-  id,
-  git_url,
-  branch,
-  enabled,
-  created_at,
-  updated_at
-FROM skill_repos
-ORDER BY updated_at DESC, id DESC
-"#,
+    SELECT
+      id,
+      git_url,
+      branch,
+      enabled,
+      created_at,
+      updated_at
+    FROM skill_repos
+    ORDER BY updated_at DESC, id DESC
+    "#,
         )
         .map_err(|e| db_err!("failed to prepare repo list query: {e}"))?;
 
@@ -111,12 +111,12 @@ pub fn repo_upsert(
             };
 
             let mut stmt = conn
-                .prepare(
+                .prepare_cached(
                     r#"
-SELECT id, git_url, branch
-FROM skill_repos
-ORDER BY updated_at DESC, id DESC
-"#,
+            SELECT id, git_url, branch
+            FROM skill_repos
+            ORDER BY updated_at DESC, id DESC
+            "#,
                 )
                 .map_err(|e| db_err!("failed to prepare repo lookup: {e}"))?;
 

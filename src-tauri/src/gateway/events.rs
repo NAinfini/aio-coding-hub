@@ -287,6 +287,6 @@ pub(super) fn emit_circuit_transition(
     lines.push(format!("Trace：{trace_id}"));
 
     if let Err(err) = notice::emit(app, notice::build(level, Some(title), lines.join("\n"))) {
-        tracing::warn!("发送熔断器通知失败: {}", err);
+        tracing::warn!("failed to emit circuit breaker notice: {}", err);
     }
 }

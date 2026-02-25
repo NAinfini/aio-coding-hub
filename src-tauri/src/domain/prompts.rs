@@ -90,22 +90,22 @@ pub fn list_by_workspace(
     let _ = workspaces::get_cli_key_by_id(&conn, workspace_id)?;
 
     let mut stmt = conn
-        .prepare(
+        .prepare_cached(
             r#"
-SELECT
-  p.id,
-  p.workspace_id,
-  w.cli_key,
-  p.name,
-  p.content,
-  p.enabled,
-  p.created_at,
-  p.updated_at
-FROM prompts p
-JOIN workspaces w ON w.id = p.workspace_id
-WHERE p.workspace_id = ?1
-ORDER BY p.id DESC
-"#,
+    SELECT
+      p.id,
+      p.workspace_id,
+      w.cli_key,
+      p.name,
+      p.content,
+      p.enabled,
+      p.created_at,
+      p.updated_at
+    FROM prompts p
+    JOIN workspaces w ON w.id = p.workspace_id
+    WHERE p.workspace_id = ?1
+    ORDER BY p.id DESC
+    "#,
         )
         .map_err(|e| db_err!("failed to prepare query: {e}"))?;
 

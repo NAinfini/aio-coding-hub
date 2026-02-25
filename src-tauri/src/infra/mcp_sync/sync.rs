@@ -79,7 +79,7 @@ pub fn sync_cli<R: tauri::Runtime>(
     // Best-effort: sanity check to avoid duplicated keys in manifest.
     let set: HashSet<String> = manifest.managed_keys.iter().cloned().collect();
     if set.len() != manifest.managed_keys.len() {
-        tracing::warn!(cli_key = %cli_key, "MCP 同步警告: managed_keys 存在重复");
+        tracing::warn!(cli_key = %cli_key, "MCP sync: duplicate entries in managed_keys");
     }
 
     Ok(())

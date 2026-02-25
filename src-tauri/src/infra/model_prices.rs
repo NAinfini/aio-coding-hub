@@ -40,19 +40,19 @@ pub fn list_by_cli(
     let conn = db.open_connection()?;
 
     let mut stmt = conn
-        .prepare(
+        .prepare_cached(
             r#"
-SELECT
-  id,
-  cli_key,
-  model,
-  currency,
-  created_at,
-  updated_at
-FROM model_prices
-WHERE cli_key = ?1
-ORDER BY model ASC, id DESC
-"#,
+    SELECT
+      id,
+      cli_key,
+      model,
+      currency,
+      created_at,
+      updated_at
+    FROM model_prices
+    WHERE cli_key = ?1
+    ORDER BY model ASC, id DESC
+    "#,
         )
         .map_err(|e| db_err!("failed to prepare model_prices list: {e}"))?;
 

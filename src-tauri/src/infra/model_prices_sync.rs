@@ -328,7 +328,7 @@ fn load_existing_price_map(
     cli_key: &str,
 ) -> crate::shared::error::AppResult<HashMap<String, String>> {
     let mut stmt = tx
-        .prepare("SELECT model, price_json FROM model_prices WHERE cli_key = ?1")
+        .prepare_cached("SELECT model, price_json FROM model_prices WHERE cli_key = ?1")
         .map_err(|e| db_err!("failed to prepare existing model_prices query: {e}"))?;
 
     let mut map = HashMap::new();
@@ -389,14 +389,14 @@ fn upsert_rows(
 
     {
         let mut stmt = tx
-            .prepare(
+            .prepare_cached(
                 r#"
-INSERT INTO model_prices(cli_key, model, price_json, created_at, updated_at)
-VALUES (?1, ?2, ?3, ?4, ?4)
-ON CONFLICT(cli_key, model) DO UPDATE SET
-  price_json = excluded.price_json,
-  updated_at = excluded.updated_at
-"#,
+        INSERT INTO model_prices(cli_key, model, price_json, created_at, updated_at)
+        VALUES (?1, ?2, ?3, ?4, ?4)
+        ON CONFLICT(cli_key, model) DO UPDATE SET
+          price_json = excluded.price_json,
+          updated_at = excluded.updated_at
+        "#,
             )
             .map_err(|e| db_err!("failed to prepare model_prices upsert: {e}"))?;
 
@@ -571,7 +571,7 @@ pub async fn sync_basellm(
     )
     .await
     {
-        tracing::warn!("basellm 缓存写入失败: {}", err);
+        tracing::warn!("basellm cache write failed: {}", err);
     }
 
     Ok(report)

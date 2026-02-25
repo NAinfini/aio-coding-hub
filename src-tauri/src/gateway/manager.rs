@@ -217,7 +217,7 @@ impl GatewayManager {
         let circuit_initial = match provider_circuit_breakers::load_all(&db) {
             Ok(v) => v,
             Err(err) => {
-                tracing::warn!("熔断器状态加载失败，使用默认值: {}", err);
+                tracing::warn!("circuit breaker state load failed, using defaults: {}", err);
                 Default::default()
             }
         };
@@ -260,7 +260,7 @@ impl GatewayManager {
             let listener = match tokio::net::TcpListener::from_std(std_listener) {
                 Ok(l) => l,
                 Err(err) => {
-                    tracing::error!(bind_addr = %bind_addr, "网关监听器初始化失败: {}", err);
+                    tracing::error!(bind_addr = %bind_addr, "gateway listener initialization failed: {}", err);
                     return;
                 }
             };
@@ -270,7 +270,7 @@ impl GatewayManager {
             });
 
             if let Err(err) = serve.await {
-                tracing::error!(bind_addr = %bind_addr, "网关服务器运行错误: {}", err);
+                tracing::error!(bind_addr = %bind_addr, "gateway server runtime error: {}", err);
             }
         });
 

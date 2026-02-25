@@ -99,7 +99,7 @@ pub(crate) async fn restore_cli_proxy_keep_state_best_effort(
                         tracing::info!(
                             cli_key = %result.cli_key,
                             trace_id = %result.trace_id,
-                            "{context}：已恢复 cli_proxy 直连配置（保留启用状态）"
+                            "{context}: restored cli_proxy direct config (keeping enabled state)"
                         );
                     }
                     continue;
@@ -109,16 +109,19 @@ pub(crate) async fn restore_cli_proxy_keep_state_best_effort(
                     cli_key = %result.cli_key,
                     trace_id = %result.trace_id,
                     error_code = %result.error_code.unwrap_or_default(),
-                    "{context}：恢复 cli_proxy 直连配置失败: {}",
+                    "{context}: cli_proxy direct config restore failed: {}",
                     result.message
                 );
             }
         }
         Ok(Err(err)) => {
-            tracing::warn!("{context}：恢复 cli_proxy 直连配置任务失败: {}", err);
+            tracing::warn!(
+                "{context}: cli_proxy direct config restore task failed: {}",
+                err
+            );
         }
         Err(_) => tracing::warn!(
-            "{context}：恢复 cli_proxy 直连配置任务超时（{}秒）",
+            "{context}: cli_proxy direct config restore task timed out ({}s)",
             CLI_PROXY_RESTORE_TIMEOUT.as_secs()
         ),
     }
@@ -143,7 +146,7 @@ pub(crate) async fn stop_gateway_best_effort(app: &tauri::AppHandle) {
     };
 
     if tokio::time::timeout(stop_timeout, join_all).await.is_err() {
-        tracing::warn!("退出清理：网关停止超时，正在中止服务器任务");
+        tracing::warn!("exit cleanup: gateway stop timed out, aborting server task");
         task.abort();
 
         let abort_grace = Duration::from_secs(1);

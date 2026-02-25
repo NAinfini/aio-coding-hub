@@ -132,11 +132,11 @@ fn set_dock_visibility(app: &tauri::AppHandle, visible: bool) {
     };
 
     if let Err(err) = app.set_dock_visibility(visible) {
-        tracing::warn!("设置 Dock 可见性失败: {err}");
+        tracing::warn!("failed to set Dock visibility: {err}");
     }
 
     if let Err(err) = app.set_activation_policy(policy) {
-        tracing::warn!("设置激活策略失败: {err}");
+        tracing::warn!("failed to set activation policy: {err}");
     }
 }
 

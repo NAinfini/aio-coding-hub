@@ -64,7 +64,7 @@ pub(crate) async fn model_prices_sync_basellm(
     )
     .await
     {
-        tracing::warn!("模型定价同步后缺失成本回填失败: {}", err);
+        tracing::warn!("cost backfill after model price sync failed: {}", err);
     }
 
     Ok(report)

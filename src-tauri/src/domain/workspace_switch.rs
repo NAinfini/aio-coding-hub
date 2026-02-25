@@ -110,15 +110,15 @@ fn list_enabled_mcp_keys(
     };
 
     let mut stmt = conn
-        .prepare(
+        .prepare_cached(
             r#"
-SELECT s.server_key
-FROM mcp_servers s
-JOIN workspace_mcp_enabled e
-  ON e.server_id = s.id
-WHERE e.workspace_id = ?1
-ORDER BY s.server_key ASC
-"#,
+    SELECT s.server_key
+    FROM mcp_servers s
+    JOIN workspace_mcp_enabled e
+      ON e.server_id = s.id
+    WHERE e.workspace_id = ?1
+    ORDER BY s.server_key ASC
+    "#,
         )
         .map_err(|e| db_err!("failed to prepare enabled mcp query: {e}"))?;
 
@@ -142,15 +142,15 @@ fn list_enabled_skill_keys(
     };
 
     let mut stmt = conn
-        .prepare(
+        .prepare_cached(
             r#"
-SELECT s.skill_key
-FROM skills s
-JOIN workspace_skill_enabled e
-  ON e.skill_id = s.id
-WHERE e.workspace_id = ?1
-ORDER BY s.skill_key ASC
-"#,
+    SELECT s.skill_key
+    FROM skills s
+    JOIN workspace_skill_enabled e
+      ON e.skill_id = s.id
+    WHERE e.workspace_id = ?1
+    ORDER BY s.skill_key ASC
+    "#,
         )
         .map_err(|e| db_err!("failed to prepare enabled skills query: {e}"))?;
 

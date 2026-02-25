@@ -1,7 +1,7 @@
 // Usage:
 // - Query adapters for `src/services/mcp.ts`, used by MCP pages/views.
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   mcpImportFromWorkspaceCli,
   mcpImportServers,
@@ -28,6 +28,7 @@ export function useMcpServersListQuery(
       return mcpServersList(workspaceId);
     },
     enabled: hasTauriRuntime() && Boolean(workspaceId) && (options?.enabled ?? true),
+    placeholderData: keepPreviousData,
   });
 }
 

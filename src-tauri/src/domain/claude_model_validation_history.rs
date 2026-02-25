@@ -122,19 +122,19 @@ pub fn list_runs(
     ensure_provider_is_claude(&conn, provider_id)?;
 
     let mut stmt = conn
-        .prepare(
+        .prepare_cached(
             r#"
-SELECT
-  id,
-  provider_id,
-  created_at,
-  request_json,
-  result_json
-FROM claude_model_validation_runs
-WHERE provider_id = ?1
-ORDER BY id DESC
-LIMIT ?2
-"#,
+    SELECT
+      id,
+      provider_id,
+      created_at,
+      request_json,
+      result_json
+    FROM claude_model_validation_runs
+    WHERE provider_id = ?1
+    ORDER BY id DESC
+    LIMIT ?2
+    "#,
         )
         .map_err(|e| db_err!("failed to prepare history list query: {e}"))?;
 

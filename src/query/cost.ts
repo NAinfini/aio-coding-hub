@@ -1,7 +1,7 @@
 // Usage:
 // - Query adapters for `src/services/cost.ts` used by `src/components/home/HomeCostPanel.tsx`.
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   costBreakdownModelV1,
   costBreakdownProviderV1,
@@ -67,5 +67,6 @@ export function useCostAnalyticsV1Query(
       } satisfies CostAnalyticsV1;
     },
     enabled: hasTauriRuntime() && (options?.enabled ?? true),
+    placeholderData: keepPreviousData,
   });
 }

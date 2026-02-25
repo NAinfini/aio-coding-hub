@@ -201,27 +201,27 @@ pub fn leaderboard_provider(
     let (start_ts, cli_key) = resolve_range_filters(&conn, range, cli_key)?;
 
     let mut stmt = conn
-        .prepare(
+        .prepare_cached(
             r#"
-	SELECT
-	  cli_key,
-	  attempts_json,
-	  status,
-	  error_code,
-	  duration_ms,
-	  ttfb_ms,
-	  input_tokens,
-	  output_tokens,
-	  total_tokens,
-	  cache_read_input_tokens,
-	  cache_creation_input_tokens,
-  cache_creation_5m_input_tokens,
-  cache_creation_1h_input_tokens
-FROM request_logs
-WHERE excluded_from_stats = 0
-AND (?1 IS NULL OR created_at >= ?1)
-AND (?2 IS NULL OR cli_key = ?2)
-"#,
+    	SELECT
+    	  cli_key,
+    	  attempts_json,
+    	  status,
+    	  error_code,
+    	  duration_ms,
+    	  ttfb_ms,
+    	  input_tokens,
+    	  output_tokens,
+    	  total_tokens,
+    	  cache_read_input_tokens,
+    	  cache_creation_input_tokens,
+      cache_creation_5m_input_tokens,
+      cache_creation_1h_input_tokens
+    FROM request_logs
+    WHERE excluded_from_stats = 0
+    AND (?1 IS NULL OR created_at >= ?1)
+    AND (?2 IS NULL OR cli_key = ?2)
+    "#,
         )
         .map_err(|e| db_err!("failed to prepare provider leaderboard query: {e}"))?;
 
@@ -357,28 +357,25 @@ pub fn leaderboard_day(
     let conn = db.open_connection()?;
     let (start_ts, cli_key) = resolve_range_filters(&conn, range, cli_key)?;
 
-    let mut stmt = conn
-        .prepare(
-            r#"
-SELECT
-  strftime('%Y-%m-%d', created_at, 'unixepoch', 'localtime') AS day,
-  COUNT(*) AS requests_total,
-  SUM(COALESCE(input_tokens, 0)) AS input_tokens,
-  SUM(COALESCE(output_tokens, 0)) AS output_tokens,
-  SUM(COALESCE(total_tokens, COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0))) AS total_tokens,
-  SUM(COALESCE(cache_read_input_tokens, 0)) AS cache_read_input_tokens,
-  SUM(COALESCE(cache_creation_input_tokens, 0)) AS cache_creation_input_tokens,
-  SUM(COALESCE(cache_creation_5m_input_tokens, 0)) AS cache_creation_5m_input_tokens,
-  SUM(COALESCE(cache_creation_1h_input_tokens, 0)) AS cache_creation_1h_input_tokens
-FROM request_logs
-WHERE excluded_from_stats = 0
-AND (?1 IS NULL OR created_at >= ?1)
-AND (?2 IS NULL OR cli_key = ?2)
-GROUP BY day
-ORDER BY total_tokens DESC, day DESC
-LIMIT ?3
-"#,
-        )
+    let mut stmt = conn.prepare_cached(r#"
+    SELECT
+      strftime('%Y-%m-%d', created_at, 'unixepoch', 'localtime') AS day,
+      COUNT(*) AS requests_total,
+      SUM(COALESCE(input_tokens, 0)) AS input_tokens,
+      SUM(COALESCE(output_tokens, 0)) AS output_tokens,
+      SUM(COALESCE(total_tokens, COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0))) AS total_tokens,
+      SUM(COALESCE(cache_read_input_tokens, 0)) AS cache_read_input_tokens,
+      SUM(COALESCE(cache_creation_input_tokens, 0)) AS cache_creation_input_tokens,
+      SUM(COALESCE(cache_creation_5m_input_tokens, 0)) AS cache_creation_5m_input_tokens,
+      SUM(COALESCE(cache_creation_1h_input_tokens, 0)) AS cache_creation_1h_input_tokens
+    FROM request_logs
+    WHERE excluded_from_stats = 0
+    AND (?1 IS NULL OR created_at >= ?1)
+    AND (?2 IS NULL OR cli_key = ?2)
+    GROUP BY day
+    ORDER BY total_tokens DESC, day DESC
+    LIMIT ?3
+    "#)
         .map_err(|e| db_err!("failed to prepare day leaderboard query: {e}"))?;
 
     let rows = stmt

@@ -779,11 +779,11 @@ LIMIT ?6
             .map_err(|e| db_err!("failed to prepare backfill candidates query: {e}"))?;
 
         let mut stmt_price = tx
-            .prepare("SELECT price_json FROM model_prices WHERE cli_key = ?1 AND model = ?2")
+            .prepare_cached("SELECT price_json FROM model_prices WHERE cli_key = ?1 AND model = ?2")
             .map_err(|e| db_err!("failed to prepare model_prices query: {e}"))?;
 
         let mut stmt_update = tx
-            .prepare(
+            .prepare_cached(
                 "UPDATE request_logs SET cost_usd_femto = ?1 WHERE id = ?2 AND cost_usd_femto IS NULL",
             )
             .map_err(|e| db_err!("failed to prepare backfill update: {e}"))?;

@@ -173,20 +173,20 @@ fn fetch_cost_buckets(
     end_ts: i64,
 ) -> crate::shared::error::AppResult<Vec<(i64, i64)>> {
     let mut stmt = conn
-        .prepare(
+        .prepare_cached(
             r#"
-SELECT
-  created_at,
-  SUM(CASE WHEN cost_usd_femto < 0 THEN 0 ELSE cost_usd_femto END) AS cost
-FROM request_logs
-WHERE excluded_from_stats = 0
-  AND status >= 200 AND status < 300 AND error_code IS NULL
-  AND cost_usd_femto IS NOT NULL
-  AND final_provider_id = ?1
-  AND created_at >= ?2 AND created_at < ?3
-GROUP BY created_at
-ORDER BY created_at ASC
-"#,
+    SELECT
+      created_at,
+      SUM(CASE WHEN cost_usd_femto < 0 THEN 0 ELSE cost_usd_femto END) AS cost
+    FROM request_logs
+    WHERE excluded_from_stats = 0
+      AND status >= 200 AND status < 300 AND error_code IS NULL
+      AND cost_usd_femto IS NOT NULL
+      AND final_provider_id = ?1
+      AND created_at >= ?2 AND created_at < ?3
+    GROUP BY created_at
+    ORDER BY created_at ASC
+    "#,
         )
         .map_err(|e| db_err!("failed to prepare provider cost bucket query: {e}"))?;
 

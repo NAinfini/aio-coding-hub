@@ -102,14 +102,14 @@ fn writer_loop(db: db::Db, mut rx: mpsc::Receiver<circuit_breaker::CircuitPersis
         }
 
         if let Err(err) = insert_batch_with_retries(&db, &buffer) {
-            tracing::error!(error = %err.message, "熔断器状态批量插入失败");
+            tracing::error!(error = %err.message, "circuit breaker state batch insert failed");
         }
         buffer.clear();
     }
 
     if !buffer.is_empty() {
         if let Err(err) = insert_batch_with_retries(&db, &buffer) {
-            tracing::error!(error = %err.message, "熔断器状态最终批量插入失败");
+            tracing::error!(error = %err.message, "circuit breaker state final batch insert failed");
         }
     }
 }
@@ -214,16 +214,16 @@ pub fn load_all(
 ) -> crate::shared::error::AppResult<HashMap<i64, circuit_breaker::CircuitPersistedState>> {
     let conn = db.open_connection()?;
     let mut stmt = conn
-        .prepare(
+        .prepare_cached(
             r#"
-SELECT
-  provider_id,
-  state,
-  failure_count,
-  open_until,
-  updated_at
-FROM provider_circuit_breakers
-"#,
+    SELECT
+      provider_id,
+      state,
+      failure_count,
+      open_until,
+      updated_at
+    FROM provider_circuit_breakers
+    "#,
         )
         .map_err(|e| db_err!("failed to prepare circuit breaker load query: {e}"))?;
 

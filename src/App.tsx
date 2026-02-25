@@ -6,6 +6,8 @@ import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AppLayout } from "./layout/AppLayout";
 import { HomePage } from "./pages/HomePage";
 import { useGatewayQuerySync } from "./hooks/useGatewayQuerySync";
+import { useAsyncListener } from "./hooks/useAsyncListener";
+import { useStartupTask } from "./hooks/useStartupTask";
 import { logToConsole } from "./services/consoleLog";
 import { listenAppHeartbeat } from "./services/appHeartbeat";
 import { setCacheAnomalyMonitorEnabled } from "./services/cacheAnomalyMonitor";
@@ -90,106 +92,17 @@ function renderLazyPage(Page: ComponentType) {
 export default function App() {
   useGatewayQuerySync();
 
-  useEffect(() => {
-    let cancelled = false;
-    let cleanup: (() => void) | null = null;
+  // Event listeners — subscribe on mount, auto-cleanup on unmount
+  useAsyncListener(listenAppHeartbeat, "listenAppHeartbeat", "应用心跳监听初始化失败");
+  useAsyncListener(listenGatewayEvents, "listenGatewayEvents", "网关事件监听初始化失败");
+  useAsyncListener(listenNoticeEvents, "listenNoticeEvents", "通知事件监听初始化失败");
+  useAsyncListener(
+    listenTaskCompleteNotifyEvents,
+    "listenTaskCompleteNotifyEvents",
+    "任务结束提醒监听初始化失败"
+  );
 
-    listenAppHeartbeat()
-      .then((unlisten) => {
-        if (cancelled) {
-          unlisten();
-          return;
-        }
-        cleanup = unlisten;
-      })
-      .catch((error) => {
-        logToConsole("warn", "应用心跳监听初始化失败", {
-          stage: "listenAppHeartbeat",
-          error: String(error),
-        });
-      });
-
-    return () => {
-      cancelled = true;
-      cleanup?.();
-    };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    let cleanup: (() => void) | null = null;
-
-    listenGatewayEvents()
-      .then((unlisten) => {
-        if (cancelled) {
-          unlisten();
-          return;
-        }
-        cleanup = unlisten;
-      })
-      .catch((error) => {
-        logToConsole("warn", "网关事件监听初始化失败", {
-          stage: "listenGatewayEvents",
-          error: String(error),
-        });
-      });
-
-    return () => {
-      cancelled = true;
-      cleanup?.();
-    };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    let cleanup: (() => void) | null = null;
-
-    listenNoticeEvents()
-      .then((unlisten) => {
-        if (cancelled) {
-          unlisten();
-          return;
-        }
-        cleanup = unlisten;
-      })
-      .catch((error) => {
-        logToConsole("warn", "通知事件监听初始化失败", {
-          stage: "listenNoticeEvents",
-          error: String(error),
-        });
-      });
-
-    return () => {
-      cancelled = true;
-      cleanup?.();
-    };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    let cleanup: (() => void) | null = null;
-
-    listenTaskCompleteNotifyEvents()
-      .then((unlisten) => {
-        if (cancelled) {
-          unlisten();
-          return;
-        }
-        cleanup = unlisten;
-      })
-      .catch((error) => {
-        logToConsole("warn", "任务结束提醒监听初始化失败", {
-          stage: "listenTaskCompleteNotifyEvents",
-          error: String(error),
-        });
-      });
-
-    return () => {
-      cancelled = true;
-      cleanup?.();
-    };
-  }, []);
-
+  // One-shot startup tasks — fire-and-forget with error logging
   useEffect(() => {
     settingsGet()
       .then((settings) => {
@@ -205,23 +118,12 @@ export default function App() {
       });
   }, []);
 
-  useEffect(() => {
-    startupSyncModelPricesOnce().catch((error) => {
-      logToConsole("warn", "启动模型定价同步失败", {
-        stage: "startupSyncModelPricesOnce",
-        error: String(error),
-      });
-    });
-  }, []);
-
-  useEffect(() => {
-    startupSyncDefaultPromptsFromFilesOncePerSession().catch((error) => {
-      logToConsole("warn", "启动默认提示词同步失败", {
-        stage: "startupSyncDefaultPromptsFromFilesOncePerSession",
-        error: String(error),
-      });
-    });
-  }, []);
+  useStartupTask(startupSyncModelPricesOnce, "startupSyncModelPricesOnce", "启动模型定价同步失败");
+  useStartupTask(
+    startupSyncDefaultPromptsFromFilesOncePerSession,
+    "startupSyncDefaultPromptsFromFilesOncePerSession",
+    "启动默认提示词同步失败"
+  );
 
   return (
     <>

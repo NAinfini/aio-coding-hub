@@ -19,23 +19,23 @@ pub(super) fn list_enabled_for_cli(
     };
 
     let mut stmt = conn
-        .prepare(
+        .prepare_cached(
             r#"
-SELECT
-  s.server_key,
-  s.transport,
-  s.command,
-  s.args_json,
-  s.env_json,
-  s.cwd,
-  s.url,
-  s.headers_json
-FROM mcp_servers s
-JOIN workspace_mcp_enabled e
-  ON e.server_id = s.id
-WHERE e.workspace_id = ?1
-ORDER BY s.server_key ASC
-"#,
+    SELECT
+      s.server_key,
+      s.transport,
+      s.command,
+      s.args_json,
+      s.env_json,
+      s.cwd,
+      s.url,
+      s.headers_json
+    FROM mcp_servers s
+    JOIN workspace_mcp_enabled e
+      ON e.server_id = s.id
+    WHERE e.workspace_id = ?1
+    ORDER BY s.server_key ASC
+    "#,
         )
         .map_err(|e| db_err!("failed to prepare enabled mcp query: {e}"))?;
 
@@ -78,23 +78,23 @@ pub(crate) fn list_enabled_for_workspace(
     let _cli_key = workspaces::get_cli_key_by_id(conn, workspace_id)?;
 
     let mut stmt = conn
-        .prepare(
+        .prepare_cached(
             r#"
-SELECT
-  s.server_key,
-  s.transport,
-  s.command,
-  s.args_json,
-  s.env_json,
-  s.cwd,
-  s.url,
-  s.headers_json
-FROM mcp_servers s
-JOIN workspace_mcp_enabled e
-  ON e.server_id = s.id
-WHERE e.workspace_id = ?1
-ORDER BY s.server_key ASC
-"#,
+    SELECT
+      s.server_key,
+      s.transport,
+      s.command,
+      s.args_json,
+      s.env_json,
+      s.cwd,
+      s.url,
+      s.headers_json
+    FROM mcp_servers s
+    JOIN workspace_mcp_enabled e
+      ON e.server_id = s.id
+    WHERE e.workspace_id = ?1
+    ORDER BY s.server_key ASC
+    "#,
         )
         .map_err(|e| db_err!("failed to prepare enabled mcp query: {e}"))?;
 

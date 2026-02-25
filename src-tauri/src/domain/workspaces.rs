@@ -109,18 +109,18 @@ pub fn list_by_cli(
     let active_id = active_id_by_cli(&conn, cli_key)?;
 
     let mut stmt = conn
-        .prepare(
+        .prepare_cached(
             r#"
-SELECT
-  id,
-  cli_key,
-  name,
-  created_at,
-  updated_at
-FROM workspaces
-WHERE cli_key = ?1
-ORDER BY updated_at DESC, id DESC
-"#,
+    SELECT
+      id,
+      cli_key,
+      name,
+      created_at,
+      updated_at
+    FROM workspaces
+    WHERE cli_key = ?1
+    ORDER BY updated_at DESC, id DESC
+    "#,
         )
         .map_err(|e| db_err!("failed to prepare workspaces query: {e}"))?;
 

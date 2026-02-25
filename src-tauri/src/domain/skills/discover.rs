@@ -67,13 +67,13 @@ pub fn discover_available(
     let installed_sources = installed_source_set(&conn)?;
 
     let mut stmt = conn
-        .prepare(
+        .prepare_cached(
             r#"
-SELECT git_url, branch
-FROM skill_repos
-WHERE enabled = 1
-ORDER BY updated_at DESC, id DESC
-"#,
+    SELECT git_url, branch
+    FROM skill_repos
+    WHERE enabled = 1
+    ORDER BY updated_at DESC, id DESC
+    "#,
         )
         .map_err(|e| db_err!("failed to prepare repo query: {e}"))?;
 

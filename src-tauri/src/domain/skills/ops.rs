@@ -318,15 +318,15 @@ pub fn sync_cli_for_workspace(
     validate_cli_key(&cli_key)?;
 
     let mut stmt = conn
-        .prepare(
+        .prepare_cached(
             r#"
-SELECT s.skill_key
-FROM skills s
-JOIN workspace_skill_enabled e
-  ON e.skill_id = s.id
-WHERE e.workspace_id = ?1
-ORDER BY s.skill_key ASC
-"#,
+    SELECT s.skill_key
+    FROM skills s
+    JOIN workspace_skill_enabled e
+      ON e.skill_id = s.id
+    WHERE e.workspace_id = ?1
+    ORDER BY s.skill_key ASC
+    "#,
         )
         .map_err(|e| db_err!("failed to prepare enabled skills query: {e}"))?;
 

@@ -743,7 +743,7 @@ pub fn log_retention_days_fail_open(app: &tauri::AppHandle) -> u32 {
             if !LOG_RETENTION_DAYS_FAIL_OPEN_WARNED.swap(true, Ordering::Relaxed) {
                 tracing::warn!(
                     default = DEFAULT_LOG_RETENTION_DAYS,
-                    "配置读取失败，使用默认日志保留天数: {}",
+                    "settings read failed, using default log retention days: {}",
                     err
                 );
             }

@@ -73,11 +73,11 @@ pub fn run() {
                     .handle()
                     .plugin(tauri_plugin_updater::Builder::new().build())
                 {
-                    tracing::error!("updater 初始化失败: {}", err);
+                    tracing::error!("updater initialization failed: {}", err);
                 }
 
                 if let Err(err) = resident::setup_tray(app.handle()) {
-                    tracing::error!("系统托盘初始化失败: {}", err);
+                    tracing::error!("system tray initialization failed: {}", err);
                 }
             }
 
@@ -107,7 +107,7 @@ pub fn run() {
                 let db = match ensure_db_ready(app_handle.clone(), db_state.inner()).await {
                     Ok(db) => db,
                     Err(err) => {
-                        tracing::error!("数据库初始化失败: {}", err);
+                        tracing::error!("database initialization failed: {}", err);
                         return;
                     }
                 };
@@ -124,7 +124,7 @@ pub fn run() {
                 {
                     Ok(cfg) => cfg,
                     Err(err) => {
-                        tracing::warn!("配置读取失败，使用默认值: {}", err);
+                        tracing::warn!("settings read failed, using defaults: {}", err);
                         settings::AppSettings::default()
                     }
                 };
@@ -157,7 +157,7 @@ pub fn run() {
                                     cli_key = %result.cli_key,
                                     trace_id = %result.trace_id,
                                     error_code = %result.error_code.unwrap_or_default(),
-                                    "启动自愈：修复 cli_proxy 启用状态不一致失败: {}",
+                                    "startup recovery: cli_proxy enable state repair failed: {}",
                                     result.message
                                 );
                             }
@@ -166,12 +166,12 @@ pub fn run() {
                                 tracing::info!(
                                     repaired = repaired.len(),
                                     cli_keys = ?repaired,
-                                    "启动自愈：已修复异常中断导致的 cli_proxy 启用状态不一致"
+                                    "startup recovery: repaired cli_proxy enable state inconsistencies"
                                 );
                             }
                         }
                         Err(err) => {
-                            tracing::warn!("启动自愈：修复 cli_proxy 启用状态不一致任务失败: {}", err);
+                            tracing::warn!("startup recovery: cli_proxy enable state repair task failed: {}", err);
                         }
                     }
                 }
@@ -189,12 +189,12 @@ pub fn run() {
                 {
                     Ok(status) => status,
                     Err(err) => {
-                        tracing::error!("网关自动启动失败: {}", err);
+                        tracing::error!("gateway auto-start failed: {}", err);
                         if enable_cli_proxy_startup_recovery {
                             crate::app::cleanup::restore_cli_proxy_keep_state_best_effort(
                                 &app_handle,
                                 "startup_cli_proxy_restore_keep_state",
-                                "启动自愈（网关启动失败）",
+                                "startup_recovery_gateway_failed",
                                 true,
                             )
                             .await;
@@ -239,13 +239,22 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            // ── settings ──
             settings_get,
-            app_about_get,
-            notice_send,
             settings_set,
             settings_gateway_rectifier_set,
             settings_circuit_breaker_notice_set,
             settings_codex_session_id_completion_set,
+            // ── app ──
+            app_about_get,
+            app_data_dir_get,
+            app_exit,
+            app_restart,
+            app_heartbeat_pong,
+            app_frontend_error_report,
+            // ── notice ──
+            notice_send,
+            // ── cli_manager ──
             cli_manager_claude_info_get,
             cli_manager_codex_info_get,
             cli_manager_codex_config_get,
@@ -257,18 +266,25 @@ pub fn run() {
             cli_manager_claude_env_set,
             cli_manager_claude_settings_get,
             cli_manager_claude_settings_set,
+            // ── gateway ──
             gateway_start,
             gateway_stop,
             gateway_status,
             gateway_check_port_available,
+            gateway_sessions_list,
+            gateway_circuit_status,
+            gateway_circuit_reset_provider,
+            gateway_circuit_reset_cli,
+            // ── wsl ──
             wsl_detect,
             wsl_host_address_get,
             wsl_config_status_get,
             wsl_configure_clients,
-            gateway_sessions_list,
+            // ── cli_sessions ──
             cli_sessions_projects_list,
             cli_sessions_sessions_list,
             cli_sessions_messages_get,
+            // ── providers ──
             providers_list,
             provider_upsert,
             provider_set_enabled,
@@ -276,10 +292,12 @@ pub fn run() {
             providers_reorder,
             provider_claude_terminal_launch_command,
             base_url_ping_ms,
+            // ── claude_model_validation ──
             claude_provider_validate_model,
             claude_provider_get_api_key_plaintext,
             claude_validation_history_list,
             claude_validation_history_clear_provider,
+            // ── sort_modes ──
             sort_modes_list,
             sort_mode_create,
             sort_mode_rename,
@@ -289,16 +307,19 @@ pub fn run() {
             sort_mode_providers_list,
             sort_mode_providers_set_order,
             sort_mode_provider_set_enabled,
+            // ── model_prices ──
             model_prices_list,
             model_price_upsert,
             model_prices_sync_basellm,
             model_price_aliases_get,
             model_price_aliases_set,
+            // ── prompts ──
             prompts_list,
             prompts_default_sync_from_files,
             prompt_upsert,
             prompt_set_enabled,
             prompt_delete,
+            // ── mcp ──
             mcp_servers_list,
             mcp_server_upsert,
             mcp_server_set_enabled,
@@ -306,6 +327,7 @@ pub fn run() {
             mcp_parse_json,
             mcp_import_servers,
             mcp_import_from_workspace_cli,
+            // ── skills ──
             skill_repos_list,
             skill_repo_upsert,
             skill_repo_delete,
@@ -318,6 +340,7 @@ pub fn run() {
             skill_import_local,
             skills_import_local_batch,
             skills_paths_get,
+            // ── request_logs ──
             request_logs_list,
             request_logs_list_all,
             request_logs_list_after_id,
@@ -325,17 +348,11 @@ pub fn run() {
             request_log_get,
             request_log_get_by_trace_id,
             request_attempt_logs_by_trace_id,
-            app_data_dir_get,
+            // ── data_management ──
             db_disk_usage_get,
             request_logs_clear_all,
             app_data_reset,
-            app_exit,
-            app_restart,
-            app_heartbeat_pong,
-            app_frontend_error_report,
-            gateway_circuit_status,
-            gateway_circuit_reset_provider,
-            gateway_circuit_reset_cli,
+            // ── usage ──
             usage_summary,
             usage_summary_v2,
             usage_leaderboard_provider,
@@ -343,6 +360,7 @@ pub fn run() {
             usage_leaderboard_v2,
             usage_hourly_series,
             usage_provider_cache_rate_trend_v1,
+            // ── cost ──
             cost_summary_v1,
             cost_trend_v1,
             cost_breakdown_provider_v1,
@@ -350,17 +368,21 @@ pub fn run() {
             cost_scatter_cli_provider_model_v1,
             cost_top_requests_v1,
             cost_backfill_missing_v1,
+            // ── env_conflicts ──
             env_conflicts_check,
+            // ── cli_proxy ──
             cli_proxy_status_all,
             cli_proxy_set_enabled,
             cli_proxy_sync_enabled,
+            // ── provider_limit_usage ──
             provider_limit_usage_v1,
+            // ── workspaces ──
             workspaces_list,
             workspace_create,
             workspace_rename,
             workspace_delete,
             workspace_preview,
-            workspace_apply
+            workspace_apply,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
@@ -376,7 +398,7 @@ pub fn run() {
                     return;
                 }
 
-                tracing::info!("收到退出请求，开始清理...");
+                tracing::info!("exit requested, starting cleanup...");
                 let app_handle = app_handle.clone();
                 tauri::async_runtime::spawn(async move {
                     crate::app::cleanup::cleanup_before_exit(&app_handle).await;

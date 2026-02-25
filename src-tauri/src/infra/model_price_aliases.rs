@@ -168,7 +168,7 @@ pub fn read_fail_open(app: &tauri::AppHandle) -> ModelPriceAliasesV1 {
     match read(app) {
         Ok(v) => v,
         Err(err) => {
-            tracing::warn!("模型价格别名读取失败，使用默认值: {}", err);
+            tracing::warn!("model price aliases read failed, using defaults: {}", err);
             ModelPriceAliasesV1::default()
         }
     }

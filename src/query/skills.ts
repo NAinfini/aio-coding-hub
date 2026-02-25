@@ -1,7 +1,7 @@
 // Usage:
 // - Query adapters for `src/services/skills.ts`, used by skills pages/views.
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CliKey } from "../services/providers";
 import {
   skillInstall,
@@ -32,6 +32,7 @@ export function useSkillReposListQuery(options?: { enabled?: boolean }) {
     queryKey: skillsKeys.reposList(),
     queryFn: () => skillReposList(),
     enabled: hasTauriRuntime() && (options?.enabled ?? true),
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -46,6 +47,7 @@ export function useSkillsInstalledListQuery(
       return skillsInstalledList(workspaceId);
     },
     enabled: hasTauriRuntime() && Boolean(workspaceId) && (options?.enabled ?? true),
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -60,6 +62,7 @@ export function useSkillsLocalListQuery(
       return skillsLocalList(workspaceId);
     },
     enabled: hasTauriRuntime() && Boolean(workspaceId) && (options?.enabled ?? true),
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -68,6 +71,7 @@ export function useSkillsDiscoverAvailableQuery(refresh: boolean, options?: { en
     queryKey: skillsKeys.discoverAvailable(refresh),
     queryFn: () => skillsDiscoverAvailable(refresh),
     enabled: hasTauriRuntime() && (options?.enabled ?? true),
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -99,6 +103,7 @@ export function useSkillsPathsQuery(cliKey: CliKey | null, options?: { enabled?:
       return skillsPathsGet(cliKey);
     },
     enabled: hasTauriRuntime() && Boolean(cliKey) && (options?.enabled ?? true),
+    placeholderData: keepPreviousData,
   });
 }
 

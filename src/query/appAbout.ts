@@ -8,6 +8,7 @@ export function useAppAboutQuery(options?: { enabled?: boolean }) {
     queryKey: appAboutKeys.get(),
     queryFn: () => appAboutGet(),
     enabled: hasTauriRuntime() && (options?.enabled ?? true),
+    staleTime: Infinity,
     placeholderData: keepPreviousData,
   });
 }

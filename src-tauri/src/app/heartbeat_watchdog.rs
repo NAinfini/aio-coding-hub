@@ -176,7 +176,10 @@ async fn check_and_recover_if_needed(app: &tauri::AppHandle) {
 
     if now.saturating_sub(snapshot.last_timeout_logged_unix_ms) > 60_000 {
         state.set_last_timeout_logged_unix_ms(now);
-        tracing::warn!(since_last_pong_ms, "检测到前端心跳超时（疑似白屏/卡死）");
+        tracing::warn!(
+            since_last_pong_ms,
+            "frontend heartbeat timeout detected (possible blank screen / freeze)"
+        );
     }
 
     let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) else {
@@ -193,13 +196,19 @@ async fn check_and_recover_if_needed(app: &tauri::AppHandle) {
     match recovery_gate(now, snapshot) {
         RecoveryGate::Allowed => {}
         RecoveryGate::CircuitOpen { open_until_unix_ms } => {
-            tracing::info!(open_until_unix_ms, "白屏自愈处于熔断期，跳过本次恢复尝试");
+            tracing::info!(
+                open_until_unix_ms,
+                "blank screen recovery circuit open, skipping recovery attempt"
+            );
             return;
         }
         RecoveryGate::Backoff {
             next_allowed_unix_ms,
         } => {
-            tracing::info!(next_allowed_unix_ms, "白屏自愈处于退避期，跳过本次恢复尝试");
+            tracing::info!(
+                next_allowed_unix_ms,
+                "blank screen recovery in backoff period, skipping recovery attempt"
+            );
             return;
         }
     }
@@ -211,12 +220,12 @@ async fn check_and_recover_if_needed(app: &tauri::AppHandle) {
         tracing::warn!(
             streak,
             open_for_s = RECOVERY_CIRCUIT_DURATION.as_secs(),
-            "白屏自愈触发熔断，暂停自动恢复"
+            "blank screen recovery circuit tripped, pausing auto-recovery"
         );
         return;
     }
 
-    tracing::warn!(streak, since_last_pong_ms, "尝试恢复页面（reload）");
+    tracing::warn!(streak, since_last_pong_ms, "attempting page reload");
 
     let attempt = attempt_reload(&window).await;
     match attempt {

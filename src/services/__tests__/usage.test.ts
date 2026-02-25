@@ -76,13 +76,14 @@ describe("services/usage", () => {
     await usageHourlySeries(15);
 
     await usageSummaryV2("custom");
-    await usageSummaryV2("custom", { startTs: 1, endTs: 2, cliKey: "gemini" });
+    await usageSummaryV2("custom", { startTs: 1, endTs: 2, cliKey: "gemini", oauthAccountId: 9 });
 
     await usageLeaderboardV2("provider", "custom");
     await usageLeaderboardV2("provider", "custom", {
       startTs: 1,
       endTs: 2,
       cliKey: "claude",
+      oauthAccountId: 9,
       limit: 50,
     });
 
@@ -102,8 +103,14 @@ describe("services/usage", () => {
         ["usage_leaderboard_day", { range: "today", cliKey: null, limit: undefined }],
         ["usage_leaderboard_day", { range: "today", cliKey: "gemini", limit: 20 }],
         ["usage_hourly_series", { days: 15 }],
-        ["usage_summary_v2", { period: "custom", startTs: null, endTs: null, cliKey: null }],
-        ["usage_summary_v2", { period: "custom", startTs: 1, endTs: 2, cliKey: "gemini" }],
+        [
+          "usage_summary_v2",
+          { period: "custom", startTs: null, endTs: null, cliKey: null, oauthAccountId: null },
+        ],
+        [
+          "usage_summary_v2",
+          { period: "custom", startTs: 1, endTs: 2, cliKey: "gemini", oauthAccountId: 9 },
+        ],
         [
           "usage_leaderboard_v2",
           {
@@ -112,6 +119,7 @@ describe("services/usage", () => {
             startTs: null,
             endTs: null,
             cliKey: null,
+            oauthAccountId: null,
             limit: undefined,
           },
         ],
@@ -123,6 +131,7 @@ describe("services/usage", () => {
             startTs: 1,
             endTs: 2,
             cliKey: "claude",
+            oauthAccountId: 9,
             limit: 50,
           },
         ],

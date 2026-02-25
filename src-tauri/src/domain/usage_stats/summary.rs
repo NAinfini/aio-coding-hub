@@ -2,17 +2,19 @@ use crate::db;
 use rusqlite::{params_from_iter, Connection};
 
 use super::{
-    compute_bounds_v2, compute_start_ts, normalize_cli_filter, parse_period_v2, parse_range,
-    sql_effective_total_tokens_expr, UsageSummary, SQL_EFFECTIVE_INPUT_TOKENS_EXPR,
+    compute_bounds_v2, compute_start_ts, normalize_cli_filter, normalize_oauth_account_filter,
+    parse_period_v2, parse_range, sql_effective_total_tokens_expr, UsageSummary,
+    SQL_EFFECTIVE_INPUT_TOKENS_EXPR,
 };
 
 fn build_summary_where_clause(
     start_ts: Option<i64>,
     end_ts: Option<i64>,
     cli_key: Option<&str>,
+    oauth_account_id: Option<i64>,
 ) -> (String, Vec<rusqlite::types::Value>) {
     let mut clauses = vec!["excluded_from_stats = 0".to_string()];
-    let mut values: Vec<rusqlite::types::Value> = Vec::with_capacity(3);
+    let mut values: Vec<rusqlite::types::Value> = Vec::with_capacity(4);
 
     if let Some(ts) = start_ts {
         values.push(ts.into());
@@ -29,6 +31,11 @@ fn build_summary_where_clause(
         clauses.push(format!("cli_key = ?{}", values.len()));
     }
 
+    if let Some(id) = oauth_account_id {
+        values.push(id.into());
+        clauses.push(format!("oauth_account_id = ?{}", values.len()));
+    }
+
     (clauses.join("\n  AND "), values)
 }
 
@@ -37,10 +44,12 @@ pub(super) fn summary_query(
     start_ts: Option<i64>,
     end_ts: Option<i64>,
     cli_key: Option<&str>,
+    oauth_account_id: Option<i64>,
 ) -> Result<UsageSummary, String> {
     let effective_input_expr = SQL_EFFECTIVE_INPUT_TOKENS_EXPR;
     let effective_total_expr = sql_effective_total_tokens_expr();
-    let (where_sql, params_vec) = build_summary_where_clause(start_ts, end_ts, cli_key);
+    let (where_sql, params_vec) =
+        build_summary_where_clause(start_ts, end_ts, cli_key, oauth_account_id);
     let sql = format!(
         r#"
 	SELECT
@@ -194,7 +203,7 @@ pub fn summary(
     let start_ts = compute_start_ts(&conn, range)?;
     let cli_key = normalize_cli_filter(cli_key)?;
 
-    Ok(summary_query(&conn, start_ts, None, cli_key)?)
+    Ok(summary_query(&conn, start_ts, None, cli_key, None)?)
 }
 
 pub fn summary_v2(
@@ -203,10 +212,18 @@ pub fn summary_v2(
     start_ts: Option<i64>,
     end_ts: Option<i64>,
     cli_key: Option<&str>,
+    oauth_account_id: Option<i64>,
 ) -> crate::shared::error::AppResult<UsageSummary> {
     let conn = db.open_connection()?;
     let period = parse_period_v2(period)?;
     let (start_ts, end_ts) = compute_bounds_v2(&conn, period, start_ts, end_ts)?;
     let cli_key = normalize_cli_filter(cli_key)?;
-    Ok(summary_query(&conn, start_ts, end_ts, cli_key)?)
+    let oauth_account_id = normalize_oauth_account_filter(oauth_account_id)?;
+    Ok(summary_query(
+        &conn,
+        start_ts,
+        end_ts,
+        cli_key,
+        oauth_account_id,
+    )?)
 }

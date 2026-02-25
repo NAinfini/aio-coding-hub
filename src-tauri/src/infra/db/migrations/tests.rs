@@ -1,4 +1,5 @@
 use super::*;
+use rusqlite::OptionalExtension;
 
 #[test]
 fn migrate_v25_to_v26_backfills_claude_models_json_from_legacy_mapping() {
@@ -639,7 +640,7 @@ INSERT INTO skills(
     let user_version: i64 = conn
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .expect("read user_version");
-    assert_eq!(user_version, 29);
+    assert_eq!(user_version, 30);
 
     assert!(test_has_column(&conn, "workspaces", "cli_key"));
     assert!(test_has_column(&conn, "workspace_active", "workspace_id"));
@@ -759,7 +760,7 @@ fn baseline_v25_creates_complete_schema_for_fresh_install() {
     let user_version: i64 = conn
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .expect("read user_version");
-    assert_eq!(user_version, 29);
+    assert_eq!(user_version, 30);
 
     // Verify all tables exist
     let tables: Vec<String> = {
@@ -773,6 +774,7 @@ fn baseline_v25_creates_complete_schema_for_fresh_install() {
     // Core tables from baseline
     assert!(tables.contains(&"providers".to_string()));
     assert!(tables.contains(&"request_logs".to_string()));
+    assert!(tables.contains(&"oauth_accounts".to_string()));
     assert!(tables.contains(&"prompts".to_string()));
     assert!(tables.contains(&"mcp_servers".to_string()));
     assert!(tables.contains(&"skills".to_string()));
@@ -797,6 +799,17 @@ fn baseline_v25_creates_complete_schema_for_fresh_install() {
 
     // Verify v25->v26 migration ran (claude_models_json)
     assert!(test_has_column(&conn, "providers", "claude_models_json"));
+    assert!(test_has_column(&conn, "oauth_accounts", "id_token"));
+    assert!(test_has_column(
+        &conn,
+        "oauth_accounts",
+        "refresh_success_count"
+    ));
+    assert!(test_has_column(
+        &conn,
+        "oauth_accounts",
+        "refresh_failure_count"
+    ));
 
     // Verify sort_mode_providers.enabled from ensure patch
     assert!(test_has_column(&conn, "sort_mode_providers", "enabled"));
@@ -822,7 +835,7 @@ fn rejects_unsupported_old_schema_version() {
 }
 
 #[test]
-fn strict_v29_patch_accepts_dev_schema_and_normalizes_user_version_to_29() {
+fn strict_v29_patch_accepts_dev_schema_and_normalizes_user_version_to_30() {
     let mut conn = Connection::open_in_memory().expect("open in-memory sqlite");
     conn.execute_batch("PRAGMA foreign_keys = ON;")
         .expect("enable foreign_keys");
@@ -975,7 +988,7 @@ PRAGMA user_version = 33;
     let user_version: i64 = conn
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .expect("read user_version");
-    assert_eq!(user_version, 29);
+    assert_eq!(user_version, 30);
 
     assert!(test_has_column(&conn, "providers", "limit_5h_usd"));
     assert!(test_has_column(&conn, "providers", "limit_daily_usd"));
@@ -1004,4 +1017,84 @@ PRAGMA user_version = 33;
     assert_eq!(enabled_mcp, 1);
 
     apply_migrations(&mut conn).expect("apply migrations twice");
+}
+
+fn test_has_table(conn: &Connection, table: &str) -> bool {
+    conn.query_row(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?1 LIMIT 1",
+        [table],
+        |_| Ok(true),
+    )
+    .optional()
+    .expect("query sqlite_master")
+    .unwrap_or(false)
+}
+
+#[test]
+fn migrate_v29_to_v30_adds_oauth_schema_on_existing_v29_db() {
+    let mut conn = Connection::open_in_memory().expect("open in-memory sqlite");
+
+    baseline_v25::create_baseline_v25(&mut conn).expect("create baseline v25");
+    v25_to_v26::migrate_v25_to_v26(&mut conn).expect("migrate v25->v26");
+    v26_to_v27::migrate_v26_to_v27(&mut conn).expect("migrate v26->v27");
+    v27_to_v28::migrate_v27_to_v28(&mut conn).expect("migrate v27->v28");
+    v28_to_v29::migrate_v28_to_v29(&mut conn).expect("migrate v28->v29");
+
+    let before_version: i64 = conn
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .expect("read user_version before migrate");
+    assert_eq!(before_version, 29);
+    assert!(!test_has_table(&conn, "oauth_accounts"));
+    assert!(!test_has_column(&conn, "providers", "auth_mode"));
+    assert!(!test_has_column(&conn, "providers", "oauth_account_id"));
+    assert!(!test_has_column(&conn, "request_logs", "oauth_account_id"));
+
+    apply_migrations(&mut conn).expect("apply migrations");
+
+    let user_version: i64 = conn
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .expect("read user_version");
+    assert_eq!(user_version, 30);
+    assert!(test_has_table(&conn, "oauth_accounts"));
+    assert!(test_has_column(&conn, "oauth_accounts", "id_token"));
+    assert!(test_has_column(
+        &conn,
+        "oauth_accounts",
+        "refresh_success_count"
+    ));
+    assert!(test_has_column(
+        &conn,
+        "oauth_accounts",
+        "refresh_failure_count"
+    ));
+    assert!(test_has_column(&conn, "providers", "auth_mode"));
+    assert!(test_has_column(&conn, "providers", "oauth_account_id"));
+    assert!(test_has_column(&conn, "request_logs", "oauth_account_id"));
+}
+
+#[test]
+fn fresh_install_reaches_v30_with_oauth_schema() {
+    let mut conn = Connection::open_in_memory().expect("open in-memory sqlite");
+
+    apply_migrations(&mut conn).expect("apply migrations");
+
+    let user_version: i64 = conn
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .expect("read user_version");
+    assert_eq!(user_version, 30);
+    assert!(test_has_table(&conn, "oauth_accounts"));
+    assert!(test_has_column(&conn, "oauth_accounts", "id_token"));
+    assert!(test_has_column(
+        &conn,
+        "oauth_accounts",
+        "refresh_success_count"
+    ));
+    assert!(test_has_column(
+        &conn,
+        "oauth_accounts",
+        "refresh_failure_count"
+    ));
+    assert!(test_has_column(&conn, "providers", "auth_mode"));
+    assert!(test_has_column(&conn, "providers", "oauth_account_id"));
+    assert!(test_has_column(&conn, "request_logs", "oauth_account_id"));
 }

@@ -20,6 +20,11 @@ import {
   useProvidersListQuery,
   useProvidersReorderMutation,
 } from "../../../query/providers";
+import {
+  useOAuthAccountFetchLimitsMutation,
+  useOAuthAccountsEventBridge,
+  useOAuthAccountsListQuery,
+} from "../../../query/oauthAccounts";
 
 let latestOnDragEnd: ((event: any) => void) | null = null;
 let sortableIsDragging = false;
@@ -113,6 +118,18 @@ vi.mock("../../../query/providers", async () => {
   };
 });
 
+vi.mock("../../../query/oauthAccounts", async () => {
+  const actual = await vi.importActual<typeof import("../../../query/oauthAccounts")>(
+    "../../../query/oauthAccounts"
+  );
+  return {
+    ...actual,
+    useOAuthAccountFetchLimitsMutation: vi.fn(),
+    useOAuthAccountsListQuery: vi.fn(),
+    useOAuthAccountsEventBridge: vi.fn(),
+  };
+});
+
 function renderWithQuery(element: ReactElement) {
   const client = createTestQueryClient();
   return render(<QueryClientProvider client={client}>{element}</QueryClientProvider>);
@@ -123,6 +140,12 @@ beforeEach(() => {
   vi.mocked(useProviderClaudeTerminalLaunchCommandMutation).mockReturnValue({
     mutateAsync: vi.fn().mockResolvedValue("bash '/tmp/aio.sh'"),
   } as any);
+  vi.mocked(useOAuthAccountsListQuery).mockReturnValue({ data: [], isFetching: false } as any);
+  vi.mocked(useOAuthAccountsEventBridge).mockReturnValue({} as any);
+  vi.mocked(useOAuthAccountFetchLimitsMutation).mockReturnValue({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  } as any);
 });
 
 afterEach(() => {
@@ -132,6 +155,248 @@ afterEach(() => {
 });
 
 describe("pages/providers/ProvidersView", () => {
+  it("shows oauth 5h and weekly limits on provider cards", () => {
+    const providers = [
+      {
+        id: 1,
+        cli_key: "claude",
+        name: "OAuth-P1",
+        enabled: true,
+        base_urls: ["https://api.anthropic.com"],
+        base_url_mode: "order",
+        auth_mode: "oauth",
+        oauth_account_id: 7,
+        cost_multiplier: 1,
+        claude_models: {},
+        limit_5h_usd: null,
+        limit_weekly_usd: null,
+      },
+    ] as any[];
+
+    vi.mocked(useProvidersListQuery).mockReturnValue({
+      data: providers,
+      isFetching: false,
+      error: null,
+    } as any);
+    vi.mocked(useGatewayCircuitStatusQuery).mockReturnValue({
+      data: [],
+      isFetching: false,
+      error: null,
+      refetch: vi.fn().mockResolvedValue({ data: [] }),
+    } as any);
+    vi.mocked(useProviderSetEnabledMutation).mockReturnValue({ mutateAsync: vi.fn() } as any);
+    vi.mocked(useProviderDeleteMutation).mockReturnValue({ mutateAsync: vi.fn() } as any);
+    vi.mocked(useProvidersReorderMutation).mockReturnValue({ mutateAsync: vi.fn() } as any);
+    vi.mocked(useGatewayCircuitResetProviderMutation).mockReturnValue({
+      mutateAsync: vi.fn(),
+    } as any);
+    vi.mocked(useGatewayCircuitResetCliMutation).mockReturnValue({ mutateAsync: vi.fn() } as any);
+    vi.mocked(useOAuthAccountsListQuery).mockReturnValue({
+      data: [
+        {
+          id: 7,
+          cli_key: "claude",
+          label: "Work",
+          email: "a@b.com",
+          provider_type: "claude_oauth",
+          status: "active",
+          expires_at: null,
+          refresh_lead_s: 3600,
+          last_error: null,
+          last_refreshed_at: null,
+          quota_exceeded: false,
+          quota_recover_at: null,
+          created_at: 1,
+          updated_at: 1,
+          limit_5h_usd: 25,
+          limit_weekly_usd: 120,
+        },
+      ],
+      isFetching: false,
+    } as any);
+
+    renderWithQuery(<ProvidersView activeCli="claude" setActiveCli={vi.fn()} />);
+
+    expect(screen.getByText("5h $25")).toBeInTheDocument();
+    expect(screen.getByText("周 $120")).toBeInTheDocument();
+  });
+
+  it("fetches oauth limits from card button and updates badges", async () => {
+    const providers = [
+      {
+        id: 1,
+        cli_key: "codex",
+        name: "OAuth-Codex",
+        enabled: true,
+        base_urls: ["https://api.openai.com/v1"],
+        base_url_mode: "order",
+        auth_mode: "oauth",
+        oauth_account_id: 9,
+        cost_multiplier: 1,
+        claude_models: {},
+        limit_5h_usd: null,
+        limit_weekly_usd: null,
+      },
+    ] as any[];
+
+    vi.mocked(useProvidersListQuery).mockReturnValue({
+      data: providers,
+      isFetching: false,
+      error: null,
+    } as any);
+    vi.mocked(useGatewayCircuitStatusQuery).mockReturnValue({
+      data: [],
+      isFetching: false,
+      error: null,
+      refetch: vi.fn().mockResolvedValue({ data: [] }),
+    } as any);
+    vi.mocked(useProviderSetEnabledMutation).mockReturnValue({ mutateAsync: vi.fn() } as any);
+    vi.mocked(useProviderDeleteMutation).mockReturnValue({ mutateAsync: vi.fn() } as any);
+    vi.mocked(useProvidersReorderMutation).mockReturnValue({ mutateAsync: vi.fn() } as any);
+    vi.mocked(useGatewayCircuitResetProviderMutation).mockReturnValue({
+      mutateAsync: vi.fn(),
+    } as any);
+    vi.mocked(useGatewayCircuitResetCliMutation).mockReturnValue({ mutateAsync: vi.fn() } as any);
+    vi.mocked(useOAuthAccountsListQuery).mockReturnValue({
+      data: [
+        {
+          id: 9,
+          cli_key: "codex",
+          label: "Codex OAuth",
+          email: "c@o.ai",
+          provider_type: "codex_oauth",
+          status: "active",
+          expires_at: null,
+          refresh_lead_s: 3600,
+          last_error: null,
+          last_refreshed_at: null,
+          quota_exceeded: false,
+          quota_recover_at: null,
+          created_at: 1,
+          updated_at: 1,
+          limit_5h_usd: null,
+          limit_weekly_usd: null,
+        },
+      ],
+      isFetching: false,
+    } as any);
+
+    const fetchLimits = vi.fn().mockResolvedValue({
+      account_id: 9,
+      cli_key: "codex",
+      limit_5h_text: "83%",
+      limit_weekly_text: "61%",
+      fetched_at: 1_700_000_000,
+    });
+    vi.mocked(useOAuthAccountFetchLimitsMutation).mockReturnValue({
+      mutateAsync: fetchLimits,
+      isPending: false,
+    } as any);
+
+    renderWithQuery(<ProvidersView activeCli="codex" setActiveCli={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "更新限额" }));
+    await waitFor(() => expect(fetchLimits).toHaveBeenCalledWith({ id: 9 }));
+    await waitFor(() => expect(screen.getByText("5h 83%")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("周 61%")).toBeInTheDocument());
+  });
+
+  it("keeps fetched oauth limits after unmount and remount with same query client", async () => {
+    const providers = [
+      {
+        id: 1,
+        cli_key: "codex",
+        name: "OAuth-Codex",
+        enabled: true,
+        base_urls: ["https://api.openai.com/v1"],
+        base_url_mode: "order",
+        auth_mode: "oauth",
+        oauth_account_id: 9,
+        cost_multiplier: 1,
+        claude_models: {},
+        limit_5h_usd: null,
+        limit_weekly_usd: null,
+      },
+    ] as any[];
+
+    vi.mocked(useProvidersListQuery).mockReturnValue({
+      data: providers,
+      isFetching: false,
+      error: null,
+    } as any);
+    vi.mocked(useGatewayCircuitStatusQuery).mockReturnValue({
+      data: [],
+      isFetching: false,
+      error: null,
+      refetch: vi.fn().mockResolvedValue({ data: [] }),
+    } as any);
+    vi.mocked(useProviderSetEnabledMutation).mockReturnValue({ mutateAsync: vi.fn() } as any);
+    vi.mocked(useProviderDeleteMutation).mockReturnValue({ mutateAsync: vi.fn() } as any);
+    vi.mocked(useProvidersReorderMutation).mockReturnValue({ mutateAsync: vi.fn() } as any);
+    vi.mocked(useGatewayCircuitResetProviderMutation).mockReturnValue({
+      mutateAsync: vi.fn(),
+    } as any);
+    vi.mocked(useGatewayCircuitResetCliMutation).mockReturnValue({ mutateAsync: vi.fn() } as any);
+    vi.mocked(useOAuthAccountsListQuery).mockReturnValue({
+      data: [
+        {
+          id: 9,
+          cli_key: "codex",
+          label: "Codex OAuth",
+          email: "c@o.ai",
+          provider_type: "codex_oauth",
+          status: "active",
+          expires_at: null,
+          refresh_lead_s: 3600,
+          last_error: null,
+          last_refreshed_at: null,
+          quota_exceeded: false,
+          quota_recover_at: null,
+          created_at: 1,
+          updated_at: 1,
+          limit_5h_usd: null,
+          limit_weekly_usd: null,
+        },
+      ],
+      isFetching: false,
+    } as any);
+
+    const fetchLimits = vi.fn().mockResolvedValue({
+      account_id: 9,
+      cli_key: "codex",
+      limit_5h_text: "83%",
+      limit_weekly_text: "61%",
+      fetched_at: 1_700_000_000,
+    });
+    vi.mocked(useOAuthAccountFetchLimitsMutation).mockReturnValue({
+      mutateAsync: fetchLimits,
+      isPending: false,
+    } as any);
+
+    const client = createTestQueryClient();
+    const firstRender = render(
+      <QueryClientProvider client={client}>
+        <ProvidersView activeCli="codex" setActiveCli={vi.fn()} />
+      </QueryClientProvider>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "更新限额" }));
+    await waitFor(() => expect(fetchLimits).toHaveBeenCalledWith({ id: 9 }));
+    await waitFor(() => expect(screen.getByText("5h 83%")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("周 61%")).toBeInTheDocument());
+
+    firstRender.unmount();
+
+    render(
+      <QueryClientProvider client={client}>
+        <ProvidersView activeCli="codex" setActiveCli={vi.fn()} />
+      </QueryClientProvider>
+    );
+
+    expect(screen.getByText("5h 83%")).toBeInTheDocument();
+    expect(screen.getByText("周 61%")).toBeInTheDocument();
+  });
+
   it("supports toggling, circuit reset, create/edit/delete, and drag reorder", async () => {
     const providers = [
       {
@@ -490,6 +755,8 @@ describe("pages/providers/ProvidersView", () => {
       within(createEditor as HTMLElement).getByRole("button", { name: "close-editor" })
     );
     await waitFor(() => expect(screen.queryByTestId("provider-editor")).not.toBeInTheDocument());
+
+    expect(screen.queryByRole("button", { name: "添加 OAuth" })).not.toBeInTheDocument();
 
     // edit dialog onSaved + onOpenChange
     fireEvent.click(screen.getByTitle("编辑"));

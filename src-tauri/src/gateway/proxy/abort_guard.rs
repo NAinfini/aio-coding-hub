@@ -84,6 +84,7 @@ impl Drop for RequestAbortGuard {
             special_settings_json: None,
             session_id: None,
             requested_model: None,
+            oauth_account_id: None,
             created_at_ms: self.created_at_ms,
             created_at: self.created_at,
             usage_metrics: None,

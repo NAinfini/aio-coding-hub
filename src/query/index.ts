@@ -7,6 +7,7 @@ export * from "./gateway";
 export * from "./keys";
 export * from "./mcp";
 export * from "./modelPrices";
+export * from "./oauthAccounts";
 export * from "./prompts";
 export * from "./providers";
 export { queryClient } from "./queryClient";

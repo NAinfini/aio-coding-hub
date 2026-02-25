@@ -37,13 +37,15 @@ dependencies = [
 
 [[package]]
 name = "aio-coding-hub"
-version = "0.30.1"
+version = "0.30.2"
 dependencies = [
  "axum",
+ "base64 0.22.1",
  "flate2",
  "futures-core",
  "r2d2",
  "r2d2_sqlite",
+ "rand 0.8.5",
  "reqwest",
  "rusqlite",
  "serde",
@@ -51,6 +53,7 @@ dependencies = [
  "sha2",
  "specta",
  "specta-typescript",
+ "subtle",
  "tauri",
  "tauri-build",
  "tauri-plugin-autostart",

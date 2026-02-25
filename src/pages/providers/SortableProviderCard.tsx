@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { FlaskConical, Pencil, Terminal, Trash2 } from "lucide-react";
+import { FlaskConical, Pencil, RefreshCw, Terminal, Trash2 } from "lucide-react";
 import type { GatewayProviderCircuitStatus } from "../../services/gateway";
 import type { ProviderSummary } from "../../services/providers";
 import { Button } from "../../ui/Button";
@@ -11,12 +11,42 @@ import { cn } from "../../utils/cn";
 import { formatCountdownSeconds, formatUnixSeconds, formatUsdRaw } from "../../utils/formatters";
 import { providerBaseUrlSummary } from "./baseUrl";
 
+function oauthStatusBadgeClass(status: string | undefined | null): string {
+  if (status === "active")
+    return "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300";
+  if (status === "quota_cooldown")
+    return "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300";
+  if (status === "disabled")
+    return "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300";
+  return "bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300";
+}
+
+function oauthStatusLabel(status: string | undefined | null): string {
+  if (status === "active") return "可用";
+  if (status === "quota_cooldown") return "限额冷却";
+  if (status === "disabled") return "停用";
+  if (status === "expired") return "已过期";
+  if (status === "error") return "异常";
+  return status ?? "未知";
+}
+
 export type SortableProviderCardProps = {
   provider: ProviderSummary;
+  oauthAccount?: {
+    id: number;
+    label: string;
+    status: "active" | "quota_cooldown" | "disabled" | "expired" | "error" | string;
+    email: string | null;
+    limit_5h_usd?: number | null;
+    limit_weekly_usd?: number | null;
+  } | null;
   circuit: GatewayProviderCircuitStatus | null;
   circuitResetting: boolean;
+  fetchLimitsPending?: boolean;
+  oauthFetchedLimits?: { limit5hText: string | null; limitWeeklyText: string | null } | null;
   onToggleEnabled: (provider: ProviderSummary) => void;
   onResetCircuit: (provider: ProviderSummary) => void;
+  onFetchLimits?: (provider: ProviderSummary) => void;
   onCopyTerminalLaunchCommand?: (provider: ProviderSummary) => void;
   terminalLaunchCopying?: boolean;
   onValidateModel?: (provider: ProviderSummary) => void;
@@ -26,10 +56,14 @@ export type SortableProviderCardProps = {
 
 export function SortableProviderCard({
   provider,
+  oauthAccount = null,
   circuit,
   circuitResetting,
+  fetchLimitsPending = false,
+  oauthFetchedLimits = null,
   onToggleEnabled,
   onResetCircuit,
+  onFetchLimits,
   onCopyTerminalLaunchCommand,
   terminalLaunchCopying = false,
   onValidateModel,
@@ -50,6 +84,19 @@ export function SortableProviderCard({
     return Boolean(value.trim());
   }).length;
   const hasClaudeModels = claudeModelsCount > 0;
+  const authMode = provider.auth_mode ?? "api_key";
+  const oauthStatusClassName = oauthStatusBadgeClass(oauthAccount?.status);
+  const oauthStatusText = oauthStatusLabel(oauthAccount?.status);
+  const oauthLimit5hUsd =
+    authMode === "oauth" ? (oauthAccount?.limit_5h_usd ?? provider.limit_5h_usd) : null;
+  const oauthLimitWeeklyUsd =
+    authMode === "oauth" ? (oauthAccount?.limit_weekly_usd ?? provider.limit_weekly_usd) : null;
+  const oauthLimit5hText =
+    oauthFetchedLimits?.limit5hText ??
+    (oauthLimit5hUsd != null ? formatUsdRaw(oauthLimit5hUsd) : "未获取");
+  const oauthLimitWeeklyText =
+    oauthFetchedLimits?.limitWeeklyText ??
+    (oauthLimitWeeklyUsd != null ? formatUsdRaw(oauthLimitWeeklyUsd) : "未获取");
 
   const limitChips = [
     provider.limit_5h_usd != null ? `5h ≤ ${formatUsdRaw(provider.limit_5h_usd)}` : null,
@@ -124,6 +171,49 @@ export function SortableProviderCard({
               ) : null}
             </div>
             <div className="mt-1 flex items-center gap-2">
+              <span
+                className={cn(
+                  "shrink-0 rounded-full px-2 py-0.5 font-mono text-[10px]",
+                  authMode === "oauth"
+                    ? "bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300"
+                    : "bg-slate-50 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
+                )}
+                title={
+                  authMode === "oauth"
+                    ? (oauthAccount?.email ?? `OAuth #${provider.oauth_account_id ?? "?"}`)
+                    : "API Key / Token"
+                }
+              >
+                {authMode === "oauth"
+                  ? `OAuth: ${oauthAccount?.label ?? `#${provider.oauth_account_id ?? "?"}`}`
+                  : "API Key"}
+              </span>
+              {authMode === "oauth" ? (
+                <span
+                  className={cn(
+                    "shrink-0 rounded-full px-2 py-0.5 font-mono text-[10px]",
+                    oauthStatusClassName
+                  )}
+                >
+                  {oauthStatusText}
+                </span>
+              ) : null}
+              {authMode === "oauth" ? (
+                <span
+                  className="shrink-0 rounded-full bg-sky-50 px-2 py-0.5 font-mono text-[10px] text-sky-700 dark:bg-sky-900/30 dark:text-sky-300"
+                  title="OAuth 账号 5h 限额"
+                >
+                  5h {oauthLimit5hText}
+                </span>
+              ) : null}
+              {authMode === "oauth" ? (
+                <span
+                  className="shrink-0 rounded-full bg-sky-50 px-2 py-0.5 font-mono text-[10px] text-sky-700 dark:bg-sky-900/30 dark:text-sky-300"
+                  title="OAuth 账号每周限额"
+                >
+                  周 {oauthLimitWeeklyText}
+                </span>
+              ) : null}
               <span className="shrink-0 rounded-full bg-slate-50 px-2 py-0.5 font-mono text-[10px] text-slate-700 dark:bg-slate-700 dark:text-slate-300">
                 {provider.base_url_mode === "ping" ? "Ping" : "顺序"}
               </span>
@@ -198,6 +288,19 @@ export function SortableProviderCard({
             >
               <FlaskConical className="h-4 w-4" />
               模型验证
+            </Button>
+          ) : null}
+
+          {onFetchLimits ? (
+            <Button
+              onClick={() => onFetchLimits(provider)}
+              variant="secondary"
+              size="sm"
+              disabled={fetchLimitsPending}
+              title="更新 OAuth 5h/周限额"
+            >
+              <RefreshCw className="h-4 w-4" />
+              {fetchLimitsPending ? "更新中…" : "更新限额"}
             </Button>
           ) : null}
 

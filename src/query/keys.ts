@@ -9,6 +9,14 @@ export const providersKeys = {
   list: (cliKey: CliKey) => [...providersAllKey, "list", cliKey] as const,
 };
 
+const oauthAccountsAllKey = ["oauthAccounts"] as const;
+export const oauthAccountsKeys = {
+  all: oauthAccountsAllKey,
+  lists: () => [...oauthAccountsAllKey, "list"] as const,
+  list: (cliKey: CliKey) => [...oauthAccountsAllKey, "list", cliKey] as const,
+  fetchedLimits: () => [...oauthAccountsAllKey, "fetchedLimits"] as const,
+};
+
 const gatewayAllKey = ["gateway"] as const;
 export const gatewayKeys = {
   all: gatewayAllKey,
@@ -46,12 +54,32 @@ export const usageKeys = {
   hourlySeries: (days: number) => [...usageAllKey, "hourlySeries", days] as const,
   summaryV2: (
     period: UsagePeriod,
-    input: { startTs: number | null; endTs: number | null; cliKey: CliKey | null }
-  ) => [...usageAllKey, "summaryV2", period, input.startTs, input.endTs, input.cliKey] as const,
+    input: {
+      startTs: number | null;
+      endTs: number | null;
+      cliKey: CliKey | null;
+      oauthAccountId: number | null;
+    }
+  ) =>
+    [
+      ...usageAllKey,
+      "summaryV2",
+      period,
+      input.startTs,
+      input.endTs,
+      input.cliKey,
+      input.oauthAccountId,
+    ] as const,
   leaderboardV2: (
     scope: UsageScope,
     period: UsagePeriod,
-    input: { startTs: number | null; endTs: number | null; cliKey: CliKey | null; limit: number }
+    input: {
+      startTs: number | null;
+      endTs: number | null;
+      cliKey: CliKey | null;
+      oauthAccountId: number | null;
+      limit: number;
+    }
   ) =>
     [
       ...usageAllKey,
@@ -61,6 +89,7 @@ export const usageKeys = {
       input.startTs,
       input.endTs,
       input.cliKey,
+      input.oauthAccountId,
       input.limit,
     ] as const,
   providerCacheRateTrendV1: (

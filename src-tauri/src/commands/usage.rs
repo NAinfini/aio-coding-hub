@@ -26,10 +26,18 @@ pub(crate) async fn usage_summary_v2(
     start_ts: Option<i64>,
     end_ts: Option<i64>,
     cli_key: Option<String>,
+    oauth_account_id: Option<i64>,
 ) -> Result<usage_stats::UsageSummary, String> {
     let db = ensure_db_ready(app, db_state.inner()).await?;
     blocking::run("usage_summary_v2", move || {
-        usage_stats::summary_v2(&db, &period, start_ts, end_ts, cli_key.as_deref())
+        usage_stats::summary_v2(
+            &db,
+            &period,
+            start_ts,
+            end_ts,
+            cli_key.as_deref(),
+            oauth_account_id,
+        )
     })
     .await
     .map_err(Into::into)
@@ -79,6 +87,7 @@ pub(crate) async fn usage_leaderboard_v2(
     start_ts: Option<i64>,
     end_ts: Option<i64>,
     cli_key: Option<String>,
+    oauth_account_id: Option<i64>,
     limit: Option<u32>,
 ) -> Result<Vec<usage_stats::UsageLeaderboardRow>, String> {
     let db = ensure_db_ready(app, db_state.inner()).await?;
@@ -91,6 +100,7 @@ pub(crate) async fn usage_leaderboard_v2(
             start_ts,
             end_ts,
             cli_key.as_deref(),
+            oauth_account_id,
             limit,
         )
     })

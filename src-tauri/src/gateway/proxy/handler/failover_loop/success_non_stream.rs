@@ -428,6 +428,7 @@ pub(super) async fn handle_success_non_stream(
         special_settings_json: response_fixer::special_settings_json(&common.special_settings),
         session_id: common.session_id.clone(),
         requested_model: requested_model_for_log,
+        oauth_account_id: provider_ctx_owned.oauth_account_id,
         created_at_ms,
         created_at,
         usage_metrics,

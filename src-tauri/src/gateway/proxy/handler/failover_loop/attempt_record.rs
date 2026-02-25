@@ -55,6 +55,7 @@ async fn record_system_failure_and_decide_impl(
         provider_base_url_base,
         provider_index,
         session_reuse,
+        ..
     } = provider_ctx;
 
     let AttemptCtx {

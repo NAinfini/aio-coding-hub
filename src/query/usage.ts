@@ -42,7 +42,12 @@ export function useUsageHourlySeriesQuery(
 
 export function useUsageSummaryV2Query(
   period: UsagePeriod,
-  input: { startTs: number | null; endTs: number | null; cliKey: CliKey | null },
+  input: {
+    startTs: number | null;
+    endTs: number | null;
+    cliKey: CliKey | null;
+    oauthAccountId: number | null;
+  },
   options?: { enabled?: boolean }
 ) {
   return useQuery({
@@ -56,7 +61,13 @@ export function useUsageSummaryV2Query(
 export function useUsageLeaderboardV2Query(
   scope: UsageScope,
   period: UsagePeriod,
-  input: { startTs: number | null; endTs: number | null; cliKey: CliKey | null; limit: number },
+  input: {
+    startTs: number | null;
+    endTs: number | null;
+    cliKey: CliKey | null;
+    oauthAccountId: number | null;
+    limit: number;
+  },
   options?: { enabled?: boolean }
 ) {
   return useQuery({

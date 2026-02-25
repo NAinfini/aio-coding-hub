@@ -45,6 +45,10 @@ mod request_fingerprint;
 
 const DEFAULT_FAILOVER_MAX_ATTEMPTS_PER_PROVIDER: u32 = 5;
 const DEFAULT_FAILOVER_MAX_PROVIDERS_TO_TRY: u32 = 5;
+const DEFAULT_UPSTREAM_BOOTSTRAP_RETRIES: u32 = 2;
+const MAX_QUERY_STRING_BYTES: usize = 8 * 1024;
+const MAX_REQUEST_HEADER_BYTES: usize = 32 * 1024;
+const MAX_REQUEST_HEADER_COUNT: usize = 100;
 
 type SpecialSettings = Arc<Mutex<Vec<serde_json::Value>>>;
 
@@ -52,6 +56,7 @@ type SpecialSettings = Arc<Mutex<Vec<serde_json::Value>>>;
 enum EarlyErrorKind {
     CliProxyDisabled,
     BodyTooLarge,
+    RequestFieldsTooLarge,
     InvalidCliKey,
     NoEnabledProvider,
 }
@@ -78,6 +83,12 @@ fn early_error_contract(kind: EarlyErrorKind) -> EarlyErrorContract {
             error_category: None,
             excluded_from_stats: false,
         },
+        EarlyErrorKind::RequestFieldsTooLarge => EarlyErrorContract {
+            status: StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
+            error_code: GatewayErrorCode::RequestFieldsTooLarge.as_str(),
+            error_category: Some(ErrorCategory::NonRetryableClientError.as_str()),
+            excluded_from_stats: false,
+        },
         EarlyErrorKind::InvalidCliKey => EarlyErrorContract {
             status: StatusCode::BAD_REQUEST,
             error_code: GatewayErrorCode::InvalidCliKey.as_str(),
@@ -97,6 +108,10 @@ fn body_too_large_message(err: &str) -> String {
     format!("failed to read request body: {err}")
 }
 
+fn request_fields_too_large_message(reason: &str) -> String {
+    format!("request rejected: {reason}")
+}
+
 fn no_enabled_provider_message(cli_key: &str) -> String {
     format!("no enabled provider for cli_key={cli_key}")
 }
@@ -114,6 +129,39 @@ fn extract_forced_provider_id(headers: &axum::http::HeaderMap) -> Option<i64> {
     let raw = headers.get("x-aio-provider-id")?.to_str().ok()?.trim();
     let provider_id = raw.parse::<i64>().ok()?;
     (provider_id > 0).then_some(provider_id)
+}
+
+fn validate_request_metadata(
+    query: Option<&str>,
+    headers: &axum::http::HeaderMap,
+) -> Result<(), String> {
+    if let Some(query) = query {
+        let query_len = query.as_bytes().len();
+        if query_len > MAX_QUERY_STRING_BYTES {
+            return Err(format!(
+                "query string too large: {query_len} bytes > {MAX_QUERY_STRING_BYTES}"
+            ));
+        }
+    }
+
+    let header_count = headers.len();
+    if header_count > MAX_REQUEST_HEADER_COUNT {
+        return Err(format!(
+            "header count too large: {header_count} > {MAX_REQUEST_HEADER_COUNT}"
+        ));
+    }
+
+    let header_bytes: usize = headers
+        .iter()
+        .map(|(name, value)| name.as_str().len() + value.as_bytes().len())
+        .sum();
+    if header_bytes > MAX_REQUEST_HEADER_BYTES {
+        return Err(format!(
+            "header bytes too large: {header_bytes} > {MAX_REQUEST_HEADER_BYTES}"
+        ));
+    }
+
+    Ok(())
 }
 
 fn force_provider_if_requested(
@@ -275,6 +323,7 @@ fn early_error_request_end_args<'a>(
         special_settings_json,
         session_id,
         requested_model,
+        oauth_account_id: None,
         created_at_ms: ctx.created_at_ms,
         created_at: ctx.created_at,
         usage_metrics: None,
@@ -345,6 +394,7 @@ struct HandlerRuntimeSettings {
     max_providers_to_try: u32,
     provider_cooldown_secs: i64,
     upstream_first_byte_timeout_secs: u32,
+    upstream_bootstrap_retries: u32,
     upstream_stream_idle_timeout_secs: u32,
     upstream_request_timeout_non_streaming_secs: u32,
 }
@@ -423,6 +473,7 @@ fn handler_runtime_settings(
         upstream_first_byte_timeout_secs: settings_cfg
             .map(|cfg| cfg.upstream_first_byte_timeout_seconds)
             .unwrap_or(settings::DEFAULT_UPSTREAM_FIRST_BYTE_TIMEOUT_SECONDS),
+        upstream_bootstrap_retries: DEFAULT_UPSTREAM_BOOTSTRAP_RETRIES,
         upstream_stream_idle_timeout_secs: settings_cfg
             .map(|cfg| cfg.upstream_stream_idle_timeout_seconds)
             .unwrap_or(settings::DEFAULT_UPSTREAM_STREAM_IDLE_TIMEOUT_SECONDS),
@@ -522,6 +573,7 @@ fn respond_warmup_intercept(ctx: &WarmupInterceptCtx<'_>) -> Response {
         special_settings_json: Some(special_settings_json),
         session_id: None,
         requested_model: ctx.requested_model.map(str::to_string),
+        oauth_account_id: None,
         created_at_ms: ctx.created_at_ms,
         created_at: ctx.created_at,
         usage_metrics: Some(usage::UsageMetrics::default()),
@@ -664,6 +716,54 @@ pub(in crate::gateway) async fn proxy_impl(
 
     let forced_provider_id = extract_forced_provider_id(&headers);
     let bypass_cli_proxy_guard = forced_provider_id.is_some();
+
+    if let Err(reason) = validate_request_metadata(query.as_deref(), &headers) {
+        let contract = early_error_contract(EarlyErrorKind::RequestFieldsTooLarge);
+        let log_ctx = build_early_error_log_ctx(
+            &state,
+            &started,
+            trace_id.as_str(),
+            cli_key.as_str(),
+            method_hint.as_str(),
+            forwarded_path.as_str(),
+            query.as_deref(),
+            created_at_ms,
+            created_at,
+        );
+        return respond_early_error_with_enqueue(
+            &log_ctx,
+            contract,
+            request_fields_too_large_message(&reason),
+            None,
+            None,
+            None,
+        )
+        .await;
+    }
+
+    if let Err(err) = crate::shared::cli_key::validate_cli_key(cli_key.as_str()) {
+        let contract = early_error_contract(EarlyErrorKind::InvalidCliKey);
+        let log_ctx = build_early_error_log_ctx(
+            &state,
+            &started,
+            trace_id.as_str(),
+            cli_key.as_str(),
+            method_hint.as_str(),
+            forwarded_path.as_str(),
+            query.as_deref(),
+            created_at_ms,
+            created_at,
+        );
+        return respond_early_error_with_enqueue(
+            &log_ctx,
+            contract,
+            err.to_string(),
+            None,
+            None,
+            None,
+        )
+        .await;
+    }
 
     if crate::shared::cli_key::is_supported_cli_key(cli_key.as_str()) && !bypass_cli_proxy_guard {
         let enabled_snapshot = cli_proxy_enabled_cached(&state.app, &cli_key);
@@ -811,6 +911,7 @@ pub(in crate::gateway) async fn proxy_impl(
         effective_sort_mode_id,
         mut providers,
         bound_provider_order,
+        quota_exceeded_oauth_account_ids,
     } = match select_providers_with_session_binding(
         &state,
         &cli_key,
@@ -853,6 +954,10 @@ pub(in crate::gateway) async fn proxy_impl(
         forced_provider_id,
         &mut providers,
         bound_provider_order.as_deref(),
+    );
+    provider_selection::filter_quota_exceeded_oauth_providers(
+        &mut providers,
+        &quota_exceeded_oauth_account_ids,
     );
 
     if providers.is_empty() {
@@ -937,6 +1042,7 @@ pub(in crate::gateway) async fn proxy_impl(
         max_providers_to_try: runtime_settings.max_providers_to_try,
         provider_cooldown_secs: runtime_settings.provider_cooldown_secs,
         upstream_first_byte_timeout_secs: runtime_settings.upstream_first_byte_timeout_secs,
+        upstream_bootstrap_retries: runtime_settings.upstream_bootstrap_retries,
         upstream_stream_idle_timeout_secs: runtime_settings.upstream_stream_idle_timeout_secs,
         upstream_request_timeout_non_streaming_secs: runtime_settings
             .upstream_request_timeout_non_streaming_secs,
@@ -957,14 +1063,15 @@ mod tests {
     use super::{
         body_too_large_message, build_request_fingerprints, cli_proxy_disabled_message,
         cli_proxy_guard_special_settings_json, early_error_contract, handler_runtime_settings,
-        no_enabled_provider_message, resolve_session_routing_decision,
-        should_intercept_warmup_request, warmup_intercept_special_settings_json,
+        no_enabled_provider_message, request_fields_too_large_message,
+        resolve_session_routing_decision, should_intercept_warmup_request,
+        validate_request_metadata, warmup_intercept_special_settings_json,
         warmup_log_usage_metrics, EarlyErrorKind,
     };
     use crate::gateway::proxy::{ErrorCategory, GatewayErrorCode};
     use crate::settings;
     use axum::body::Bytes;
-    use axum::http::{HeaderMap, HeaderValue, StatusCode};
+    use axum::http::{header::HeaderName, HeaderMap, HeaderValue, StatusCode};
 
     fn provider(id: i64) -> crate::providers::ProviderForGateway {
         crate::providers::ProviderForGateway {
@@ -972,6 +1079,8 @@ mod tests {
             name: format!("p{id}"),
             base_urls: vec!["https://example.com".to_string()],
             base_url_mode: crate::providers::ProviderBaseUrlMode::Order,
+            auth_mode: crate::providers::ProviderAuthMode::ApiKey,
+            oauth_account_id: None,
             api_key_plaintext: String::new(),
             claude_models: crate::providers::ClaudeModels::default(),
             limit_5h_usd: None,
@@ -1050,6 +1159,21 @@ mod tests {
         assert_eq!(body_too_large.error_category, None);
         assert!(!body_too_large.excluded_from_stats);
 
+        let request_fields = early_error_contract(EarlyErrorKind::RequestFieldsTooLarge);
+        assert_eq!(
+            request_fields.status,
+            StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE
+        );
+        assert_eq!(
+            request_fields.error_code,
+            GatewayErrorCode::RequestFieldsTooLarge.as_str()
+        );
+        assert_eq!(
+            request_fields.error_category,
+            Some(ErrorCategory::NonRetryableClientError.as_str())
+        );
+        assert!(!request_fields.excluded_from_stats);
+
         let invalid_cli = early_error_contract(EarlyErrorKind::InvalidCliKey);
         assert_eq!(invalid_cli.status, StatusCode::BAD_REQUEST);
         assert_eq!(
@@ -1074,6 +1198,35 @@ mod tests {
         let message = body_too_large_message("stream exceeded limit");
         assert!(message.contains("failed to read request body:"));
         assert!(message.contains("stream exceeded limit"));
+    }
+
+    #[test]
+    fn request_fields_too_large_message_includes_reason() {
+        let message = request_fields_too_large_message("header count too large");
+        assert!(message.contains("request rejected"));
+        assert!(message.contains("header count too large"));
+    }
+
+    #[test]
+    fn validate_request_metadata_rejects_oversized_query() {
+        let query = "a".repeat(8193);
+        let headers = HeaderMap::new();
+        let err = validate_request_metadata(Some(query.as_str()), &headers).expect_err("error");
+        assert!(err.contains("query string too large"));
+    }
+
+    #[test]
+    fn validate_request_metadata_rejects_too_many_headers() {
+        let mut headers = HeaderMap::new();
+        for index in 0..101 {
+            let name = format!("x-test-{index}");
+            headers.insert(
+                name.parse::<HeaderName>().expect("header name"),
+                HeaderValue::from_static("v"),
+            );
+        }
+        let err = validate_request_metadata(None, &headers).expect_err("error");
+        assert!(err.contains("header count too large"));
     }
 
     #[test]

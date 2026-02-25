@@ -1,5 +1,6 @@
 //! Usage: Provider configuration persistence and gateway selection helpers.
 
+use super::oauth_accounts::{self, OAuthAccountStatus};
 use crate::db;
 use crate::shared::error::db_err;
 use crate::shared::sqlite::enabled_to_int;
@@ -246,6 +247,30 @@ impl ProviderBaseUrlMode {
     }
 }
 
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderAuthMode {
+    ApiKey,
+    Oauth,
+}
+
+impl ProviderAuthMode {
+    fn parse(input: &str) -> Option<Self> {
+        match input.trim() {
+            "api_key" => Some(Self::ApiKey),
+            "oauth" => Some(Self::Oauth),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::ApiKey => "api_key",
+            Self::Oauth => "oauth",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ProviderSummary {
     pub id: i64,
@@ -253,6 +278,8 @@ pub struct ProviderSummary {
     pub name: String,
     pub base_urls: Vec<String>,
     pub base_url_mode: ProviderBaseUrlMode,
+    pub auth_mode: ProviderAuthMode,
+    pub oauth_account_id: Option<i64>,
     pub claude_models: ClaudeModels,
     pub enabled: bool,
     pub priority: i64,
@@ -275,6 +302,8 @@ pub(crate) struct ProviderForGateway {
     pub name: String,
     pub base_urls: Vec<String>,
     pub base_url_mode: ProviderBaseUrlMode,
+    pub auth_mode: ProviderAuthMode,
+    pub oauth_account_id: Option<i64>,
     pub api_key_plaintext: String,
     pub claude_models: ClaudeModels,
     pub limit_5h_usd: Option<f64>,
@@ -301,6 +330,55 @@ fn validate_cli_key(cli_key: &str) -> crate::shared::error::AppResult<()> {
     crate::shared::cli_key::validate_cli_key(cli_key)
 }
 
+fn parse_provider_auth_mode(
+    raw: Option<&str>,
+) -> crate::shared::error::AppResult<ProviderAuthMode> {
+    let normalized = raw.map(str::trim).unwrap_or("api_key");
+    if normalized.is_empty() {
+        return Ok(ProviderAuthMode::ApiKey);
+    }
+    ProviderAuthMode::parse(normalized).ok_or_else(|| {
+        "SEC_INVALID_INPUT: auth_mode must be 'api_key' or 'oauth'"
+            .to_string()
+            .into()
+    })
+}
+
+fn validate_oauth_binding(
+    conn: &Connection,
+    cli_key: &str,
+    auth_mode: ProviderAuthMode,
+    oauth_account_id: Option<i64>,
+) -> crate::shared::error::AppResult<Option<i64>> {
+    if !matches!(auth_mode, ProviderAuthMode::Oauth) {
+        return Ok(None);
+    }
+
+    let account_id = oauth_account_id
+        .ok_or_else(|| "SEC_INVALID_INPUT: oauth_account_id is required when auth_mode=oauth")?;
+    if account_id <= 0 {
+        return Err(format!("SEC_INVALID_INPUT: invalid oauth_account_id={account_id}").into());
+    }
+
+    let account = oauth_accounts::get_for_gateway(conn, account_id)
+        .map_err(|_| format!("SEC_INVALID_INPUT: oauth_account_id={account_id} not found"))?;
+    if account.cli_key != cli_key {
+        return Err(format!(
+            "SEC_INVALID_INPUT: oauth account cli_key mismatch: expected={cli_key}, actual={}",
+            account.cli_key
+        )
+        .into());
+    }
+    if !matches!(
+        account.status,
+        OAuthAccountStatus::Active | OAuthAccountStatus::QuotaCooldown
+    ) {
+        return Err(format!("SEC_INVALID_INPUT: oauth account {account_id} is not active").into());
+    }
+
+    Ok(Some(account_id))
+}
+
 fn normalize_base_urls(base_urls: Vec<String>) -> crate::shared::error::AppResult<Vec<String>> {
     let mut out: Vec<String> = Vec::with_capacity(base_urls.len().max(1));
     let mut seen: HashSet<String> = HashSet::with_capacity(base_urls.len());
@@ -316,8 +394,18 @@ fn normalize_base_urls(base_urls: Vec<String>) -> crate::shared::error::AppResul
         }
 
         // Validate URL early to avoid runtime proxy errors.
-        reqwest::Url::parse(trimmed)
+        let parsed_url = reqwest::Url::parse(trimmed)
             .map_err(|e| format!("SEC_INVALID_INPUT: invalid base_url={trimmed}: {e}"))?;
+
+        match parsed_url.scheme() {
+            "http" | "https" => {}
+            scheme => {
+                return Err(format!(
+                    "SEC_INVALID_INPUT: base_url must use http or https scheme, got: {scheme}"
+                )
+                .into());
+            }
+        }
 
         out.push(trimmed.to_string());
     }
@@ -360,10 +448,12 @@ fn row_to_summary(row: &rusqlite::Row<'_>) -> Result<ProviderSummary, rusqlite::
     let claude_models_json: String = row.get("claude_models_json")?;
     let tags_json: String = row.get("tags_json")?;
     let base_url_mode_raw: String = row.get("base_url_mode")?;
+    let auth_mode_raw: String = row.get("auth_mode")?;
     let daily_reset_mode_raw: String = row.get("daily_reset_mode")?;
     let daily_reset_time_raw: String = row.get("daily_reset_time")?;
     let base_url_mode =
         ProviderBaseUrlMode::parse(&base_url_mode_raw).unwrap_or(ProviderBaseUrlMode::Order);
+    let auth_mode = ProviderAuthMode::parse(&auth_mode_raw).unwrap_or(ProviderAuthMode::ApiKey);
     let daily_reset_mode =
         DailyResetMode::parse(&daily_reset_mode_raw).unwrap_or(DailyResetMode::Fixed);
     let daily_reset_time = normalize_reset_time_hms_lossy(&daily_reset_time_raw);
@@ -374,6 +464,8 @@ fn row_to_summary(row: &rusqlite::Row<'_>) -> Result<ProviderSummary, rusqlite::
         name: row.get("name")?,
         base_urls: base_urls_from_row(&base_url_fallback, &base_urls_json),
         base_url_mode,
+        auth_mode,
+        oauth_account_id: row.get("oauth_account_id")?,
         claude_models: if cli_key == "claude" {
             claude_models_from_json(&claude_models_json)
         } else {
@@ -418,6 +510,8 @@ SELECT
   base_url,
   base_urls_json,
   base_url_mode,
+  auth_mode,
+  oauth_account_id,
   claude_models_json,
   tags_json,
   enabled,
@@ -452,24 +546,43 @@ pub(crate) fn claude_terminal_launch_context(
     }
 
     let conn = db.open_connection()?;
-    let row: Option<(String, String, String, String)> = conn
+    let row: Option<(String, String, String, String, Option<i64>, String)> = conn
         .query_row(
             r#"
 SELECT
   cli_key,
   base_url,
   base_urls_json,
+  auth_mode,
+  oauth_account_id,
   api_key_plaintext
 FROM providers
 WHERE id = ?1
 "#,
             params![provider_id],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                ))
+            },
         )
         .optional()
         .map_err(|e| db_err!("failed to query provider for launch context: {e}"))?;
 
-    let Some((cli_key, base_url_fallback, base_urls_json, api_key_plaintext)) = row else {
+    let Some((
+        cli_key,
+        base_url_fallback,
+        base_urls_json,
+        auth_mode_raw,
+        oauth_account_id,
+        api_key_plaintext,
+    )) = row
+    else {
         return Err("DB_NOT_FOUND: provider not found".to_string().into());
     };
 
@@ -485,7 +598,33 @@ WHERE id = ?1
     reqwest::Url::parse(&base_url)
         .map_err(|e| format!("SEC_INVALID_INPUT: invalid base_url={base_url}: {e}"))?;
 
-    let api_key_plaintext = api_key_plaintext.trim().to_string();
+    let auth_mode = ProviderAuthMode::parse(&auth_mode_raw).unwrap_or(ProviderAuthMode::ApiKey);
+    let api_key_plaintext = match auth_mode {
+        ProviderAuthMode::ApiKey => api_key_plaintext.trim().to_string(),
+        ProviderAuthMode::Oauth => {
+            let account_id = oauth_account_id.ok_or_else(|| {
+                "SEC_INVALID_INPUT: provider oauth_account_id is required for auth_mode=oauth"
+                    .to_string()
+            })?;
+            let account = oauth_accounts::get_for_gateway(&conn, account_id)?;
+            if account.cli_key != cli_key {
+                return Err(format!(
+                    "SEC_INVALID_INPUT: oauth account cli_key mismatch: expected={cli_key}, actual={}",
+                    account.cli_key
+                )
+                .into());
+            }
+            if !matches!(
+                account.status,
+                OAuthAccountStatus::Active | OAuthAccountStatus::QuotaCooldown
+            ) {
+                return Err(
+                    format!("SEC_INVALID_INPUT: oauth account {account_id} is not active").into(),
+                );
+            }
+            account.access_token.trim().to_string()
+        }
+    };
     if api_key_plaintext.is_empty() {
         return Err("SEC_INVALID_INPUT: provider api_key is empty"
             .to_string()
@@ -499,13 +638,14 @@ pub fn names_by_id(
     db: &db::Db,
     provider_ids: &[i64],
 ) -> crate::shared::error::AppResult<HashMap<i64, String>> {
-    let ids: Vec<i64> = provider_ids
-        .iter()
-        .copied()
-        .filter(|id| *id > 0)
-        .collect::<HashSet<i64>>()
-        .into_iter()
-        .collect();
+    let ids: Vec<i64> = {
+        let mut seen = HashSet::new();
+        provider_ids
+            .iter()
+            .copied()
+            .filter(|id| *id > 0 && seen.insert(*id))
+            .collect()
+    };
 
     if ids.is_empty() {
         return Ok(HashMap::new());
@@ -558,6 +698,8 @@ SELECT
   base_url,
   base_urls_json,
   base_url_mode,
+  auth_mode,
+  oauth_account_id,
   claude_models_json,
   tags_json,
 	  enabled,
@@ -600,11 +742,13 @@ fn map_gateway_provider_row(
     let base_url_fallback: String = row.get("base_url")?;
     let base_urls_json: String = row.get("base_urls_json")?;
     let base_url_mode_raw: String = row.get("base_url_mode")?;
+    let auth_mode_raw: String = row.get("auth_mode")?;
     let claude_models_json: String = row.get("claude_models_json")?;
     let daily_reset_mode_raw: String = row.get("daily_reset_mode")?;
     let daily_reset_time_raw: String = row.get("daily_reset_time")?;
     let base_url_mode =
         ProviderBaseUrlMode::parse(&base_url_mode_raw).unwrap_or(ProviderBaseUrlMode::Order);
+    let auth_mode = ProviderAuthMode::parse(&auth_mode_raw).unwrap_or(ProviderAuthMode::ApiKey);
     let daily_reset_mode =
         DailyResetMode::parse(&daily_reset_mode_raw).unwrap_or(DailyResetMode::Fixed);
     let daily_reset_time = normalize_reset_time_hms_lossy(&daily_reset_time_raw);
@@ -613,6 +757,8 @@ fn map_gateway_provider_row(
         name: row.get("name")?,
         base_urls: base_urls_from_row(&base_url_fallback, &base_urls_json),
         base_url_mode,
+        auth_mode,
+        oauth_account_id: row.get("oauth_account_id")?,
         api_key_plaintext: row.get("api_key_plaintext")?,
         claude_models: if cli_key == "claude" {
             claude_models_from_json(&claude_models_json)
@@ -644,6 +790,8 @@ SELECT
   p.base_url,
   p.base_urls_json,
   p.base_url_mode,
+  p.auth_mode,
+  p.oauth_account_id,
   p.api_key_plaintext,
   p.claude_models_json,
   p.limit_5h_usd,
@@ -691,6 +839,8 @@ SELECT
   base_url,
   base_urls_json,
   base_url_mode,
+  auth_mode,
+  oauth_account_id,
   api_key_plaintext,
   claude_models_json,
   limit_5h_usd,
@@ -791,6 +941,8 @@ SELECT
   base_url,
   base_urls_json,
   base_url_mode,
+  auth_mode,
+  oauth_account_id,
   api_key_plaintext,
   claude_models_json,
   limit_5h_usd,
@@ -829,6 +981,8 @@ pub fn upsert(
     name: &str,
     base_urls: Vec<String>,
     base_url_mode: &str,
+    auth_mode: Option<&str>,
+    oauth_account_id: Option<i64>,
     api_key: Option<&str>,
     enabled: bool,
     cost_multiplier: f64,
@@ -861,6 +1015,7 @@ pub fn upsert(
     let base_urls_json =
         serde_json::to_string(&base_urls).map_err(|e| format!("SYSTEM_ERROR: {e}"))?;
 
+    let requested_auth_mode = parse_provider_auth_mode(auth_mode)?;
     let api_key = api_key.map(str::trim).filter(|v| !v.is_empty());
 
     if !cost_multiplier.is_finite() || cost_multiplier <= 0.0 || cost_multiplier > 1000.0 {
@@ -884,9 +1039,15 @@ pub fn upsert(
 
     match provider_id {
         None => {
+            let effective_oauth_account_id =
+                validate_oauth_binding(&conn, cli_key, requested_auth_mode, oauth_account_id)?;
             let priority = priority.unwrap_or(DEFAULT_PRIORITY);
-            let api_key =
-                api_key.ok_or_else(|| "SEC_INVALID_INPUT: api_key is required".to_string())?;
+            let api_key = match requested_auth_mode {
+                ProviderAuthMode::ApiKey => {
+                    api_key.ok_or_else(|| "SEC_INVALID_INPUT: api_key is required".to_string())?
+                }
+                ProviderAuthMode::Oauth => api_key.unwrap_or(""),
+            };
             let sort_order = next_sort_order(&conn, cli_key)?;
 
             let claude_models = if cli_key == "claude" {
@@ -924,6 +1085,8 @@ INSERT INTO providers(
   base_url,
   base_urls_json,
   base_url_mode,
+  auth_mode,
+  oauth_account_id,
   claude_models_json,
   supported_models_json,
   model_mapping_json,
@@ -942,7 +1105,7 @@ INSERT INTO providers(
   tags_json,
   created_at,
   updated_at
-) VALUES (?1, ?2, ?3, ?4, ?5, ?6, '{}', '{}', ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21)
+) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, '{}', '{}', ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23)
 "#,
                 params![
                     cli_key,
@@ -950,6 +1113,8 @@ INSERT INTO providers(
                     base_url_primary,
                     base_urls_json,
                     base_url_mode.as_str(),
+                    requested_auth_mode.as_str(),
+                    effective_oauth_account_id,
                     claude_models_json,
                     api_key,
                     sort_order,
@@ -987,11 +1152,33 @@ INSERT INTO providers(
                 .transaction()
                 .map_err(|e| db_err!("failed to start transaction: {e}"))?;
 
-            let existing: Option<(String, String, i64, String, String, String, String)> = tx
+            let existing: Option<(
+                String,
+                String,
+                i64,
+                String,
+                String,
+                Option<i64>,
+                String,
+                String,
+                String,
+            )> = tx
                 .query_row(
-                    "SELECT cli_key, api_key_plaintext, priority, claude_models_json, daily_reset_mode, daily_reset_time, tags_json FROM providers WHERE id = ?1",
+                    "SELECT cli_key, api_key_plaintext, priority, claude_models_json, auth_mode, oauth_account_id, daily_reset_mode, daily_reset_time, tags_json FROM providers WHERE id = ?1",
                     params![id],
-                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?)),
+                    |row| {
+                        Ok((
+                            row.get(0)?,
+                            row.get(1)?,
+                            row.get(2)?,
+                            row.get(3)?,
+                            row.get(4)?,
+                            row.get(5)?,
+                            row.get(6)?,
+                            row.get(7)?,
+                            row.get(8)?,
+                        ))
+                    },
                 )
                 .optional()
                 .map_err(|e| db_err!("failed to query provider: {e}"))?;
@@ -1001,6 +1188,8 @@ INSERT INTO providers(
                 existing_api_key,
                 existing_priority,
                 existing_claude_models_json,
+                existing_auth_mode_raw,
+                existing_oauth_account_id,
                 existing_daily_reset_mode_raw,
                 existing_daily_reset_time_raw,
                 existing_tags_json,
@@ -1013,7 +1202,24 @@ INSERT INTO providers(
                 return Err("SEC_INVALID_INPUT: cli_key mismatch".to_string().into());
             }
 
+            let existing_auth_mode = ProviderAuthMode::parse(&existing_auth_mode_raw)
+                .unwrap_or(ProviderAuthMode::ApiKey);
+            let next_auth_mode = match auth_mode {
+                Some(raw) => parse_provider_auth_mode(Some(raw))?,
+                None => existing_auth_mode,
+            };
+            let oauth_candidate = match next_auth_mode {
+                ProviderAuthMode::ApiKey => None,
+                ProviderAuthMode::Oauth => oauth_account_id.or(existing_oauth_account_id),
+            };
+            let next_oauth_account_id =
+                validate_oauth_binding(&tx, cli_key, next_auth_mode, oauth_candidate)?;
+
             let next_api_key = api_key.unwrap_or(existing_api_key.as_str());
+            if matches!(next_auth_mode, ProviderAuthMode::ApiKey) && next_api_key.trim().is_empty()
+            {
+                return Err("SEC_INVALID_INPUT: api_key is required".to_string().into());
+            }
             let next_priority = priority.unwrap_or(existing_priority);
 
             let existing_claude_models = if cli_key == "claude" {
@@ -1076,29 +1282,33 @@ SET
   base_url = ?2,
   base_urls_json = ?3,
   base_url_mode = ?4,
-  claude_models_json = ?5,
+  auth_mode = ?5,
+  oauth_account_id = ?6,
+  claude_models_json = ?7,
   supported_models_json = '{}',
   model_mapping_json = '{}',
-  api_key_plaintext = ?6,
-  enabled = ?7,
-  cost_multiplier = ?8,
-  priority = ?9,
-  limit_5h_usd = ?10,
-  limit_daily_usd = ?11,
-  daily_reset_mode = ?12,
-  daily_reset_time = ?13,
-  limit_weekly_usd = ?14,
-  limit_monthly_usd = ?15,
-  limit_total_usd = ?16,
-  tags_json = ?17,
-  updated_at = ?18
-WHERE id = ?19
+  api_key_plaintext = ?8,
+  enabled = ?9,
+  cost_multiplier = ?10,
+  priority = ?11,
+  limit_5h_usd = ?12,
+  limit_daily_usd = ?13,
+  daily_reset_mode = ?14,
+  daily_reset_time = ?15,
+  limit_weekly_usd = ?16,
+  limit_monthly_usd = ?17,
+  limit_total_usd = ?18,
+  tags_json = ?19,
+  updated_at = ?20
+WHERE id = ?21
 "#,
                 params![
                     name,
                     base_url_primary,
                     base_urls_json,
                     base_url_mode.as_str(),
+                    next_auth_mode.as_str(),
+                    next_oauth_account_id,
                     next_claude_models_json,
                     next_api_key,
                     enabled_to_int(enabled),

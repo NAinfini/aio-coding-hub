@@ -44,6 +44,7 @@ fn request_log_insert_from_args(
         ttfb_ms,
         attempts_json,
         requested_model,
+        oauth_account_id,
         created_at_ms,
         created_at,
         usage_metrics,
@@ -81,6 +82,7 @@ fn request_log_insert_from_args(
         duration_ms,
         ttfb_ms,
         attempts_json,
+        oauth_account_id,
         input_tokens: metrics.input_tokens,
         output_tokens: metrics.output_tokens,
         total_tokens: metrics.total_tokens,
@@ -227,6 +229,7 @@ mod tests {
             ttfb_ms: None,
             attempts_json: "[]".to_string(),
             requested_model: None,
+            oauth_account_id: None,
             created_at_ms: 0,
             created_at: 0,
             usage_metrics: None,
@@ -309,5 +312,14 @@ mod tests {
 
         let greater_insert = request_log_insert_from_args(greater_args).expect("insert");
         assert_eq!(greater_insert.ttfb_ms, None);
+    }
+
+    #[test]
+    fn request_log_insert_keeps_oauth_account_id() {
+        let mut args = base_args();
+        args.oauth_account_id = Some(42);
+
+        let insert = request_log_insert_from_args(args).expect("insert");
+        assert_eq!(insert.oauth_account_id, Some(42));
     }
 }

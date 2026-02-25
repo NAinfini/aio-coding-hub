@@ -102,11 +102,21 @@ const RequestLogCard = memo(function RequestLogCard({
     log.duration_ms,
     ttfbMs
   );
+  const effectiveInputTokens = computeEffectiveInputTokens(
+    log.cli_key,
+    log.input_tokens,
+    log.cache_read_input_tokens
+  );
+  const hasCompleted = log.status != null || log.error_code != null;
+  const displayInputTokens = effectiveInputTokens ?? (hasCompleted ? 0 : null);
+  const displayOutputTokens = log.output_tokens ?? (hasCompleted ? 0 : null);
+  const displayOutputTokensPerSecond = outputTokensPerSecond ?? (hasCompleted ? 0 : null);
 
   const costMultiplier = log.cost_multiplier;
   const showCostMultiplier =
     Number.isFinite(costMultiplier) && costMultiplier > 0 && Math.abs(costMultiplier - 1) > 0.0001;
   const rawCostUsdText = formatUsdRaw(log.cost_usd);
+  const displayCostUsdText = rawCostUsdText === "—" && hasCompleted ? "$0" : rawCostUsdText;
 
   const cacheWrite = (() => {
     // 优先 5m，其次 1h，最后用 cache_creation_input_tokens 汇总
@@ -130,12 +140,7 @@ const RequestLogCard = memo(function RequestLogCard({
     }
     return { tokens: null, ttl: null };
   })();
-
-  const effectiveInputTokens = computeEffectiveInputTokens(
-    log.cli_key,
-    log.input_tokens,
-    log.cache_read_input_tokens
-  );
+  const cacheCreationNotApplicable = log.cli_key === "codex" && cacheWrite.tokens == null;
 
   return (
     <button type="button" onClick={() => onSelectLogId(log.id)} className="w-full text-left group">
@@ -257,7 +262,7 @@ const RequestLogCard = memo(function RequestLogCard({
               <div className="flex items-center gap-1 h-4" title="Input Tokens">
                 <span className="text-slate-400 dark:text-slate-500 shrink-0">输入</span>
                 <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300 truncate">
-                  {formatInteger(effectiveInputTokens)}
+                  {formatInteger(displayInputTokens)}
                 </span>
               </div>
               <div className="flex items-center gap-1 h-4" title="Cache Write">
@@ -273,6 +278,8 @@ const RequestLogCard = memo(function RequestLogCard({
                       </span>
                     )}
                   </>
+                ) : cacheCreationNotApplicable ? (
+                  <span className="text-slate-400 dark:text-slate-500">N/A</span>
                 ) : (
                   <span className="text-slate-300 dark:text-slate-600">—</span>
                 )}
@@ -285,11 +292,11 @@ const RequestLogCard = memo(function RequestLogCard({
               </div>
               <div
                 className="flex items-center gap-1 h-4"
-                title={rawCostUsdText === "—" ? undefined : rawCostUsdText}
+                title={displayCostUsdText === "—" ? undefined : displayCostUsdText}
               >
                 <span className="text-slate-400 dark:text-slate-500 shrink-0">花费</span>
                 <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300 truncate">
-                  {rawCostUsdText}
+                  {displayCostUsdText}
                 </span>
               </div>
 
@@ -297,7 +304,7 @@ const RequestLogCard = memo(function RequestLogCard({
               <div className="flex items-center gap-1 h-4" title="Output Tokens">
                 <span className="text-slate-400 dark:text-slate-500 shrink-0">输出</span>
                 <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300 truncate">
-                  {formatInteger(log.output_tokens)}
+                  {formatInteger(displayOutputTokens)}
                 </span>
               </div>
               <div className="flex items-center gap-1 h-4" title="Cache Read">
@@ -319,13 +326,15 @@ const RequestLogCard = memo(function RequestLogCard({
               <div
                 className="flex items-center gap-1 h-4"
                 title={
-                  outputTokensPerSecond ? formatTokensPerSecond(outputTokensPerSecond) : undefined
+                  displayOutputTokensPerSecond != null
+                    ? formatTokensPerSecond(displayOutputTokensPerSecond)
+                    : undefined
                 }
               >
                 <span className="text-slate-400 dark:text-slate-500 shrink-0">速率</span>
-                {outputTokensPerSecond ? (
+                {displayOutputTokensPerSecond != null ? (
                   <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300 truncate">
-                    {formatTokensPerSecondShort(outputTokensPerSecond)}
+                    {formatTokensPerSecondShort(displayOutputTokensPerSecond)}
                   </span>
                 ) : (
                   <span className="text-slate-300 dark:text-slate-600">—</span>

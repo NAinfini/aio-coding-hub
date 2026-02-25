@@ -44,6 +44,7 @@ pub(super) async fn handle_thinking_signature_rectifier_400(
         provider_base_url_base,
         provider_index,
         session_reuse,
+        oauth_account_id,
     } = ProviderCtxOwned::from(provider_ctx);
 
     let AttemptCtx {
@@ -93,6 +94,7 @@ pub(super) async fn handle_thinking_signature_rectifier_400(
                     special_settings_json: None,
                     session_id,
                     requested_model,
+                    oauth_account_id,
                     created_at_ms,
                     created_at,
                     usage_metrics: None,
@@ -295,6 +297,7 @@ pub(super) async fn handle_thinking_signature_rectifier_400(
                     special_settings_json,
                     session_id,
                     requested_model,
+                    oauth_account_id,
                     created_at_ms,
                     created_at,
                     usage_metrics: None,

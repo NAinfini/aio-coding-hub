@@ -3,6 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { ProviderEditorDialog } from "../ProviderEditorDialog";
 import { providerUpsert, type ProviderSummary } from "../../../services/providers";
+import {
+  useOAuthAccountsEventBridge,
+  useOAuthAccountsListQuery,
+  useOAuthStartLoginMutation,
+} from "../../../query/oauthAccounts";
 
 vi.mock("sonner", () => ({ toast: vi.fn() }));
 vi.mock("../../../services/consoleLog", () => ({ logToConsole: vi.fn() }));
@@ -12,6 +17,18 @@ vi.mock("../../../services/providers", async () => {
     "../../../services/providers"
   );
   return { ...actual, providerUpsert: vi.fn(), baseUrlPingMs: vi.fn() };
+});
+
+vi.mock("../../../query/oauthAccounts", async () => {
+  const actual = await vi.importActual<typeof import("../../../query/oauthAccounts")>(
+    "../../../query/oauthAccounts"
+  );
+  return {
+    ...actual,
+    useOAuthAccountsListQuery: vi.fn(),
+    useOAuthStartLoginMutation: vi.fn(),
+    useOAuthAccountsEventBridge: vi.fn(),
+  };
 });
 
 function makeProvider(partial: Partial<ProviderSummary> = {}): ProviderSummary {
@@ -40,7 +57,200 @@ function makeProvider(partial: Partial<ProviderSummary> = {}): ProviderSummary {
 }
 
 describe("pages/providers/ProviderEditorDialog", () => {
+  it("shows mode switch near top and toggles api/base-url vs oauth sections", async () => {
+    vi.mocked(useOAuthAccountsListQuery).mockReturnValue({
+      data: [{ id: 7, label: "Work", email: null, status: "active" }],
+      isFetching: false,
+    } as any);
+    vi.mocked(useOAuthStartLoginMutation).mockReturnValue({
+      mutateAsync: vi.fn(),
+      isPending: false,
+    } as any);
+    vi.mocked(useOAuthAccountsEventBridge).mockReturnValue({} as any);
+
+    render(
+      <ProviderEditorDialog
+        mode="create"
+        open={true}
+        cliKey="claude"
+        onSaved={vi.fn()}
+        onOpenChange={vi.fn()}
+      />
+    );
+
+    const dialog = within(screen.getByRole("dialog"));
+    const modeFieldLabel = dialog.getByText("接入方式");
+    const tagsLabel = dialog.getByText("标签");
+    const position = modeFieldLabel.compareDocumentPosition(tagsLabel);
+    expect((position & Node.DOCUMENT_POSITION_FOLLOWING) !== 0).toBe(true);
+
+    const apiKeyInput = dialog.getByPlaceholderText("sk-…") as HTMLInputElement;
+    expect(apiKeyInput).toBeEnabled();
+    expect(dialog.getByText("Base URL 模式")).toBeInTheDocument();
+    expect(dialog.getByText("Base URLs")).toBeInTheDocument();
+    expect(dialog.queryByText("OAuth 账号")).not.toBeInTheDocument();
+
+    fireEvent.click(dialog.getByRole("radio", { name: "OAuth" }));
+    expect(dialog.queryByPlaceholderText("sk-…")).not.toBeInTheDocument();
+    expect(dialog.queryByText("Base URL 模式")).not.toBeInTheDocument();
+    expect(dialog.queryByText("Base URLs")).not.toBeInTheDocument();
+    expect(dialog.getByText("OAuth 账号")).toBeInTheDocument();
+  });
+
+  it("does not render create-mode tab switch and keeps oauth empty hint concise", async () => {
+    vi.mocked(useOAuthAccountsListQuery).mockReturnValue({
+      data: [],
+      isFetching: false,
+    } as any);
+    vi.mocked(useOAuthStartLoginMutation).mockReturnValue({
+      mutateAsync: vi.fn(),
+      isPending: false,
+    } as any);
+    vi.mocked(useOAuthAccountsEventBridge).mockReturnValue({} as any);
+
+    render(
+      <ProviderEditorDialog
+        mode="create"
+        open={true}
+        cliKey="claude"
+        onSaved={vi.fn()}
+        onOpenChange={vi.fn()}
+      />
+    );
+
+    const dialog = within(screen.getByRole("dialog"));
+    fireEvent.click(dialog.getByRole("radio", { name: "OAuth" }));
+
+    expect(dialog.queryByText("Provider 配置")).not.toBeInTheDocument();
+    expect(dialog.queryByText("OAuth 账号管理")).not.toBeInTheDocument();
+    expect(dialog.getByText("暂无 OAuth 账号，请先在 OAuth 账号页面添加")).toBeInTheDocument();
+    expect(dialog.queryByRole("button", { name: "打开 OAuth 管理" })).not.toBeInTheDocument();
+  });
+
+  it("supports oauth auth mode and validates oauth account selection", async () => {
+    vi.mocked(providerUpsert).mockResolvedValue({
+      id: 9,
+      cli_key: "claude",
+      name: "OAuth Provider",
+      base_urls: ["https://example.com/v1"],
+      base_url_mode: "order",
+      enabled: true,
+      cost_multiplier: 1.0,
+      claude_models: {},
+      auth_mode: "oauth",
+      oauth_account_id: 7,
+    } as any);
+    vi.mocked(useOAuthAccountsListQuery).mockReturnValue({
+      data: [{ id: 7, label: "Work", email: null, status: "active" }],
+      isFetching: false,
+    } as any);
+    vi.mocked(useOAuthStartLoginMutation).mockReturnValue({
+      mutateAsync: vi.fn(),
+      isPending: false,
+    } as any);
+    vi.mocked(useOAuthAccountsEventBridge).mockReturnValue({} as any);
+
+    const onSaved = vi.fn();
+    const onOpenChange = vi.fn();
+
+    render(
+      <ProviderEditorDialog
+        mode="create"
+        open={true}
+        cliKey="claude"
+        onSaved={onSaved}
+        onOpenChange={onOpenChange}
+      />
+    );
+
+    const dialog = within(screen.getByRole("dialog"));
+    fireEvent.click(dialog.getByRole("radio", { name: "OAuth" }));
+
+    fireEvent.change(dialog.getByPlaceholderText("default"), {
+      target: { value: "OAuth Provider" },
+    });
+    fireEvent.click(dialog.getByRole("button", { name: "保存" }));
+    expect(vi.mocked(toast)).toHaveBeenCalledWith("请选择 OAuth 账号");
+
+    fireEvent.change(dialog.getByRole("combobox"), { target: { value: "7" } });
+    fireEvent.click(dialog.getByRole("button", { name: "保存" }));
+
+    await waitFor(() =>
+      expect(vi.mocked(providerUpsert)).toHaveBeenCalledWith(
+        expect.objectContaining({
+          auth_mode: "oauth",
+          oauth_account_id: 7,
+          api_key: "",
+        })
+      )
+    );
+  });
+
+  it("auto-fills default base url when oauth mode has no base url input", async () => {
+    vi.mocked(providerUpsert).mockResolvedValue({
+      id: 10,
+      cli_key: "codex",
+      name: "OAuth Codex",
+      base_urls: ["https://chatgpt.com/backend-api/codex"],
+      base_url_mode: "order",
+      enabled: true,
+      cost_multiplier: 1.0,
+      claude_models: {},
+      auth_mode: "oauth",
+      oauth_account_id: 7,
+    } as any);
+    vi.mocked(useOAuthAccountsListQuery).mockReturnValue({
+      data: [{ id: 7, label: "Work", email: null, status: "active" }],
+      isFetching: false,
+    } as any);
+    vi.mocked(useOAuthStartLoginMutation).mockReturnValue({
+      mutateAsync: vi.fn(),
+      isPending: false,
+    } as any);
+    vi.mocked(useOAuthAccountsEventBridge).mockReturnValue({} as any);
+
+    render(
+      <ProviderEditorDialog
+        mode="create"
+        open={true}
+        cliKey="codex"
+        onSaved={vi.fn()}
+        onOpenChange={vi.fn()}
+      />
+    );
+
+    const dialog = within(screen.getByRole("dialog"));
+    fireEvent.click(dialog.getByRole("radio", { name: "OAuth" }));
+
+    fireEvent.change(dialog.getByPlaceholderText("default"), {
+      target: { value: "OAuth Codex" },
+    });
+    fireEvent.change(dialog.getByRole("combobox"), { target: { value: "7" } });
+    fireEvent.click(dialog.getByRole("button", { name: "保存" }));
+
+    await waitFor(() =>
+      expect(vi.mocked(providerUpsert)).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cli_key: "codex",
+          auth_mode: "oauth",
+          oauth_account_id: 7,
+          base_urls: ["https://chatgpt.com/backend-api/codex"],
+        })
+      )
+    );
+  });
+
   it("validates create form and saves provider", async () => {
+    vi.mocked(useOAuthAccountsListQuery).mockReturnValue({
+      data: [],
+      isFetching: false,
+    } as any);
+    vi.mocked(useOAuthStartLoginMutation).mockReturnValue({
+      mutateAsync: vi.fn(),
+      isPending: false,
+    } as any);
+    vi.mocked(useOAuthAccountsEventBridge).mockReturnValue({} as any);
+
     vi.mocked(providerUpsert).mockResolvedValue({
       id: 1,
       cli_key: "claude",
@@ -121,6 +331,16 @@ describe("pages/providers/ProviderEditorDialog", () => {
   });
 
   it("toasts when provider upsert is unavailable (returns null)", async () => {
+    vi.mocked(useOAuthAccountsListQuery).mockReturnValue({
+      data: [],
+      isFetching: false,
+    } as any);
+    vi.mocked(useOAuthStartLoginMutation).mockReturnValue({
+      mutateAsync: vi.fn(),
+      isPending: false,
+    } as any);
+    vi.mocked(useOAuthAccountsEventBridge).mockReturnValue({} as any);
+
     vi.mocked(providerUpsert).mockResolvedValue(null as any);
 
     const onSaved = vi.fn();
@@ -154,6 +374,16 @@ describe("pages/providers/ProviderEditorDialog", () => {
   });
 
   it("supports edit mode, drives UI handlers, and blocks close while saving", async () => {
+    vi.mocked(useOAuthAccountsListQuery).mockReturnValue({
+      data: [],
+      isFetching: false,
+    } as any);
+    vi.mocked(useOAuthStartLoginMutation).mockReturnValue({
+      mutateAsync: vi.fn(),
+      isPending: false,
+    } as any);
+    vi.mocked(useOAuthAccountsEventBridge).mockReturnValue({} as any);
+
     let resolveUpsert: (value: any) => void;
     const upsertPromise = new Promise((resolve) => {
       resolveUpsert = resolve as (value: any) => void;

@@ -17,6 +17,7 @@ pub struct RequestLogInsert {
     pub duration_ms: i64,
     pub ttfb_ms: Option<i64>,
     pub attempts_json: String,
+    pub oauth_account_id: Option<i64>,
     pub input_tokens: Option<i64>,
     pub output_tokens: Option<i64>,
     pub total_tokens: Option<i64>,

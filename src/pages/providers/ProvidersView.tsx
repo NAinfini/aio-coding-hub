@@ -18,7 +18,7 @@ import { logToConsole } from "../../services/consoleLog";
 import { copyText } from "../../services/clipboard";
 import type { GatewayProviderCircuitStatus } from "../../services/gateway";
 import type { CliKey, ProviderSummary } from "../../services/providers";
-import { gatewayKeys, providersKeys } from "../../query/keys";
+import { gatewayKeys, oauthAccountsKeys, providersKeys } from "../../query/keys";
 import {
   useGatewayCircuitResetCliMutation,
   useGatewayCircuitResetProviderMutation,
@@ -31,6 +31,13 @@ import {
   useProvidersListQuery,
   useProvidersReorderMutation,
 } from "../../query/providers";
+import {
+  type OAuthFetchedLimitsByAccountId,
+  useOAuthAccountFetchLimitsMutation,
+  useOAuthAccountsEventBridge,
+  useOAuthFetchedLimitsQuery,
+  useOAuthAccountsListQuery,
+} from "../../query/oauthAccounts";
 import { Button } from "../../ui/Button";
 import { Dialog } from "../../ui/Dialog";
 import { EmptyState } from "../../ui/EmptyState";
@@ -45,6 +52,9 @@ export type ProvidersViewProps = {
 
 export function ProvidersView({ activeCli, setActiveCli }: ProvidersViewProps) {
   const queryClient = useQueryClient();
+  const oauthFetchLimitsMutation = useOAuthAccountFetchLimitsMutation();
+  const oauthFetchedLimitsQuery = useOAuthFetchedLimitsQuery();
+  const oauthFetchedLimitsByAccountId = oauthFetchedLimitsQuery.data ?? {};
 
   const activeCliRef = useRef(activeCli);
   useEffect(() => {
@@ -57,6 +67,32 @@ export function ProvidersView({ activeCli, setActiveCli }: ProvidersViewProps) {
     [providersQuery.data]
   );
   const providersLoading = providersQuery.isFetching;
+  const oauthAccountsQuery = useOAuthAccountsListQuery(activeCli);
+  useOAuthAccountsEventBridge();
+  const oauthAccountsById = useMemo(() => {
+    const next: Record<
+      number,
+      {
+        id: number;
+        label: string;
+        status: string;
+        email: string | null;
+        limit_5h_usd?: number | null;
+        limit_weekly_usd?: number | null;
+      }
+    > = {};
+    for (const row of oauthAccountsQuery.data ?? []) {
+      next[row.id] = {
+        id: row.id,
+        label: row.label,
+        status: row.status,
+        email: row.email,
+        limit_5h_usd: row.limit_5h_usd ?? null,
+        limit_weekly_usd: row.limit_weekly_usd ?? null,
+      };
+    }
+    return next;
+  }, [oauthAccountsQuery.data]);
 
   const providersRef = useRef(providers);
   useEffect(() => {
@@ -403,6 +439,40 @@ export function ProvidersView({ activeCli, setActiveCli }: ProvidersViewProps) {
     void persistProvidersOrder(cliKey, nextProviders, prevProviders);
   }
 
+  async function fetchOAuthLimits(provider: ProviderSummary) {
+    if ((provider.auth_mode ?? "api_key") !== "oauth" || !provider.oauth_account_id) {
+      toast("当前 Provider 不是 OAuth 模式");
+      return;
+    }
+    try {
+      const snapshot = await oauthFetchLimitsMutation.mutateAsync({
+        id: provider.oauth_account_id,
+      });
+      if (!snapshot) {
+        toast("仅在 Tauri Desktop 环境可用");
+        return;
+      }
+      queryClient.setQueryData<OAuthFetchedLimitsByAccountId>(
+        oauthAccountsKeys.fetchedLimits(),
+        (cur) => ({
+          ...(cur ?? {}),
+          [provider.oauth_account_id as number]: {
+            limit5hText: snapshot.limit_5h_text ?? "未获取",
+            limitWeeklyText: snapshot.limit_weekly_text ?? "未获取",
+          },
+        })
+      );
+      toast("限额已更新");
+    } catch (err) {
+      toast(`获取限额失败：${String(err)}`);
+    }
+  }
+
+  function openCreateDialog() {
+    setCreateCliKeyLocked(activeCli);
+    setCreateOpen(true);
+  }
+
   return (
     <>
       <div className="flex flex-col gap-3 lg:min-h-0 lg:flex-1">
@@ -485,14 +555,7 @@ export function ProvidersView({ activeCli, setActiveCli }: ProvidersViewProps) {
               </Button>
             ) : null}
 
-            <Button
-              onClick={() => {
-                setCreateCliKeyLocked(activeCli);
-                setCreateOpen(true);
-              }}
-              variant="secondary"
-              size="sm"
-            >
+            <Button onClick={() => openCreateDialog()} variant="secondary" size="sm">
               添加
             </Button>
           </div>
@@ -526,10 +589,22 @@ export function ProvidersView({ activeCli, setActiveCli }: ProvidersViewProps) {
                     <SortableProviderCard
                       key={provider.id}
                       provider={provider}
+                      oauthAccount={
+                        provider.oauth_account_id
+                          ? (oauthAccountsById[provider.oauth_account_id] ?? null)
+                          : null
+                      }
                       circuit={circuitByProviderId[provider.id] ?? null}
                       circuitResetting={Boolean(circuitResetting[provider.id]) || circuitLoading}
+                      fetchLimitsPending={oauthFetchLimitsMutation.isPending}
+                      oauthFetchedLimits={
+                        provider.oauth_account_id
+                          ? (oauthFetchedLimitsByAccountId[provider.oauth_account_id] ?? null)
+                          : null
+                      }
                       onToggleEnabled={toggleProviderEnabled}
                       onResetCircuit={resetCircuit}
+                      onFetchLimits={(p) => void fetchOAuthLimits(p)}
                       onCopyTerminalLaunchCommand={
                         provider.cli_key === "claude" ? copyTerminalLaunchCommand : undefined
                       }
@@ -563,7 +638,9 @@ export function ProvidersView({ activeCli, setActiveCli }: ProvidersViewProps) {
           open={createOpen}
           onOpenChange={(nextOpen) => {
             setCreateOpen(nextOpen);
-            if (!nextOpen) setCreateCliKeyLocked(null);
+            if (!nextOpen) {
+              setCreateCliKeyLocked(null);
+            }
           }}
           cliKey={createCliKeyLocked}
           onSaved={(cliKey) => {

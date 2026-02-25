@@ -46,6 +46,7 @@ pub(super) struct RequestLogEnqueueArgs {
     pub(super) ttfb_ms: Option<u128>,
     pub(super) attempts_json: String,
     pub(super) requested_model: Option<String>,
+    pub(super) oauth_account_id: Option<i64>,
     pub(super) created_at_ms: i64,
     pub(super) created_at: i64,
     pub(super) usage_metrics: Option<crate::usage::UsageMetrics>,

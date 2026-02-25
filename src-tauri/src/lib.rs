@@ -9,8 +9,8 @@ pub mod test_support;
 pub(crate) use app::{app_state, notice, resident};
 pub(crate) use domain::{
     claude_model_validation, claude_model_validation_history, claude_plugins, cost, cost_stats,
-    mcp, prompts, provider_limit_usage, providers, skills, sort_modes, usage, usage_stats,
-    workspace_switch, workspaces,
+    mcp, oauth_accounts, prompts, provider_limit_usage, providers, skills, sort_modes, usage,
+    usage_stats, workspace_switch, workspaces,
 };
 pub(crate) use gateway::session_manager;
 pub(crate) use infra::{
@@ -111,6 +111,32 @@ pub fn run() {
                         return;
                     }
                 };
+
+                tauri::async_runtime::spawn({
+                    let app_handle = app_handle.clone();
+                    let db = db.clone();
+                    async move {
+                        let client = match reqwest::Client::builder()
+                            .user_agent(format!(
+                                "aio-coding-hub-oauth-refresh/{}",
+                                env!("CARGO_PKG_VERSION")
+                            ))
+                            .connect_timeout(std::time::Duration::from_secs(10))
+                            .build()
+                        {
+                            Ok(client) => client,
+                            Err(err) => {
+                                tracing::warn!("oauth refresh client init failed: {}", err);
+                                return;
+                            }
+                        };
+
+                        gateway::oauth::refresh::run_background_refresh_loop(
+                            app_handle, db, client,
+                        )
+                        .await;
+                    }
+                });
 
                 // M1: auto-start gateway on app launch (required for seamless CLI proxy experience).
                 // Port conflicts are handled by the gateway's bind-first-available strategy.
@@ -272,6 +298,15 @@ pub fn run() {
             provider_delete,
             providers_reorder,
             provider_claude_terminal_launch_command,
+            oauth_accounts_list,
+            oauth_account_get,
+            oauth_account_upsert,
+            oauth_account_delete,
+            oauth_account_set_status,
+            oauth_account_force_refresh,
+            oauth_account_fetch_limits,
+            oauth_account_manual_add,
+            oauth_start_login,
             base_url_ping_ms,
             claude_provider_validate_model,
             claude_provider_get_api_key_plaintext,

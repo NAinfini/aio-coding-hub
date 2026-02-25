@@ -34,6 +34,7 @@ const SCOPE_ITEMS: ScopeItem[] = [
   { key: "provider", label: "供应商" },
   { key: "cli", label: "CLI" },
   { key: "model", label: "模型" },
+  { key: "oauth_account", label: "OAuth账号" },
 ];
 
 const FILTER_LABEL_CLASS =
@@ -173,11 +174,13 @@ export function UsagePage() {
   const tauriRuntime = hasTauriRuntime();
   const shouldLoad = period !== "custom" || customApplied != null;
   const filterCliKey = cliKey === "all" ? null : cliKey;
+
   const input = useMemo(
     () => ({
       startTs: bounds.startTs,
       endTs: bounds.endTs,
       cliKey: filterCliKey,
+      oauthAccountId: null,
     }),
     [bounds.endTs, bounds.startTs, filterCliKey]
   );
@@ -277,6 +280,8 @@ export function UsagePage() {
         return "供应商";
       case "model":
         return "模型";
+      case "oauth_account":
+        return "OAuth账号";
       default:
         return "Leaderboard";
     }

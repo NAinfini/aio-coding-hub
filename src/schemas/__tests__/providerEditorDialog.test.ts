@@ -10,6 +10,8 @@ describe("schemas/providerEditorDialog", () => {
 
     const base = {
       name: "n",
+      auth_mode: "api_key",
+      oauth_account_id: null,
       api_key: "",
       cost_multiplier: "1.0",
       limit_5h_usd: "",
@@ -41,6 +43,8 @@ describe("schemas/providerEditorDialog", () => {
 
     const res = schema.safeParse({
       name: "n",
+      auth_mode: "api_key",
+      oauth_account_id: null,
       api_key: "",
       cost_multiplier: "1.0",
       limit_5h_usd: "",
@@ -59,6 +63,8 @@ describe("schemas/providerEditorDialog", () => {
 
     const bad = schema.safeParse({
       name: "n",
+      auth_mode: "api_key",
+      oauth_account_id: null,
       api_key: "",
       cost_multiplier: "1.0",
       limit_5h_usd: "",
@@ -85,6 +91,8 @@ describe("schemas/providerEditorDialog", () => {
 
     const ok = schema.safeParse({
       name: "n",
+      auth_mode: "api_key",
+      oauth_account_id: null,
       api_key: "",
       cost_multiplier: "1.0",
       limit_5h_usd: "",
@@ -104,6 +112,8 @@ describe("schemas/providerEditorDialog", () => {
 
     const badCost = schema.safeParse({
       name: "n",
+      auth_mode: "api_key",
+      oauth_account_id: null,
       api_key: "",
       cost_multiplier: "0",
       limit_5h_usd: "",
@@ -124,6 +134,8 @@ describe("schemas/providerEditorDialog", () => {
 
     const badLimit = schema.safeParse({
       name: "n",
+      auth_mode: "api_key",
+      oauth_account_id: null,
       api_key: "",
       cost_multiplier: "1.0",
       limit_5h_usd: "",
@@ -141,5 +153,48 @@ describe("schemas/providerEditorDialog", () => {
         badLimit.error.issues.some((issue) => issue.message === "每日消费上限 必须是数字")
       ).toBe(true);
     }
+  });
+
+  it("requires oauth_account_id when auth_mode=oauth", () => {
+    const schema = createProviderEditorDialogSchema({ mode: "create" });
+
+    const missing = schema.safeParse({
+      name: "n",
+      auth_mode: "oauth",
+      oauth_account_id: null,
+      api_key: "",
+      cost_multiplier: "1.0",
+      limit_5h_usd: "",
+      limit_daily_usd: "",
+      limit_weekly_usd: "",
+      limit_monthly_usd: "",
+      limit_total_usd: "",
+      daily_reset_mode: "fixed",
+      daily_reset_time: "00:00:00",
+      enabled: true,
+    });
+    expect(missing.success).toBe(false);
+    if (!missing.success) {
+      expect(missing.error.issues.some((issue) => issue.message === "请选择 OAuth 账号")).toBe(
+        true
+      );
+    }
+
+    const ok = schema.safeParse({
+      name: "n",
+      auth_mode: "oauth",
+      oauth_account_id: 7,
+      api_key: "",
+      cost_multiplier: "1.0",
+      limit_5h_usd: "",
+      limit_daily_usd: "",
+      limit_weekly_usd: "",
+      limit_monthly_usd: "",
+      limit_total_usd: "",
+      daily_reset_mode: "fixed",
+      daily_reset_time: "00:00:00",
+      enabled: true,
+    });
+    expect(ok.success).toBe(true);
   });
 });

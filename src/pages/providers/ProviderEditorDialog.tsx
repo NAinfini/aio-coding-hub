@@ -1,6 +1,6 @@
 // Usage: Used by ProvidersView to create/edit a Provider with toast-based validation.
 
-import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown,
   Clock,
@@ -20,11 +20,13 @@ import {
   type CliKey,
   type ProviderSummary,
 } from "../../services/providers";
+import type { OAuthAccountSummary } from "../../services/oauthAccounts";
 import {
   createProviderEditorDialogSchema,
   type ProviderEditorDialogFormInput,
   type ProviderEditorDialogFormOutput,
 } from "../../schemas/providerEditorDialog";
+import { useOAuthAccountsListQuery } from "../../query/oauthAccounts";
 import { Button } from "../../ui/Button";
 import { Dialog } from "../../ui/Dialog";
 import { FormField } from "../../ui/FormField";
@@ -56,8 +58,14 @@ export type ProviderEditorDialogProps =
       provider: ProviderSummary;
     });
 
-function cliNameFromKey(cliKey: CliKey) {
-  return cliLongLabel(cliKey);
+const OAUTH_DEFAULT_BASE_URL_BY_CLI: Record<CliKey, string> = {
+  claude: "https://api.anthropic.com",
+  codex: "https://chatgpt.com/backend-api/codex",
+  gemini: "https://generativelanguage.googleapis.com/v1beta/openai",
+};
+
+function oauthDefaultBaseUrlForCli(cliKey: CliKey): string {
+  return OAUTH_DEFAULT_BASE_URL_BY_CLI[cliKey];
 }
 
 export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
@@ -85,6 +93,8 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
   const form = useForm<ProviderEditorDialogFormInput>({
     defaultValues: {
       name: "",
+      auth_mode: "api_key",
+      oauth_account_id: null,
       api_key: "",
       cost_multiplier: "1.0",
       limit_5h_usd: "",
@@ -100,6 +110,8 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
 
   const { register, reset, setValue, watch } = form;
   const enabled = watch("enabled");
+  const authMode = watch("auth_mode");
+  const oauthAccountId = watch("oauth_account_id");
   const dailyResetMode = watch("daily_reset_mode");
   const limit5hUsd = watch("limit_5h_usd");
   const limitDailyUsd = watch("limit_daily_usd");
@@ -107,10 +119,16 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
   const limitMonthlyUsd = watch("limit_monthly_usd");
   const limitTotalUsd = watch("limit_total_usd");
 
+  const oauthAccountsQuery = useOAuthAccountsListQuery(cliKey, { enabled: open });
+  const oauthAccounts = useMemo<OAuthAccountSummary[]>(
+    () => oauthAccountsQuery.data ?? [],
+    [oauthAccountsQuery.data]
+  );
+
   const title =
     mode === "create"
-      ? `${cliNameFromKey(cliKey)} · 添加供应商`
-      : `${cliNameFromKey(props.provider.cli_key)} · 编辑供应商`;
+      ? `${cliLongLabel(cliKey)} · 添加供应商`
+      : `${cliLongLabel(props.provider.cli_key)} · 编辑供应商`;
   const description = mode === "create" ? "已锁定创建 CLI；如需切换请先关闭弹窗。" : undefined;
 
   useEffect(() => {
@@ -127,6 +145,8 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
       setTagInput("");
       reset({
         name: "",
+        auth_mode: "api_key",
+        oauth_account_id: null,
         api_key: "",
         cost_multiplier: "1.0",
         limit_5h_usd: "",
@@ -149,6 +169,8 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
     setTagInput("");
     reset({
       name: props.provider.name,
+      auth_mode: props.provider.auth_mode ?? "api_key",
+      oauth_account_id: props.provider.oauth_account_id ?? null,
       api_key: "",
       cost_multiplier: String(props.provider.cost_multiplier ?? 1.0),
       limit_5h_usd: props.provider.limit_5h_usd != null ? String(props.provider.limit_5h_usd) : "",
@@ -170,13 +192,11 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cliKey, editingProviderId, mode, open, reset]);
 
-  const setBaseUrlRowsFromUser: Dispatch<SetStateAction<BaseUrlRow[]>> = (action) => {
-    setBaseUrlRows(action);
-  };
-
   function toastFirstSchemaIssue(issues: Array<{ path: Array<PropertyKey>; message: string }>) {
     const orderedFields: Array<keyof ProviderEditorDialogFormInput> = [
       "name",
+      "auth_mode",
+      "oauth_account_id",
       ...(mode === "create" ? (["api_key"] as const) : []),
       "cost_multiplier",
       "limit_5h_usd",
@@ -221,8 +241,17 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
 
     const values: ProviderEditorDialogFormOutput = parsed.data;
 
+    let normalizedBaseUrls: string[];
     const normalized = normalizeBaseUrlRows(baseUrlRows);
-    if (!normalized.ok) {
+    if (values.auth_mode === "oauth") {
+      // Always use the correct OAuth default base URL to prevent stale API-mode URLs
+      // (e.g. https://api.openai.com/v1) from being sent with OAuth tokens.
+      const defaultBaseUrl = oauthDefaultBaseUrlForCli(cliKey);
+      normalizedBaseUrls = [defaultBaseUrl];
+      setBaseUrlRows([newBaseUrlRow(defaultBaseUrl)]);
+    } else if (normalized.ok) {
+      normalizedBaseUrls = normalized.baseUrls;
+    } else {
       toast(normalized.message);
       return;
     }
@@ -241,9 +270,11 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
         ...(mode === "edit" ? { provider_id: props.provider.id } : {}),
         cli_key: cliKey,
         name: values.name,
-        base_urls: normalized.baseUrls,
+        base_urls: normalizedBaseUrls,
         base_url_mode: baseUrlMode,
-        api_key: values.api_key,
+        auth_mode: values.auth_mode,
+        oauth_account_id: values.auth_mode === "oauth" ? values.oauth_account_id : null,
+        api_key: values.auth_mode === "api_key" ? values.api_key : "",
         enabled: values.enabled,
         cost_multiplier: values.cost_multiplier,
         limit_5h_usd: values.limit_5h_usd,
@@ -317,351 +348,434 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
       className="max-w-4xl"
     >
       <div className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <FormField label="名称">
-            <Input placeholder="default" {...register("name")} />
-          </FormField>
+        <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <FormField label="名称">
+              <Input placeholder="default" {...register("name")} />
+            </FormField>
 
-          <FormField label="Base URL 模式">
-            <RadioButtonGroup<ProviderBaseUrlMode>
-              items={[
-                { value: "order", label: "顺序" },
-                { value: "ping", label: "Ping" },
-              ]}
-              ariaLabel="Base URL 模式"
-              value={baseUrlMode}
-              onChange={setBaseUrlMode}
-              disabled={saving}
-            />
-          </FormField>
-        </div>
+            <FormField label="接入方式">
+              <RadioButtonGroup<"api_key" | "oauth">
+                items={[
+                  { value: "api_key", label: "API" },
+                  { value: "oauth", label: "OAuth" },
+                ]}
+                ariaLabel="接入方式"
+                value={authMode}
+                onChange={(value) => {
+                  setValue("auth_mode", value, { shouldDirty: true, shouldValidate: true });
+                  if (value === "api_key") {
+                    setValue("oauth_account_id", null, { shouldDirty: true, shouldValidate: true });
+                    return;
+                  }
 
-        <FormField label="标签" hint="按 Enter 添加标签，用于分类筛选">
-          <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 py-1.5 dark:border-slate-700 dark:bg-slate-800">
-            {tags.map((tag) => (
-              <span
-                key={tag}
-                className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent"
-              >
-                {tag}
-                <button
-                  type="button"
-                  onClick={() => setTags((prev) => prev.filter((t) => t !== tag))}
-                  className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full hover:bg-accent/20"
-                  disabled={saving}
-                  aria-label={`移除标签 ${tag}`}
-                >
-                  <X className="h-2.5 w-2.5" />
-                </button>
-              </span>
-            ))}
-            <input
-              type="text"
-              value={tagInput}
-              onChange={(e) => setTagInput(e.currentTarget.value)}
-              onKeyDown={(e) => {
-                if (e.key !== "Enter") return;
-                e.preventDefault();
-                const trimmed = tagInput.trim();
-                if (!trimmed) return;
-                if (tags.includes(trimmed)) {
-                  setTagInput("");
-                  return;
-                }
-                setTags((prev) => [...prev, trimmed]);
-                setTagInput("");
-              }}
-              placeholder={tags.length === 0 ? "输入标签后按 Enter" : ""}
-              className="min-w-[80px] flex-1 border-none bg-transparent text-sm outline-none placeholder:text-slate-400"
-              disabled={saving}
-            />
+                  // Switching to OAuth: always reset base URL to the correct OAuth default
+                  // to avoid stale API-mode URLs (e.g. api.openai.com) being sent with OAuth tokens.
+                  const defaultBaseUrl = oauthDefaultBaseUrlForCli(cliKey);
+                  setBaseUrlRows([newBaseUrlRow(defaultBaseUrl)]);
+                }}
+                disabled={saving}
+              />
+            </FormField>
           </div>
-        </FormField>
 
-        <FormField label="Base URLs">
-          <BaseUrlEditor
-            rows={baseUrlRows}
-            setRows={setBaseUrlRowsFromUser}
-            pingingAll={pingingAll}
-            setPingingAll={setPingingAll}
-            newRow={newBaseUrlRow}
-            placeholder="中转 endpoint（例如：https://example.com/v1）"
-            disabled={saving}
-          />
-        </FormField>
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <FormField
-            label="API Key / Token"
-            hint={mode === "edit" ? "留空保持不变" : "保存后不回显"}
-          >
-            <div className="flex items-center gap-2">
-              <Input
-                type="password"
-                placeholder="sk-…"
-                autoComplete="off"
-                {...register("api_key")}
+          <FormField label="标签" hint="按 Enter 添加标签，用于分类筛选">
+            <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 py-1.5 dark:border-slate-700 dark:bg-slate-800">
+              {tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent"
+                >
+                  {tag}
+                  <button
+                    type="button"
+                    onClick={() => setTags((prev) => prev.filter((t) => t !== tag))}
+                    className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full hover:bg-accent/20"
+                    disabled={saving}
+                    aria-label={`移除标签 ${tag}`}
+                  >
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                </span>
+              ))}
+              <input
+                type="text"
+                value={tagInput}
+                onChange={(e) => setTagInput(e.currentTarget.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter") return;
+                  e.preventDefault();
+                  const trimmed = tagInput.trim();
+                  if (!trimmed) return;
+                  if (tags.includes(trimmed)) {
+                    setTagInput("");
+                    return;
+                  }
+                  setTags((prev) => [...prev, trimmed]);
+                  setTagInput("");
+                }}
+                placeholder={tags.length === 0 ? "输入标签后按 Enter" : ""}
+                className="min-w-[80px] flex-1 border-none bg-transparent text-sm outline-none placeholder:text-slate-400"
+                disabled={saving}
               />
             </div>
           </FormField>
 
-          <FormField label="价格倍率">
-            <Input
-              type="number"
-              min="0.0001"
-              step="0.01"
-              placeholder="1.0"
-              {...register("cost_multiplier")}
-            />
-          </FormField>
-        </div>
+          {authMode === "api_key" ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <FormField label="Base URL 模式">
+                <RadioButtonGroup<ProviderBaseUrlMode>
+                  items={[
+                    { value: "order", label: "顺序" },
+                    { value: "ping", label: "Ping" },
+                  ]}
+                  ariaLabel="Base URL 模式"
+                  value={baseUrlMode}
+                  onChange={setBaseUrlMode}
+                  disabled={saving}
+                />
+              </FormField>
 
-        <details className="group rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50/80 to-white shadow-sm open:ring-2 open:ring-accent/10 transition-all dark:border-slate-700 dark:from-slate-800/80 dark:to-slate-900">
-          <summary className="flex cursor-pointer items-center justify-between px-5 py-4 select-none">
-            <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 shadow-sm">
-                <DollarSign className="h-4 w-4 text-white" />
+              <FormField label="价格倍率">
+                <Input
+                  type="number"
+                  min="0.0001"
+                  step="0.01"
+                  placeholder="1.0"
+                  {...register("cost_multiplier")}
+                />
+              </FormField>
+            </div>
+          ) : null}
+
+          {authMode === "oauth" ? (
+            <FormField
+              label="OAuth 账号"
+              hint={
+                oauthAccounts.length === 0
+                  ? "暂无 OAuth 账号，请先在 OAuth 账号页面添加"
+                  : "选择一个可用 OAuth 账号"
+              }
+            >
+              <div className="space-y-2">
+                <select
+                  className="h-10 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm text-slate-900 dark:text-slate-100 shadow-sm outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  value={oauthAccountId ?? ""}
+                  onChange={(e) => {
+                    const raw = e.currentTarget.value;
+                    setValue("oauth_account_id", raw ? Number(raw) : null, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    });
+                  }}
+                  disabled={saving || oauthAccountsQuery.isFetching}
+                >
+                  <option value="">请选择 OAuth 账号</option>
+                  {oauthAccounts.map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.label}
+                      {account.email ? ` (${account.email})` : ""}
+                      {account.status !== "active" ? ` · ${account.status}` : ""}
+                    </option>
+                  ))}
+                </select>
               </div>
+            </FormField>
+          ) : null}
+
+          {authMode === "api_key" ? (
+            <FormField label="Base URLs">
+              <BaseUrlEditor
+                rows={baseUrlRows}
+                setRows={setBaseUrlRows}
+                pingingAll={pingingAll}
+                setPingingAll={setPingingAll}
+                newRow={newBaseUrlRow}
+                placeholder="中转 endpoint（例如：https://example.com/v1）"
+                disabled={saving}
+              />
+            </FormField>
+          ) : null}
+
+          {authMode === "api_key" ? (
+            <FormField
+              label="API Key / Token"
+              hint={mode === "edit" ? "留空保持不变" : "保存后不回显"}
+            >
+              <div className="flex items-center gap-2">
+                <Input
+                  type="password"
+                  placeholder="sk-…"
+                  autoComplete="off"
+                  disabled={saving}
+                  {...register("api_key")}
+                />
+              </div>
+            </FormField>
+          ) : (
+            <FormField label="价格倍率">
+              <Input
+                type="number"
+                min="0.0001"
+                step="0.01"
+                placeholder="1.0"
+                {...register("cost_multiplier")}
+              />
+            </FormField>
+          )}
+
+          <details className="group rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50/80 to-white shadow-sm open:ring-2 open:ring-accent/10 transition-all dark:border-slate-700 dark:from-slate-800/80 dark:to-slate-900">
+            <summary className="flex cursor-pointer items-center justify-between px-5 py-4 select-none">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 shadow-sm">
+                  <DollarSign className="h-4 w-4 text-white" />
+                </div>
+                <div>
+                  <span className="text-sm font-semibold text-slate-700 group-open:text-accent dark:text-slate-300">
+                    限流配置
+                  </span>
+                  <p className="text-xs text-slate-400 dark:text-slate-500">
+                    配置不同时间窗口的消费限制以控制成本
+                  </p>
+                </div>
+              </div>
+              <ChevronDown className="h-4 w-4 text-slate-400 transition-transform group-open:rotate-180" />
+            </summary>
+
+            <div className="space-y-6 border-t border-slate-100 px-5 py-5 dark:border-slate-700">
+              {/* Time-based limits section */}
               <div>
-                <span className="text-sm font-semibold text-slate-700 group-open:text-accent dark:text-slate-300">
-                  限流配置
-                </span>
-                <p className="text-xs text-slate-400 dark:text-slate-500">
-                  配置不同时间窗口的消费限制以控制成本
-                </p>
+                <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  时间维度限制
+                </h4>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <LimitCard
+                    icon={<Clock className="h-5 w-5 text-blue-600" />}
+                    iconBgClass="bg-blue-50 dark:bg-blue-900/30"
+                    label="5 小时消费上限"
+                    hint="留空表示不限制"
+                    value={limit5hUsd}
+                    onChange={(value) => setValue("limit_5h_usd", value, { shouldDirty: true })}
+                    placeholder="例如: 10"
+                    disabled={saving}
+                  />
+                  <LimitCard
+                    icon={<DollarSign className="h-5 w-5 text-emerald-600" />}
+                    iconBgClass="bg-emerald-50 dark:bg-emerald-900/30"
+                    label="每日消费上限"
+                    hint="留空表示不限制"
+                    value={limitDailyUsd}
+                    onChange={(value) => setValue("limit_daily_usd", value, { shouldDirty: true })}
+                    placeholder="例如: 100"
+                    disabled={saving}
+                  />
+                  <LimitCard
+                    icon={<CalendarDays className="h-5 w-5 text-violet-600" />}
+                    iconBgClass="bg-violet-50 dark:bg-violet-900/30"
+                    label="周消费上限"
+                    hint="自然周：周一 00:00:00"
+                    value={limitWeeklyUsd}
+                    onChange={(value) => setValue("limit_weekly_usd", value, { shouldDirty: true })}
+                    placeholder="例如: 500"
+                    disabled={saving}
+                  />
+                  <LimitCard
+                    icon={<CalendarRange className="h-5 w-5 text-orange-600" />}
+                    iconBgClass="bg-orange-50 dark:bg-orange-900/30"
+                    label="月消费上限"
+                    hint="自然月：每月 1 号 00:00:00"
+                    value={limitMonthlyUsd}
+                    onChange={(value) =>
+                      setValue("limit_monthly_usd", value, { shouldDirty: true })
+                    }
+                    placeholder="例如: 2000"
+                    disabled={saving}
+                  />
+                </div>
               </div>
-            </div>
-            <ChevronDown className="h-4 w-4 text-slate-400 transition-transform group-open:rotate-180" />
-          </summary>
 
-          <div className="space-y-6 border-t border-slate-100 px-5 py-5 dark:border-slate-700">
-            {/* Time-based limits section */}
-            <div>
-              <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                时间维度限制
-              </h4>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <LimitCard
-                  icon={<Clock className="h-5 w-5 text-blue-600" />}
-                  iconBgClass="bg-blue-50 dark:bg-blue-900/30"
-                  label="5 小时消费上限"
-                  hint="留空表示不限制"
-                  value={limit5hUsd}
-                  onChange={(value) => setValue("limit_5h_usd", value, { shouldDirty: true })}
-                  placeholder="例如: 10"
-                  disabled={saving}
-                />
-                <LimitCard
-                  icon={<DollarSign className="h-5 w-5 text-emerald-600" />}
-                  iconBgClass="bg-emerald-50 dark:bg-emerald-900/30"
-                  label="每日消费上限"
-                  hint="留空表示不限制"
-                  value={limitDailyUsd}
-                  onChange={(value) => setValue("limit_daily_usd", value, { shouldDirty: true })}
-                  placeholder="例如: 100"
-                  disabled={saving}
-                />
-                <LimitCard
-                  icon={<CalendarDays className="h-5 w-5 text-violet-600" />}
-                  iconBgClass="bg-violet-50 dark:bg-violet-900/30"
-                  label="周消费上限"
-                  hint="自然周：周一 00:00:00"
-                  value={limitWeeklyUsd}
-                  onChange={(value) => setValue("limit_weekly_usd", value, { shouldDirty: true })}
-                  placeholder="例如: 500"
-                  disabled={saving}
-                />
-                <LimitCard
-                  icon={<CalendarRange className="h-5 w-5 text-orange-600" />}
-                  iconBgClass="bg-orange-50 dark:bg-orange-900/30"
-                  label="月消费上限"
-                  hint="自然月：每月 1 号 00:00:00"
-                  value={limitMonthlyUsd}
-                  onChange={(value) => setValue("limit_monthly_usd", value, { shouldDirty: true })}
-                  placeholder="例如: 2000"
-                  disabled={saving}
-                />
-              </div>
-            </div>
-
-            {/* Daily reset settings section */}
-            <div>
-              <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                每日重置设置
-              </h4>
-              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-50 dark:bg-sky-900/30">
-                    <RotateCcw className="h-5 w-5 text-sky-600" />
-                  </div>
-                  <div className="min-w-0 flex-1 space-y-4">
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div>
-                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                          每日重置模式
-                        </label>
-                        <p className="mb-2 text-xs text-slate-400 dark:text-slate-500">
-                          rolling 为过去 24 小时窗口
-                        </p>
-                        <RadioButtonGroup<DailyResetMode>
-                          items={[
-                            { value: "fixed", label: "固定时间" },
-                            { value: "rolling", label: "滚动窗口 (24h)" },
-                          ]}
-                          ariaLabel="每日重置模式"
-                          value={dailyResetMode}
-                          onChange={(value) =>
-                            setValue("daily_reset_mode", value, { shouldDirty: true })
-                          }
-                          disabled={saving}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                          每日重置时间
-                        </label>
-                        <p className="mb-2 text-xs text-slate-400 dark:text-slate-500">
-                          {dailyResetMode === "fixed"
-                            ? "默认 00:00:00（本机时区）"
-                            : "rolling 模式下忽略"}
-                        </p>
-                        <Input
-                          type="time"
-                          step="1"
-                          disabled={saving || dailyResetMode !== "fixed"}
-                          {...register("daily_reset_time")}
-                        />
+              {/* Daily reset settings section */}
+              <div>
+                <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  每日重置设置
+                </h4>
+                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-50 dark:bg-sky-900/30">
+                      <RotateCcw className="h-5 w-5 text-sky-600" />
+                    </div>
+                    <div className="min-w-0 flex-1 space-y-4">
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div>
+                          <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                            每日重置模式
+                          </label>
+                          <p className="mb-2 text-xs text-slate-400 dark:text-slate-500">
+                            rolling 为过去 24 小时窗口
+                          </p>
+                          <RadioButtonGroup<DailyResetMode>
+                            items={[
+                              { value: "fixed", label: "固定时间" },
+                              { value: "rolling", label: "滚动窗口 (24h)" },
+                            ]}
+                            ariaLabel="每日重置模式"
+                            value={dailyResetMode}
+                            onChange={(value) =>
+                              setValue("daily_reset_mode", value, { shouldDirty: true })
+                            }
+                            disabled={saving}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                            每日重置时间
+                          </label>
+                          <p className="mb-2 text-xs text-slate-400 dark:text-slate-500">
+                            {dailyResetMode === "fixed"
+                              ? "默认 00:00:00（本机时区）"
+                              : "rolling 模式下忽略"}
+                          </p>
+                          <Input
+                            type="time"
+                            step="1"
+                            disabled={saving || dailyResetMode !== "fixed"}
+                            {...register("daily_reset_time")}
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* Other limits section */}
-            <div>
-              <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                其他限制
-              </h4>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <LimitCard
-                  icon={<Gauge className="h-5 w-5 text-rose-600" />}
-                  iconBgClass="bg-rose-50 dark:bg-rose-900/30"
-                  label="总消费上限"
-                  hint="达到后需手动调整/清除"
-                  value={limitTotalUsd}
-                  onChange={(value) => setValue("limit_total_usd", value, { shouldDirty: true })}
-                  placeholder="例如: 1000"
-                  disabled={saving}
-                />
+              {/* Other limits section */}
+              <div>
+                <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  其他限制
+                </h4>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <LimitCard
+                    icon={<Gauge className="h-5 w-5 text-rose-600" />}
+                    iconBgClass="bg-rose-50 dark:bg-rose-900/30"
+                    label="总消费上限"
+                    hint="达到后需手动调整/清除"
+                    value={limitTotalUsd}
+                    onChange={(value) => setValue("limit_total_usd", value, { shouldDirty: true })}
+                    placeholder="例如: 1000"
+                    disabled={saving}
+                  />
+                </div>
               </div>
-            </div>
-          </div>
-        </details>
-
-        {cliKey === "claude" ? (
-          <details className="group rounded-xl border border-slate-200 bg-white shadow-sm open:ring-2 open:ring-accent/10 transition-all dark:border-slate-700 dark:bg-slate-800">
-            <summary className="flex cursor-pointer items-center justify-between px-4 py-3 select-none">
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-medium text-slate-700 group-open:text-accent dark:text-slate-300">
-                  Claude 模型映射
-                </span>
-                <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
-                  已配置 {claudeModelCount}/5
-                </span>
-              </div>
-              <ChevronDown className="h-4 w-4 text-slate-400 transition-transform group-open:rotate-180" />
-            </summary>
-
-            <div className="space-y-4 border-t border-slate-100 px-4 py-3 dark:border-slate-700">
-              <FormField
-                label="主模型"
-                hint="默认兜底模型；未命中 haiku/sonnet/opus 且未启用 Thinking 时使用"
-              >
-                <Input
-                  value={claudeModels.main_model ?? ""}
-                  onChange={(e) => {
-                    const value = e.currentTarget.value;
-                    setClaudeModels((prev) => ({ ...prev, main_model: value }));
-                  }}
-                  placeholder="例如: glm-4-plus / minimax-text-01 / kimi-k2"
-                  disabled={saving}
-                />
-              </FormField>
-
-              <FormField
-                label="推理模型 (Thinking)"
-                hint="当请求中 thinking.type=enabled 时优先使用"
-              >
-                <Input
-                  value={claudeModels.reasoning_model ?? ""}
-                  onChange={(e) => {
-                    const value = e.currentTarget.value;
-                    setClaudeModels((prev) => ({
-                      ...prev,
-                      reasoning_model: value,
-                    }));
-                  }}
-                  placeholder="例如: kimi-k2-thinking / glm-4-plus-thinking"
-                  disabled={saving}
-                />
-              </FormField>
-
-              <FormField label="Haiku 默认模型" hint="当请求模型名包含 haiku 时使用（子串匹配）">
-                <Input
-                  value={claudeModels.haiku_model ?? ""}
-                  onChange={(e) => {
-                    const value = e.currentTarget.value;
-                    setClaudeModels((prev) => ({ ...prev, haiku_model: value }));
-                  }}
-                  placeholder="例如: glm-4-plus-haiku"
-                  disabled={saving}
-                />
-              </FormField>
-
-              <FormField label="Sonnet 默认模型" hint="当请求模型名包含 sonnet 时使用（子串匹配）">
-                <Input
-                  value={claudeModels.sonnet_model ?? ""}
-                  onChange={(e) => {
-                    const value = e.currentTarget.value;
-                    setClaudeModels((prev) => ({ ...prev, sonnet_model: value }));
-                  }}
-                  placeholder="例如: glm-4-plus-sonnet"
-                  disabled={saving}
-                />
-              </FormField>
-
-              <FormField label="Opus 默认模型" hint="当请求模型名包含 opus 时使用（子串匹配）">
-                <Input
-                  value={claudeModels.opus_model ?? ""}
-                  onChange={(e) => {
-                    const value = e.currentTarget.value;
-                    setClaudeModels((prev) => ({ ...prev, opus_model: value }));
-                  }}
-                  placeholder="例如: glm-4-plus-opus"
-                  disabled={saving}
-                />
-              </FormField>
             </div>
           </details>
-        ) : null}
 
-        <div className="flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-700">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-700 dark:text-slate-300">启用</span>
-            <Switch
-              checked={enabled}
-              onCheckedChange={(checked) => setValue("enabled", checked, { shouldDirty: true })}
-              disabled={saving}
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <Button onClick={() => onOpenChange(false)} variant="secondary" disabled={saving}>
-              取消
-            </Button>
-            <Button onClick={save} variant="primary" disabled={saving}>
-              {saving ? "保存中…" : "保存"}
-            </Button>
+          {cliKey === "claude" ? (
+            <details className="group rounded-xl border border-slate-200 bg-white shadow-sm open:ring-2 open:ring-accent/10 transition-all dark:border-slate-700 dark:bg-slate-800">
+              <summary className="flex cursor-pointer items-center justify-between px-4 py-3 select-none">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-medium text-slate-700 group-open:text-accent dark:text-slate-300">
+                    Claude 模型映射
+                  </span>
+                  <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
+                    已配置 {claudeModelCount}/5
+                  </span>
+                </div>
+                <ChevronDown className="h-4 w-4 text-slate-400 transition-transform group-open:rotate-180" />
+              </summary>
+
+              <div className="space-y-4 border-t border-slate-100 px-4 py-3 dark:border-slate-700">
+                <FormField
+                  label="主模型"
+                  hint="默认兜底模型；未命中 haiku/sonnet/opus 且未启用 Thinking 时使用"
+                >
+                  <Input
+                    value={claudeModels.main_model ?? ""}
+                    onChange={(e) => {
+                      const value = e.currentTarget.value;
+                      setClaudeModels((prev) => ({ ...prev, main_model: value }));
+                    }}
+                    placeholder="例如: glm-4-plus / minimax-text-01 / kimi-k2"
+                    disabled={saving}
+                  />
+                </FormField>
+
+                <FormField
+                  label="推理模型 (Thinking)"
+                  hint="当请求中 thinking.type=enabled 时优先使用"
+                >
+                  <Input
+                    value={claudeModels.reasoning_model ?? ""}
+                    onChange={(e) => {
+                      const value = e.currentTarget.value;
+                      setClaudeModels((prev) => ({
+                        ...prev,
+                        reasoning_model: value,
+                      }));
+                    }}
+                    placeholder="例如: kimi-k2-thinking / glm-4-plus-thinking"
+                    disabled={saving}
+                  />
+                </FormField>
+
+                <FormField label="Haiku 默认模型" hint="当请求模型名包含 haiku 时使用（子串匹配）">
+                  <Input
+                    value={claudeModels.haiku_model ?? ""}
+                    onChange={(e) => {
+                      const value = e.currentTarget.value;
+                      setClaudeModels((prev) => ({ ...prev, haiku_model: value }));
+                    }}
+                    placeholder="例如: glm-4-plus-haiku"
+                    disabled={saving}
+                  />
+                </FormField>
+
+                <FormField
+                  label="Sonnet 默认模型"
+                  hint="当请求模型名包含 sonnet 时使用（子串匹配）"
+                >
+                  <Input
+                    value={claudeModels.sonnet_model ?? ""}
+                    onChange={(e) => {
+                      const value = e.currentTarget.value;
+                      setClaudeModels((prev) => ({ ...prev, sonnet_model: value }));
+                    }}
+                    placeholder="例如: glm-4-plus-sonnet"
+                    disabled={saving}
+                  />
+                </FormField>
+
+                <FormField label="Opus 默认模型" hint="当请求模型名包含 opus 时使用（子串匹配）">
+                  <Input
+                    value={claudeModels.opus_model ?? ""}
+                    onChange={(e) => {
+                      const value = e.currentTarget.value;
+                      setClaudeModels((prev) => ({ ...prev, opus_model: value }));
+                    }}
+                    placeholder="例如: glm-4-plus-opus"
+                    disabled={saving}
+                  />
+                </FormField>
+              </div>
+            </details>
+          ) : null}
+
+          <div className="flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-700">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-slate-700 dark:text-slate-300">启用</span>
+              <Switch
+                checked={enabled}
+                onCheckedChange={(checked) => setValue("enabled", checked, { shouldDirty: true })}
+                disabled={saving}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Button onClick={() => onOpenChange(false)} variant="secondary" disabled={saving}>
+                取消
+              </Button>
+              <Button onClick={save} variant="primary" disabled={saving}>
+                {saving ? "保存中…" : "保存"}
+              </Button>
+            </div>
           </div>
         </div>
       </div>

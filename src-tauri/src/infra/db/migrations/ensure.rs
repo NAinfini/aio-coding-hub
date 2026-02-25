@@ -14,6 +14,7 @@ pub(super) fn apply_ensure_patches(conn: &mut Connection) -> crate::shared::erro
     ensure_sort_mode_providers_enabled(conn)?;
     ensure_usage_indexes(conn)?;
     ensure_provider_tags(conn)?;
+    ensure_oauth_accounts_schema(conn)?;
     Ok(())
 }
 
@@ -555,6 +556,49 @@ fn ensure_provider_tags(conn: &mut Connection) -> Result<(), String> {
 
     tx.commit()
         .map_err(|e| format!("failed to commit sqlite transaction: {e}"))?;
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// ensure_oauth_accounts_schema
+// ---------------------------------------------------------------------------
+
+fn ensure_oauth_accounts_schema(conn: &mut Connection) -> Result<(), String> {
+    let has_table: bool = conn
+        .query_row(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'oauth_accounts' LIMIT 1",
+            [],
+            |_| Ok(true),
+        )
+        .optional()
+        .map_err(|e| format!("failed to query sqlite_master: {e}"))?
+        .unwrap_or(false);
+
+    if !has_table {
+        return Ok(());
+    }
+
+    if !column_exists(conn, "oauth_accounts", "id_token")? {
+        conn.execute_batch("ALTER TABLE oauth_accounts ADD COLUMN id_token TEXT;")
+            .map_err(|e| format!("failed to ensure oauth_accounts.id_token column: {e}"))?;
+    }
+    if !column_exists(conn, "oauth_accounts", "refresh_success_count")? {
+        conn.execute_batch(
+            "ALTER TABLE oauth_accounts ADD COLUMN refresh_success_count INTEGER NOT NULL DEFAULT 0;",
+        )
+        .map_err(|e| {
+            format!("failed to ensure oauth_accounts.refresh_success_count column: {e}")
+        })?;
+    }
+    if !column_exists(conn, "oauth_accounts", "refresh_failure_count")? {
+        conn.execute_batch(
+            "ALTER TABLE oauth_accounts ADD COLUMN refresh_failure_count INTEGER NOT NULL DEFAULT 0;",
+        )
+        .map_err(|e| {
+            format!("failed to ensure oauth_accounts.refresh_failure_count column: {e}")
+        })?;
+    }
+
     Ok(())
 }
 

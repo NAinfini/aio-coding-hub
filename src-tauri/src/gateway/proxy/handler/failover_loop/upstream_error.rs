@@ -28,9 +28,18 @@ use crate::gateway::events::FailoverAttempt;
 use crate::gateway::response_fixer;
 use crate::gateway::streams::GunzipStream;
 use crate::gateway::util::{now_unix_seconds, strip_hop_headers};
+use crate::oauth_accounts;
 use crate::shared::mutex_ext::MutexExt;
 use axum::body::{Body, Bytes};
 use axum::http::{header, HeaderValue};
+use serde_json::Value;
+use tauri::Emitter;
+
+const DEFAULT_OAUTH_RETRY_AFTER_SECS: i64 = 60;
+
+fn should_mark_oauth_quota_on_429(status_code: u16, matched_429_concurrency_limit: bool) -> bool {
+    status_code == 429 && !matched_429_concurrency_limit
+}
 
 fn upstream_error_decision(
     is_count_tokens: bool,
@@ -49,6 +58,153 @@ fn upstream_error_decision(
     }
 
     base_decision
+}
+
+fn parse_retry_delay_literal(raw: &str) -> Option<i64> {
+    let normalized = raw.trim().to_ascii_lowercase();
+    if normalized.is_empty() {
+        return None;
+    }
+
+    if let Some(value) = normalized.strip_suffix("ms") {
+        let millis = value.trim().parse::<f64>().ok()?;
+        if millis <= 0.0 || !millis.is_finite() {
+            return None;
+        }
+        return Some((millis / 1000.0).ceil() as i64);
+    }
+
+    if let Some(value) = normalized.strip_suffix('s') {
+        let secs = value.trim().parse::<f64>().ok()?;
+        if secs <= 0.0 || !secs.is_finite() {
+            return None;
+        }
+        return Some(secs.ceil() as i64);
+    }
+
+    if let Some(value) = normalized.strip_suffix('m') {
+        let mins = value.trim().parse::<f64>().ok()?;
+        if mins <= 0.0 || !mins.is_finite() {
+            return None;
+        }
+        return Some((mins * 60.0).ceil() as i64);
+    }
+
+    let secs = normalized.parse::<f64>().ok()?;
+    if secs <= 0.0 || !secs.is_finite() {
+        return None;
+    }
+    Some(secs.ceil() as i64)
+}
+
+fn parse_retry_hint_from_message(message: &str) -> Option<i64> {
+    let normalized = message.to_ascii_lowercase();
+    let tokens = normalized
+        .split(|ch: char| !(ch.is_ascii_alphanumeric() || ch == '.'))
+        .filter(|token| !token.is_empty())
+        .collect::<Vec<_>>();
+
+    for (index, raw_token) in tokens.iter().enumerate() {
+        let token = raw_token.trim_matches('.');
+        if token.is_empty() {
+            continue;
+        }
+
+        if token.ends_with('s') {
+            if let Some(seconds) = parse_retry_delay_literal(token) {
+                return Some(seconds);
+            }
+        }
+        if token.ends_with('m') {
+            if let Some(seconds) = parse_retry_delay_literal(token) {
+                return Some(seconds);
+            }
+        }
+
+        let Ok(value) = token.parse::<f64>() else {
+            continue;
+        };
+        if !value.is_finite() || value <= 0.0 {
+            continue;
+        }
+
+        let Some(unit_raw) = tokens.get(index + 1) else {
+            continue;
+        };
+        let unit = unit_raw.trim_matches('.');
+        let seconds = match unit {
+            "s" | "sec" | "secs" | "second" | "seconds" => value.ceil() as i64,
+            "m" | "min" | "mins" | "minute" | "minutes" => (value * 60.0).ceil() as i64,
+            _ => continue,
+        };
+        if seconds > 0 {
+            return Some(seconds);
+        }
+    }
+
+    None
+}
+
+fn parse_retry_delay_value(value: &Value) -> Option<i64> {
+    match value {
+        Value::String(raw) => parse_retry_delay_literal(raw),
+        Value::Number(num) => {
+            let seconds = num.as_f64()?;
+            if seconds <= 0.0 || !seconds.is_finite() {
+                None
+            } else {
+                Some(seconds.ceil() as i64)
+            }
+        }
+        _ => None,
+    }
+}
+
+fn find_retry_delay_seconds(value: &Value) -> Option<i64> {
+    match value {
+        Value::Object(map) => {
+            for key in ["retryDelay", "retry_delay"] {
+                if let Some(seconds) = map.get(key).and_then(parse_retry_delay_value) {
+                    return Some(seconds);
+                }
+            }
+            for nested in map.values() {
+                if let Some(seconds) = find_retry_delay_seconds(nested) {
+                    return Some(seconds);
+                }
+            }
+            None
+        }
+        Value::Array(items) => items.iter().find_map(find_retry_delay_seconds),
+        _ => None,
+    }
+}
+
+fn parse_retry_after_seconds_from_body(body: &[u8]) -> Option<i64> {
+    let value: Value = serde_json::from_slice(body).ok()?;
+    if let Some(seconds) = find_retry_delay_seconds(&value) {
+        return Some(seconds);
+    }
+
+    value
+        .pointer("/error/message")
+        .and_then(Value::as_str)
+        .or_else(|| value.get("message").and_then(Value::as_str))
+        .and_then(parse_retry_hint_from_message)
+}
+
+fn retry_after_seconds(headers: &axum::http::HeaderMap, body_hint_seconds: Option<i64>) -> i64 {
+    body_hint_seconds
+        .filter(|seconds| *seconds > 0)
+        .or_else(|| {
+            headers
+                .get(header::RETRY_AFTER)
+                .and_then(|value| value.to_str().ok())
+                .map(str::trim)
+                .and_then(|raw| raw.parse::<i64>().ok())
+                .filter(|seconds| *seconds > 0)
+        })
+        .unwrap_or(DEFAULT_OAUTH_RETRY_AFTER_SECS)
 }
 
 async fn read_response_body_with_optional_limit(
@@ -140,6 +296,7 @@ pub(super) async fn handle_non_success_response(
         provider_base_url_base,
         provider_index,
         session_reuse,
+        oauth_account_id,
     } = provider_ctx;
 
     let AttemptCtx {
@@ -172,6 +329,7 @@ pub(super) async fn handle_non_success_response(
     let mut abort_response_headers: Option<axum::http::HeaderMap> = None;
     let mut matched_rule_id: Option<&'static str> = None;
     let mut matched_429_concurrency_limit = false;
+    let mut body_retry_after_seconds: Option<i64> = None;
     if !is_count_tokens
         && (upstream_client_error_rules::should_attempt_non_retryable_match(
             status,
@@ -201,6 +359,8 @@ pub(super) async fn handle_non_success_response(
                         upstream_client_error_rules::match_429_concurrency_limit(
                             body_for_scan.as_ref(),
                         );
+                    body_retry_after_seconds =
+                        parse_retry_after_seconds_from_body(body_for_scan.as_ref());
                 }
                 matched_rule_id = upstream_client_error_rules::match_non_retryable_client_error(
                     ctx.cli_key.as_str(),
@@ -223,6 +383,48 @@ pub(super) async fn handle_non_success_response(
     let circuit_failure_threshold = Some(circuit_before.failure_threshold);
 
     let now_unix = now_unix_seconds() as i64;
+    let retry_after_429_seconds = (status.as_u16() == 429)
+        .then(|| retry_after_seconds(&response_headers, body_retry_after_seconds));
+    if should_mark_oauth_quota_on_429(status.as_u16(), matched_429_concurrency_limit) {
+        if let Some(account_id) = oauth_account_id.filter(|id| *id > 0) {
+            let recover_after_seconds =
+                retry_after_429_seconds.unwrap_or(DEFAULT_OAUTH_RETRY_AFTER_SECS);
+            let recover_at = now_unix.saturating_add(recover_after_seconds.max(1));
+            match state.db.open_connection() {
+                Ok(conn) => {
+                    if let Err(err) =
+                        oauth_accounts::mark_quota_exceeded(&conn, account_id, recover_at)
+                    {
+                        tracing::warn!(
+                            oauth_account_id = account_id,
+                            provider_id,
+                            "failed to mark oauth quota exceeded: {}",
+                            err
+                        );
+                    } else {
+                        crate::gateway::oauth::quota_cache::invalidate_cli(ctx.cli_key.as_str());
+                        let _ = state.app.emit(
+                            "oauth-account-quota",
+                            serde_json::json!({
+                                "id": account_id,
+                                "exceeded": true,
+                                "recover_at": recover_at
+                            }),
+                        );
+                    }
+                }
+                Err(err) => {
+                    tracing::warn!(
+                        oauth_account_id = account_id,
+                        provider_id,
+                        "failed to open db for oauth quota mark: {}",
+                        err
+                    );
+                }
+            }
+        }
+    }
+
     if !is_count_tokens && matches!(category, ErrorCategory::ProviderError) {
         let change = provider_router::record_failure_and_emit_transition(
             provider_router::RecordCircuitArgs::from_state(
@@ -246,23 +448,24 @@ pub(super) async fn handle_non_success_response(
     }
 
     if !is_count_tokens
-        && provider_cooldown_secs > 0
+        && retry_after_429_seconds.unwrap_or(provider_cooldown_secs) > 0
         && matches!(category, ErrorCategory::ProviderError)
         && matches!(
             decision,
             FailoverDecision::SwitchProvider | FailoverDecision::Abort
         )
     {
+        let cooldown_secs = retry_after_429_seconds.unwrap_or(provider_cooldown_secs);
         let snap = provider_router::trigger_cooldown(
             state.circuit.as_ref(),
             provider_id,
             now_unix,
-            provider_cooldown_secs,
+            cooldown_secs,
         );
         *circuit_snapshot = snap;
     }
 
-    let reason = if matched_429_concurrency_limit {
+    let mut reason = if matched_429_concurrency_limit {
         format!("status={} rule=429_concurrency_limit", status.as_u16())
     } else {
         match matched_rule_id {
@@ -270,6 +473,10 @@ pub(super) async fn handle_non_success_response(
             None => format!("status={}", status.as_u16()),
         }
     };
+    if let Some(retry_after_seconds) = retry_after_429_seconds {
+        let retry_hint = format!(" retry_after={retry_after_seconds}s");
+        reason.push_str(retry_hint.as_str());
+    }
     let outcome = format!(
         "upstream_error: status={} category={} code={} decision={}",
         status.as_u16(),
@@ -392,6 +599,7 @@ pub(super) async fn handle_non_success_response(
                     special_settings_json,
                     session_id,
                     requested_model,
+                    oauth_account_id,
                     created_at_ms,
                     created_at,
                     usage_metrics: None,
@@ -431,6 +639,7 @@ pub(super) async fn handle_non_success_response(
                 special_settings_json,
                 session_id,
                 requested_model,
+                oauth_account_id,
                 created_at_ms,
                 created_at,
                 usage_metrics: None,
@@ -562,7 +771,11 @@ pub(super) async fn handle_reqwest_error(
 
 #[cfg(test)]
 mod tests {
-    use super::{upstream_error_decision, FailoverDecision};
+    use super::{
+        parse_retry_after_seconds_from_body, retry_after_seconds, should_mark_oauth_quota_on_429,
+        upstream_error_decision, FailoverDecision,
+    };
+    use axum::http::{header, HeaderMap, HeaderValue};
 
     #[test]
     fn upstream_error_decision_aborts_for_count_tokens() {
@@ -590,5 +803,54 @@ mod tests {
 
         let abort_decision = upstream_error_decision(false, FailoverDecision::Abort, 1, 5);
         assert!(matches!(abort_decision, FailoverDecision::Abort));
+    }
+
+    #[test]
+    fn retry_after_seconds_prefers_numeric_header() {
+        let mut headers = HeaderMap::new();
+        headers.insert(header::RETRY_AFTER, HeaderValue::from_static("120"));
+        assert_eq!(retry_after_seconds(&headers, None), 120);
+    }
+
+    #[test]
+    fn retry_after_seconds_prefers_body_hint_when_present() {
+        let mut headers = HeaderMap::new();
+        headers.insert(header::RETRY_AFTER, HeaderValue::from_static("120"));
+        assert_eq!(retry_after_seconds(&headers, Some(32)), 32);
+    }
+
+    #[test]
+    fn retry_after_seconds_falls_back_to_default_for_invalid_header() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::RETRY_AFTER,
+            HeaderValue::from_static("not-a-number"),
+        );
+        assert_eq!(retry_after_seconds(&headers, None), 60);
+    }
+
+    #[test]
+    fn retry_after_seconds_defaults_when_header_missing() {
+        let headers = HeaderMap::new();
+        assert_eq!(retry_after_seconds(&headers, None), 60);
+    }
+
+    #[test]
+    fn parse_retry_after_seconds_from_body_reads_retry_delay_literal() {
+        let body = br#"{"error":{"retryDelay":"32s"}}"#;
+        assert_eq!(parse_retry_after_seconds_from_body(body), Some(32));
+    }
+
+    #[test]
+    fn parse_retry_after_seconds_from_body_reads_message_hint() {
+        let body = br#"{"error":{"message":"Rate limit reached. Please retry in 2 minutes."}}"#;
+        assert_eq!(parse_retry_after_seconds_from_body(body), Some(120));
+    }
+
+    #[test]
+    fn oauth_quota_marking_skips_concurrency_limit_429() {
+        assert!(!should_mark_oauth_quota_on_429(429, true));
+        assert!(should_mark_oauth_quota_on_429(429, false));
+        assert!(!should_mark_oauth_quota_on_429(500, false));
     }
 }

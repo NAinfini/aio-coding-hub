@@ -25,19 +25,53 @@ pub(super) fn classify_reqwest_error(err: &reqwest::Error) -> (ErrorCategory, &'
     if err.is_timeout() {
         return (
             ErrorCategory::SystemError,
-            GatewayErrorCode::UpstreamTimeout.as_str(),
+            GatewayErrorCode::ConnectionTimeout.as_str(),
         );
     }
     if err.is_connect() {
+        return (ErrorCategory::SystemError, classify_connect_error_code(err));
+    }
+    let err_lc = err.to_string().to_ascii_lowercase();
+    if err_lc.contains("tls")
+        || err_lc.contains("ssl")
+        || err_lc.contains("certificate")
+        || err_lc.contains("handshake")
+    {
         return (
             ErrorCategory::SystemError,
-            GatewayErrorCode::UpstreamConnectFailed.as_str(),
+            GatewayErrorCode::TlsError.as_str(),
         );
     }
     (
         ErrorCategory::SystemError,
         GatewayErrorCode::InternalError.as_str(),
     )
+}
+
+fn classify_connect_error_code(err: &reqwest::Error) -> &'static str {
+    let err_lc = err.to_string().to_ascii_lowercase();
+    if err_lc.contains("dns")
+        || err_lc.contains("failed to lookup address information")
+        || err_lc.contains("name or service not known")
+        || err_lc.contains("no such host")
+        || err_lc.contains("host not found")
+    {
+        return GatewayErrorCode::DnsResolutionFailed.as_str();
+    }
+    if err_lc.contains("connection refused") {
+        return GatewayErrorCode::ConnectionRefused.as_str();
+    }
+    if err_lc.contains("timed out") || err_lc.contains("timeout") {
+        return GatewayErrorCode::ConnectionTimeout.as_str();
+    }
+    if err_lc.contains("tls")
+        || err_lc.contains("ssl")
+        || err_lc.contains("certificate")
+        || err_lc.contains("handshake")
+    {
+        return GatewayErrorCode::TlsError.as_str();
+    }
+    GatewayErrorCode::UpstreamConnectFailed.as_str()
 }
 
 pub(super) fn classify_upstream_status(
@@ -121,6 +155,9 @@ pub(super) fn error_response_with_retry_after(
     if let Ok(v) = HeaderValue::from_str(&trace_id) {
         resp.headers_mut().insert("x-trace-id", v);
     }
+    if let Ok(v) = HeaderValue::from_str(error_code) {
+        resp.headers_mut().insert("x-aio-error-code", v);
+    }
 
     if let Some(seconds) = retry_after_seconds.filter(|v| *v > 0) {
         let value = seconds.to_string();
@@ -134,8 +171,9 @@ pub(super) fn error_response_with_retry_after(
 
 #[cfg(test)]
 mod tests {
-    use super::{classify_upstream_status, FailoverDecision};
+    use super::{classify_upstream_status, error_response, FailoverDecision};
     use crate::gateway::proxy::{ErrorCategory, GatewayErrorCode};
+    use axum::http::StatusCode;
 
     #[test]
     fn upstream_402_switches_provider() {
@@ -218,5 +256,21 @@ mod tests {
         assert!(matches!(category, ErrorCategory::ProviderError));
         assert_eq!(code, GatewayErrorCode::Upstream4xx.as_str());
         assert!(matches!(decision, FailoverDecision::RetrySameProvider));
+    }
+
+    #[test]
+    fn error_response_sets_structured_error_code_header() {
+        let resp = error_response(
+            StatusCode::BAD_GATEWAY,
+            "trace_test".to_string(),
+            GatewayErrorCode::AuthRejected.as_str(),
+            "auth rejected".to_string(),
+            vec![],
+        );
+        let header = resp
+            .headers()
+            .get("x-aio-error-code")
+            .and_then(|v| v.to_str().ok());
+        assert_eq!(header, Some(GatewayErrorCode::AuthRejected.as_str()));
     }
 }

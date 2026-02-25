@@ -9,6 +9,7 @@ pub(crate) mod claude_plugins;
 pub(crate) mod cost;
 pub(crate) mod cost_stats;
 pub(crate) mod mcp;
+pub(crate) mod oauth_accounts;
 pub(crate) mod prompts;
 pub(crate) mod provider_limit_usage;
 pub(crate) mod providers;

@@ -116,4 +116,41 @@ describe("components/home/RealtimeTraceCards", () => {
 
     vi.useRealTimers();
   });
+
+  it("falls back to zero stats for completed traces without usage payload", () => {
+    const nowMs = Date.now();
+    const completedMissingUsage = traceBase({
+      trace_id: "t-missing-usage",
+      requested_model: "gpt-5.3-codex",
+      first_seen_ms: nowMs - 2000,
+      last_seen_ms: nowMs - 100,
+      attempts: [{ attempt_index: 0, provider_name: "robin", outcome: "failed" }],
+      summary: {
+        trace_id: "t-missing-usage",
+        cli_key: "codex",
+        method: "POST",
+        path: "/v1/responses",
+        query: null,
+        status: 502,
+        error_code: null,
+        duration_ms: 2,
+        ttfb_ms: null,
+        input_tokens: null,
+        output_tokens: null,
+      },
+    });
+
+    render(
+      <RealtimeTraceCards
+        traces={[completedMissingUsage] as any}
+        formatUnixSeconds={(ts) => `ts:${ts}`}
+        showCustomTooltip={false}
+      />
+    );
+
+    expect(screen.getByText("$0")).toBeInTheDocument();
+    expect(screen.getByText("0.0 t/s")).toBeInTheDocument();
+    expect(screen.getAllByText("0").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("N/A")).toBeInTheDocument();
+  });
 });

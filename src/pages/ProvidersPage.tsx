@@ -5,14 +5,16 @@ import type { CliKey, ProviderSummary } from "../services/providers";
 import { useProvidersListQuery } from "../query/providers";
 import { PageHeader } from "../ui/PageHeader";
 import { TabList } from "../ui/TabList";
+import { OAuthAccountsView } from "./providers/OAuthAccountsView";
 import { ProvidersView } from "./providers/ProvidersView";
 import { SortModesView } from "./providers/SortModesView";
 
-type ViewKey = "providers" | "sortModes";
+type ViewKey = "providers" | "sortModes" | "oauth";
 
 const VIEW_TABS: Array<{ key: ViewKey; label: string }> = [
   { key: "providers", label: "供应商" },
   { key: "sortModes", label: "排序模板" },
+  { key: "oauth", label: "OAuth 账号" },
 ];
 
 export function ProvidersPage() {
@@ -26,19 +28,21 @@ export function ProvidersPage() {
   return (
     <div className="flex flex-col gap-6 lg:h-[calc(100vh-40px)] lg:overflow-hidden">
       <PageHeader
-        title={view === "providers" ? "供应商" : "排序模板"}
+        title={view === "providers" ? "供应商" : view === "sortModes" ? "排序模板" : "OAuth 账号"}
         actions={<TabList ariaLabel="视图切换" items={VIEW_TABS} value={view} onChange={setView} />}
       />
 
       {view === "providers" ? (
         <ProvidersView activeCli={activeCli} setActiveCli={setActiveCli} />
-      ) : (
+      ) : view === "sortModes" ? (
         <SortModesView
           activeCli={activeCli}
           setActiveCli={setActiveCli}
           providers={providers}
           providersLoading={providersLoading}
         />
+      ) : (
+        <OAuthAccountsView activeCli={activeCli} setActiveCli={setActiveCli} />
       )}
     </div>
   );

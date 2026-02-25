@@ -2,11 +2,29 @@ use super::super::failover::should_reuse_provider;
 use super::provider_order;
 use crate::gateway::manager::GatewayAppState;
 use crate::{providers, session_manager};
+use std::collections::HashSet;
 
 pub(super) struct ProviderSelection {
     pub(super) effective_sort_mode_id: Option<i64>,
     pub(super) providers: Vec<providers::ProviderForGateway>,
     pub(super) bound_provider_order: Option<Vec<i64>>,
+    pub(super) quota_exceeded_oauth_account_ids: HashSet<i64>,
+}
+
+pub(super) fn filter_quota_exceeded_oauth_providers(
+    providers: &mut Vec<providers::ProviderForGateway>,
+    quota_exceeded_oauth_account_ids: &HashSet<i64>,
+) {
+    if quota_exceeded_oauth_account_ids.is_empty() {
+        return;
+    }
+
+    providers.retain(|provider| {
+        provider
+            .oauth_account_id
+            .map(|account_id| !quota_exceeded_oauth_account_ids.contains(&account_id))
+            .unwrap_or(true)
+    });
 }
 
 pub(super) fn select_providers_with_session_binding(
@@ -34,6 +52,13 @@ pub(super) fn select_providers_with_session_binding(
         }
     };
 
+    let now_unix = crate::shared::time::now_unix_seconds() as i64;
+    let quota_exceeded_oauth_account_ids =
+        crate::gateway::oauth::quota_cache::load_quota_exceeded_account_ids_for_cli(
+            &state.db, cli_key, now_unix,
+        )?;
+    filter_quota_exceeded_oauth_providers(&mut providers, &quota_exceeded_oauth_account_ids);
+
     let mut bound_provider_order: Option<Vec<i64>> = None;
     if let Some(sid) = session_id {
         let provider_order: Vec<i64> = providers.iter().map(|p| p.id).collect();
@@ -58,6 +83,7 @@ pub(super) fn select_providers_with_session_binding(
         effective_sort_mode_id,
         providers,
         bound_provider_order,
+        quota_exceeded_oauth_account_ids,
     })
 }
 
@@ -166,6 +192,8 @@ mod tests {
             name,
             vec!["https://example.com".to_string()],
             "order",
+            None,
+            None,
             Some("k"),
             enabled,
             1.0,

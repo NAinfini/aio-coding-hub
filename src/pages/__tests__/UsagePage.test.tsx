@@ -315,4 +315,52 @@ describe("pages/UsagePage", () => {
     fireEvent.click(screen.getByRole("button", { name: "清空" }));
     expect(clearCustomRange).toHaveBeenCalled();
   });
+
+  it("removes oauth account dropdown and keeps oauthAccountId null in usage query input", async () => {
+    setTauriRuntime();
+
+    vi.mocked(useCustomDateRange).mockReturnValue({
+      customStartDate: "",
+      setCustomStartDate: vi.fn(),
+      customEndDate: "",
+      setCustomEndDate: vi.fn(),
+      customApplied: null,
+      bounds: { startTs: 10, endTs: 20 },
+      showCustomForm: false,
+      applyCustomRange: vi.fn(),
+      clearCustomRange: vi.fn(),
+    } as any);
+
+    vi.mocked(useUsageSummaryV2Query).mockReturnValue({
+      data: null,
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useUsageLeaderboardV2Query).mockReturnValue({
+      data: [],
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useUsageProviderCacheRateTrendV1Query).mockReturnValue({
+      data: [],
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+
+    renderWithProviders(<UsagePage />);
+    expect(screen.queryByRole("combobox", { name: "OAuth账号筛选" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Claude Code" }));
+
+    await waitFor(() =>
+      expect(vi.mocked(useUsageSummaryV2Query)).toHaveBeenLastCalledWith(
+        "daily",
+        expect.objectContaining({ oauthAccountId: null, cliKey: "claude" }),
+        { enabled: true }
+      )
+    );
+  });
 });

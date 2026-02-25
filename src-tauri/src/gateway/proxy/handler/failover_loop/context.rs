@@ -29,6 +29,7 @@ pub(super) struct CommonCtxArgs<'a> {
     pub(super) special_settings: &'a Arc<Mutex<Vec<serde_json::Value>>>,
     pub(super) provider_cooldown_secs: i64,
     pub(super) upstream_first_byte_timeout_secs: u32,
+    pub(super) upstream_bootstrap_retries: u32,
     pub(super) upstream_first_byte_timeout: Option<Duration>,
     pub(super) upstream_stream_idle_timeout: Option<Duration>,
     pub(super) upstream_request_timeout_non_streaming: Option<Duration>,
@@ -56,6 +57,7 @@ pub(super) struct CommonCtx<'a> {
     pub(super) special_settings: &'a Arc<Mutex<Vec<serde_json::Value>>>,
     pub(super) provider_cooldown_secs: i64,
     pub(super) upstream_first_byte_timeout_secs: u32,
+    pub(super) upstream_bootstrap_retries: u32,
     pub(super) upstream_first_byte_timeout: Option<Duration>,
     pub(super) upstream_stream_idle_timeout: Option<Duration>,
     pub(super) upstream_request_timeout_non_streaming: Option<Duration>,
@@ -84,6 +86,7 @@ impl<'a> CommonCtx<'a> {
             special_settings: args.special_settings,
             provider_cooldown_secs: args.provider_cooldown_secs,
             upstream_first_byte_timeout_secs: args.upstream_first_byte_timeout_secs,
+            upstream_bootstrap_retries: args.upstream_bootstrap_retries,
             upstream_first_byte_timeout: args.upstream_first_byte_timeout,
             upstream_stream_idle_timeout: args.upstream_stream_idle_timeout,
             upstream_request_timeout_non_streaming: args.upstream_request_timeout_non_streaming,
@@ -163,6 +166,7 @@ pub(super) struct ProviderCtx<'a> {
     pub(super) provider_base_url_base: &'a String,
     pub(super) provider_index: u32,
     pub(super) session_reuse: Option<bool>,
+    pub(super) oauth_account_id: Option<i64>,
 }
 
 pub(super) struct ProviderCtxOwned {
@@ -171,6 +175,7 @@ pub(super) struct ProviderCtxOwned {
     pub(super) provider_base_url_base: String,
     pub(super) provider_index: u32,
     pub(super) session_reuse: Option<bool>,
+    pub(super) oauth_account_id: Option<i64>,
 }
 
 impl<'a> From<ProviderCtx<'a>> for ProviderCtxOwned {
@@ -181,6 +186,7 @@ impl<'a> From<ProviderCtx<'a>> for ProviderCtxOwned {
             provider_base_url_base: ctx.provider_base_url_base.clone(),
             provider_index: ctx.provider_index,
             session_reuse: ctx.session_reuse,
+            oauth_account_id: ctx.oauth_account_id,
         }
     }
 }
@@ -217,6 +223,7 @@ pub(super) fn build_stream_finalize_ctx(
         attempts: attempts.to_vec(),
         attempts_json,
         requested_model: ctx.requested_model.clone(),
+        oauth_account_id: provider_ctx.oauth_account_id,
         created_at_ms: ctx.created_at_ms,
         created_at: ctx.created_at,
         provider_cooldown_secs: ctx.provider_cooldown_secs,

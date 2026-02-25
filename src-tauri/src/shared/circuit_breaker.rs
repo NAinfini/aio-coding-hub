@@ -143,7 +143,6 @@ impl CircuitBreaker {
         }
     }
 
-    #[allow(dead_code)]
     pub fn snapshot(&self, provider_id: i64, now_unix: i64) -> CircuitSnapshot {
         let mut guard = self.health.lock_or_recover();
         let entry = guard

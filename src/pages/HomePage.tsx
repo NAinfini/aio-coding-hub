@@ -76,11 +76,11 @@ export function HomePage() {
     refetchIntervalMs: overviewForegroundPollingEnabled ? 30000 : false,
   });
   const providerLimitRows = providerLimitQuery.data ?? [];
-  const providerLimitLoading = providerLimitQuery.isLoading;
-  const providerLimitRefreshing = providerLimitQuery.isFetching && !providerLimitQuery.isLoading;
+  const providerLimitLoading = providerLimitQuery.isFetching && providerLimitQuery.data == null;
+  const providerLimitRefreshing = providerLimitQuery.isFetching && providerLimitQuery.data != null;
   const providerLimitAvailable: boolean | null = !tauriRuntime
     ? false
-    : providerLimitQuery.isLoading
+    : providerLimitLoading
       ? null
       : providerLimitQuery.data != null;
 

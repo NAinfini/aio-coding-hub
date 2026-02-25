@@ -10,6 +10,7 @@ use tracing_subscriber::layer::SubscriberExt;
 const LOG_SUBDIR: &str = "logs";
 const LOG_FILE_PREFIX: &str = "aio-coding-hub.log";
 const CLEANUP_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
+const TAO_WINDOWS_RUNNER_TARGET: &str = "tao::platform_impl::windows::event_loop::runner";
 
 static TRACING_GUARD: OnceLock<Mutex<Option<WorkerGuard>>> = OnceLock::new();
 static TRACING_INIT: OnceLock<()> = OnceLock::new();
@@ -82,7 +83,7 @@ fn init_impl(app: &tauri::AppHandle) -> crate::shared::error::AppResult<()> {
 }
 
 fn default_env_filter() -> tracing_subscriber::EnvFilter {
-    tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+    let base = tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
         #[cfg(debug_assertions)]
         {
             tracing_subscriber::EnvFilter::new("info,aio_coding_hub_lib=debug,aio_coding_hub=debug")
@@ -91,7 +92,19 @@ fn default_env_filter() -> tracing_subscriber::EnvFilter {
         {
             tracing_subscriber::EnvFilter::new("info")
         }
-    })
+    });
+
+    suppress_dependency_log_noise(base)
+}
+
+fn suppress_dependency_log_noise(
+    filter: tracing_subscriber::EnvFilter,
+) -> tracing_subscriber::EnvFilter {
+    let directive = format!("{TAO_WINDOWS_RUNNER_TARGET}=error");
+    match directive.parse() {
+        Ok(parsed) => filter.add_directive(parsed),
+        Err(_) => filter,
+    }
 }
 
 fn ensure_log_dir(app: &tauri::AppHandle) -> crate::shared::error::AppResult<PathBuf> {
@@ -190,4 +203,18 @@ fn cleanup_logs(log_dir: &Path, retention_days: u32) -> crate::shared::error::Ap
     }
 
     Ok(deleted)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{suppress_dependency_log_noise, TAO_WINDOWS_RUNNER_TARGET};
+
+    #[test]
+    fn dependency_noise_filter_adds_tao_windows_runner_override() {
+        let filter = suppress_dependency_log_noise(tracing_subscriber::EnvFilter::new("info"));
+        let rendered = filter.to_string();
+        assert!(rendered.contains("info"));
+        assert!(rendered.contains(TAO_WINDOWS_RUNNER_TARGET));
+        assert!(rendered.contains("=error"));
+    }
 }

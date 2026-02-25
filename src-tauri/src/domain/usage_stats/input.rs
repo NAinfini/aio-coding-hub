@@ -23,6 +23,7 @@ pub(super) enum UsageScopeV2 {
     Cli,
     Provider,
     Model,
+    OAuthAccount,
 }
 
 pub(super) fn parse_scope_v2(input: &str) -> crate::shared::error::AppResult<UsageScopeV2> {
@@ -30,6 +31,7 @@ pub(super) fn parse_scope_v2(input: &str) -> crate::shared::error::AppResult<Usa
         "cli" => Ok(UsageScopeV2::Cli),
         "provider" => Ok(UsageScopeV2::Provider),
         "model" => Ok(UsageScopeV2::Model),
+        "oauth_account" | "oauthAccount" => Ok(UsageScopeV2::OAuthAccount),
         _ => Err(format!("SEC_INVALID_INPUT: unknown scope={input}").into()),
     }
 }
@@ -66,4 +68,15 @@ pub(super) fn normalize_cli_filter(
         return Ok(Some(k));
     }
     Ok(None)
+}
+
+pub(super) fn normalize_oauth_account_filter(
+    oauth_account_id: Option<i64>,
+) -> crate::shared::error::AppResult<Option<i64>> {
+    if let Some(id) = oauth_account_id {
+        if id <= 0 {
+            return Err(format!("SEC_INVALID_INPUT: invalid oauth_account_id={id}").into());
+        }
+    }
+    Ok(oauth_account_id)
 }

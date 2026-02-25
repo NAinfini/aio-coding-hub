@@ -190,6 +190,8 @@ pub fn provider_upsert_json<R: tauri::Runtime>(
         name,
         base_urls,
         base_url_mode,
+        None,
+        None,
         api_key,
         enabled,
         cost_multiplier,

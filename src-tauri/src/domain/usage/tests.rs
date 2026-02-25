@@ -89,6 +89,24 @@ fn parse_generic_sse_usage_without_event_name() {
 }
 
 #[test]
+fn parse_usage_from_json_or_sse_bytes_falls_back_to_sse_payload() {
+    let sse = b"event: response.completed\ndata: {\"response\":{\"usage\":{\"input_tokens\":12,\"output_tokens\":5,\"total_tokens\":17}}}\n\n";
+    let extract = parse_usage_from_json_or_sse_bytes("codex", sse).expect("should parse sse usage");
+    assert_eq!(extract.metrics.input_tokens, Some(12));
+    assert_eq!(extract.metrics.output_tokens, Some(5));
+    assert_eq!(extract.metrics.total_tokens, Some(17));
+}
+
+#[test]
+fn parse_model_from_json_or_sse_bytes_falls_back_to_sse_payload() {
+    let sse = b"event: response.completed\ndata: {\"response\":{\"model\":\"gpt-5.3-codex\"}}\n\n";
+    assert_eq!(
+        parse_model_from_json_or_sse_bytes("codex", sse).as_deref(),
+        Some("gpt-5.3-codex")
+    );
+}
+
+#[test]
 fn parse_sse_done_marker_marks_completion_seen() {
     let sse = b"data: [DONE]\n\n";
     let mut tracker = SseUsageTracker::new("codex");
@@ -107,6 +125,38 @@ fn parse_codex_response_completed_marks_completion_seen() {
     assert_eq!(extract.metrics.input_tokens, Some(1));
     assert_eq!(extract.metrics.output_tokens, Some(2));
     assert_eq!(extract.metrics.total_tokens, Some(3));
+}
+
+#[test]
+fn parse_codex_message_completed_marks_completion_seen() {
+    let sse = b"data: {\"type\":\"message.completed\"}\n\n";
+    let mut tracker = SseUsageTracker::new("codex");
+    tracker.ingest_chunk(sse);
+    assert!(tracker.completion_seen());
+}
+
+#[test]
+fn parse_event_done_marks_completion_seen() {
+    let sse = b"event: done\ndata: {}\n\n";
+    let mut tracker = SseUsageTracker::new("codex");
+    tracker.ingest_chunk(sse);
+    assert!(tracker.completion_seen());
+}
+
+#[test]
+fn parse_finished_successfully_status_marks_completion_seen() {
+    let sse = b"data: {\"message\":{\"status\":\"finished_successfully\"}}\n\n";
+    let mut tracker = SseUsageTracker::new("codex");
+    tracker.ingest_chunk(sse);
+    assert!(tracker.completion_seen());
+}
+
+#[test]
+fn parse_failed_status_marks_terminal_error_seen() {
+    let sse = b"data: {\"response\":{\"status\":\"failed\"}}\n\n";
+    let mut tracker = SseUsageTracker::new("codex");
+    tracker.ingest_chunk(sse);
+    assert!(tracker.terminal_error_seen());
 }
 
 #[test]

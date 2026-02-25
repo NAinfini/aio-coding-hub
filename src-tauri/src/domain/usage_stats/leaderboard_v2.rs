@@ -4,9 +4,10 @@ use rusqlite::{params_from_iter, Connection, OptionalExtension};
 
 use super::{
     compute_bounds_v2, extract_final_provider, has_valid_provider_key, normalize_cli_filter,
-    parse_period_v2, parse_scope_v2, sql_effective_input_tokens_expr_with_alias,
-    sql_effective_total_tokens_expr, sql_effective_total_tokens_expr_with_alias, ProviderAgg,
-    ProviderKey, UsageLeaderboardRow, UsageScopeV2, SQL_EFFECTIVE_INPUT_TOKENS_EXPR,
+    normalize_oauth_account_filter, parse_period_v2, parse_scope_v2,
+    sql_effective_input_tokens_expr_with_alias, sql_effective_total_tokens_expr,
+    sql_effective_total_tokens_expr_with_alias, ProviderAgg, ProviderKey, UsageLeaderboardRow,
+    UsageScopeV2, SQL_EFFECTIVE_INPUT_TOKENS_EXPR,
 };
 
 type SqlValues = Vec<rusqlite::types::Value>;
@@ -14,12 +15,14 @@ type SqlValues = Vec<rusqlite::types::Value>;
 fn build_optional_range_cli_filters(
     created_at_column: &str,
     cli_key_column: &str,
+    oauth_account_id_column: &str,
     start_ts: Option<i64>,
     end_ts: Option<i64>,
     cli_key: Option<&str>,
+    oauth_account_id: Option<i64>,
 ) -> (String, SqlValues) {
     let mut clauses = Vec::new();
-    let mut values: SqlValues = Vec::with_capacity(3);
+    let mut values: SqlValues = Vec::with_capacity(4);
 
     if let Some(ts) = start_ts {
         values.push(ts.into());
@@ -36,6 +39,11 @@ fn build_optional_range_cli_filters(
         clauses.push(format!("{cli_key_column} = ?{}", values.len()));
     }
 
+    if let Some(id) = oauth_account_id {
+        values.push(id.into());
+        clauses.push(format!("{oauth_account_id_column} = ?{}", values.len()));
+    }
+
     let sql = if clauses.is_empty() {
         String::new()
     } else {
@@ -49,10 +57,12 @@ fn build_optional_range_filters_with_offset(
     created_at_column: &str,
     start_ts: Option<i64>,
     end_ts: Option<i64>,
+    oauth_account_id_column: Option<&str>,
+    oauth_account_id: Option<i64>,
     placeholder_offset: usize,
 ) -> (String, SqlValues) {
     let mut clauses = Vec::new();
-    let mut values: SqlValues = Vec::with_capacity(2);
+    let mut values: SqlValues = Vec::with_capacity(3);
 
     if let Some(ts) = start_ts {
         values.push(ts.into());
@@ -70,6 +80,11 @@ fn build_optional_range_filters_with_offset(
         ));
     }
 
+    if let (Some(column), Some(id)) = (oauth_account_id_column, oauth_account_id) {
+        values.push(id.into());
+        clauses.push(format!("{column} = ?{}", placeholder_offset + values.len()));
+    }
+
     let sql = if clauses.is_empty() {
         String::new()
     } else {
@@ -85,16 +100,38 @@ pub(super) fn leaderboard_v2_with_conn(
     start_ts: Option<i64>,
     end_ts: Option<i64>,
     cli_key: Option<&str>,
+    oauth_account_id: Option<i64>,
     limit: usize,
 ) -> Result<Vec<UsageLeaderboardRow>, String> {
     let effective_input_expr = SQL_EFFECTIVE_INPUT_TOKENS_EXPR;
     let effective_total_expr = sql_effective_total_tokens_expr();
-    let (where_clause, where_params) =
-        build_optional_range_cli_filters("created_at", "cli_key", start_ts, end_ts, cli_key);
-    let (provider_where_clause, provider_where_params) =
-        build_optional_range_cli_filters("r.created_at", "r.cli_key", start_ts, end_ts, cli_key);
+    let (where_clause, where_params) = build_optional_range_cli_filters(
+        "created_at",
+        "cli_key",
+        "oauth_account_id",
+        start_ts,
+        end_ts,
+        cli_key,
+        oauth_account_id,
+    );
+    let (provider_where_clause, provider_where_params) = build_optional_range_cli_filters(
+        "r.created_at",
+        "r.cli_key",
+        "r.oauth_account_id",
+        start_ts,
+        end_ts,
+        cli_key,
+        oauth_account_id,
+    );
     let (provider_fallback_where_clause, provider_fallback_range_params) =
-        build_optional_range_filters_with_offset("r.created_at", start_ts, end_ts, 2);
+        build_optional_range_filters_with_offset(
+            "r.created_at",
+            start_ts,
+            end_ts,
+            Some("r.oauth_account_id"),
+            oauth_account_id,
+            2,
+        );
 
     let mut out: Vec<UsageLeaderboardRow> = match scope {
         UsageScopeV2::Cli => {
@@ -566,6 +603,175 @@ LIMIT 1
 
             out
         }
+        UsageScopeV2::OAuthAccount => {
+            let effective_input_expr = sql_effective_input_tokens_expr_with_alias("r");
+            let effective_total_expr = sql_effective_total_tokens_expr_with_alias("r");
+
+            let sql = format!(
+                r#"
+SELECT
+  r.cli_key AS cli_key,
+  r.oauth_account_id AS oauth_account_id,
+  MAX(oa.label) AS oauth_label,
+  MAX(oa.email) AS oauth_email,
+  COUNT(*) AS requests_total,
+  SUM(CASE WHEN r.status >= 200 AND r.status < 300 AND r.error_code IS NULL THEN 1 ELSE 0 END) AS requests_success,
+  SUM(
+    CASE WHEN (
+      r.status IS NULL OR
+      r.status < 200 OR
+      r.status >= 300 OR
+      r.error_code IS NOT NULL
+    ) THEN 1 ELSE 0 END
+  ) AS requests_failed,
+  SUM({effective_total_expr}) AS total_tokens,
+  SUM({effective_input_expr}) AS input_tokens,
+  SUM(COALESCE(r.output_tokens, 0)) AS output_tokens,
+  SUM(COALESCE(r.cache_creation_input_tokens, 0)) AS cache_creation_input_tokens,
+  SUM(COALESCE(r.cache_read_input_tokens, 0)) AS cache_read_input_tokens,
+  SUM(COALESCE(r.cache_creation_5m_input_tokens, 0)) AS cache_creation_5m_input_tokens,
+  SUM(COALESCE(r.cache_creation_1h_input_tokens, 0)) AS cache_creation_1h_input_tokens,
+  SUM(
+    CASE WHEN (
+      r.status >= 200 AND r.status < 300 AND r.error_code IS NULL AND
+      r.cost_usd_femto IS NOT NULL AND r.cost_usd_femto > 0
+    ) THEN 1 ELSE 0 END
+  ) AS cost_covered_success,
+  SUM(
+    CASE WHEN (
+      r.status >= 200 AND r.status < 300 AND r.error_code IS NULL AND
+      r.cost_usd_femto IS NOT NULL AND r.cost_usd_femto > 0
+    ) THEN r.cost_usd_femto ELSE 0 END
+  ) AS total_cost_usd_femto,
+  SUM(CASE WHEN r.status >= 200 AND r.status < 300 AND r.error_code IS NULL THEN r.duration_ms ELSE 0 END) AS success_duration_ms_sum,
+  SUM(
+    CASE WHEN (
+      r.status >= 200 AND r.status < 300 AND r.error_code IS NULL AND
+      r.ttfb_ms IS NOT NULL AND
+      r.ttfb_ms < r.duration_ms
+    ) THEN r.ttfb_ms ELSE 0 END
+  ) AS success_ttfb_ms_sum,
+  SUM(
+    CASE WHEN (
+      r.status >= 200 AND r.status < 300 AND r.error_code IS NULL AND
+      r.ttfb_ms IS NOT NULL AND
+      r.ttfb_ms < r.duration_ms
+    ) THEN 1 ELSE 0 END
+  ) AS success_ttfb_ms_count,
+  SUM(
+    CASE WHEN (
+      r.status >= 200 AND r.status < 300 AND r.error_code IS NULL AND
+      r.output_tokens IS NOT NULL AND
+      r.ttfb_ms IS NOT NULL AND
+      r.ttfb_ms < r.duration_ms
+    ) THEN (r.duration_ms - r.ttfb_ms) ELSE 0 END
+  ) AS success_generation_ms_sum,
+  SUM(
+    CASE WHEN (
+      r.status >= 200 AND r.status < 300 AND r.error_code IS NULL AND
+      r.output_tokens IS NOT NULL AND
+      r.ttfb_ms IS NOT NULL AND
+      r.ttfb_ms < r.duration_ms
+    ) THEN r.output_tokens ELSE 0 END
+  ) AS success_output_tokens_for_rate_sum
+FROM request_logs r
+LEFT JOIN oauth_accounts oa ON oa.id = r.oauth_account_id
+WHERE r.excluded_from_stats = 0
+AND r.oauth_account_id IS NOT NULL
+AND r.oauth_account_id > 0
+{provider_where_clause}
+GROUP BY r.cli_key, r.oauth_account_id
+"#,
+                effective_input_expr = effective_input_expr,
+                effective_total_expr = effective_total_expr,
+                provider_where_clause = provider_where_clause
+            );
+
+            let mut stmt = conn
+                .prepare(&sql)
+                .map_err(|e| db_err!("failed to prepare oauth_account leaderboard query: {e}"))?;
+
+            let rows = stmt
+                .query_map(params_from_iter(provider_where_params.clone()), |row| {
+                    let cli_key: String = row.get("cli_key")?;
+                    let oauth_account_id: i64 = row.get("oauth_account_id")?;
+                    let oauth_label: Option<String> = row.get("oauth_label")?;
+                    let oauth_email: Option<String> = row.get("oauth_email")?;
+
+                    let agg = ProviderAgg {
+                        requests_total: row.get("requests_total")?,
+                        requests_success: row
+                            .get::<_, Option<i64>>("requests_success")?
+                            .unwrap_or(0),
+                        requests_failed: row.get::<_, Option<i64>>("requests_failed")?.unwrap_or(0),
+                        success_duration_ms_sum: row
+                            .get::<_, Option<i64>>("success_duration_ms_sum")?
+                            .unwrap_or(0),
+                        success_ttfb_ms_sum: row
+                            .get::<_, Option<i64>>("success_ttfb_ms_sum")?
+                            .unwrap_or(0),
+                        success_ttfb_ms_count: row
+                            .get::<_, Option<i64>>("success_ttfb_ms_count")?
+                            .unwrap_or(0),
+                        success_generation_ms_sum: row
+                            .get::<_, Option<i64>>("success_generation_ms_sum")?
+                            .unwrap_or(0),
+                        success_output_tokens_for_rate_sum: row
+                            .get::<_, Option<i64>>("success_output_tokens_for_rate_sum")?
+                            .unwrap_or(0),
+                        total_tokens: row.get::<_, Option<i64>>("total_tokens")?.unwrap_or(0),
+                        input_tokens: row.get::<_, Option<i64>>("input_tokens")?.unwrap_or(0),
+                        output_tokens: row.get::<_, Option<i64>>("output_tokens")?.unwrap_or(0),
+                        cache_creation_input_tokens: row
+                            .get::<_, Option<i64>>("cache_creation_input_tokens")?
+                            .unwrap_or(0),
+                        cache_read_input_tokens: row
+                            .get::<_, Option<i64>>("cache_read_input_tokens")?
+                            .unwrap_or(0),
+                        cache_creation_5m_input_tokens: row
+                            .get::<_, Option<i64>>("cache_creation_5m_input_tokens")?
+                            .unwrap_or(0),
+                        cache_creation_1h_input_tokens: row
+                            .get::<_, Option<i64>>("cache_creation_1h_input_tokens")?
+                            .unwrap_or(0),
+                        cost_covered_success: row
+                            .get::<_, Option<i64>>("cost_covered_success")?
+                            .unwrap_or(0),
+                        total_cost_usd_femto: row
+                            .get::<_, Option<i64>>("total_cost_usd_femto")?
+                            .unwrap_or(0),
+                    };
+
+                    Ok((cli_key, oauth_account_id, oauth_label, oauth_email, agg))
+                })
+                .map_err(|e| db_err!("failed to run oauth_account leaderboard query: {e}"))?;
+
+            let mut out = Vec::new();
+            for row in rows {
+                let (cli_key, oauth_account_id, oauth_label, oauth_email, agg) =
+                    row.map_err(|e| db_err!("failed to read oauth_account leaderboard row: {e}"))?;
+
+                let label = oauth_label
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                    .map(str::to_string)
+                    .unwrap_or_else(|| format!("OAuth #{oauth_account_id}"));
+                let email = oauth_email
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                    .map(str::to_string);
+                let name = match email {
+                    Some(email) => format!("{cli_key}/{label} ({email})"),
+                    None => format!("{cli_key}/{label}"),
+                };
+
+                out.push(agg.into_leaderboard_row(format!("{cli_key}:{oauth_account_id}"), name));
+            }
+
+            out
+        }
     };
 
     out.sort_by(|a, b| {
@@ -586,6 +792,7 @@ pub fn leaderboard_v2(
     start_ts: Option<i64>,
     end_ts: Option<i64>,
     cli_key: Option<&str>,
+    oauth_account_id: Option<i64>,
     limit: usize,
 ) -> crate::shared::error::AppResult<Vec<UsageLeaderboardRow>> {
     let conn = db.open_connection()?;
@@ -593,7 +800,14 @@ pub fn leaderboard_v2(
     let period = parse_period_v2(period)?;
     let (start_ts, end_ts) = compute_bounds_v2(&conn, period, start_ts, end_ts)?;
     let cli_key = normalize_cli_filter(cli_key)?;
+    let oauth_account_id = normalize_oauth_account_filter(oauth_account_id)?;
     Ok(leaderboard_v2_with_conn(
-        &conn, scope, start_ts, end_ts, cli_key, limit,
+        &conn,
+        scope,
+        start_ts,
+        end_ts,
+        cli_key,
+        oauth_account_id,
+        limit,
     )?)
 }

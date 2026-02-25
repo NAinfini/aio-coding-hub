@@ -248,7 +248,9 @@ describe("components/home/HomeRequestLogsPanel", () => {
     expect(onSelectLogId).toHaveBeenCalledWith(1);
 
     // spot-check some conditional text rendering paths
-    expect(screen.getAllByText("未知").length).toBeGreaterThan(0);
+    // "未知" appears for: log1 final_provider "Unknown"→"未知", log2 model " "→"未知", log2 provider final≠start→"P2"
+    // At minimum the first log's provider and second log's model render "未知"
+    expect(screen.getAllByText("未知").length).toBe(2);
     expect(screen.getByText("链路[降级*2]")).toBeInTheDocument();
     expect(screen.getByText("会话复用")).toBeInTheDocument();
 
@@ -274,7 +276,8 @@ describe("components/home/HomeRequestLogsPanel", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getAllByText("仅在 Tauri Desktop 环境可用").length).toBeGreaterThan(0);
+    // Rendered once in the status text area and once in the list fallback
+    expect(screen.getAllByText("仅在 Tauri Desktop 环境可用")).toHaveLength(2);
     expect(screen.getByRole("button", { name: "刷新" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "日志" })).toBeDisabled();
   });
@@ -352,7 +355,8 @@ describe("components/home/HomeRequestLogsPanel", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getAllByText("加载中…").length).toBeGreaterThan(0);
+    // "加载中…" appears in both the status text and the empty-list spinner
+    expect(screen.getAllByText("加载中…")).toHaveLength(2);
   });
 
   it("renders rich tooltip with attempt counts for failover routes", async () => {
@@ -438,9 +442,66 @@ describe("components/home/HomeRequestLogsPanel", () => {
     await waitFor(() => expect(screen.getAllByText("ProvA").length).toBeGreaterThanOrEqual(2));
     // ProvB 同时出现在卡片 provider 区域和 tooltip 中
     await waitFor(() => expect(screen.getAllByText("ProvB").length).toBeGreaterThanOrEqual(2));
-    // 失败3次的标签
-    await waitFor(() => expect(screen.getAllByText("失败3次").length).toBeGreaterThan(0));
-    // 成功的标签
-    await waitFor(() => expect(screen.getAllByText("成功").length).toBeGreaterThan(0));
+    // 失败3次 and 成功 labels appear inside the tooltip detail rows
+    await waitFor(() => expect(screen.getByText("失败3次")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("成功")).toBeInTheDocument());
+  });
+
+  it("falls back to zero stats for completed logs with missing usage fields", () => {
+    const requestLogs: RequestLogSummary[] = [
+      {
+        id: 30,
+        trace_id: "t30",
+        cli_key: "codex",
+        method: "POST",
+        path: "/v1/responses",
+        requested_model: "gpt-5.3-codex",
+        status: 502,
+        error_code: null,
+        duration_ms: 2,
+        ttfb_ms: null,
+        attempt_count: 1,
+        has_failover: false,
+        start_provider_id: 1,
+        start_provider_name: "robin",
+        final_provider_id: 1,
+        final_provider_name: "robin",
+        route: [{ provider_id: 1, provider_name: "robin", ok: false, status: 502 }],
+        session_reuse: false,
+        input_tokens: null,
+        output_tokens: null,
+        total_tokens: null,
+        cache_read_input_tokens: null,
+        cache_creation_input_tokens: null,
+        cache_creation_5m_input_tokens: null,
+        cache_creation_1h_input_tokens: null,
+        cost_usd: null,
+        cost_multiplier: 1,
+        created_at_ms: null,
+        created_at: Math.floor(Date.now() / 1000),
+      },
+    ];
+
+    render(
+      <MemoryRouter>
+        <HomeRequestLogsPanel
+          showCustomTooltip={false}
+          traces={[]}
+          requestLogs={requestLogs}
+          requestLogsLoading={false}
+          requestLogsRefreshing={false}
+          requestLogsAvailable={true}
+          onRefreshRequestLogs={vi.fn()}
+          selectedLogId={null}
+          onSelectLogId={vi.fn()}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText("$0")).toBeInTheDocument();
+    expect(screen.getByText("0.0 t/s")).toBeInTheDocument();
+    // null tokens with completed status → "0" for input and output columns
+    expect(screen.getAllByText("0")).toHaveLength(2);
+    expect(screen.getByText("N/A")).toBeInTheDocument();
   });
 });

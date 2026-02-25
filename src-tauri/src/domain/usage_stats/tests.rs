@@ -13,10 +13,18 @@ fn setup_conn() -> Connection {
 	  name TEXT NOT NULL
 	);
 
+	CREATE TABLE oauth_accounts (
+	  id INTEGER PRIMARY KEY,
+	  cli_key TEXT NOT NULL,
+	  label TEXT NOT NULL,
+	  email TEXT
+	);
+
 	CREATE TABLE request_logs (
 	  cli_key TEXT NOT NULL,
 	  attempts_json TEXT NOT NULL,
 	  final_provider_id INTEGER,
+	  oauth_account_id INTEGER,
 	  requested_model TEXT,
 	  status INTEGER,
 	  error_code TEXT,
@@ -190,7 +198,7 @@ INSERT INTO request_logs (
     )
     .expect("insert claude");
 
-    let summary = summary_query(&conn, None, None, None).expect("summary_query");
+    let summary = summary_query(&conn, None, None, None, None).expect("summary_query");
     assert_eq!(summary.requests_total, 3);
     assert_eq!(summary.input_tokens, 520);
     assert_eq!(summary.output_tokens, 60);
@@ -199,7 +207,7 @@ INSERT INTO request_logs (
     assert_eq!(summary.cache_creation_input_tokens, 25);
     assert_eq!(summary.total_tokens, 725);
 
-    let rows = leaderboard_v2_with_conn(&conn, UsageScopeV2::Provider, None, None, None, 50)
+    let rows = leaderboard_v2_with_conn(&conn, UsageScopeV2::Provider, None, None, None, None, 50)
         .expect("leaderboard_v2_with_conn");
     assert_eq!(rows.len(), 3);
 
@@ -233,7 +241,7 @@ INSERT INTO request_logs (
     assert_eq!(claude.total_tokens, 395);
     assert_eq!(claude.cost_usd, None);
 
-    let rows = leaderboard_v2_with_conn(&conn, UsageScopeV2::Cli, None, None, None, 50)
+    let rows = leaderboard_v2_with_conn(&conn, UsageScopeV2::Cli, None, None, None, None, 50)
         .expect("leaderboard_v2_with_conn cli");
     let by_key: std::collections::HashMap<String, UsageLeaderboardRow> =
         rows.into_iter().map(|row| (row.key.clone(), row)).collect();
@@ -247,7 +255,7 @@ INSERT INTO request_logs (
     );
     assert_eq!(by_key.get("claude").expect("claude cli row").cost_usd, None);
 
-    let rows = leaderboard_v2_with_conn(&conn, UsageScopeV2::Model, None, None, None, 50)
+    let rows = leaderboard_v2_with_conn(&conn, UsageScopeV2::Model, None, None, None, None, 50)
         .expect("leaderboard_v2_with_conn model");
     let by_key: std::collections::HashMap<String, UsageLeaderboardRow> =
         rows.into_iter().map(|row| (row.key.clone(), row)).collect();
@@ -305,7 +313,7 @@ INSERT INTO request_logs (
         .expect("insert request log");
     }
 
-    let rows = leaderboard_v2_with_conn(&conn, UsageScopeV2::Provider, None, None, None, 50)
+    let rows = leaderboard_v2_with_conn(&conn, UsageScopeV2::Provider, None, None, None, None, 50)
         .expect("leaderboard_v2_with_conn provider");
 
     let keys: std::collections::HashSet<&str> = rows.iter().map(|row| row.key.as_str()).collect();
@@ -319,6 +327,113 @@ INSERT INTO request_logs (
     assert_eq!(row.requests_total, 2);
     assert_eq!(row.requests_success, 2);
     assert_eq!(row.requests_failed, 0);
+}
+
+#[test]
+fn v2_summary_and_oauth_account_scope_support_oauth_account_filtering() {
+    let conn = setup_conn();
+
+    conn.execute(
+        r#"INSERT INTO oauth_accounts (id, cli_key, label, email) VALUES (?1, ?2, ?3, ?4);"#,
+        params![10, "claude", "Work", "work@example.com"],
+    )
+    .expect("insert oauth account 10");
+    conn.execute(
+        r#"INSERT INTO oauth_accounts (id, cli_key, label, email) VALUES (?1, ?2, ?3, ?4);"#,
+        params![11, "claude", "Personal", Option::<String>::None],
+    )
+    .expect("insert oauth account 11");
+
+    conn.execute(
+        r#"
+INSERT INTO request_logs (
+  cli_key,
+  attempts_json,
+  final_provider_id,
+  oauth_account_id,
+  status,
+  error_code,
+  duration_ms,
+  input_tokens,
+  output_tokens,
+  total_tokens,
+  created_at
+) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11);
+        "#,
+        params![
+            "claude",
+            r#"[{"provider_id":1,"provider_name":"Claude OAuth A","outcome":"success"}]"#,
+            1,
+            10,
+            200,
+            Option::<String>::None,
+            1000,
+            100,
+            20,
+            120,
+            1000
+        ],
+    )
+    .expect("insert request log account 10");
+    conn.execute(
+        r#"
+INSERT INTO request_logs (
+  cli_key,
+  attempts_json,
+  final_provider_id,
+  oauth_account_id,
+  status,
+  error_code,
+  duration_ms,
+  input_tokens,
+  output_tokens,
+  total_tokens,
+  created_at
+) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11);
+        "#,
+        params![
+            "claude",
+            r#"[{"provider_id":2,"provider_name":"Claude OAuth B","outcome":"success"}]"#,
+            2,
+            11,
+            200,
+            Option::<String>::None,
+            1200,
+            60,
+            10,
+            70,
+            1001
+        ],
+    )
+    .expect("insert request log account 11");
+
+    let summary_all = summary_query(&conn, None, None, None, None).expect("summary all");
+    assert_eq!(summary_all.requests_total, 2);
+    assert_eq!(summary_all.input_tokens, 160);
+
+    let summary_account_10 =
+        summary_query(&conn, None, None, Some("claude"), Some(10)).expect("summary account 10");
+    assert_eq!(summary_account_10.requests_total, 1);
+    assert_eq!(summary_account_10.input_tokens, 100);
+    assert_eq!(summary_account_10.output_tokens, 20);
+
+    let rows = leaderboard_v2_with_conn(
+        &conn,
+        UsageScopeV2::OAuthAccount,
+        None,
+        None,
+        Some("claude"),
+        Some(10),
+        50,
+    )
+    .expect("oauth account leaderboard");
+
+    assert_eq!(rows.len(), 1);
+    let row = &rows[0];
+    assert_eq!(row.key, "claude:10");
+    assert_eq!(row.name, "claude/Work (work@example.com)");
+    assert_eq!(row.requests_total, 1);
+    assert_eq!(row.input_tokens, 100);
 }
 
 #[test]

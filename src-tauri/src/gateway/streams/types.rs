@@ -28,6 +28,7 @@ pub(in crate::gateway) struct StreamFinalizeCtx {
     pub(in crate::gateway) attempts: Vec<FailoverAttempt>,
     pub(in crate::gateway) attempts_json: String,
     pub(in crate::gateway) requested_model: Option<String>,
+    pub(in crate::gateway) oauth_account_id: Option<i64>,
     pub(in crate::gateway) created_at_ms: i64,
     pub(in crate::gateway) created_at: i64,
     pub(in crate::gateway) provider_cooldown_secs: i64,

@@ -25,6 +25,8 @@ CREATE TABLE IF NOT EXISTS providers (
   name TEXT NOT NULL,
   base_url TEXT NOT NULL,
   api_key_plaintext TEXT NOT NULL,
+  auth_mode TEXT NOT NULL DEFAULT 'api_key',
+  oauth_account_id INTEGER,
   enabled INTEGER NOT NULL DEFAULT 1,
   priority INTEGER NOT NULL DEFAULT 100,
   created_at INTEGER NOT NULL,
@@ -69,7 +71,8 @@ CREATE TABLE IF NOT EXISTS request_logs (
   special_settings_json TEXT,
   created_at_ms INTEGER NOT NULL DEFAULT 0,
   session_id TEXT,
-  final_provider_id INTEGER
+  final_provider_id INTEGER,
+  oauth_account_id INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS idx_request_logs_cli_created_at ON request_logs(cli_key, created_at);
@@ -79,6 +82,36 @@ CREATE INDEX IF NOT EXISTS idx_request_logs_created_at_ms ON request_logs(create
 CREATE INDEX IF NOT EXISTS idx_request_logs_cli_created_at_ms ON request_logs(cli_key, created_at_ms);
 CREATE INDEX IF NOT EXISTS idx_request_logs_session_id ON request_logs(session_id);
 CREATE INDEX IF NOT EXISTS idx_request_logs_final_provider_id_created_at ON request_logs(final_provider_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_request_logs_oauth_account ON request_logs(oauth_account_id, created_at);
+
+CREATE TABLE IF NOT EXISTS oauth_accounts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  cli_key TEXT NOT NULL,
+  label TEXT NOT NULL,
+  email TEXT,
+  provider_type TEXT NOT NULL,
+  access_token TEXT NOT NULL,
+  refresh_token TEXT,
+  id_token TEXT,
+  token_uri TEXT,
+  client_id TEXT,
+  client_secret TEXT,
+  expires_at INTEGER,
+  refresh_lead_s INTEGER NOT NULL DEFAULT 3600,
+  status TEXT NOT NULL DEFAULT 'active',
+  last_error TEXT,
+  refresh_success_count INTEGER NOT NULL DEFAULT 0,
+  refresh_failure_count INTEGER NOT NULL DEFAULT 0,
+  last_refreshed_at INTEGER,
+  quota_exceeded INTEGER NOT NULL DEFAULT 0,
+  quota_recover_at INTEGER,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  UNIQUE(cli_key, label)
+);
+
+CREATE INDEX IF NOT EXISTS idx_oauth_accounts_cli_key ON oauth_accounts(cli_key);
+CREATE INDEX IF NOT EXISTS idx_oauth_accounts_status ON oauth_accounts(status);
 
 CREATE TABLE IF NOT EXISTS prompts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

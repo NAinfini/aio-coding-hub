@@ -16,6 +16,8 @@ export type ProviderSummary = {
   name: string;
   base_urls: string[];
   base_url_mode: "order" | "ping";
+  auth_mode?: "api_key" | "oauth";
+  oauth_account_id?: number | null;
   claude_models: ClaudeModels;
   enabled: boolean;
   priority: number;
@@ -42,6 +44,8 @@ export async function providerUpsert(input: {
   name: string;
   base_urls: string[];
   base_url_mode: "order" | "ping";
+  auth_mode?: "api_key" | "oauth" | null;
+  oauth_account_id?: number | null;
   api_key?: string | null;
   enabled: boolean;
   cost_multiplier: number;
@@ -62,6 +66,8 @@ export async function providerUpsert(input: {
     name: input.name,
     baseUrls: input.base_urls,
     baseUrlMode: input.base_url_mode,
+    authMode: input.auth_mode ?? null,
+    oauthAccountId: input.oauth_account_id ?? null,
     apiKey: input.api_key ?? null,
     enabled: input.enabled,
     costMultiplier: input.cost_multiplier,

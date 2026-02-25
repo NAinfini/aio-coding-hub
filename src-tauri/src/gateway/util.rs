@@ -425,13 +425,19 @@ pub(super) fn inject_provider_auth(cli_key: &str, api_key: &str, headers: &mut H
             let oauth_access_token = if trimmed.starts_with("ya29.") {
                 Some(trimmed.to_string())
             } else if trimmed.starts_with('{') {
-                serde_json::from_str::<serde_json::Value>(trimmed)
+                let from_json = serde_json::from_str::<serde_json::Value>(trimmed)
                     .ok()
                     .and_then(|v| {
                         v.get("access_token")
                             .and_then(|v| v.as_str())
                             .map(str::to_string)
-                    })
+                    });
+                if from_json.is_some() {
+                    tracing::warn!(
+                        "gemini auth token resolved from legacy json blob; prefer storing raw ya29.* access token"
+                    );
+                }
+                from_json
             } else {
                 None
             };

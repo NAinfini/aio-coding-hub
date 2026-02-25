@@ -36,9 +36,9 @@ describe("query/usage", () => {
     const wrapper = createQueryWrapper(client);
 
     renderHook(() => useUsageHourlySeriesQuery(7), { wrapper });
-    await Promise.resolve();
 
-    expect(usageHourlySeries).not.toHaveBeenCalled();
+    // Query is disabled without tauri runtime — service should never fire
+    await waitFor(() => expect(usageHourlySeries).not.toHaveBeenCalled());
   });
 
   it("calls usageHourlySeries with tauri runtime", async () => {
@@ -78,9 +78,8 @@ describe("query/usage", () => {
     const wrapper = createQueryWrapper(client);
 
     renderHook(() => useUsageHourlySeriesQuery(7, { enabled: false }), { wrapper });
-    await Promise.resolve();
 
-    expect(usageHourlySeries).not.toHaveBeenCalled();
+    await waitFor(() => expect(usageHourlySeries).not.toHaveBeenCalled());
   });
 
   it("does not call usageSummary without tauri runtime", async () => {
@@ -88,9 +87,8 @@ describe("query/usage", () => {
     const wrapper = createQueryWrapper(client);
 
     renderHook(() => useUsageSummaryQuery("today", { cliKey: null }), { wrapper });
-    await Promise.resolve();
 
-    expect(usageSummary).not.toHaveBeenCalled();
+    await waitFor(() => expect(usageSummary).not.toHaveBeenCalled());
   });
 
   it("calls usageSummary with tauri runtime and respects options.enabled + refetchIntervalMs branches", async () => {
@@ -123,9 +121,8 @@ describe("query/usage", () => {
     renderHook(() => useUsageSummaryQuery("today", { cliKey: "claude" }, { enabled: false }), {
       wrapper,
     });
-    await Promise.resolve();
 
-    expect(usageSummary).not.toHaveBeenCalled();
+    await waitFor(() => expect(usageSummary).not.toHaveBeenCalled());
   });
 
   it("calls usageSummaryV2 with tauri runtime", async () => {
@@ -136,15 +133,25 @@ describe("query/usage", () => {
     const client = createTestQueryClient();
     const wrapper = createQueryWrapper(client);
 
-    renderHook(() => useUsageSummaryV2Query("daily", { startTs: 1, endTs: 2, cliKey: "claude" }), {
-      wrapper,
-    });
+    renderHook(
+      () =>
+        useUsageSummaryV2Query("daily", {
+          startTs: 1,
+          endTs: 2,
+          cliKey: "claude",
+          oauthAccountId: 7,
+        }),
+      {
+        wrapper,
+      }
+    );
 
     await waitFor(() => {
       expect(usageSummaryV2).toHaveBeenCalledWith("daily", {
         startTs: 1,
         endTs: 2,
         cliKey: "claude",
+        oauthAccountId: 7,
       });
     });
   });
@@ -159,14 +166,13 @@ describe("query/usage", () => {
       () =>
         useUsageSummaryV2Query(
           "daily",
-          { startTs: 1, endTs: 2, cliKey: "claude" },
+          { startTs: 1, endTs: 2, cliKey: "claude", oauthAccountId: null },
           { enabled: false }
         ),
       { wrapper }
     );
-    await Promise.resolve();
 
-    expect(usageSummaryV2).not.toHaveBeenCalled();
+    await waitFor(() => expect(usageSummaryV2).not.toHaveBeenCalled());
   });
 
   it("calls usageLeaderboardV2 with tauri runtime", async () => {
@@ -183,6 +189,7 @@ describe("query/usage", () => {
           startTs: 1,
           endTs: 2,
           cliKey: "claude",
+          oauthAccountId: 7,
           limit: 10,
         }),
       { wrapper }
@@ -193,6 +200,7 @@ describe("query/usage", () => {
         startTs: 1,
         endTs: 2,
         cliKey: "claude",
+        oauthAccountId: 7,
         limit: 10,
       });
     });
@@ -213,15 +221,15 @@ describe("query/usage", () => {
             startTs: 1,
             endTs: 2,
             cliKey: "claude",
+            oauthAccountId: null,
             limit: 10,
           },
           { enabled: false }
         ),
       { wrapper }
     );
-    await Promise.resolve();
 
-    expect(usageLeaderboardV2).not.toHaveBeenCalled();
+    await waitFor(() => expect(usageLeaderboardV2).not.toHaveBeenCalled());
   });
 
   it("calls usageProviderCacheRateTrendV1 with tauri runtime", async () => {
@@ -273,8 +281,7 @@ describe("query/usage", () => {
         ),
       { wrapper }
     );
-    await Promise.resolve();
 
-    expect(usageProviderCacheRateTrendV1).not.toHaveBeenCalled();
+    await waitFor(() => expect(usageProviderCacheRateTrendV1).not.toHaveBeenCalled());
   });
 });

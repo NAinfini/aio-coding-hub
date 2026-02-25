@@ -2,7 +2,7 @@ import { invokeService } from "./invokeServiceCommand";
 import type { CliKey } from "./providers";
 
 export type UsageRange = "today" | "last7" | "last30" | "month" | "all";
-export type UsageScope = "cli" | "provider" | "model";
+export type UsageScope = "cli" | "provider" | "model" | "oauth_account";
 export type UsagePeriod = "daily" | "weekly" | "monthly" | "allTime" | "custom";
 
 export type UsageSummary = {
@@ -128,20 +128,32 @@ export async function usageHourlySeries(days: number) {
 
 export async function usageSummaryV2(
   period: UsagePeriod,
-  input?: { startTs?: number | null; endTs?: number | null; cliKey?: CliKey | null }
+  input?: {
+    startTs?: number | null;
+    endTs?: number | null;
+    cliKey?: CliKey | null;
+    oauthAccountId?: number | null;
+  }
 ) {
   return invokeService<UsageSummary>("读取用量汇总失败", "usage_summary_v2", {
     period,
     startTs: input?.startTs ?? null,
     endTs: input?.endTs ?? null,
     cliKey: input?.cliKey ?? null,
+    oauthAccountId: input?.oauthAccountId ?? null,
   });
 }
 
 export async function usageLeaderboardV2(
   scope: UsageScope,
   period: UsagePeriod,
-  input?: { startTs?: number | null; endTs?: number | null; cliKey?: CliKey | null; limit?: number }
+  input?: {
+    startTs?: number | null;
+    endTs?: number | null;
+    cliKey?: CliKey | null;
+    oauthAccountId?: number | null;
+    limit?: number;
+  }
 ) {
   return invokeService<UsageLeaderboardRow[]>("读取用量排行榜失败", "usage_leaderboard_v2", {
     scope,
@@ -149,6 +161,7 @@ export async function usageLeaderboardV2(
     startTs: input?.startTs ?? null,
     endTs: input?.endTs ?? null,
     cliKey: input?.cliKey ?? null,
+    oauthAccountId: input?.oauthAccountId ?? null,
     limit: input?.limit,
   });
 }

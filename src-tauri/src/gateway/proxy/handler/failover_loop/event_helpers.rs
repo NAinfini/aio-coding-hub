@@ -25,6 +25,7 @@ pub(super) async fn emit_attempt_event_and_log(
         provider_base_url_base,
         provider_index: _,
         session_reuse,
+        ..
     } = provider_ctx;
     let AttemptCtx {
         attempt_index,

@@ -8,6 +8,7 @@ import {
   gatewayKeys,
   mcpKeys,
   modelPricesKeys,
+  oauthAccountsKeys,
   promptsKeys,
   providersKeys,
   requestLogsKeys,
@@ -25,6 +26,13 @@ describe("query/keys", () => {
     expect(providersKeys.all).toEqual(["providers"]);
     expect(providersKeys.lists()).toEqual(["providers", "list"]);
     expect(providersKeys.list("claude")).toEqual(["providers", "list", "claude"]);
+  });
+
+  it("builds oauth account keys", () => {
+    expect(oauthAccountsKeys.all).toEqual(["oauthAccounts"]);
+    expect(oauthAccountsKeys.lists()).toEqual(["oauthAccounts", "list"]);
+    expect(oauthAccountsKeys.list("claude")).toEqual(["oauthAccounts", "list", "claude"]);
+    expect(oauthAccountsKeys.fetchedLimits()).toEqual(["oauthAccounts", "fetchedLimits"]);
   });
 
   it("builds gateway keys", () => {
@@ -58,22 +66,23 @@ describe("query/keys", () => {
   it("builds usage keys", () => {
     expect(usageKeys.all).toEqual(["usage"]);
     expect(usageKeys.hourlySeries(7)).toEqual(["usage", "hourlySeries", 7]);
-    expect(usageKeys.summaryV2("daily", { startTs: 1, endTs: 2, cliKey: "claude" })).toEqual([
-      "usage",
-      "summaryV2",
-      "daily",
-      1,
-      2,
-      "claude",
-    ]);
+    expect(
+      usageKeys.summaryV2("daily", {
+        startTs: 1,
+        endTs: 2,
+        cliKey: "claude",
+        oauthAccountId: 8,
+      })
+    ).toEqual(["usage", "summaryV2", "daily", 1, 2, "claude", 8]);
     expect(
       usageKeys.leaderboardV2("provider", "weekly", {
         startTs: 1,
         endTs: 2,
         cliKey: "claude",
+        oauthAccountId: 8,
         limit: 10,
       })
-    ).toEqual(["usage", "leaderboardV2", "provider", "weekly", 1, 2, "claude", 10]);
+    ).toEqual(["usage", "leaderboardV2", "provider", "weekly", 1, 2, "claude", 8, 10]);
   });
 
   it("builds cost keys", () => {

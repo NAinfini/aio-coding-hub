@@ -63,6 +63,7 @@ pub(super) fn emit_request_event_and_spawn_request_log(
             ttfb_ms,
             attempts_json: ctx.attempts_json.clone(),
             requested_model,
+            oauth_account_id: ctx.oauth_account_id,
             created_at_ms: ctx.created_at_ms,
             created_at: ctx.created_at,
             usage_metrics: None,

@@ -384,13 +384,13 @@ export function SessionsProjectPage() {
                       }}
                       className="px-1 pb-2"
                     >
-                      <div
+                      <button
+                        type="button"
                         className={cn(
                           "rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-card transition",
                           "hover:border-slate-300 hover:bg-slate-50",
                           "dark:border-slate-700 dark:bg-slate-900/40 dark:hover:border-slate-600 dark:hover:bg-slate-900/60"
                         )}
-                        role="button"
                         tabIndex={0}
                         onClick={() =>
                           navigate(
@@ -464,7 +464,7 @@ export function SessionsProjectPage() {
                             </Button>
                           </div>
                         </div>
-                      </div>
+                      </button>
                     </div>
                   );
                 })}

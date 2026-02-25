@@ -165,7 +165,7 @@ export function SessionsPage() {
         />
       ) : (
         <div className="grid gap-4 lg:flex-1 lg:min-h-0 lg:grid-cols-[360px_1fr] lg:items-stretch lg:overflow-hidden">
-          <Card padding="sm" className="flex flex-col lg:min-h-0">
+          <Card padding="sm" className="flex flex-col lg:min-h-0 lg:flex-1">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">

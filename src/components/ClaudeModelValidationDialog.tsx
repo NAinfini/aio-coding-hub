@@ -3165,7 +3165,7 @@ export function ClaudeModelValidationDialog({
 
       {confirmClearOpen && typeof document !== "undefined"
         ? createPortal(
-            <div className="fixed inset-0 z-[60]">
+            <div className="fixed inset-0 z-[60] pointer-events-auto">
               <div
                 className="absolute inset-0 bg-black/40"
                 onClick={() => {

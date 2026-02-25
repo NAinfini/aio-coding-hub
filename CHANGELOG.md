@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.30.3](https://github.com/dyndynjyxa/aio-coding-hub/compare/aio-coding-hub-v0.30.2...aio-coding-hub-v0.30.3) (2026-02-25)
+
+
+### Features
+
+* **cli-sessions:** P0批次1 - 安全校验/React Query/Router state/虚拟化依赖 ([53c9d43](https://github.com/dyndynjyxa/aio-coding-hub/commit/53c9d4320566b03ff5e655ad2442d46a67f77572))
+* **cli-sessions:** P0批次2 - 应用安全校验和状态管理重构 ([2dd098f](https://github.com/dyndynjyxa/aio-coding-hub/commit/2dd098fd39d0d45040b83a0cbd80cb13d4a29352))
+* **cli-sessions:** P0批次3 - 三个列表虚拟化 ([d48fccd](https://github.com/dyndynjyxa/aio-coding-hub/commit/d48fccd775086bd11c6cf01147fedf0a3c44e86a))
+* **cli-sessions:** P1批次 - 布局一致性和Shell转义安全 ([84723f3](https://github.com/dyndynjyxa/aio-coding-hub/commit/84723f377e5088d2f80574be84e6fa819038bb36))
+* **codex:** add multi_agent feature toggle ([f56a201](https://github.com/dyndynjyxa/aio-coding-hub/commit/f56a2016bb535812e1a00edb0056e0faa6f44957))
+
+
+### Bug Fixes
+
+* **cli-sessions:** 修复SessionsPage Card容器flex布局 ([2d2a048](https://github.com/dyndynjyxa/aio-coding-hub/commit/2d2a0481f9811160223f9753d6edec5a28dcfc6c))
+* **components:** 修复ClaudeModelValidationDialog点击事件阻塞问题 ([9bd5f53](https://github.com/dyndynjyxa/aio-coding-hub/commit/9bd5f53f38d01fc312b979e3620b5e0badaba585))
+* **sessions:** 剥离替换字符并调整按钮样式 ([3586a16](https://github.com/dyndynjyxa/aio-coding-hub/commit/3586a165ceb8ba3afc42a34fdf4228c71b18cce5))
+* 修复clippy redundant_pattern_matching警告 ([b0274a6](https://github.com/dyndynjyxa/aio-coding-hub/commit/b0274a663396a2958e470e2167933470bf34a70a))
+
 ## [0.30.2](https://github.com/dyndynjyxa/aio-coding-hub/compare/aio-coding-hub-v0.30.1...aio-coding-hub-v0.30.2) (2026-02-23)
 
 

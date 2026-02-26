@@ -310,9 +310,8 @@ fn insert_batch_once(
 		  cost_multiplier,
 		  created_at_ms,
 		  created_at,
-		  final_provider_id,
-		  oauth_account_id
-		) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28)
+		  final_provider_id
+		) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27)
 		ON CONFLICT(trace_id) DO UPDATE SET
 		  method = excluded.method,
 		  path = excluded.path,
@@ -341,8 +340,7 @@ fn insert_batch_once(
 		    ELSE request_logs.created_at_ms
 		  END,
 		  created_at = CASE WHEN request_logs.created_at = 0 THEN excluded.created_at ELSE request_logs.created_at END,
-		  final_provider_id = excluded.final_provider_id,
-		  oauth_account_id = excluded.oauth_account_id
+		  final_provider_id = excluded.final_provider_id
 		"#,
             )
             .map_err(|e| DbWriteError::from_rusqlite("failed to prepare insert", e))?;
@@ -465,8 +463,7 @@ fn insert_batch_once(
                 cost_multiplier,
                 item.created_at_ms,
                 item.created_at,
-                final_provider_id_db,
-                item.oauth_account_id
+                final_provider_id_db
             ])
             .map_err(|e| DbWriteError::from_rusqlite("failed to insert request_log", e))?;
         }

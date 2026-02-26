@@ -2,7 +2,6 @@ mod codex_session_id;
 mod events;
 pub(crate) mod listen;
 mod manager;
-pub(crate) mod oauth;
 mod proxy;
 mod response_fixer;
 mod routes;

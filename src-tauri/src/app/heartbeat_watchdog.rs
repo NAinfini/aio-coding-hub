@@ -12,6 +12,8 @@ use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{Emitter, Manager};
 
+use crate::shared::error::AppError;
+
 const MAIN_WINDOW_LABEL: &str = "main";
 
 const HEARTBEAT_EVENT: &str = "app:heartbeat";
@@ -249,20 +251,53 @@ async fn check_and_recover_if_needed(app: &tauri::AppHandle) {
     }
 }
 
-async fn attempt_reload(
-    window: &tauri::WebviewWindow,
-) -> Result<(), crate::shared::error::AppError> {
-    if window.eval("window.location.reload()").is_ok() {
+async fn attempt_reload(window: &tauri::WebviewWindow) -> Result<(), AppError> {
+    let mut errors: Vec<(&'static str, String)> = Vec::new();
+
+    if let Err(err) = window.reload() {
+        errors.push(("webview.reload", err.to_string()));
+    } else {
         return Ok(());
     }
 
-    let url = window.url().map(|u| u.to_string()).unwrap_or_default();
-    let url_literal = serde_json::to_string(&url).unwrap_or_else(|_| "\"\"".to_string());
-    let js = format!("window.location.href = {url_literal};");
-    window
-        .eval(js)
-        .map_err(|e| crate::shared::error::AppError::from(e.to_string()))?;
-    Ok(())
+    let url_string = match window.url() {
+        Ok(url) => {
+            let url_string = url.to_string();
+            if let Err(err) = window.navigate(url) {
+                errors.push(("webview.navigate", err.to_string()));
+            } else {
+                return Ok(());
+            }
+            Some(url_string)
+        }
+        Err(err) => {
+            errors.push(("webview.url", err.to_string()));
+            None
+        }
+    };
+
+    if let Err(err) = window.eval("window.location.reload()") {
+        errors.push(("eval.reload", err.to_string()));
+    } else {
+        return Ok(());
+    }
+
+    if let Some(url) = url_string {
+        let url_literal = serde_json::to_string(&url).unwrap_or_else(|_| "\"\"".to_string());
+        let js = format!("window.location.href = {url_literal};");
+        if let Err(err) = window.eval(js) {
+            errors.push(("eval.href", err.to_string()));
+        } else {
+            return Ok(());
+        }
+    }
+
+    let details = errors
+        .into_iter()
+        .map(|(label, err)| format!("{label}: {err}"))
+        .collect::<Vec<_>>()
+        .join(" | ");
+    Err(AppError::new("WEBVIEW_RECOVERY_FAILED", details))
 }
 
 fn recovery_gate(now_unix_ms: u64, snapshot: WatchdogSnapshot) -> RecoveryGate {

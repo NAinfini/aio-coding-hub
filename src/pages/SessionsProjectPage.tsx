@@ -391,10 +391,10 @@ export function SessionsProjectPage() {
                       }}
                       className="px-1 pb-2"
                     >
-                      <button
-                        type="button"
+                      <div
+                        role="button"
                         className={cn(
-                          "w-full text-left rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-card transition",
+                          "w-full cursor-pointer text-left rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-card transition",
                           "hover:border-slate-300 hover:bg-slate-50",
                           "dark:border-slate-700 dark:bg-slate-900/40 dark:hover:border-slate-600 dark:hover:bg-slate-900/60"
                         )}
@@ -406,7 +406,9 @@ export function SessionsProjectPage() {
                           )
                         }
                         onKeyDown={(e) => {
+                          if (e.target !== e.currentTarget) return;
                           if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
                             navigate(
                               `/sessions/${source}/${encodeURIComponent(projectId)}/session/${encodeURIComponent(session.file_path)}`,
                               { state: { session } }
@@ -471,7 +473,7 @@ export function SessionsProjectPage() {
                             </Button>
                           </div>
                         </div>
-                      </button>
+                      </div>
                     </div>
                   );
                 })}

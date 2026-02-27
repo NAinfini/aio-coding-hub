@@ -1,18 +1,12 @@
-import { renderHook } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { renderHook, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestQueryClient, createQueryWrapper } from "../../test/utils/reactQuery";
 import { setTauriRuntime, clearTauriRuntime } from "../../test/utils/tauriRuntime";
 
 vi.mock("../../services/cliSessions", () => ({
-  cliSessionsProjectsList: vi.fn().mockResolvedValue([]),
-  cliSessionsSessionsList: vi.fn().mockResolvedValue([]),
-  cliSessionsMessagesGet: vi.fn().mockResolvedValue({
-    messages: [],
-    total: 0,
-    page: 0,
-    page_size: 50,
-    has_more: false,
-  }),
+  cliSessionsProjectsList: vi.fn(),
+  cliSessionsSessionsList: vi.fn(),
+  cliSessionsMessagesGet: vi.fn(),
 }));
 
 import {
@@ -20,30 +14,50 @@ import {
   useCliSessionsSessionsListQuery,
   useCliSessionsMessagesInfiniteQuery,
 } from "../cliSessions";
+import {
+  cliSessionsMessagesGet,
+  cliSessionsProjectsList,
+  cliSessionsSessionsList,
+} from "../../services/cliSessions";
 
 describe("query/cliSessions", () => {
-  it("useCliSessionsProjectsListQuery renders", () => {
+  beforeEach(() => {
+    vi.mocked(cliSessionsProjectsList).mockResolvedValue([]);
+    vi.mocked(cliSessionsSessionsList).mockResolvedValue([]);
+    vi.mocked(cliSessionsMessagesGet).mockResolvedValue({
+      messages: [],
+      total: 0,
+      page: 0,
+      page_size: 50,
+      has_more: false,
+    });
+  });
+
+  it("useCliSessionsProjectsListQuery renders", async () => {
     setTauriRuntime();
     const client = createTestQueryClient();
     const wrapper = createQueryWrapper(client);
     const { result } = renderHook(() => useCliSessionsProjectsListQuery("claude"), { wrapper });
-    // Hook should be in loading or success state
-    expect(result.current.isLoading || result.current.isSuccess).toBe(true);
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
     clearTauriRuntime();
   });
 
-  it("useCliSessionsSessionsListQuery renders", () => {
+  it("useCliSessionsSessionsListQuery renders", async () => {
     setTauriRuntime();
     const client = createTestQueryClient();
     const wrapper = createQueryWrapper(client);
     const { result } = renderHook(() => useCliSessionsSessionsListQuery("claude", "proj-1"), {
       wrapper,
     });
-    expect(result.current.isLoading || result.current.isSuccess).toBe(true);
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
     clearTauriRuntime();
   });
 
-  it("useCliSessionsMessagesInfiniteQuery renders", () => {
+  it("useCliSessionsMessagesInfiniteQuery renders", async () => {
     setTauriRuntime();
     const client = createTestQueryClient();
     const wrapper = createQueryWrapper(client);
@@ -51,7 +65,9 @@ describe("query/cliSessions", () => {
       () => useCliSessionsMessagesInfiniteQuery("claude", "/path/to/file.json"),
       { wrapper }
     );
-    expect(result.current.isLoading || result.current.isSuccess).toBe(true);
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
     clearTauriRuntime();
   });
 

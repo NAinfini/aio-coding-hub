@@ -49,6 +49,8 @@ function renderWithRoute(route: string) {
 describe("pages/SessionsProjectPage", () => {
   beforeEach(() => {
     clearTauriRuntime();
+    vi.mocked(cliSessionsProjectsList).mockResolvedValue([]);
+    vi.mocked(cliSessionsSessionsList).mockResolvedValue([]);
   });
   it("renders empty state when no Tauri runtime", () => {
     renderWithRoute("/sessions/claude/proj1");

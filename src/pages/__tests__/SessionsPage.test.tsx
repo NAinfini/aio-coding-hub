@@ -39,6 +39,7 @@ function renderWithProviders(ui: React.ReactElement, { route = "/" } = {}) {
 describe("pages/SessionsPage", () => {
   beforeEach(() => {
     clearTauriRuntime();
+    vi.mocked(cliSessionsProjectsList).mockResolvedValue([]);
   });
   it("renders empty state when no Tauri runtime", () => {
     renderWithProviders(<SessionsPage />);

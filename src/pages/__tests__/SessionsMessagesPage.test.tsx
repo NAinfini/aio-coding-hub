@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -160,6 +160,12 @@ describe("pages/SessionsMessagesPage", () => {
     expect(screen.getByText("System message")).toBeInTheDocument();
     expect(screen.getByText("Tool output")).toBeInTheDocument();
 
+    await waitFor(() => {
+      expect(cliSessionsMessagesGet).toHaveBeenCalledWith(
+        expect.objectContaining({ from_end: false })
+      );
+    });
+
     // Block types render
     expect(screen.getByText("思考过程")).toBeInTheDocument();
     expect(screen.getByText("推理过程")).toBeInTheDocument();
@@ -297,8 +303,7 @@ describe("pages/SessionsMessagesPage", () => {
     });
 
     expect(await screen.findByText("Hello from user")).toBeInTheDocument();
-    // "加载更早" button should be enabled
-    const loadMoreBtn = screen.getByTitle("加载更早的消息");
+    const loadMoreBtn = screen.getByTitle("加载更多消息");
     expect(loadMoreBtn).not.toBeDisabled();
   });
 

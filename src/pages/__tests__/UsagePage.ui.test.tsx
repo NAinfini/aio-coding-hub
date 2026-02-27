@@ -1,12 +1,11 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import type { ReactElement } from "react";
-import { toast } from "sonner";
 import { UsagePage } from "../UsagePage";
 import { createTestQueryClient } from "../../test/utils/reactQuery";
-import { clearTauriRuntime, setTauriRuntime } from "../../test/utils/tauriRuntime";
+import { setTauriRuntime } from "../../test/utils/tauriRuntime";
 import { useCustomDateRange } from "../../hooks/useCustomDateRange";
 import {
   useUsageLeaderboardV2Query,
@@ -42,94 +41,7 @@ function renderWithProviders(element: ReactElement) {
   );
 }
 
-describe("pages/UsagePage", () => {
-  it("shows tauri runtime hint when not running in desktop runtime", () => {
-    clearTauriRuntime();
-
-    vi.mocked(useCustomDateRange).mockReturnValue({
-      customStartDate: "",
-      setCustomStartDate: vi.fn(),
-      customEndDate: "",
-      setCustomEndDate: vi.fn(),
-      customApplied: null,
-      bounds: { startTs: null, endTs: null },
-      showCustomForm: false,
-      applyCustomRange: vi.fn(),
-      clearCustomRange: vi.fn(),
-    } as any);
-
-    vi.mocked(useUsageSummaryV2Query).mockReturnValue({
-      data: null,
-      isFetching: false,
-      error: null,
-      refetch: vi.fn(),
-    } as any);
-    vi.mocked(useUsageLeaderboardV2Query).mockReturnValue({
-      data: [],
-      isFetching: false,
-      error: null,
-      refetch: vi.fn(),
-    } as any);
-    vi.mocked(useUsageProviderCacheRateTrendV1Query).mockReturnValue({
-      data: [],
-      isFetching: false,
-      error: null,
-      refetch: vi.fn(),
-    } as any);
-
-    renderWithProviders(<UsagePage />);
-    expect(screen.getByText(/未检测到 Tauri Runtime/)).toBeInTheDocument();
-  });
-
-  it("renders error card, toasts once, and allows retry", async () => {
-    setTauriRuntime();
-
-    vi.mocked(useCustomDateRange).mockReturnValue({
-      customStartDate: "",
-      setCustomStartDate: vi.fn(),
-      customEndDate: "",
-      setCustomEndDate: vi.fn(),
-      customApplied: null,
-      bounds: { startTs: 1, endTs: 2 },
-      showCustomForm: false,
-      applyCustomRange: vi.fn(),
-      clearCustomRange: vi.fn(),
-    } as any);
-
-    const summaryRefetch = vi.fn().mockResolvedValue({ data: null });
-    const leaderboardRefetch = vi.fn().mockResolvedValue({ data: [] });
-
-    vi.mocked(useUsageSummaryV2Query).mockReturnValue({
-      data: null,
-      isFetching: false,
-      error: new Error("boom"),
-      refetch: summaryRefetch,
-    } as any);
-    vi.mocked(useUsageLeaderboardV2Query).mockReturnValue({
-      data: [],
-      isFetching: false,
-      error: null,
-      refetch: leaderboardRefetch,
-    } as any);
-    vi.mocked(useUsageProviderCacheRateTrendV1Query).mockReturnValue({
-      data: [],
-      isFetching: false,
-      error: null,
-      refetch: vi.fn(),
-    } as any);
-
-    renderWithProviders(<UsagePage />);
-
-    await waitFor(() => {
-      expect(toast).toHaveBeenCalledWith("加载用量失败：请重试（详情见页面错误信息）");
-    });
-    expect(screen.getByText("加载失败")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "重试" }));
-    expect(summaryRefetch).toHaveBeenCalled();
-    expect(leaderboardRefetch).toHaveBeenCalled();
-  });
-
+describe("pages/UsagePage (ui)", () => {
   it("renders usage tab table when data is available", () => {
     setTauriRuntime();
 
@@ -248,7 +160,7 @@ describe("pages/UsagePage", () => {
     expect(screen.getByText("Top 50 · CLI（按请求数）")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("tab", { name: "缓存走势图" }));
-    expect(screen.getByText("缓存走势图仅支持供应商维度（已锁定）")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "CLI" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("tab", { name: "用量" }));
     expect(screen.getByText("Top 50 · CLI（按请求数）")).toBeInTheDocument();

@@ -211,6 +211,6 @@ export const cliSessionsKeys = {
   projectsList: (source: CliSessionsSource) => [...cliSessionsAllKey, "projects", source] as const,
   sessionsList: (source: CliSessionsSource, projectId: string) =>
     [...cliSessionsAllKey, "sessions", source, projectId] as const,
-  messages: (source: CliSessionsSource, filePath: string) =>
-    [...cliSessionsAllKey, "messages", source, filePath] as const,
+  messages: (source: CliSessionsSource, filePath: string, fromEnd = true) =>
+    [...cliSessionsAllKey, "messages", source, filePath, fromEnd] as const,
 };

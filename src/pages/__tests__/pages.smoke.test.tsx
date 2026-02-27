@@ -64,7 +64,7 @@ describe("pages (smoke)", () => {
 
   it("renders UsagePage", () => {
     renderPage(<UsagePage />);
-    expect(screen.getByRole("heading", { level: 1, name: "用量" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "用量分析" })).toBeInTheDocument();
   });
 
   it("renders ConsolePage", () => {

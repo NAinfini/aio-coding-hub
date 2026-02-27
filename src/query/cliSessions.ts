@@ -33,17 +33,18 @@ export function useCliSessionsSessionsListQuery(
 export function useCliSessionsMessagesInfiniteQuery(
   source: CliSessionsSource,
   filePath: string,
-  options?: { enabled?: boolean }
+  options?: { enabled?: boolean; fromEnd?: boolean }
 ) {
+  const fromEnd = options?.fromEnd ?? true;
   return useInfiniteQuery({
-    queryKey: cliSessionsKeys.messages(source, filePath),
+    queryKey: cliSessionsKeys.messages(source, filePath, fromEnd),
     queryFn: ({ pageParam = 0 }) =>
       cliSessionsMessagesGet({
         source,
         file_path: filePath,
         page: pageParam,
         page_size: 50,
-        from_end: true,
+        from_end: fromEnd,
       }),
     enabled: hasTauriRuntime() && Boolean(filePath.trim()) && (options?.enabled ?? true),
     getNextPageParam: (lastPage) => (lastPage?.has_more ? lastPage.page + 1 : undefined),

@@ -232,7 +232,7 @@ export function SessionsPage() {
               <ul className="mt-2 space-y-1 text-xs text-slate-600 dark:text-slate-400">
                 <li>1) 选择项目进入会话列表</li>
                 <li>2) 在会话列表中复制恢复命令或查看消息</li>
-                <li>3) 消息页支持"加载更早"</li>
+                <li>3) 消息页支持"加载更多"</li>
               </ul>
             </div>
           </Card>

@@ -282,7 +282,7 @@ export function SessionsProjectPage() {
             <ul className="mt-2 space-y-1 text-xs text-slate-600 dark:text-slate-400">
               <li>点击右侧会话即可进入消息阅览</li>
               <li>每条会话都支持复制恢复命令</li>
-              <li>消息页支持分页加载更早内容</li>
+              <li>消息页支持分页加载更多内容</li>
             </ul>
           </div>
         </Card>

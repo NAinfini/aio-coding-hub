@@ -1,6 +1,6 @@
 // Usage: Session messages viewer. Backend command: `cli_sessions_messages_get`.
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowDown, ArrowLeft, Copy, Loader2 } from "lucide-react";
@@ -180,13 +180,13 @@ export function SessionsMessagesPage() {
   const session = sessionFromState ?? null;
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const prevScrollHeightRef = useRef<number>(0);
   const [showTimestamp, setShowTimestamp] = useState<boolean>(true);
   const [showModel, setShowModel] = useState<boolean>(false);
 
-  const enabled = tauriRuntime && source != null && filePath.trim().length > 0;
+  const enabled = tauriRuntime && source != null && session != null && filePath.trim().length > 0;
   const messagesQuery = useCliSessionsMessagesInfiniteQuery(safeSource, filePath, {
     enabled,
+    fromEnd: false,
   });
   const allMessages = useMemo(() => {
     return messagesQuery.data?.pages.flatMap((page) => page?.messages ?? []) ?? [];
@@ -194,27 +194,22 @@ export function SessionsMessagesPage() {
   const rowVirtualizer = useVirtualizer({
     count: allMessages.length,
     getScrollElement: () => containerRef.current,
+    getItemKey: (index) => allMessages[index]?.uuid ?? String(index),
     estimateSize: () => 150,
-    overscan: 5,
+    overscan: 8,
   });
   const total = messagesQuery.data?.pages[0]?.total ?? 0;
   const hasMore = messagesQuery.hasNextPage ?? false;
   const loading = messagesQuery.isLoading;
   const loadingMore = messagesQuery.isFetchingNextPage;
   const error = messagesQuery.error ? String(messagesQuery.error) : null;
+  const canReachSessionEnd = !hasMore;
+  const jumpBottomTitle = canReachSessionEnd ? "滚动到会话末尾" : "滚动到已加载底部";
+  const jumpBottomLabel = canReachSessionEnd ? "到会话末尾" : "到已加载底部";
 
   const handleFetchNextPage = async () => {
     if (!hasMore || loading || loadingMore) return;
-    const container = containerRef.current;
-    prevScrollHeightRef.current = container?.scrollHeight ?? 0;
     await messagesQuery.fetchNextPage();
-    requestAnimationFrame(() => {
-      const el = containerRef.current;
-      if (!el) return;
-      const nextScrollHeight = el.scrollHeight;
-      const delta = nextScrollHeight - prevScrollHeightRef.current;
-      el.scrollTop += delta;
-    });
   };
 
   const scrollToBottom = () => {
@@ -222,6 +217,12 @@ export function SessionsMessagesPage() {
     if (!el) return;
     el.scrollTop = el.scrollHeight;
   };
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    el.scrollTop = 0;
+  }, [source, filePath]);
 
   if (!tauriRuntime) {
     return (
@@ -263,10 +264,10 @@ export function SessionsMessagesPage() {
   const subtitle = subtitleParts.length > 0 ? subtitleParts.join(" · ") : undefined;
   const canCopyResume = Boolean(session?.session_id?.trim());
   const loadedCount = allMessages.length;
-  const globalStartIndex = total > 0 ? Math.max(0, total - loadedCount) : 0;
+  const globalStartIndex = 0;
 
   return (
-    <div className="flex flex-col gap-6 lg:h-[calc(100vh-40px)] lg:overflow-hidden">
+    <div className="flex min-h-0 flex-col gap-6 lg:h-[calc(100vh-40px)] lg:overflow-hidden">
       <PageHeader
         title={title}
         subtitle={subtitle}
@@ -302,7 +303,7 @@ export function SessionsMessagesPage() {
               <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                 {total > 0 ? (
                   <span>
-                    已加载 {loadedCount}/{total} 条消息{hasMore ? "（可加载更早）" : ""}
+                    已加载 {loadedCount}/{total} 条消息{hasMore ? "（可加载更多）" : ""}
                   </span>
                 ) : (
                   <span>—</span>
@@ -315,10 +316,10 @@ export function SessionsMessagesPage() {
               variant="secondary"
               onClick={scrollToBottom}
               className="h-9"
-              title="滚动到底部"
+              title={jumpBottomTitle}
             >
               <ArrowDown className="h-4 w-4" />
-              到底部
+              {jumpBottomLabel}
             </Button>
           </div>
 
@@ -490,7 +491,7 @@ export function SessionsMessagesPage() {
             <div>
               {total > 0 ? (
                 <span>
-                  {hasMore ? "可加载更早" : "已到会话开始"} · 已加载 {loadedCount}/{total}
+                  {hasMore ? "可加载更多" : "已到会话末尾"} · 已加载 {loadedCount}/{total}
                 </span>
               ) : (
                 <span>—</span>
@@ -502,18 +503,18 @@ export function SessionsMessagesPage() {
                 variant="secondary"
                 disabled={!hasMore || loading || loadingMore}
                 onClick={() => void handleFetchNextPage()}
-                title="加载更早的消息"
+                title="加载更多消息"
                 className="h-9"
               >
                 {loadingMore ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                加载更早
+                加载更多
               </Button>
               <Button
                 size="sm"
                 variant="ghost"
                 onClick={scrollToBottom}
                 className="h-9"
-                title="到底部"
+                title={jumpBottomTitle}
               >
                 <ArrowDown className="h-4 w-4" />
               </Button>
@@ -523,7 +524,7 @@ export function SessionsMessagesPage() {
           <div
             ref={containerRef}
             className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-overlay"
-            style={{ height: "100%" }}
+            style={{ overflowAnchor: "none" }}
           >
             {loading ? (
               <div className="flex items-center justify-center py-10">
@@ -532,153 +533,149 @@ export function SessionsMessagesPage() {
             ) : allMessages.length === 0 ? (
               <EmptyState title="此会话没有可显示的消息" variant="dashed" />
             ) : (
-              <div
-                className="mx-auto flex w-full max-w-4xl flex-col"
-                style={{
-                  height: `${rowVirtualizer.getTotalSize()}px`,
-                  position: "relative",
-                }}
-              >
-                {!hasMore ? (
-                  <div className="py-2 text-center text-[11px] text-slate-400 dark:text-slate-500">
-                    — 会话开始 —
-                  </div>
-                ) : null}
-                {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                  const msg = allMessages[virtualRow.index];
-                  const idx = virtualRow.index;
-                  const role = (msg.role || "unknown").trim() || "unknown";
-                  const side = messageSide(role);
-                  const timeText =
-                    showTimestamp && msg.timestamp ? formatIsoDateTime(msg.timestamp) : null;
-                  const modelText = showModel && msg.model ? msg.model : null;
-                  const key = `${msg.uuid ?? "m"}:${idx}`;
-                  const globalIndex = globalStartIndex + idx + 1;
-                  const sender = senderLabel(source, role);
+              <>
+                <div className="py-2 text-center text-[11px] text-slate-400 dark:text-slate-500">
+                  — 会话开始 —
+                </div>
+                <div
+                  className="mx-auto w-full max-w-4xl"
+                  style={{
+                    height: `${rowVirtualizer.getTotalSize()}px`,
+                    position: "relative",
+                  }}
+                >
+                  {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                    const msg = allMessages[virtualRow.index];
+                    const idx = virtualRow.index;
+                    const role = (msg.role || "unknown").trim() || "unknown";
+                    const side = messageSide(role);
+                    const timeText =
+                      showTimestamp && msg.timestamp ? formatIsoDateTime(msg.timestamp) : null;
+                    const modelText = showModel && msg.model ? msg.model : null;
+                    const messageKey = `${msg.uuid ?? "m"}:${idx}`;
+                    const globalIndex = globalStartIndex + idx + 1;
+                    const sender = senderLabel(source, role);
 
-                  const avatarText = avatarTextForRole(role);
-                  const avatarClass =
-                    side === "right"
-                      ? "border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                      : side === "left"
-                        ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-                        : "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 dark:border-fuchsia-700 dark:bg-fuchsia-900/30 dark:text-fuchsia-300";
+                    const avatarText = avatarTextForRole(role);
+                    const avatarClass =
+                      side === "right"
+                        ? "border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                        : side === "left"
+                          ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+                          : "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 dark:border-fuchsia-700 dark:bg-fuchsia-900/30 dark:text-fuchsia-300";
 
-                  const bubbleClass =
-                    side === "right"
-                      ? "border-accent/20 bg-gradient-to-br from-accent/10 to-accent-secondary/5 text-slate-900 dark:border-accent/30 dark:from-accent/20 dark:to-accent-secondary/10 dark:text-slate-100"
-                      : side === "center"
-                        ? "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-800 dark:border-fuchsia-700 dark:bg-fuchsia-900/30 dark:text-fuchsia-200"
-                        : role.toLowerCase().startsWith("tool")
-                          ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200"
-                          : "border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-100";
+                    const bubbleClass =
+                      side === "right"
+                        ? "border-accent/20 bg-gradient-to-br from-accent/10 to-accent-secondary/5 text-slate-900 dark:border-accent/30 dark:from-accent/20 dark:to-accent-secondary/10 dark:text-slate-100"
+                        : side === "center"
+                          ? "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-800 dark:border-fuchsia-700 dark:bg-fuchsia-900/30 dark:text-fuchsia-200"
+                          : role.toLowerCase().startsWith("tool")
+                            ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200"
+                            : "border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-100";
 
-                  return (
-                    <div
-                      key={key}
-                      style={{
-                        position: "absolute",
-                        top: 0,
-                        left: 0,
-                        width: "100%",
-                        transform: `translateY(${virtualRow.start}px)`,
-                      }}
-                      className="pb-3"
-                    >
+                    return (
                       <div
-                        className={cn(
-                          "flex gap-3",
-                          side === "right" ? "justify-end" : "justify-start"
-                        )}
+                        key={virtualRow.key}
+                        data-index={virtualRow.index}
+                        ref={rowVirtualizer.measureElement}
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          left: 0,
+                          width: "100%",
+                          transform: `translateY(${virtualRow.start}px)`,
+                        }}
+                        className="pb-3"
                       >
-                        {side === "left" ? (
-                          <div
-                            className={cn(
-                              "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-[10px] font-extrabold shadow-sm",
-                              avatarClass
-                            )}
-                            aria-hidden="true"
-                            title={sender}
-                          >
-                            {avatarText}
-                          </div>
-                        ) : null}
-
                         <div
                           className={cn(
-                            "min-w-0",
-                            side === "center" ? "w-full max-w-3xl" : "max-w-[85%]"
+                            "flex gap-3",
+                            side === "right" ? "justify-end" : "justify-start"
                           )}
                         >
+                          {side === "left" ? (
+                            <div
+                              className={cn(
+                                "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-[10px] font-extrabold shadow-sm",
+                                avatarClass
+                              )}
+                              aria-hidden="true"
+                              title={sender}
+                            >
+                              {avatarText}
+                            </div>
+                          ) : null}
+
                           <div
                             className={cn(
-                              "rounded-2xl border px-4 py-3 shadow-card",
-                              bubbleClass,
-                              side === "center" ? "mx-auto" : null
+                              "min-w-0",
+                              side === "center" ? "w-full max-w-3xl" : "max-w-[85%]"
                             )}
                           >
                             <div
                               className={cn(
-                                "mb-2 flex flex-wrap items-center justify-between gap-2 text-[11px]",
-                                side === "right"
-                                  ? "text-slate-600 dark:text-slate-300"
-                                  : "text-slate-500 dark:text-slate-400"
+                                "rounded-2xl border px-4 py-3 shadow-card",
+                                bubbleClass,
+                                side === "center" ? "mx-auto" : null
                               )}
                             >
-                              <div className="flex min-w-0 items-center gap-2">
-                                <span className="shrink-0 font-mono text-[10px] opacity-70">
-                                  #{globalIndex}
-                                </span>
-                                <span className="truncate font-semibold">{sender}</span>
-                                {modelText ? (
-                                  <span className="truncate font-mono text-[10px] opacity-70">
-                                    {modelText}
+                              <div
+                                className={cn(
+                                  "mb-2 flex flex-wrap items-center justify-between gap-2 text-[11px]",
+                                  side === "right"
+                                    ? "text-slate-600 dark:text-slate-300"
+                                    : "text-slate-500 dark:text-slate-400"
+                                )}
+                              >
+                                <div className="flex min-w-0 items-center gap-2">
+                                  <span className="shrink-0 font-mono text-[10px] opacity-70">
+                                    #{globalIndex}
+                                  </span>
+                                  <span className="truncate font-semibold">{sender}</span>
+                                  {modelText ? (
+                                    <span className="truncate font-mono text-[10px] opacity-70">
+                                      {modelText}
+                                    </span>
+                                  ) : null}
+                                </div>
+                                {timeText ? (
+                                  <span className="shrink-0 font-mono text-[10px] opacity-70">
+                                    {timeText}
                                   </span>
                                 ) : null}
                               </div>
-                              {timeText ? (
-                                <span className="shrink-0 font-mono text-[10px] opacity-70">
-                                  {timeText}
-                                </span>
-                              ) : null}
-                            </div>
 
-                            <div className="flex flex-col gap-2">
-                              {msg.content.map((block, blockIdx) =>
-                                renderBlock(block, `${key}:b:${blockIdx}`)
+                              <div className="flex flex-col gap-2">
+                                {msg.content.map((block, blockIdx) =>
+                                  renderBlock(block, `${messageKey}:b:${blockIdx}`)
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {side === "right" ? (
+                            <div
+                              className={cn(
+                                "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-[11px] font-extrabold shadow-sm",
+                                avatarClass
                               )}
+                              aria-hidden="true"
+                              title="你"
+                            >
+                              {avatarText}
                             </div>
-                          </div>
+                          ) : null}
                         </div>
-
-                        {side === "right" ? (
-                          <div
-                            className={cn(
-                              "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-[11px] font-extrabold shadow-sm",
-                              avatarClass
-                            )}
-                            aria-hidden="true"
-                            title="你"
-                          >
-                            {avatarText}
-                          </div>
-                        ) : null}
                       </div>
-                    </div>
-                  );
-                })}
-                <div
-                  style={{
-                    position: "absolute",
-                    top: `${rowVirtualizer.getTotalSize()}px`,
-                    left: 0,
-                    width: "100%",
-                  }}
-                  className="py-2 text-center text-[11px] text-slate-400 dark:text-slate-500"
-                >
-                  — 会话结束 —
+                    );
+                  })}
                 </div>
-              </div>
+                {!hasMore ? (
+                  <div className="py-2 text-center text-[11px] text-slate-400 dark:text-slate-500">
+                    — 会话结束 —
+                  </div>
+                ) : null}
+              </>
             )}
           </div>
         </Card>

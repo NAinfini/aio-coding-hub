@@ -128,7 +128,7 @@ export function LogsPage() {
   const attemptLogsLoading = attemptLogsQuery.isFetching;
 
   return (
-    <div className="flex flex-col gap-6 pb-10">
+    <div className="flex h-full flex-col gap-6 overflow-hidden">
       <PageHeader
         title="日志"
         actions={

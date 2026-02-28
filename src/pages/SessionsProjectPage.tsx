@@ -156,7 +156,7 @@ export function SessionsProjectPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 lg:h-[calc(100vh-40px)] lg:overflow-hidden">
+    <div className="flex flex-col gap-6 h-full overflow-hidden">
       <PageHeader
         title={project?.short_name || projectId}
         subtitle={project?.display_path}

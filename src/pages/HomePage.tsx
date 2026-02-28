@@ -149,7 +149,7 @@ export function HomePage() {
   const { pendingCliProxyEnablePrompt } = cliProxyState;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-2.5rem)] overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden">
       <div className="shrink-0 mb-5">
         <PageHeader
           title="首页"

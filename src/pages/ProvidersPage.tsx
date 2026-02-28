@@ -24,7 +24,7 @@ export function ProvidersPage() {
   const providersLoading = providersQuery.isFetching;
 
   return (
-    <div className="flex flex-col gap-6 lg:h-[calc(100vh-40px)] lg:overflow-hidden">
+    <div className="flex flex-col gap-6 h-full overflow-hidden">
       <PageHeader
         title={view === "providers" ? "供应商" : "排序模板"}
         actions={<TabList ariaLabel="视图切换" items={VIEW_TABS} value={view} onChange={setView} />}

@@ -267,7 +267,7 @@ export function SessionsMessagesPage() {
   const globalStartIndex = 0;
 
   return (
-    <div className="flex min-h-0 flex-col gap-6 lg:h-[calc(100vh-40px)] lg:overflow-hidden">
+    <div className="flex min-h-0 flex-col gap-6 h-full overflow-hidden">
       <PageHeader
         title={title}
         subtitle={subtitle}

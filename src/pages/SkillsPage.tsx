@@ -52,7 +52,7 @@ export function SkillsPage() {
   }, [activeCli, workspacesQuery.error]);
 
   return (
-    <div className="flex flex-col gap-6 lg:h-[calc(100vh-40px)] lg:overflow-hidden">
+    <div className="flex flex-col gap-6 h-full overflow-hidden">
       <div className="shrink-0">
         <PageHeader
           title="Skill"

@@ -495,7 +495,7 @@ export function CliManagerPage() {
   }
 
   return (
-    <div className="space-y-6 pb-10">
+    <div className="flex h-full flex-col gap-6 overflow-hidden">
       <PageHeader
         title="CLI 管理"
         actions={
@@ -503,7 +503,7 @@ export function CliManagerPage() {
         }
       />
 
-      <div className="min-h-[400px]">
+      <div className="min-h-0 flex-1 overflow-y-auto scrollbar-overlay">
         {tab === "general" ? (
           <CliManagerGeneralTab
             rectifierAvailable={rectifierAvailable}

@@ -123,7 +123,7 @@ export function SessionsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 lg:h-[calc(100vh-40px)] lg:overflow-hidden">
+    <div className="flex flex-col gap-6 h-full overflow-hidden">
       <PageHeader
         title="Session 会话"
         subtitle="从本地会话文件读取（项目 → 会话 → 消息）"

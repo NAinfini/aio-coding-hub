@@ -401,7 +401,7 @@ export function SkillsMarketPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex h-full flex-col gap-4 overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-semibold tracking-tight">Skill 市场</h1>
@@ -427,7 +427,7 @@ export function SkillsMarketPage() {
         已启用仓库：{enabledRepoCount} / {repos.length}
       </div>
 
-      <Card className="min-h-[260px]" padding="md">
+      <Card className="min-h-0 flex-1 flex flex-col overflow-hidden" padding="md">
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-sm font-semibold">可安装</div>
@@ -483,92 +483,97 @@ export function SkillsMarketPage() {
           ) : null}
         </div>
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          {loading ? (
-            <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-              <Spinner size="sm" />
-              加载中…
-            </div>
-          ) : discovering ? (
-            <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-              <Spinner size="sm" />
-              扫描中…
-            </div>
-          ) : enabledRepoCount === 0 ? (
-            <EmptyState title="暂无启用的仓库" description="请先点右上角「管理仓库」添加并启用。" />
-          ) : filteredAvailable.length === 0 ? (
-            <EmptyState
-              title="没有匹配结果"
-              description="可尝试：清空搜索 / 关闭「仅显示可操作」 / 切换仓库 / 点击右上角「刷新发现」。"
-            />
-          ) : (
-            filteredAvailable.map((skill) => {
-              const key = sourceKey(skill);
-              const installing = installingSource === key;
-              const installedRow = installedBySource.get(key);
-              const status: MarketStatus = installedRow
-                ? installedRow.enabled
-                  ? "enabled"
-                  : "needs_enable"
-                : "not_installed";
-              const statusTone =
-                status === "enabled"
-                  ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                  : status === "needs_enable"
-                    ? "bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
-                    : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400";
+        <div className="mt-4 min-h-0 flex-1 overflow-y-auto scrollbar-overlay">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {loading ? (
+              <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                <Spinner size="sm" />
+                加载中…
+              </div>
+            ) : discovering ? (
+              <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                <Spinner size="sm" />
+                扫描中…
+              </div>
+            ) : enabledRepoCount === 0 ? (
+              <EmptyState
+                title="暂无启用的仓库"
+                description="请先点右上角「管理仓库」添加并启用。"
+              />
+            ) : filteredAvailable.length === 0 ? (
+              <EmptyState
+                title="没有匹配结果"
+                description="可尝试：清空搜索 / 关闭「仅显示可操作」 / 切换仓库 / 点击右上角「刷新发现」。"
+              />
+            ) : (
+              filteredAvailable.map((skill) => {
+                const key = sourceKey(skill);
+                const installing = installingSource === key;
+                const installedRow = installedBySource.get(key);
+                const status: MarketStatus = installedRow
+                  ? installedRow.enabled
+                    ? "enabled"
+                    : "needs_enable"
+                  : "not_installed";
+                const statusTone =
+                  status === "enabled"
+                    ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                    : status === "needs_enable"
+                      ? "bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
+                      : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400";
 
-              return (
-                <div
-                  key={key}
-                  className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="min-w-0 truncate text-sm font-semibold">{skill.name}</span>
-                    <a
-                      href={`${skill.source_git_url}${skill.source_branch ? `#` + skill.source_branch : ""}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="shrink-0 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
-                      title={`${shortGitUrl(skill.source_git_url)}#${skill.source_branch}:${skill.source_subdir}`}
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </a>
-                    <span
-                      className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${statusTone}`}
-                    >
-                      {statusLabel(status)}
-                    </span>
-                    <div className="ms-auto">
-                      {status === "not_installed" ? (
-                        <Button
-                          size="sm"
-                          variant="primary"
-                          disabled={installing}
-                          onClick={() => void installToCurrentCli(skill)}
-                        >
-                          {installing ? "安装中…" : `安装到 ${currentCli.name}`}
-                        </Button>
-                      ) : status === "needs_enable" ? (
-                        <Button size="sm" variant="primary" onClick={() => navigate("/skills")}>
-                          去启用
-                        </Button>
-                      ) : (
-                        <Button size="sm" variant="secondary" disabled>
-                          已启用
-                        </Button>
-                      )}
+                return (
+                  <div
+                    key={key}
+                    className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="min-w-0 truncate text-sm font-semibold">{skill.name}</span>
+                      <a
+                        href={`${skill.source_git_url}${skill.source_branch ? `#` + skill.source_branch : ""}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="shrink-0 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
+                        title={`${shortGitUrl(skill.source_git_url)}#${skill.source_branch}:${skill.source_subdir}`}
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                      <span
+                        className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${statusTone}`}
+                      >
+                        {statusLabel(status)}
+                      </span>
+                      <div className="ms-auto">
+                        {status === "not_installed" ? (
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            disabled={installing}
+                            onClick={() => void installToCurrentCli(skill)}
+                          >
+                            {installing ? "安装中…" : `安装到 ${currentCli.name}`}
+                          </Button>
+                        ) : status === "needs_enable" ? (
+                          <Button size="sm" variant="primary" onClick={() => navigate("/skills")}>
+                            去启用
+                          </Button>
+                        ) : (
+                          <Button size="sm" variant="secondary" disabled>
+                            已启用
+                          </Button>
+                        )}
+                      </div>
                     </div>
+                    {skill.description ? (
+                      <div className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                        {skill.description}
+                      </div>
+                    ) : null}
                   </div>
-                  {skill.description ? (
-                    <div className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
-                      {skill.description}
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })
-          )}
+                );
+              })
+            )}
+          </div>
         </div>
       </Card>
 

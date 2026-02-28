@@ -320,43 +320,45 @@ export function ConsolePage() {
   }, []);
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="控制台"
-        actions={
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-slate-600 dark:text-slate-400">自动滚动</span>
-              <Switch checked={autoScroll} onCheckedChange={setAutoScroll} size="sm" />
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-slate-600 dark:text-slate-400">调试日志</span>
-              <Switch
-                checked={debugEnabled}
-                onCheckedChange={(next) => {
-                  setConsoleDebugEnabled(next);
-                  setDebugEnabled(next);
-                  toast(next ? "已开启调试日志" : "已关闭调试日志");
+    <div className="flex h-full flex-col gap-6 overflow-hidden">
+      <div className="shrink-0">
+        <PageHeader
+          title="控制台"
+          actions={
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-slate-600 dark:text-slate-400">自动滚动</span>
+                <Switch checked={autoScroll} onCheckedChange={setAutoScroll} size="sm" />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-slate-600 dark:text-slate-400">调试日志</span>
+                <Switch
+                  checked={debugEnabled}
+                  onCheckedChange={(next) => {
+                    setConsoleDebugEnabled(next);
+                    setDebugEnabled(next);
+                    toast(next ? "已开启调试日志" : "已关闭调试日志");
+                  }}
+                  size="sm"
+                />
+              </div>
+              <Button onClick={() => setShowFilters((v) => !v)} variant="secondary">
+                <Filter className="h-3.5 w-3.5 mr-1.5" />
+                过滤
+              </Button>
+              <Button
+                onClick={() => {
+                  clearConsoleLogs();
+                  toast("已清空控制台日志");
                 }}
-                size="sm"
-              />
+                variant="secondary"
+              >
+                清空日志
+              </Button>
             </div>
-            <Button onClick={() => setShowFilters((v) => !v)} variant="secondary">
-              <Filter className="h-3.5 w-3.5 mr-1.5" />
-              过滤
-            </Button>
-            <Button
-              onClick={() => {
-                clearConsoleLogs();
-                toast("已清空控制台日志");
-              }}
-              variant="secondary"
-            >
-              清空日志
-            </Button>
-          </div>
-        }
-      />
+          }
+        />
+      </div>
 
       {/* Filter bar */}
       {showFilters ? (
@@ -393,8 +395,8 @@ export function ConsolePage() {
         </Card>
       ) : null}
 
-      <Card padding="none">
-        <div className="border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-slate-50 to-slate-100/50 dark:from-slate-800 dark:to-slate-800/50 px-6 py-4">
+      <Card padding="none" className="min-h-0 flex-1 flex flex-col overflow-hidden">
+        <div className="shrink-0 border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-slate-50 to-slate-100/50 dark:from-slate-800 dark:to-slate-800/50 px-6 py-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
@@ -433,7 +435,7 @@ export function ConsolePage() {
           ref={logsContainerRef}
           onScroll={handleScroll}
           className={cn(
-            "custom-scrollbar max-h-[70vh] overflow-auto",
+            "custom-scrollbar min-h-0 flex-1 overflow-auto",
             "bg-gradient-to-b from-slate-950 to-slate-900 font-mono text-[12px] leading-relaxed text-slate-200",
             "shadow-inner"
           )}

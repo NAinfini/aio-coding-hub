@@ -33,6 +33,7 @@ pub(super) struct RequestContext {
     pub(super) strip_request_content_encoding_seed: bool,
     pub(super) special_settings: Arc<Mutex<Vec<serde_json::Value>>>,
     pub(super) provider_base_url_ping_cache_ttl_seconds: u32,
+    pub(super) verbose_provider_error: bool,
     pub(super) max_attempts_per_provider: u32,
     pub(super) max_providers_to_try: u32,
     pub(super) provider_cooldown_secs: i64,
@@ -46,6 +47,8 @@ pub(super) struct RequestContext {
     pub(super) unavailable_fingerprint_debug: String,
     pub(super) abort_guard: RequestAbortGuard,
     pub(super) enable_thinking_signature_rectifier: bool,
+    pub(super) enable_thinking_budget_rectifier: bool,
+    pub(super) enable_claude_metadata_user_id_injection: bool,
     pub(super) enable_response_fixer: bool,
     pub(super) response_fixer_stream_config: response_fixer::ResponseFixerConfig,
     pub(super) response_fixer_non_stream_config: response_fixer::ResponseFixerConfig,
@@ -76,6 +79,7 @@ impl RequestContext {
             strip_request_content_encoding_seed,
             special_settings,
             provider_base_url_ping_cache_ttl_seconds,
+            verbose_provider_error,
             max_attempts_per_provider,
             max_providers_to_try,
             provider_cooldown_secs,
@@ -87,6 +91,8 @@ impl RequestContext {
             unavailable_fingerprint_key,
             unavailable_fingerprint_debug,
             enable_thinking_signature_rectifier,
+            enable_thinking_budget_rectifier,
+            enable_claude_metadata_user_id_injection,
             enable_response_fixer,
             response_fixer_stream_config,
             response_fixer_non_stream_config,
@@ -95,6 +101,7 @@ impl RequestContext {
         let max_attempts_per_provider = Self::normalize_max_attempts_per_provider(
             &cli_key,
             enable_thinking_signature_rectifier,
+            enable_thinking_budget_rectifier,
             max_attempts_per_provider,
         );
         let (
@@ -146,6 +153,7 @@ impl RequestContext {
             strip_request_content_encoding_seed,
             special_settings,
             provider_base_url_ping_cache_ttl_seconds,
+            verbose_provider_error,
             max_attempts_per_provider,
             max_providers_to_try,
             provider_cooldown_secs,
@@ -159,6 +167,8 @@ impl RequestContext {
             unavailable_fingerprint_debug,
             abort_guard,
             enable_thinking_signature_rectifier,
+            enable_thinking_budget_rectifier,
+            enable_claude_metadata_user_id_injection,
             enable_response_fixer,
             response_fixer_stream_config,
             response_fixer_non_stream_config,
@@ -168,9 +178,12 @@ impl RequestContext {
     fn normalize_max_attempts_per_provider(
         cli_key: &str,
         enable_thinking_signature_rectifier: bool,
+        enable_thinking_budget_rectifier: bool,
         max_attempts_per_provider: u32,
     ) -> u32 {
-        if cli_key == "claude" && enable_thinking_signature_rectifier {
+        if cli_key == "claude"
+            && (enable_thinking_signature_rectifier || enable_thinking_budget_rectifier)
+        {
             max_attempts_per_provider.max(2)
         } else {
             max_attempts_per_provider
@@ -232,6 +245,7 @@ pub(super) struct RequestContextParts {
     pub(super) strip_request_content_encoding_seed: bool,
     pub(super) special_settings: Arc<Mutex<Vec<serde_json::Value>>>,
     pub(super) provider_base_url_ping_cache_ttl_seconds: u32,
+    pub(super) verbose_provider_error: bool,
     pub(super) max_attempts_per_provider: u32,
     pub(super) max_providers_to_try: u32,
     pub(super) provider_cooldown_secs: i64,
@@ -243,6 +257,8 @@ pub(super) struct RequestContextParts {
     pub(super) unavailable_fingerprint_key: u64,
     pub(super) unavailable_fingerprint_debug: String,
     pub(super) enable_thinking_signature_rectifier: bool,
+    pub(super) enable_thinking_budget_rectifier: bool,
+    pub(super) enable_claude_metadata_user_id_injection: bool,
     pub(super) enable_response_fixer: bool,
     pub(super) response_fixer_stream_config: response_fixer::ResponseFixerConfig,
     pub(super) response_fixer_non_stream_config: response_fixer::ResponseFixerConfig,

@@ -91,17 +91,33 @@ pub(super) struct UpstreamRequestState<'a> {
     pub(super) upstream_body_bytes: &'a mut Bytes,
     pub(super) strip_request_content_encoding: &'a mut bool,
     pub(super) thinking_signature_rectifier_retried: &'a mut bool,
+    pub(super) thinking_budget_rectifier_retried: &'a mut bool,
+}
+
+pub(super) struct HandleNonSuccessResponseInput<'a> {
+    pub(super) ctx: CommonCtx<'a>,
+    pub(super) provider_ctx: ProviderCtx<'a>,
+    pub(super) attempt_ctx: AttemptCtx<'a>,
+    pub(super) loop_state: LoopState<'a>,
+    pub(super) enable_thinking_signature_rectifier: bool,
+    pub(super) enable_thinking_budget_rectifier: bool,
+    pub(super) resp: reqwest::Response,
+    pub(super) upstream: UpstreamRequestState<'a>,
 }
 
 pub(super) async fn handle_non_success_response(
-    ctx: CommonCtx<'_>,
-    provider_ctx: ProviderCtx<'_>,
-    attempt_ctx: AttemptCtx<'_>,
-    loop_state: LoopState<'_>,
-    enable_thinking_signature_rectifier: bool,
-    resp: reqwest::Response,
-    upstream: UpstreamRequestState<'_>,
+    input: HandleNonSuccessResponseInput<'_>,
 ) -> LoopControl {
+    let HandleNonSuccessResponseInput {
+        ctx,
+        provider_ctx,
+        attempt_ctx,
+        loop_state,
+        enable_thinking_signature_rectifier,
+        enable_thinking_budget_rectifier,
+        resp,
+        upstream,
+    } = input;
     let status = resp.status();
     let response_headers = resp.headers().clone();
     let is_count_tokens =
@@ -109,21 +125,23 @@ pub(super) async fn handle_non_success_response(
 
     if !is_count_tokens
         && ctx.cli_key == "claude"
-        && enable_thinking_signature_rectifier
         && status.as_u16() == 400
+        && (enable_thinking_signature_rectifier || enable_thinking_budget_rectifier)
     {
-        return thinking_signature_rectifier_400::handle_thinking_signature_rectifier_400(
+        return thinking_signature_rectifier_400::handle_thinking_rectifiers_400(
             ctx,
             provider_ctx,
             attempt_ctx,
             loop_state,
             enable_thinking_signature_rectifier,
+            enable_thinking_budget_rectifier,
             resp,
             status,
             response_headers,
             upstream.upstream_body_bytes,
             upstream.strip_request_content_encoding,
             upstream.thinking_signature_rectifier_retried,
+            upstream.thinking_budget_rectifier_retried,
         )
         .await;
     }
@@ -451,12 +469,17 @@ pub(super) async fn handle_non_success_response(
             }
 
             let Some(resp) = resp else {
+                let client_attempts = if ctx.verbose_provider_error {
+                    attempts.clone()
+                } else {
+                    vec![]
+                };
                 return LoopControl::Return(error_response(
                     axum::http::StatusCode::BAD_GATEWAY,
                     trace_id.clone(),
                     GatewayErrorCode::UpstreamReadError.as_str(),
                     "failed to stream upstream error body".to_string(),
-                    attempts.clone(),
+                    client_attempts,
                 ));
             };
             let body = if should_gunzip {

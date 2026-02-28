@@ -1,6 +1,7 @@
 //! Usage: Gateway proxy failover loop (provider iteration + retries + upstream response handling).
 
 mod attempt_record;
+mod claude_metadata_user_id_injection;
 mod claude_model_mapping;
 mod context;
 mod event_helpers;
@@ -115,6 +116,7 @@ pub(super) async fn run(mut input: RequestContext) -> Response {
         upstream_first_byte_timeout: input.upstream_first_byte_timeout,
         upstream_stream_idle_timeout: input.upstream_stream_idle_timeout,
         upstream_request_timeout_non_streaming: input.upstream_request_timeout_non_streaming,
+        verbose_provider_error: input.verbose_provider_error,
         max_attempts_per_provider: input.max_attempts_per_provider,
         enable_response_fixer: input.enable_response_fixer,
         response_fixer_stream_config: input.response_fixer_stream_config,
@@ -247,6 +249,7 @@ pub(super) async fn run(mut input: RequestContext) -> Response {
         let mut upstream_body_bytes = input.body_bytes.clone();
         let mut strip_request_content_encoding = input.strip_request_content_encoding_seed;
         let mut thinking_signature_rectifier_retried = false;
+        let mut thinking_budget_rectifier_retried = false;
 
         claude_model_mapping::apply_if_needed(
             ctx,
@@ -258,6 +261,19 @@ pub(super) async fn run(mut input: RequestContext) -> Response {
                 forwarded_path: &mut upstream_forwarded_path,
                 query: &mut upstream_query,
                 body_bytes: &mut upstream_body_bytes,
+                strip_request_content_encoding: &mut strip_request_content_encoding,
+            },
+        );
+
+        claude_metadata_user_id_injection::apply_if_needed(
+            claude_metadata_user_id_injection::ApplyClaudeMetadataUserIdInjectionInput {
+                ctx,
+                provider_id,
+                enabled: input.enable_claude_metadata_user_id_injection,
+                session_id: input.session_id.as_deref(),
+                base_headers: &input.base_headers,
+                forwarded_path: upstream_forwarded_path.as_str(),
+                upstream_body_bytes: &mut upstream_body_bytes,
                 strip_request_content_encoding: &mut strip_request_content_encoding,
             },
         );
@@ -435,17 +451,24 @@ pub(super) async fn run(mut input: RequestContext) -> Response {
                         &mut input.abort_guard,
                     );
                     match upstream_error::handle_non_success_response(
-                        ctx,
-                        provider_ctx,
-                        attempt_ctx,
-                        loop_state,
-                        input.enable_thinking_signature_rectifier,
-                        resp,
-                        upstream_error::UpstreamRequestState {
-                            upstream_body_bytes: &mut upstream_body_bytes,
-                            strip_request_content_encoding: &mut strip_request_content_encoding,
-                            thinking_signature_rectifier_retried:
-                                &mut thinking_signature_rectifier_retried,
+                        upstream_error::HandleNonSuccessResponseInput {
+                            ctx,
+                            provider_ctx,
+                            attempt_ctx,
+                            loop_state,
+                            enable_thinking_signature_rectifier: input
+                                .enable_thinking_signature_rectifier,
+                            enable_thinking_budget_rectifier: input
+                                .enable_thinking_budget_rectifier,
+                            resp,
+                            upstream: upstream_error::UpstreamRequestState {
+                                upstream_body_bytes: &mut upstream_body_bytes,
+                                strip_request_content_encoding: &mut strip_request_content_encoding,
+                                thinking_signature_rectifier_retried:
+                                    &mut thinking_signature_rectifier_retried,
+                                thinking_budget_rectifier_retried:
+                                    &mut thinking_budget_rectifier_retried,
+                            },
                         },
                     )
                     .await
@@ -515,6 +538,7 @@ pub(super) async fn run(mut input: RequestContext) -> Response {
             session_id: owned.session_id,
             requested_model: owned.requested_model,
             special_settings: owned.special_settings,
+            verbose_provider_error: input.verbose_provider_error,
             earliest_available_unix,
             skipped_open,
             skipped_cooldown,
@@ -545,6 +569,7 @@ pub(super) async fn run(mut input: RequestContext) -> Response {
         session_id: owned.session_id,
         requested_model: owned.requested_model,
         special_settings: owned.special_settings,
+        verbose_provider_error: input.verbose_provider_error,
     })
     .await
 }

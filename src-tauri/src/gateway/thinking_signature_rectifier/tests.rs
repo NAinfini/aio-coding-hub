@@ -11,6 +11,27 @@ fn detect_trigger_invalid_signature_in_thinking_block() {
 }
 
 #[test]
+fn detect_trigger_signature_field_required_variants() {
+    let trigger = detect_trigger("messages.0.content.1.signature: Field required");
+    assert_eq!(trigger, Some(TRIGGER_INVALID_SIGNATURE_IN_THINKING_BLOCK));
+
+    let trigger2 = detect_trigger("messages.0.content.1.signature: field required");
+    assert_eq!(trigger2, Some(TRIGGER_INVALID_SIGNATURE_IN_THINKING_BLOCK));
+}
+
+#[test]
+fn detect_trigger_signature_extra_inputs_variants() {
+    let trigger = detect_trigger("messages.0.content.1.signature: Extra inputs are not permitted");
+    assert_eq!(trigger, Some(TRIGGER_INVALID_SIGNATURE_IN_THINKING_BLOCK));
+}
+
+#[test]
+fn detect_trigger_thinking_block_cannot_be_modified_variants() {
+    let trigger = detect_trigger("thinking or redacted_thinking blocks cannot be modified");
+    assert_eq!(trigger, Some(TRIGGER_INVALID_SIGNATURE_IN_THINKING_BLOCK));
+}
+
+#[test]
 fn detect_trigger_missing_thinking_prefix() {
     let trigger = detect_trigger(
         "messages.69.content.0.type: Expected `thinking` or `redacted_thinking`, but found `tool_use`. When `thinking` is enabled, a final `assistant` message must start with a thinking block (preceeding the lastmost set of `tool_use` and `tool_result` blocks). To avoid this requirement, disable `thinking`.",

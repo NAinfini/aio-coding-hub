@@ -42,6 +42,25 @@ pub(super) fn detect_trigger(error_message: &str) -> Option<ThinkingSignatureRec
         return Some(TRIGGER_INVALID_SIGNATURE_IN_THINKING_BLOCK);
     }
 
+    let looks_like_missing_signature_field =
+        lower.contains("signature") && lower.contains("field required");
+    if looks_like_missing_signature_field {
+        return Some(TRIGGER_INVALID_SIGNATURE_IN_THINKING_BLOCK);
+    }
+
+    let looks_like_extra_signature_field =
+        lower.contains("signature") && lower.contains("extra inputs are not permitted");
+    if looks_like_extra_signature_field {
+        return Some(TRIGGER_INVALID_SIGNATURE_IN_THINKING_BLOCK);
+    }
+
+    let looks_like_thinking_block_modified = (lower.contains("thinking")
+        || lower.contains("redacted_thinking"))
+        && lower.contains("cannot be modified");
+    if looks_like_thinking_block_modified {
+        return Some(TRIGGER_INVALID_SIGNATURE_IN_THINKING_BLOCK);
+    }
+
     if error_message.contains("非法请求")
         || lower.contains("illegal request")
         || lower.contains("invalid request")

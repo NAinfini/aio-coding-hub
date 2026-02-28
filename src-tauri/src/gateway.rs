@@ -1,3 +1,4 @@
+mod claude_metadata_user_id_injection;
 mod codex_session_id;
 mod events;
 pub(crate) mod listen;
@@ -7,6 +8,7 @@ mod response_fixer;
 mod routes;
 pub(crate) mod session_manager;
 mod streams;
+mod thinking_budget_rectifier;
 mod thinking_signature_rectifier;
 mod util;
 mod warmup;

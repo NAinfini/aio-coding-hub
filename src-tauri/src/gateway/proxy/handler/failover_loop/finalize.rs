@@ -29,6 +29,7 @@ pub(super) struct AllUnavailableInput<'a> {
     pub(super) session_id: Option<String>,
     pub(super) requested_model: Option<String>,
     pub(super) special_settings: Arc<Mutex<Vec<serde_json::Value>>>,
+    pub(super) verbose_provider_error: bool,
     pub(super) earliest_available_unix: Option<i64>,
     pub(super) skipped_open: usize,
     pub(super) skipped_cooldown: usize,
@@ -54,6 +55,7 @@ pub(super) async fn all_providers_unavailable(input: AllUnavailableInput<'_>) ->
         session_id,
         requested_model,
         special_settings,
+        verbose_provider_error,
         earliest_available_unix,
         skipped_open,
         skipped_cooldown,
@@ -70,9 +72,14 @@ pub(super) async fn all_providers_unavailable(input: AllUnavailableInput<'_>) ->
         .filter(|v| *v > 0)
         .map(|v| v as u64);
 
-    let message = format!(
+    let detailed_message = format!(
         "no provider available (skipped: open={skipped_open}, cooldown={skipped_cooldown}, limits={skipped_limits}) for cli_key={cli_key}",
     );
+    let message = if verbose_provider_error {
+        detailed_message
+    } else {
+        "No available providers".to_string()
+    };
 
     // Disk log: all providers unavailable (circuit breaker / cooldown / limits).
     tracing::error!(
@@ -172,6 +179,7 @@ pub(super) struct AllFailedInput<'a> {
     pub(super) session_id: Option<String>,
     pub(super) requested_model: Option<String>,
     pub(super) special_settings: Arc<Mutex<Vec<serde_json::Value>>>,
+    pub(super) verbose_provider_error: bool,
 }
 
 pub(super) async fn all_providers_failed(input: AllFailedInput<'_>) -> Response {
@@ -192,6 +200,7 @@ pub(super) async fn all_providers_failed(input: AllFailedInput<'_>) -> Response 
         session_id,
         requested_model,
         special_settings,
+        verbose_provider_error,
     } = input;
 
     let final_error_code = last_error_code.unwrap_or(GatewayErrorCode::UpstreamAllFailed.as_str());
@@ -211,7 +220,11 @@ pub(super) async fn all_providers_failed(input: AllFailedInput<'_>) -> Response 
         trace_id.clone(),
         final_error_code,
         format!("all providers failed for cli_key={cli_key}"),
-        attempts.clone(),
+        if verbose_provider_error {
+            attempts.clone()
+        } else {
+            vec![]
+        },
     );
 
     let duration_ms = started.elapsed().as_millis();

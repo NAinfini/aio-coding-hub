@@ -21,12 +21,15 @@ pub(crate) struct SettingsUpdate {
     pub upstream_request_timeout_non_streaming_seconds: Option<u32>,
     pub intercept_anthropic_warmup_requests: Option<bool>,
     pub enable_thinking_signature_rectifier: Option<bool>,
+    pub enable_thinking_budget_rectifier: Option<bool>,
+    pub enable_claude_metadata_user_id_injection: Option<bool>,
     pub enable_cache_anomaly_monitor: Option<bool>,
     pub enable_task_complete_notify: Option<bool>,
     pub enable_response_fixer: Option<bool>,
     pub response_fixer_fix_encoding: Option<bool>,
     pub response_fixer_fix_sse_format: Option<bool>,
     pub response_fixer_fix_truncated_json: Option<bool>,
+    pub verbose_provider_error: Option<bool>,
     pub failover_max_attempts_per_provider: u32,
     pub failover_max_providers_to_try: u32,
     pub circuit_breaker_failure_threshold: Option<u32>,
@@ -67,12 +70,15 @@ pub(crate) async fn settings_set(
         upstream_request_timeout_non_streaming_seconds,
         intercept_anthropic_warmup_requests,
         enable_thinking_signature_rectifier,
+        enable_thinking_budget_rectifier,
+        enable_claude_metadata_user_id_injection,
         enable_cache_anomaly_monitor,
         enable_task_complete_notify,
         enable_response_fixer,
         response_fixer_fix_encoding,
         response_fixer_fix_sse_format,
         response_fixer_fix_truncated_json,
+        verbose_provider_error,
         failover_max_attempts_per_provider,
         failover_max_providers_to_try,
         circuit_breaker_failure_threshold,
@@ -121,6 +127,10 @@ pub(crate) async fn settings_set(
                 .unwrap_or(previous.intercept_anthropic_warmup_requests);
             let enable_thinking_signature_rectifier = enable_thinking_signature_rectifier
                 .unwrap_or(previous.enable_thinking_signature_rectifier);
+            let enable_thinking_budget_rectifier = enable_thinking_budget_rectifier
+                .unwrap_or(previous.enable_thinking_budget_rectifier);
+            let enable_claude_metadata_user_id_injection = enable_claude_metadata_user_id_injection
+                .unwrap_or(previous.enable_claude_metadata_user_id_injection);
             let enable_cache_anomaly_monitor =
                 enable_cache_anomaly_monitor.unwrap_or(previous.enable_cache_anomaly_monitor);
             let enable_task_complete_notify =
@@ -133,6 +143,8 @@ pub(crate) async fn settings_set(
                 response_fixer_fix_sse_format.unwrap_or(previous.response_fixer_fix_sse_format);
             let response_fixer_fix_truncated_json = response_fixer_fix_truncated_json
                 .unwrap_or(previous.response_fixer_fix_truncated_json);
+            let verbose_provider_error =
+                verbose_provider_error.unwrap_or(previous.verbose_provider_error);
             let circuit_breaker_failure_threshold = circuit_breaker_failure_threshold
                 .unwrap_or(previous.circuit_breaker_failure_threshold);
             let circuit_breaker_open_duration_minutes = circuit_breaker_open_duration_minutes
@@ -187,9 +199,12 @@ pub(crate) async fn settings_set(
                 circuit_breaker_failure_threshold,
                 circuit_breaker_open_duration_minutes,
                 enable_circuit_breaker_notice: previous.enable_circuit_breaker_notice,
+                verbose_provider_error,
                 intercept_anthropic_warmup_requests,
                 enable_thinking_signature_rectifier,
+                enable_thinking_budget_rectifier,
                 enable_codex_session_id_completion: previous.enable_codex_session_id_completion,
+                enable_claude_metadata_user_id_injection,
                 enable_cache_anomaly_monitor,
                 enable_task_complete_notify,
                 enable_response_fixer,
@@ -226,8 +241,11 @@ pub(crate) async fn settings_set(
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn settings_gateway_rectifier_set(
     app: tauri::AppHandle,
+    verbose_provider_error: bool,
     intercept_anthropic_warmup_requests: bool,
     enable_thinking_signature_rectifier: bool,
+    enable_thinking_budget_rectifier: bool,
+    enable_claude_metadata_user_id_injection: bool,
     enable_response_fixer: bool,
     response_fixer_fix_encoding: bool,
     response_fixer_fix_sse_format: bool,
@@ -240,8 +258,12 @@ pub(crate) async fn settings_gateway_rectifier_set(
         let mut settings = settings::read(&app_for_work).unwrap_or_default();
         settings.schema_version = settings::SCHEMA_VERSION;
 
+        settings.verbose_provider_error = verbose_provider_error;
         settings.intercept_anthropic_warmup_requests = intercept_anthropic_warmup_requests;
         settings.enable_thinking_signature_rectifier = enable_thinking_signature_rectifier;
+        settings.enable_thinking_budget_rectifier = enable_thinking_budget_rectifier;
+        settings.enable_claude_metadata_user_id_injection =
+            enable_claude_metadata_user_id_injection;
         settings.enable_response_fixer = enable_response_fixer;
         settings.response_fixer_fix_encoding = response_fixer_fix_encoding;
         settings.response_fixer_fix_sse_format = response_fixer_fix_sse_format;
@@ -256,8 +278,12 @@ pub(crate) async fn settings_gateway_rectifier_set(
 
     if let Ok(ref settings) = result {
         tracing::info!(
+            verbose_provider_error = settings.verbose_provider_error,
             intercept_anthropic_warmup_requests = settings.intercept_anthropic_warmup_requests,
             enable_thinking_signature_rectifier = settings.enable_thinking_signature_rectifier,
+            enable_thinking_budget_rectifier = settings.enable_thinking_budget_rectifier,
+            enable_claude_metadata_user_id_injection =
+                settings.enable_claude_metadata_user_id_injection,
             enable_response_fixer = settings.enable_response_fixer,
             "gateway rectifier settings updated"
         );

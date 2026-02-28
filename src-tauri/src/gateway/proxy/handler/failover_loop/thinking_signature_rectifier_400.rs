@@ -1,22 +1,26 @@
-//! Usage: Handle Claude thinking-signature rectifier (400) path inside `failover_loop::run`.
+//! Usage: Handle Claude thinking rectifiers (signature/budget) 400 path inside `failover_loop::run`.
 
+use super::super::super::provider_router;
 use super::super::super::upstream_client_error_rules;
 use super::*;
+use crate::gateway::thinking_budget_rectifier;
 use crate::shared::mutex_ext::MutexExt;
 
 #[allow(clippy::too_many_arguments)]
-pub(super) async fn handle_thinking_signature_rectifier_400(
+pub(super) async fn handle_thinking_rectifiers_400(
     ctx: CommonCtx<'_>,
     provider_ctx: ProviderCtx<'_>,
     attempt_ctx: AttemptCtx<'_>,
     loop_state: LoopState<'_>,
     enable_thinking_signature_rectifier: bool,
+    enable_thinking_budget_rectifier: bool,
     resp: reqwest::Response,
     status: StatusCode,
     mut response_headers: HeaderMap,
     upstream_body_bytes: &mut Bytes,
     strip_request_content_encoding: &mut bool,
     thinking_signature_rectifier_retried: &mut bool,
+    thinking_budget_rectifier_retried: &mut bool,
 ) -> LoopControl {
     let introspection_body = ctx.introspection_body;
 
@@ -33,6 +37,8 @@ pub(super) async fn handle_thinking_signature_rectifier_400(
         session_id,
         requested_model,
         special_settings,
+        provider_cooldown_secs,
+        max_attempts_per_provider,
         enable_response_fixer,
         response_fixer_non_stream_config,
         ..
@@ -59,21 +65,29 @@ pub(super) async fn handle_thinking_signature_rectifier_400(
         failed_provider_ids,
         last_error_category,
         last_error_code,
-        circuit_snapshot: _,
+        circuit_snapshot,
         abort_guard,
     } = loop_state;
 
-    if cli_key == "claude" && enable_thinking_signature_rectifier && status.as_u16() == 400 {
+    if cli_key == "claude"
+        && status.as_u16() == 400
+        && (enable_thinking_signature_rectifier || enable_thinking_budget_rectifier)
+    {
         let buffered_body = match resp.bytes().await {
             Ok(bytes) => bytes,
             Err(err) => {
                 let duration_ms = started.elapsed().as_millis();
+                let client_attempts = if ctx.verbose_provider_error {
+                    attempts.clone()
+                } else {
+                    vec![]
+                };
                 let resp = error_response(
                     StatusCode::BAD_GATEWAY,
                     trace_id.clone(),
                     GatewayErrorCode::UpstreamBodyReadError.as_str(),
                     format!("failed to read upstream error body: {err}"),
-                    attempts.clone(),
+                    client_attempts,
                 );
                 emit_request_event_and_enqueue_request_log(RequestEndArgs {
                     deps: RequestEndDeps::new(&state.app, &state.db, &state.log_tx),
@@ -112,17 +126,42 @@ pub(super) async fn handle_thinking_signature_rectifier_400(
             MAX_NON_SSE_BODY_BYTES,
         );
         let upstream_body_text = String::from_utf8_lossy(body_for_scan.as_ref()).to_string();
-        let trigger = thinking_signature_rectifier::detect_trigger(&upstream_body_text);
+        let signature_trigger = enable_thinking_signature_rectifier
+            .then(|| thinking_signature_rectifier::detect_trigger(&upstream_body_text))
+            .flatten();
+        let budget_trigger = signature_trigger
+            .is_none()
+            .then(|| thinking_budget_rectifier::detect_trigger(&upstream_body_text))
+            .flatten();
 
         let mut rectified_applied = false;
-        if let Some(trigger) = trigger {
-            if !*thinking_signature_rectifier_retried {
-                let mut message_value =
-                    match serde_json::from_slice::<serde_json::Value>(introspection_body) {
-                        Ok(v) => v,
-                        Err(_) => serde_json::Value::Null,
-                    };
+        let mut rectifier_kind: Option<&'static str> = None;
+        let mut rectifier_trigger: Option<&'static str> = None;
+        let mut rectifier_retried = false;
 
+        let (base_category, error_code, base_decision) = classify_upstream_status(status);
+
+        let mut matched_rule_id: Option<&'static str> = None;
+        let mut category = base_category;
+        let mut decision = base_decision;
+        let mut should_record_circuit_failure = matches!(category, ErrorCategory::ProviderError);
+
+        if let Some(trigger) = signature_trigger {
+            rectifier_kind = Some("thinking_signature_rectifier");
+            rectifier_trigger = Some(trigger);
+
+            if *thinking_signature_rectifier_retried {
+                rectifier_retried = true;
+                should_record_circuit_failure = false;
+                category = ErrorCategory::NonRetryableClientError;
+                decision = FailoverDecision::Abort;
+            } else {
+                let mut message_value =
+                    serde_json::from_slice::<serde_json::Value>(upstream_body_bytes.as_ref())
+                        .or_else(|_| {
+                            serde_json::from_slice::<serde_json::Value>(introspection_body)
+                        })
+                        .unwrap_or(serde_json::Value::Null);
                 let rectified = thinking_signature_rectifier::rectify_anthropic_request_message(
                     &mut message_value,
                 );
@@ -149,42 +188,157 @@ pub(super) async fn handle_thinking_signature_rectifier_400(
                         *strip_request_content_encoding = true;
                         *thinking_signature_rectifier_retried = true;
                         rectified_applied = true;
+                        should_record_circuit_failure = false;
+                        decision = FailoverDecision::RetrySameProvider;
                     }
                 }
+
+                if !rectified_applied {
+                    should_record_circuit_failure = false;
+                    category = ErrorCategory::NonRetryableClientError;
+                    decision = FailoverDecision::Abort;
+                }
             }
-        }
+        } else if let Some(trigger) = budget_trigger.filter(|_| enable_thinking_budget_rectifier) {
+            rectifier_kind = Some("thinking_budget_rectifier");
+            rectifier_trigger = Some(trigger);
 
-        let (base_category, error_code, _base_decision) = classify_upstream_status(status);
+            if *thinking_budget_rectifier_retried {
+                rectifier_retried = true;
+                should_record_circuit_failure = false;
+                category = ErrorCategory::NonRetryableClientError;
+                decision = FailoverDecision::Abort;
+            } else {
+                let mut message_value =
+                    serde_json::from_slice::<serde_json::Value>(upstream_body_bytes.as_ref())
+                        .or_else(|_| {
+                            serde_json::from_slice::<serde_json::Value>(introspection_body)
+                        })
+                        .unwrap_or(serde_json::Value::Null);
+                let rectified = thinking_budget_rectifier::rectify_anthropic_request_message(
+                    &mut message_value,
+                );
 
-        let mut matched_rule_id: Option<&'static str> = None;
-        let mut category = base_category;
-        let mut decision = if rectified_applied {
-            FailoverDecision::RetrySameProvider
+                let mut settings = special_settings.lock_or_recover();
+                settings.push(serde_json::json!({
+                    "type": "thinking_budget_rectifier",
+                    "scope": "request",
+                    "hit": rectified.applied,
+                    "providerId": provider_id,
+                    "providerName": provider_name_base.clone(),
+                    "trigger": trigger,
+                    "attemptNumber": retry_index,
+                    "retryAttemptNumber": retry_index + 1,
+                    "before": {
+                        "maxTokens": rectified.before.max_tokens,
+                        "thinkingType": rectified.before.thinking_type,
+                        "thinkingBudgetTokens": rectified.before.thinking_budget_tokens,
+                    },
+                    "after": {
+                        "maxTokens": rectified.after.max_tokens,
+                        "thinkingType": rectified.after.thinking_type,
+                        "thinkingBudgetTokens": rectified.after.thinking_budget_tokens,
+                    },
+                }));
+
+                if rectified.applied {
+                    if let Ok(next) = serde_json::to_vec(&message_value) {
+                        *upstream_body_bytes = Bytes::from(next);
+                        *strip_request_content_encoding = true;
+                        *thinking_budget_rectifier_retried = true;
+                        rectified_applied = true;
+                        should_record_circuit_failure = false;
+                        decision = FailoverDecision::RetrySameProvider;
+                    }
+                }
+
+                if !rectified_applied {
+                    should_record_circuit_failure = false;
+                    category = ErrorCategory::NonRetryableClientError;
+                    decision = FailoverDecision::Abort;
+                }
+            }
         } else {
-            // allow switching providers instead of aborting the whole request.
-            FailoverDecision::SwitchProvider
-        };
-
-        if !rectified_applied {
+            // Fallback: match configured non-retryable client error rules and handle like upstream_error.
             matched_rule_id = upstream_client_error_rules::match_non_retryable_client_error(
                 &cli_key,
                 status,
                 body_for_scan.as_ref(),
             );
             if matched_rule_id.is_some() {
+                should_record_circuit_failure = false;
                 category = ErrorCategory::NonRetryableClientError;
                 decision = FailoverDecision::Abort;
             }
         }
 
-        let circuit_state_before = Some(circuit_before.state.as_str());
-        let circuit_state_after: Option<&'static str> = None;
-        let circuit_failure_count = Some(circuit_before.failure_count);
+        if matches!(decision, FailoverDecision::RetrySameProvider)
+            && retry_index >= max_attempts_per_provider
+        {
+            decision = FailoverDecision::SwitchProvider;
+        }
+
+        let mut circuit_state_before = Some(circuit_before.state.as_str());
+        let mut circuit_state_after: Option<&'static str> = None;
+        let mut circuit_failure_count = Some(circuit_before.failure_count);
         let circuit_failure_threshold = Some(circuit_before.failure_threshold);
 
-        let reason = match matched_rule_id {
-            Some(rule_id) => format!("status={} rule={rule_id}", status.as_u16()),
-            None => format!("status={}", status.as_u16()),
+        if should_record_circuit_failure && !rectified_applied {
+            let now_unix = now_unix_seconds() as i64;
+            let change = provider_router::record_failure_and_emit_transition(
+                provider_router::RecordCircuitArgs::from_state(
+                    state,
+                    trace_id.as_str(),
+                    cli_key.as_str(),
+                    provider_id,
+                    provider_name_base.as_str(),
+                    provider_base_url_base.as_str(),
+                    now_unix,
+                ),
+            );
+
+            *circuit_snapshot = change.after.clone();
+            circuit_state_before = Some(change.before.state.as_str());
+            circuit_state_after = Some(change.after.state.as_str());
+            circuit_failure_count = Some(change.after.failure_count);
+
+            if change.after.state == crate::circuit_breaker::CircuitState::Open {
+                decision = FailoverDecision::SwitchProvider;
+            }
+
+            if provider_cooldown_secs > 0
+                && matches!(
+                    decision,
+                    FailoverDecision::SwitchProvider | FailoverDecision::Abort
+                )
+            {
+                *circuit_snapshot = provider_router::trigger_cooldown(
+                    state.circuit.as_ref(),
+                    provider_id,
+                    now_unix,
+                    provider_cooldown_secs,
+                );
+            }
+        }
+
+        let reason = if let Some(rectifier_kind) = rectifier_kind {
+            let trigger = rectifier_trigger.unwrap_or("unknown_trigger");
+            if rectifier_retried {
+                format!(
+                    "status={} rectifier={rectifier_kind} trigger={trigger} retried=true",
+                    status.as_u16()
+                )
+            } else {
+                format!(
+                    "status={} rectifier={rectifier_kind} trigger={trigger}",
+                    status.as_u16()
+                )
+            }
+        } else {
+            match matched_rule_id {
+                Some(rule_id) => format!("status={} rule={rule_id}", status.as_u16()),
+                None => format!("status={}", status.as_u16()),
+            }
         };
         let outcome = format!(
             "upstream_error: status={} category={} code={} decision={}",
@@ -314,5 +468,5 @@ pub(super) async fn handle_thinking_signature_rectifier_400(
         }
     }
 
-    unreachable!("expected thinking-signature rectifier path")
+    unreachable!("expected thinking rectifier 400 path")
 }

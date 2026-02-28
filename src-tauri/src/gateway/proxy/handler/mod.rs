@@ -334,13 +334,16 @@ fn respond_invalid_cli_key_with_spawn(
 
 #[derive(Debug, Clone, Copy)]
 struct HandlerRuntimeSettings {
+    verbose_provider_error: bool,
     intercept_warmup: bool,
     enable_thinking_signature_rectifier: bool,
+    enable_thinking_budget_rectifier: bool,
     enable_response_fixer: bool,
     response_fixer_stream_config: response_fixer::ResponseFixerConfig,
     response_fixer_non_stream_config: response_fixer::ResponseFixerConfig,
     provider_base_url_ping_cache_ttl_seconds: u32,
     enable_codex_session_id_completion: bool,
+    enable_claude_metadata_user_id_injection: bool,
     max_attempts_per_provider: u32,
     max_providers_to_try: u32,
     provider_cooldown_secs: i64,
@@ -353,8 +356,17 @@ fn handler_runtime_settings(
     settings_cfg: Option<&settings::AppSettings>,
     is_claude_count_tokens: bool,
 ) -> HandlerRuntimeSettings {
+    let verbose_provider_error = settings_cfg
+        .map(|cfg| cfg.verbose_provider_error)
+        .unwrap_or(true);
+
     let enable_thinking_signature_rectifier = settings_cfg
         .map(|cfg| cfg.enable_thinking_signature_rectifier)
+        .unwrap_or(true)
+        && !is_claude_count_tokens;
+
+    let enable_thinking_budget_rectifier = settings_cfg
+        .map(|cfg| cfg.enable_thinking_budget_rectifier)
         .unwrap_or(true)
         && !is_claude_count_tokens;
 
@@ -390,10 +402,12 @@ fn handler_runtime_settings(
     }
 
     HandlerRuntimeSettings {
+        verbose_provider_error,
         intercept_warmup: settings_cfg
             .map(|cfg| cfg.intercept_anthropic_warmup_requests)
             .unwrap_or(false),
         enable_thinking_signature_rectifier,
+        enable_thinking_budget_rectifier,
         enable_response_fixer,
         response_fixer_stream_config: response_fixer::ResponseFixerConfig {
             fix_encoding: response_fixer_fix_encoding,
@@ -415,6 +429,10 @@ fn handler_runtime_settings(
         enable_codex_session_id_completion: settings_cfg
             .map(|cfg| cfg.enable_codex_session_id_completion)
             .unwrap_or(true),
+        enable_claude_metadata_user_id_injection: settings_cfg
+            .map(|cfg| cfg.enable_claude_metadata_user_id_injection)
+            .unwrap_or(true)
+            && !is_claude_count_tokens,
         max_attempts_per_provider,
         max_providers_to_try,
         provider_cooldown_secs: settings_cfg
@@ -933,6 +951,7 @@ pub(in crate::gateway) async fn proxy_impl(
         special_settings,
         provider_base_url_ping_cache_ttl_seconds: runtime_settings
             .provider_base_url_ping_cache_ttl_seconds,
+        verbose_provider_error: runtime_settings.verbose_provider_error,
         max_attempts_per_provider: runtime_settings.max_attempts_per_provider,
         max_providers_to_try: runtime_settings.max_providers_to_try,
         provider_cooldown_secs: runtime_settings.provider_cooldown_secs,
@@ -945,6 +964,9 @@ pub(in crate::gateway) async fn proxy_impl(
         unavailable_fingerprint_key: fingerprints.unavailable_fingerprint_key,
         unavailable_fingerprint_debug: fingerprints.unavailable_fingerprint_debug,
         enable_thinking_signature_rectifier: runtime_settings.enable_thinking_signature_rectifier,
+        enable_thinking_budget_rectifier: runtime_settings.enable_thinking_budget_rectifier,
+        enable_claude_metadata_user_id_injection: runtime_settings
+            .enable_claude_metadata_user_id_injection,
         enable_response_fixer: runtime_settings.enable_response_fixer,
         response_fixer_stream_config: runtime_settings.response_fixer_stream_config,
         response_fixer_non_stream_config: runtime_settings.response_fixer_non_stream_config,
@@ -1086,6 +1108,7 @@ mod tests {
     fn handler_runtime_settings_defaults_match_expected() {
         let runtime = handler_runtime_settings(None, false);
 
+        assert!(runtime.verbose_provider_error);
         assert!(!runtime.intercept_warmup);
         assert!(runtime.enable_thinking_signature_rectifier);
         assert!(runtime.enable_response_fixer);

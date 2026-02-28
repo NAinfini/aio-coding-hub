@@ -9,7 +9,7 @@ use std::sync::{OnceLock, RwLock};
 use std::time::{Duration, Instant};
 use tauri::Manager;
 
-pub const SCHEMA_VERSION: u32 = 17;
+pub const SCHEMA_VERSION: u32 = 18;
 const SCHEMA_VERSION_DISABLE_UPSTREAM_TIMEOUTS: u32 = 7;
 const SCHEMA_VERSION_ADD_GATEWAY_RECTIFIERS: u32 = 8;
 const SCHEMA_VERSION_ADD_CIRCUIT_BREAKER_NOTICE: u32 = 9;
@@ -21,6 +21,7 @@ const SCHEMA_VERSION_ADD_CLI_PROXY_STARTUP_RECOVERY: u32 = 14;
 const SCHEMA_VERSION_ADD_CACHE_ANOMALY_MONITOR: u32 = 15;
 const SCHEMA_VERSION_ADD_WSL_HOST_ADDRESS_MODE: u32 = 16;
 const SCHEMA_VERSION_ADD_TASK_COMPLETE_NOTIFY: u32 = 17;
+const SCHEMA_VERSION_ADD_CCH_BASE_CONFIG: u32 = 18;
 pub const DEFAULT_GATEWAY_PORT: u16 = 37123;
 pub const MAX_GATEWAY_PORT: u16 = 37199;
 const DEFAULT_LOG_RETENTION_DAYS: u32 = 7;
@@ -34,9 +35,12 @@ const DEFAULT_FAILOVER_MAX_PROVIDERS_TO_TRY: u32 = 5;
 const DEFAULT_CIRCUIT_BREAKER_FAILURE_THRESHOLD: u32 = 5;
 const DEFAULT_CIRCUIT_BREAKER_OPEN_DURATION_MINUTES: u32 = 30;
 const DEFAULT_ENABLE_CIRCUIT_BREAKER_NOTICE: bool = false;
-const DEFAULT_INTERCEPT_ANTHROPIC_WARMUP_REQUESTS: bool = false;
+const DEFAULT_VERBOSE_PROVIDER_ERROR: bool = true;
+const DEFAULT_INTERCEPT_ANTHROPIC_WARMUP_REQUESTS: bool = true;
 const DEFAULT_ENABLE_THINKING_SIGNATURE_RECTIFIER: bool = true;
+const DEFAULT_ENABLE_THINKING_BUDGET_RECTIFIER: bool = true;
 const DEFAULT_ENABLE_CODEX_SESSION_ID_COMPLETION: bool = true;
+const DEFAULT_ENABLE_CLAUDE_METADATA_USER_ID_INJECTION: bool = true;
 const DEFAULT_ENABLE_CACHE_ANOMALY_MONITOR: bool = false;
 const DEFAULT_ENABLE_TASK_COMPLETE_NOTIFY: bool = true;
 const DEFAULT_ENABLE_RESPONSE_FIXER: bool = true;
@@ -150,11 +154,15 @@ pub struct AppSettings {
     pub circuit_breaker_open_duration_minutes: u32,
     // Circuit breaker notice toggle (default disabled).
     pub enable_circuit_breaker_notice: bool,
-    // CCH-aligned gateway feature toggles (warmup default disabled; others default enabled).
+    // CCH-aligned gateway feature toggles.
+    pub verbose_provider_error: bool,
     pub intercept_anthropic_warmup_requests: bool,
     pub enable_thinking_signature_rectifier: bool,
+    pub enable_thinking_budget_rectifier: bool,
     // Codex Session ID completion (default enabled).
     pub enable_codex_session_id_completion: bool,
+    // Claude metadata.user_id injection (default enabled).
+    pub enable_claude_metadata_user_id_injection: bool,
     // Cache anomaly monitor (default disabled).
     pub enable_cache_anomaly_monitor: bool,
     // Task complete notification (default enabled).
@@ -196,9 +204,13 @@ impl Default for AppSettings {
             circuit_breaker_failure_threshold: DEFAULT_CIRCUIT_BREAKER_FAILURE_THRESHOLD,
             circuit_breaker_open_duration_minutes: DEFAULT_CIRCUIT_BREAKER_OPEN_DURATION_MINUTES,
             enable_circuit_breaker_notice: DEFAULT_ENABLE_CIRCUIT_BREAKER_NOTICE,
+            verbose_provider_error: DEFAULT_VERBOSE_PROVIDER_ERROR,
             intercept_anthropic_warmup_requests: DEFAULT_INTERCEPT_ANTHROPIC_WARMUP_REQUESTS,
             enable_thinking_signature_rectifier: DEFAULT_ENABLE_THINKING_SIGNATURE_RECTIFIER,
+            enable_thinking_budget_rectifier: DEFAULT_ENABLE_THINKING_BUDGET_RECTIFIER,
             enable_codex_session_id_completion: DEFAULT_ENABLE_CODEX_SESSION_ID_COMPLETION,
+            enable_claude_metadata_user_id_injection:
+                DEFAULT_ENABLE_CLAUDE_METADATA_USER_ID_INJECTION,
             enable_cache_anomaly_monitor: DEFAULT_ENABLE_CACHE_ANOMALY_MONITOR,
             enable_task_complete_notify: DEFAULT_ENABLE_TASK_COMPLETE_NOTIFY,
             enable_response_fixer: DEFAULT_ENABLE_RESPONSE_FIXER,
@@ -530,6 +542,15 @@ fn migrate_add_task_complete_notify(
     )
 }
 
+fn migrate_add_cch_base_config(settings: &mut AppSettings, schema_version_present: bool) -> bool {
+    // v18: Add verbose provider error + thinking budget rectifier + claude metadata.user_id injection.
+    migrate_bump_schema_version(
+        settings,
+        schema_version_present,
+        SCHEMA_VERSION_ADD_CCH_BASE_CONFIG,
+    )
+}
+
 fn settings_path(app: &tauri::AppHandle) -> AppResult<PathBuf> {
     Ok(app_paths::app_data_dir(app)?.join("settings.json"))
 }
@@ -647,6 +668,7 @@ pub fn read(app: &tauri::AppHandle) -> AppResult<AppSettings> {
             repaired |= migrate_add_cache_anomaly_monitor(&mut settings, schema_version_present);
             repaired |= migrate_add_wsl_host_address_mode(&mut settings, schema_version_present);
             repaired |= migrate_add_task_complete_notify(&mut settings, schema_version_present);
+            repaired |= migrate_add_cch_base_config(&mut settings, schema_version_present);
             repaired |= sanitize_failover_settings(&mut settings);
             repaired |= sanitize_circuit_breaker_settings(&mut settings);
             repaired |= sanitize_provider_cooldown_seconds(&mut settings);
@@ -713,6 +735,7 @@ pub fn read(app: &tauri::AppHandle) -> AppResult<AppSettings> {
     repaired |= migrate_add_cache_anomaly_monitor(&mut settings, schema_version_present);
     repaired |= migrate_add_wsl_host_address_mode(&mut settings, schema_version_present);
     repaired |= migrate_add_task_complete_notify(&mut settings, schema_version_present);
+    repaired |= migrate_add_cch_base_config(&mut settings, schema_version_present);
     repaired |= sanitize_failover_settings(&mut settings);
     repaired |= sanitize_circuit_breaker_settings(&mut settings);
     repaired |= sanitize_provider_cooldown_seconds(&mut settings);

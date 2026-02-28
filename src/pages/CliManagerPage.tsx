@@ -54,8 +54,11 @@ const TABS: Array<{ key: TabKey; label: string }> = [
 ];
 
 const DEFAULT_RECTIFIER: GatewayRectifierSettingsPatch = {
-  intercept_anthropic_warmup_requests: false,
+  verbose_provider_error: true,
+  intercept_anthropic_warmup_requests: true,
   enable_thinking_signature_rectifier: true,
+  enable_thinking_budget_rectifier: true,
+  enable_claude_metadata_user_id_injection: true,
   enable_response_fixer: true,
   response_fixer_fix_encoding: true,
   response_fixer_fix_sse_format: true,
@@ -169,8 +172,12 @@ export function CliManagerPage() {
   useEffect(() => {
     if (!appSettings) return;
     setRectifier({
+      verbose_provider_error: appSettings.verbose_provider_error,
       intercept_anthropic_warmup_requests: appSettings.intercept_anthropic_warmup_requests,
       enable_thinking_signature_rectifier: appSettings.enable_thinking_signature_rectifier,
+      enable_thinking_budget_rectifier: appSettings.enable_thinking_budget_rectifier,
+      enable_claude_metadata_user_id_injection:
+        appSettings.enable_claude_metadata_user_id_injection,
       enable_response_fixer: appSettings.enable_response_fixer,
       response_fixer_fix_encoding: appSettings.response_fixer_fix_encoding,
       response_fixer_fix_sse_format: appSettings.response_fixer_fix_sse_format,
@@ -209,8 +216,11 @@ export function CliManagerPage() {
       }
 
       setRectifier({
+        verbose_provider_error: updated.verbose_provider_error,
         intercept_anthropic_warmup_requests: updated.intercept_anthropic_warmup_requests,
         enable_thinking_signature_rectifier: updated.enable_thinking_signature_rectifier,
+        enable_thinking_budget_rectifier: updated.enable_thinking_budget_rectifier,
+        enable_claude_metadata_user_id_injection: updated.enable_claude_metadata_user_id_injection,
         enable_response_fixer: updated.enable_response_fixer,
         response_fixer_fix_encoding: updated.response_fixer_fix_encoding,
         response_fixer_fix_sse_format: updated.response_fixer_fix_sse_format,

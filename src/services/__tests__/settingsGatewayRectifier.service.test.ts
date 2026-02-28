@@ -26,8 +26,11 @@ describe("services/settingsGatewayRectifier", () => {
 
     await expect(
       settingsGatewayRectifierSet({
+        verbose_provider_error: true,
         intercept_anthropic_warmup_requests: false,
         enable_thinking_signature_rectifier: true,
+        enable_thinking_budget_rectifier: true,
+        enable_claude_metadata_user_id_injection: true,
         enable_response_fixer: true,
         response_fixer_fix_encoding: true,
         response_fixer_fix_sse_format: true,
@@ -44,8 +47,11 @@ describe("services/settingsGatewayRectifier", () => {
 
     await expect(
       settingsGatewayRectifierSet({
+        verbose_provider_error: true,
         intercept_anthropic_warmup_requests: false,
         enable_thinking_signature_rectifier: true,
+        enable_thinking_budget_rectifier: true,
+        enable_claude_metadata_user_id_injection: true,
         enable_response_fixer: true,
         response_fixer_fix_encoding: true,
         response_fixer_fix_sse_format: true,
@@ -71,8 +77,11 @@ describe("services/settingsGatewayRectifier", () => {
 
     await expect(
       settingsGatewayRectifierSet({
+        verbose_provider_error: true,
         intercept_anthropic_warmup_requests: false,
         enable_thinking_signature_rectifier: true,
+        enable_thinking_budget_rectifier: true,
+        enable_claude_metadata_user_id_injection: true,
         enable_response_fixer: true,
         response_fixer_fix_encoding: true,
         response_fixer_fix_sse_format: true,

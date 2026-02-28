@@ -170,8 +170,10 @@ function createAppSettings(overrides: Partial<any> = {}) {
     upstream_first_byte_timeout_seconds: 0,
     upstream_stream_idle_timeout_seconds: 0,
     upstream_request_timeout_non_streaming_seconds: 0,
+    verbose_provider_error: true,
     intercept_anthropic_warmup_requests: false,
     enable_thinking_signature_rectifier: true,
+    enable_thinking_budget_rectifier: true,
     enable_response_fixer: true,
     enable_cache_anomaly_monitor: false,
     response_fixer_fix_encoding: true,
@@ -185,6 +187,7 @@ function createAppSettings(overrides: Partial<any> = {}) {
     circuit_breaker_open_duration_minutes: 30,
     enable_circuit_breaker_notice: false,
     enable_codex_session_id_completion: true,
+    enable_claude_metadata_user_id_injection: true,
     ...overrides,
   };
 }

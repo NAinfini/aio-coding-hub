@@ -51,9 +51,12 @@ function createAppSettings(): AppSettings {
     circuit_breaker_failure_threshold: 5,
     circuit_breaker_open_duration_minutes: 30,
     enable_circuit_breaker_notice: false,
+    verbose_provider_error: true,
     intercept_anthropic_warmup_requests: false,
     enable_thinking_signature_rectifier: true,
+    enable_thinking_budget_rectifier: true,
     enable_codex_session_id_completion: true,
+    enable_claude_metadata_user_id_injection: true,
     enable_cache_anomaly_monitor: false,
     enable_task_complete_notify: true,
     enable_response_fixer: true,
@@ -67,8 +70,11 @@ function createAppSettings(): AppSettings {
 
 function createRectifierPatch(): GatewayRectifierSettingsPatch {
   return {
+    verbose_provider_error: true,
     intercept_anthropic_warmup_requests: false,
     enable_thinking_signature_rectifier: true,
+    enable_thinking_budget_rectifier: true,
+    enable_claude_metadata_user_id_injection: true,
     enable_response_fixer: true,
     response_fixer_fix_encoding: true,
     response_fixer_fix_sse_format: true,

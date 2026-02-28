@@ -122,6 +122,15 @@ export function CliManagerGeneralTab({
               </div>
             ) : (
               <div className="space-y-4">
+                <SettingsRow label="详细供应商错误信息">
+                  <Switch
+                    checked={rectifier.verbose_provider_error}
+                    onCheckedChange={(checked) =>
+                      void onPersistRectifier({ verbose_provider_error: checked })
+                    }
+                    disabled={rectifierSaving || rectifierAvailable !== "available"}
+                  />
+                </SettingsRow>
                 <SettingsRow label="拦截 Anthropic Warmup 请求">
                   <Switch
                     checked={rectifier.intercept_anthropic_warmup_requests}
@@ -136,6 +145,26 @@ export function CliManagerGeneralTab({
                     checked={rectifier.enable_thinking_signature_rectifier}
                     onCheckedChange={(checked) =>
                       void onPersistRectifier({ enable_thinking_signature_rectifier: checked })
+                    }
+                    disabled={rectifierSaving || rectifierAvailable !== "available"}
+                  />
+                </SettingsRow>
+                <SettingsRow label="Thinking 预算整流器">
+                  <Switch
+                    checked={rectifier.enable_thinking_budget_rectifier}
+                    onCheckedChange={(checked) =>
+                      void onPersistRectifier({ enable_thinking_budget_rectifier: checked })
+                    }
+                    disabled={rectifierSaving || rectifierAvailable !== "available"}
+                  />
+                </SettingsRow>
+                <SettingsRow label="Claude metadata.user_id 注入">
+                  <Switch
+                    checked={rectifier.enable_claude_metadata_user_id_injection}
+                    onCheckedChange={(checked) =>
+                      void onPersistRectifier({
+                        enable_claude_metadata_user_id_injection: checked,
+                      })
                     }
                     disabled={rectifierSaving || rectifierAvailable !== "available"}
                   />

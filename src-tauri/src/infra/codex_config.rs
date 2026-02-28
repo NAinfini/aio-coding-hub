@@ -17,6 +17,7 @@ pub struct CodexConfigState {
     pub approval_policy: Option<String>,
     pub sandbox_mode: Option<String>,
     pub model_reasoning_effort: Option<String>,
+    pub plan_mode_reasoning_effort: Option<String>,
     pub web_search: Option<String>,
 
     pub sandbox_workspace_write_network_access: Option<bool>,
@@ -37,6 +38,7 @@ pub struct CodexConfigPatch {
     pub approval_policy: Option<String>,
     pub sandbox_mode: Option<String>,
     pub model_reasoning_effort: Option<String>,
+    pub plan_mode_reasoning_effort: Option<String>,
     pub web_search: Option<String>,
 
     pub sandbox_workspace_write_network_access: Option<bool>,
@@ -861,6 +863,7 @@ fn make_state_from_bytes(
         approval_policy: None,
         sandbox_mode: None,
         model_reasoning_effort: None,
+        plan_mode_reasoning_effort: None,
         web_search: None,
 
         sandbox_workspace_write_network_access: None,
@@ -939,6 +942,9 @@ fn make_state_from_bytes(
             }
             ("", "model_reasoning_effort") => {
                 state.model_reasoning_effort = parse_string(&raw_value)
+            }
+            ("", "plan_mode_reasoning_effort") => {
+                state.plan_mode_reasoning_effort = parse_string(&raw_value)
             }
             ("", "web_search") => state.web_search = parse_string(&raw_value),
 
@@ -1102,6 +1108,17 @@ fn validate_codex_config_toml_raw(input: &str) -> CodexConfigTomlValidationResul
                 };
             }
 
+            if let Some(err) = validate_root_string_enum(
+                table,
+                "plan_mode_reasoning_effort",
+                &["low", "medium", "high", "xhigh"],
+            ) {
+                return CodexConfigTomlValidationResult {
+                    ok: false,
+                    error: Some(err),
+                };
+            }
+
             if let Some(err) =
                 validate_root_string_enum(table, "web_search", &["cached", "live", "disabled"])
             {
@@ -1247,6 +1264,11 @@ fn patch_config_toml(
         &["minimal", "low", "medium", "high", "xhigh"],
     )?;
     validate_enum_or_empty(
+        "plan_mode_reasoning_effort",
+        patch.plan_mode_reasoning_effort.as_deref().unwrap_or(""),
+        &["low", "medium", "high", "xhigh"],
+    )?;
+    validate_enum_or_empty(
         "web_search",
         patch.web_search.as_deref().unwrap_or(""),
         &["cached", "live", "disabled"],
@@ -1297,6 +1319,14 @@ fn patch_config_toml(
         upsert_root_key(
             &mut lines,
             "model_reasoning_effort",
+            (!trimmed.is_empty()).then(|| toml_string_literal(trimmed)),
+        );
+    }
+    if let Some(raw) = patch.plan_mode_reasoning_effort.as_deref() {
+        let trimmed = raw.trim();
+        upsert_root_key(
+            &mut lines,
+            "plan_mode_reasoning_effort",
             (!trimmed.is_empty()).then(|| toml_string_literal(trimmed)),
         );
     }

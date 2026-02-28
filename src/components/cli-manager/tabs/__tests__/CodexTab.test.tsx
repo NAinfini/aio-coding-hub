@@ -25,6 +25,7 @@ function createCodexConfig(overrides: Partial<any> = {}) {
     sandbox_mode: "workspace-write",
     sandbox_workspace_write_network_access: null,
     model_reasoning_effort: "medium",
+    plan_mode_reasoning_effort: null,
     web_search: "cached",
     features_shell_snapshot: false,
     features_unified_exec: false,

@@ -90,6 +90,7 @@ describe("cli-manager tabs (coverage)", () => {
           approval_policy: "never",
           sandbox_mode: "workspace-write",
           model_reasoning_effort: "medium",
+          plan_mode_reasoning_effort: "high",
           web_search: "cached",
           sandbox_workspace_write_network_access: false,
           features_unified_exec: true,

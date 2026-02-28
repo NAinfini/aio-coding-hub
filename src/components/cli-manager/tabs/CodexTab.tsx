@@ -111,6 +111,8 @@ export function CliManagerCodexTab({
   const [modelText, setModelText] = useState("");
   const [sandboxModeText, setSandboxModeText] = useState("");
   const [webSearchText, setWebSearchText] = useState("");
+  const [reasoningEffortText, setReasoningEffortText] = useState("");
+  const [planModeReasoningEffortText, setPlanModeReasoningEffortText] = useState("");
 
   const [tomlAdvancedOpen, setTomlAdvancedOpen] = useState(false);
   const [tomlEditEnabled, setTomlEditEnabled] = useState(false);
@@ -149,6 +151,8 @@ export function CliManagerCodexTab({
     setModelText(codexConfig.model ?? "");
     setSandboxModeText(codexConfig.sandbox_mode ?? "");
     setWebSearchText(codexConfig.web_search ?? "cached");
+    setReasoningEffortText(codexConfig.model_reasoning_effort ?? "");
+    setPlanModeReasoningEffortText(codexConfig.plan_mode_reasoning_effort ?? "");
   }, [codexConfig]);
 
   const saving = codexConfigSaving;
@@ -428,21 +432,45 @@ export function CliManagerCodexTab({
                   label="推理强度 (model_reasoning_effort)"
                   subtitle="调整推理强度（仅对支持的模型/Responses API 生效）。值越高通常越稳健但更慢。"
                 >
-                  <Select
-                    value={codexConfig.model_reasoning_effort ?? ""}
-                    onChange={(e) =>
-                      void persistCodexConfig({ model_reasoning_effort: e.currentTarget.value })
-                    }
+                  <RadioGroup
+                    name="model_reasoning_effort"
+                    value={reasoningEffortText}
+                    onChange={(value) => {
+                      setReasoningEffortText(value);
+                      void persistCodexConfig({ model_reasoning_effort: value });
+                    }}
+                    options={[
+                      { value: "", label: "默认" },
+                      { value: "minimal", label: "最低 (minimal)" },
+                      { value: "low", label: "低 (low)" },
+                      { value: "medium", label: "中 (medium)" },
+                      { value: "high", label: "高 (high)" },
+                      { value: "xhigh", label: "极高 (xhigh)" },
+                    ]}
                     disabled={saving}
-                    className="w-[220px] max-w-full font-mono"
-                  >
-                    <option value="">默认（不设置）</option>
-                    <option value="minimal">最低（minimal）</option>
-                    <option value="low">低（low）</option>
-                    <option value="medium">中等（medium）</option>
-                    <option value="high">高（high）</option>
-                    <option value="xhigh">极高（xhigh）</option>
-                  </Select>
+                  />
+                </SettingItem>
+
+                <SettingItem
+                  label="计划模式推理强度 (plan_mode_reasoning_effort)"
+                  subtitle="调整计划模式下的推理强度。值越高通常规划越充分但更慢。"
+                >
+                  <RadioGroup
+                    name="plan_mode_reasoning_effort"
+                    value={planModeReasoningEffortText}
+                    onChange={(value) => {
+                      setPlanModeReasoningEffortText(value);
+                      void persistCodexConfig({ plan_mode_reasoning_effort: value });
+                    }}
+                    options={[
+                      { value: "", label: "默认" },
+                      { value: "low", label: "低 (low)" },
+                      { value: "medium", label: "中 (medium)" },
+                      { value: "high", label: "高 (high)" },
+                      { value: "xhigh", label: "极高 (xhigh)" },
+                    ]}
+                    disabled={saving}
+                  />
                 </SettingItem>
 
                 <SettingItem

@@ -417,3 +417,78 @@ impl GatewayManager {
             .map(|r| (r.shutdown, r.task, r.log_task, r.circuit_task))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{GatewayManager, RunningGateway};
+    use crate::{circuit_breaker, session_manager};
+    use std::collections::HashMap;
+    use std::sync::Arc;
+    use tokio::sync::oneshot;
+
+    fn build_running_gateway(
+        rt: &tokio::runtime::Runtime,
+        session: Arc<session_manager::SessionManager>,
+    ) -> RunningGateway {
+        let circuit = Arc::new(circuit_breaker::CircuitBreaker::new(
+            circuit_breaker::CircuitBreakerConfig::default(),
+            HashMap::new(),
+            None,
+        ));
+
+        let (shutdown_tx, _shutdown_rx) = oneshot::channel();
+        RunningGateway {
+            port: 1,
+            base_url: "http://127.0.0.1:1".to_string(),
+            listen_addr: "127.0.0.1:1".to_string(),
+            circuit,
+            session,
+            shutdown: shutdown_tx,
+            task: tauri::async_runtime::JoinHandle::Tokio(rt.spawn(async {})),
+            log_task: tauri::async_runtime::JoinHandle::Tokio(rt.spawn(async {})),
+            circuit_task: tauri::async_runtime::JoinHandle::Tokio(rt.spawn(async {})),
+        }
+    }
+
+    #[test]
+    fn clear_cli_session_bindings_removes_only_target_cli_when_running() {
+        let rt = tokio::runtime::Runtime::new().expect("runtime");
+        let session = Arc::new(session_manager::SessionManager::new());
+        let now_unix = 100;
+
+        session.bind_sort_mode(
+            "claude",
+            "session_a",
+            Some(1),
+            Some(vec![101, 102]),
+            now_unix,
+        );
+        session.bind_sort_mode("claude", "session_b", None, None, now_unix);
+        session.bind_sort_mode("codex", "session_c", Some(2), Some(vec![201]), now_unix);
+
+        assert_eq!(
+            session.get_bound_sort_mode_id("claude", "session_a", now_unix),
+            Some(Some(1))
+        );
+
+        let manager = GatewayManager {
+            running: Some(build_running_gateway(&rt, session.clone())),
+        };
+
+        let removed = manager.clear_cli_session_bindings("claude");
+        assert_eq!(removed, 2);
+
+        assert_eq!(
+            session.get_bound_sort_mode_id("claude", "session_a", now_unix),
+            None
+        );
+        assert_eq!(
+            session.get_bound_sort_mode_id("claude", "session_b", now_unix),
+            None
+        );
+        assert_eq!(
+            session.get_bound_sort_mode_id("codex", "session_c", now_unix),
+            Some(Some(2))
+        );
+    }
+}

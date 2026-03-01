@@ -157,6 +157,7 @@ pub(crate) async fn provider_delete(
 pub(crate) async fn providers_reorder(
     app: tauri::AppHandle,
     db_state: tauri::State<'_, DbInitState>,
+    gateway_state: tauri::State<'_, GatewayState>,
     cli_key: String,
     ordered_provider_ids: Vec<i64>,
 ) -> Result<Vec<providers::ProviderSummary>, String> {
@@ -169,9 +170,15 @@ pub(crate) async fn providers_reorder(
     .map_err(Into::into);
 
     if let Ok(ref providers) = result {
+        // Provider order changes must invalidate session-bound provider_order (default TTL=300s).
+        let cleared = {
+            let manager = gateway_state.0.lock_or_recover();
+            manager.clear_cli_session_bindings(&cli_key_for_log)
+        };
         tracing::info!(
             cli_key = %cli_key_for_log,
             count = providers.len(),
+            cleared_sessions = cleared,
             "providers reordered"
         );
     }

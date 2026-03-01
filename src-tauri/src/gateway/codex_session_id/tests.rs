@@ -105,3 +105,107 @@ fn uses_previous_response_id_when_other_sources_missing() {
         result.session_id
     );
 }
+
+#[test]
+fn fingerprint_cache_scopes_by_credential() {
+    let mut cache = CodexSessionIdCache::default();
+    let now_unix = 123;
+    let now_unix_ms = 123_000;
+
+    let mut headers1 = HeaderMap::new();
+    headers1.insert(
+        "authorization",
+        HeaderValue::from_static("Bearer test_key_1"),
+    );
+    headers1.insert("x-real-ip", HeaderValue::from_static("1.2.3.4"));
+    headers1.insert("user-agent", HeaderValue::from_static("ua"));
+    let mut body1 = serde_json::json!({
+        "input": [
+            { "type": "message", "content": "hello" }
+        ]
+    });
+
+    let result1 = complete_codex_session_identifiers(
+        &mut cache,
+        now_unix,
+        now_unix_ms,
+        &mut headers1,
+        Some(&mut body1),
+    );
+
+    let mut headers2 = HeaderMap::new();
+    headers2.insert(
+        "authorization",
+        HeaderValue::from_static("Bearer test_key_2"),
+    );
+    headers2.insert("x-real-ip", HeaderValue::from_static("1.2.3.4"));
+    headers2.insert("user-agent", HeaderValue::from_static("ua"));
+    let mut body2 = serde_json::json!({
+        "input": [
+            { "type": "message", "content": "hello" }
+        ]
+    });
+
+    let result2 = complete_codex_session_identifiers(
+        &mut cache,
+        now_unix,
+        now_unix_ms,
+        &mut headers2,
+        Some(&mut body2),
+    );
+
+    assert_ne!(result1.session_id, result2.session_id);
+}
+
+#[test]
+fn fingerprint_cache_reuses_with_same_credential() {
+    let mut cache = CodexSessionIdCache::default();
+    let now_unix = 123;
+    let now_unix_ms = 123_000;
+
+    let mut headers1 = HeaderMap::new();
+    headers1.insert(
+        "authorization",
+        HeaderValue::from_static("Bearer test_key_1"),
+    );
+    headers1.insert("x-real-ip", HeaderValue::from_static("1.2.3.4"));
+    headers1.insert("user-agent", HeaderValue::from_static("ua"));
+    let mut body1 = serde_json::json!({
+        "input": [
+            { "type": "message", "content": "hello" }
+        ]
+    });
+
+    let result1 = complete_codex_session_identifiers(
+        &mut cache,
+        now_unix,
+        now_unix_ms,
+        &mut headers1,
+        Some(&mut body1),
+    );
+    assert_eq!(result1.action, "generated_uuid_v7");
+
+    let mut headers2 = HeaderMap::new();
+    headers2.insert(
+        "authorization",
+        HeaderValue::from_static("Bearer test_key_1"),
+    );
+    headers2.insert("x-real-ip", HeaderValue::from_static("1.2.3.4"));
+    headers2.insert("user-agent", HeaderValue::from_static("ua"));
+    let mut body2 = serde_json::json!({
+        "input": [
+            { "type": "message", "content": "hello" }
+        ]
+    });
+
+    let result2 = complete_codex_session_identifiers(
+        &mut cache,
+        now_unix,
+        now_unix_ms,
+        &mut headers2,
+        Some(&mut body2),
+    );
+
+    assert_eq!(result2.action, "reused_fingerprint_cache");
+    assert_eq!(result1.session_id, result2.session_id);
+}

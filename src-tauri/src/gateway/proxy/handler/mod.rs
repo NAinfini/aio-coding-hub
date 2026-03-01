@@ -864,8 +864,8 @@ pub(in crate::gateway) async fn proxy_impl(
     // NOTE: model whitelist filtering removed (Claude uses slot-based model mapping).
 
     let session_bound_provider_id = resolve_session_bound_provider_id(
-        &state.db,
         state.session.as_ref(),
+        state.circuit.as_ref(),
         &cli_key,
         session_id.as_deref(),
         created_at,

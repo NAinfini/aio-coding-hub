@@ -63,6 +63,33 @@ fn header_string(headers: &HeaderMap, key: &str) -> Option<String> {
         .filter(|v| !v.is_empty())
 }
 
+fn credential_fingerprint_prefix(headers: &HeaderMap) -> Option<String> {
+    let api_key = header_string(headers, "x-api-key")
+        .or_else(|| header_string(headers, "x-goog-api-key"))
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty());
+    if let Some(key) = api_key {
+        let digest = Sha256::digest(key.as_bytes());
+        let hex = format!("{digest:x}");
+        return hex.get(..10).map(str::to_string);
+    }
+
+    let auth = header_string(headers, "authorization")?;
+    let token = auth
+        .trim()
+        .strip_prefix("Bearer ")
+        .or_else(|| auth.trim().strip_prefix("bearer "))
+        .unwrap_or(auth.trim())
+        .trim();
+    if token.is_empty() {
+        return None;
+    }
+
+    let digest = Sha256::digest(token.as_bytes());
+    let hex = format!("{digest:x}");
+    hex.get(..10).map(str::to_string)
+}
+
 fn extract_client_ip(headers: &HeaderMap) -> String {
     if let Some(forwarded_for) = header_string(headers, "x-forwarded-for") {
         if let Some(first) = forwarded_for
@@ -146,7 +173,11 @@ fn calculate_fingerprint_hash(headers: &HeaderMap, body: Option<&Value>) -> Stri
     let ip = extract_client_ip(headers);
     let ua = extract_user_agent(headers);
     let message_hash = extract_initial_message_text_hash(body).unwrap_or_else(|| "unknown".into());
-    let raw = format!("v1|ip:{ip}|ua:{ua}|m:{message_hash}");
+    let mut raw = format!("v2|ip:{ip}|ua:{ua}|m:{message_hash}");
+    if let Some(key_hash) = credential_fingerprint_prefix(headers) {
+        raw.push_str("|k:");
+        raw.push_str(&key_hash);
+    }
     let digest = Sha256::digest(raw.as_bytes());
     format!("{digest:x}")
 }

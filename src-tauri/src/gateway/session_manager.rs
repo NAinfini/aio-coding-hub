@@ -316,6 +316,30 @@ impl SessionManager {
         );
     }
 
+    pub fn clear_bound_provider(&self, cli_key: &str, session_id: &str, now_unix: i64) -> bool {
+        if cli_key.trim().is_empty() || session_id.trim().is_empty() {
+            return false;
+        }
+
+        let key = SessionKey {
+            cli_key: cli_key.to_string(),
+            session_id: session_id.to_string(),
+        };
+
+        let mut guard = self.bindings.lock_or_recover();
+        match guard.get_mut(&key) {
+            Some(binding) if binding.expires_at > now_unix => {
+                binding.provider_id = 0;
+                true
+            }
+            Some(_) => {
+                guard.remove(&key);
+                true
+            }
+            None => false,
+        }
+    }
+
     pub fn list_active(&self, now_unix: i64, limit: usize) -> Vec<ActiveSessionSnapshot> {
         if limit == 0 {
             return Vec::new();

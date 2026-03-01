@@ -3,7 +3,6 @@ import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { logToConsole } from "../services/consoleLog";
 import { copyText } from "../services/clipboard";
-import { useModelPricesListQuery } from "../query/modelPrices";
 import { useProvidersListQuery } from "../query/providers";
 import {
   claudeProviderGetApiKeyPlaintext,
@@ -15,7 +14,6 @@ import {
   claudeValidationHistoryList,
   type ClaudeModelValidationRunRow,
 } from "../services/claudeModelValidationHistory";
-import type { ModelPriceSummary } from "../services/modelPrices";
 import { baseUrlPingMs, type ProviderSummary } from "../services/providers";
 import {
   DEFAULT_CLAUDE_VALIDATION_TEMPLATE_KEY,
@@ -46,6 +44,7 @@ import { Select } from "../ui/Select";
 import { Switch } from "../ui/Switch";
 import { TabList } from "../ui/TabList";
 import { Textarea } from "../ui/Textarea";
+import { Popover as PopoverRoot, PopoverContent, PopoverTrigger } from "../ui/shadcn/popover";
 import { cn } from "../utils/cn";
 import { formatUnixSeconds } from "../utils/formatters";
 import {
@@ -61,6 +60,8 @@ import {
   XCircle,
   ChevronRight,
   ChevronDown,
+  ChevronsUpDown,
+  Check,
   Activity,
   Copy,
   FileJson,
@@ -121,45 +122,85 @@ function getHistoryGroupKey(run: { id: number; request_json: string }): string {
   return `run:${run.id}`;
 }
 
-/**
- * 判断模型名是否属于 Claude 4+ 系列。
- * 匹配规则：模型名（小写）包含以下任一片段即视为 Claude 4+：
- *   opus-4, sonnet-4, haiku-4
- * 这样可以覆盖 claude-opus-4-5-20250929、claude-sonnet-4-20250514 等所有 4.x 变体。
- */
-function isClaude4Plus(model: string): boolean {
-  const m = model.toLowerCase();
-  return /(?:opus|sonnet|haiku)-4(?:\b|[-_.])/.test(m);
-}
+/** 预设模型选项（固定列表，支持用户自由输入） */
+const PRESET_MODEL_OPTIONS = [
+  "claude-sonnet-4-6",
+  "claude-sonnet-4-5-20250929",
+  "claude-opus-4-6",
+  "claude-opus-4-5-20251101",
+] as const;
 
-function sortClaudeModelsFromPrices(rows: ModelPriceSummary[]) {
-  const unique = new Set<string>();
-  for (const row of rows) {
-    const model = row.model.trim();
-    if (!model) continue;
-    // 仅保留 Claude 4+ 模型
-    if (!isClaude4Plus(model)) continue;
-    unique.add(model);
-  }
+const DEFAULT_MODEL = "claude-sonnet-4-6";
 
-  const priority = (model: string) => {
-    const m = model.toLowerCase();
-    if (m.startsWith("claude-opus-4-5")) return 0;
-    if (m.startsWith("claude-sonnet-4-5")) return 1;
-    if (m.includes("opus-4-5")) return 2;
-    if (m.includes("sonnet-4-5")) return 3;
-    if (m.startsWith("claude-opus")) return 10;
-    if (m.startsWith("claude-sonnet")) return 11;
-    if (m.startsWith("claude-haiku")) return 12;
-    return 50;
-  };
+/** Select + Input 组合选择器：点击弹出预设列表，也可自由输入 */
+function ModelCombobox({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  return [...unique].sort((a, b) => {
-    const pa = priority(a);
-    const pb = priority(b);
-    if (pa !== pb) return pa - pb;
-    return a.localeCompare(b);
-  });
+  return (
+    <PopoverRoot open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          disabled={disabled}
+          className={cn(
+            "flex h-10 w-full items-center justify-between rounded-md border border-slate-200 dark:border-slate-700",
+            "bg-white/80 dark:bg-slate-900/80 px-3 text-xs font-mono shadow-sm",
+            "focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50",
+            !value.trim() && "text-slate-400 dark:text-slate-500"
+          )}
+        >
+          <span className="truncate">{value.trim() || "选择或输入模型..."}</span>
+          <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] p-0">
+        <div className="border-b border-slate-100 dark:border-slate-700 px-2 py-1.5">
+          <input
+            ref={inputRef}
+            value={value}
+            onChange={(e) => onChange(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") setOpen(false);
+            }}
+            placeholder="输入模型名称..."
+            autoFocus
+            className="h-8 w-full rounded-md border-0 bg-transparent px-1 text-xs font-mono focus:outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500"
+          />
+        </div>
+        <div className="max-h-48 overflow-y-auto py-1">
+          {PRESET_MODEL_OPTIONS.map((m) => (
+            <button
+              key={m}
+              type="button"
+              className={cn(
+                "flex w-full items-center gap-2 px-3 py-1.5 text-xs font-mono text-left",
+                "hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-colors",
+                m === value && "bg-slate-50 dark:bg-slate-700/40"
+              )}
+              onClick={() => {
+                onChange(m);
+                setOpen(false);
+              }}
+            >
+              <Check
+                className={cn("h-3.5 w-3.5 shrink-0", m === value ? "opacity-100" : "opacity-0")}
+              />
+              {m}
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </PopoverRoot>
+  );
 }
 
 type ClaudeModelValidationRunView = ClaudeModelValidationRunRow & {
@@ -1055,9 +1096,12 @@ export function ClaudeModelValidationDialog({
 
   const [validating, setValidating] = useState(false);
   const [suiteSteps, setSuiteSteps] = useState<ClaudeValidationSuiteStep[]>([]);
-  const [suiteProgress, setSuiteProgress] = useState<{ current: number; total: number } | null>(
-    null
-  );
+  const [suiteProgress, setSuiteProgress] = useState<{
+    current: number;
+    total: number;
+    round: number;
+    totalRounds: number;
+  } | null>(null);
   const [suiteIssuesOnly, setSuiteIssuesOnly] = useState(false);
   const [suiteActiveStepIndex, setSuiteActiveStepIndex] = useState<number | null>(null);
   const [detailsTab, setDetailsTab] = useState<ValidationDetailsTab>("overview");
@@ -1070,13 +1114,7 @@ export function ClaudeModelValidationDialog({
   const [historyClearing, setHistoryClearing] = useState(false);
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
 
-  const modelPricesQuery = useModelPricesListQuery("claude", { enabled: open });
-  const modelPrices = useMemo<ModelPriceSummary[]>(
-    () => (open ? (modelPricesQuery.data ?? []) : []),
-    [open, modelPricesQuery.data]
-  );
-  const modelPricesLoading = open ? modelPricesQuery.isFetching : false;
-  const modelOptions = useMemo(() => sortClaudeModelsFromPrices(modelPrices), [modelPrices]);
+  const [suiteRounds, setSuiteRounds] = useState(1);
 
   // Cross-provider signature validation
   const allClaudeProvidersQuery = useProvidersListQuery("claude", { enabled: open });
@@ -1107,7 +1145,7 @@ export function ClaudeModelValidationDialog({
       setBaseUrlPicking(false);
       setTemplateKey(DEFAULT_CLAUDE_VALIDATION_TEMPLATE_KEY);
       setResultTemplateKey(DEFAULT_CLAUDE_VALIDATION_TEMPLATE_KEY);
-      setModel("claude-sonnet-4-5-20250929");
+      setModel(DEFAULT_MODEL);
       setRequestJson("");
       setApiKeyPlaintext(null);
       setResult(null);
@@ -1125,12 +1163,13 @@ export function ClaudeModelValidationDialog({
       setHistoryClearing(false);
       setConfirmClearOpen(false);
       setCrossProviderId(null);
+      setSuiteRounds(1);
       return;
     }
 
     setTemplateKey(DEFAULT_CLAUDE_VALIDATION_TEMPLATE_KEY);
     setResultTemplateKey(DEFAULT_CLAUDE_VALIDATION_TEMPLATE_KEY);
-    setModel("claude-sonnet-4-5-20250929");
+    setModel(DEFAULT_MODEL);
     setRequestJson("");
     setApiKeyPlaintext(null);
     setResult(null);
@@ -1377,198 +1416,211 @@ export function ClaudeModelValidationDialog({
     setHistoryLoading(false);
 
     setValidating(true);
-    const suiteRunId = newUuidV4();
+    const totalRounds = suiteRounds;
     setSelectedHistoryKey(null);
     setSuiteActiveStepIndex(null);
-    setSuiteProgress({ current: 0, total: suiteTemplateKeys.length });
-    setSuiteSteps(
-      suiteTemplateKeys.map((k, idx) => {
-        const t = getClaudeValidationTemplate(k);
-        return {
-          index: idx + 1,
-          templateKey: t.key,
-          label: getTemplateDisplayLabel(t),
-          status: "pending",
-          request_json: "",
-          result_json: "",
-          result: null,
-          error: null,
-        };
-      })
-    );
+
     try {
-      for (let idx = 0; idx < suiteTemplateKeys.length; idx += 1) {
-        const stepKey = suiteTemplateKeys[idx];
-        const stepTemplate = getClaudeValidationTemplate(stepKey);
-        setSuiteProgress({ current: idx + 1, total: suiteTemplateKeys.length });
-
-        setSuiteSteps((prev) =>
-          prev.map((s) =>
-            s.index === idx + 1
-              ? { ...s, status: "running", error: null }
-              : s.status === "pending"
-                ? { ...s }
-                : s
-          )
+      for (let round = 1; round <= totalRounds; round += 1) {
+        const suiteRunId = newUuidV4();
+        setSuiteProgress({ current: 0, total: suiteTemplateKeys.length, round, totalRounds });
+        setSuiteSteps(
+          suiteTemplateKeys.map((k, idx) => {
+            const t = getClaudeValidationTemplate(k);
+            return {
+              index: idx + 1,
+              templateKey: t.key,
+              label: getTemplateDisplayLabel(t),
+              status: "pending",
+              request_json: "",
+              result_json: "",
+              result: null,
+              error: null,
+            };
+          })
         );
 
-        const sessionId = newUuidV4();
-        let reqTextToSendWrapper = buildClaudeValidationRequestJson(
-          stepTemplate.key,
-          normalizedModel,
-          null
-        );
-        try {
-          const parsedForSend: unknown = JSON.parse(reqTextToSendWrapper);
-          const bodyForSend =
-            isPlainObject(parsedForSend) && "body" in parsedForSend
-              ? parsedForSend.body
-              : parsedForSend;
-
-          if (isPlainObject(bodyForSend)) {
-            const nextBody: Record<string, unknown> = { ...bodyForSend };
-            const nextMetadata: Record<string, unknown> = isPlainObject(nextBody.metadata)
-              ? { ...(nextBody.metadata as Record<string, unknown>) }
-              : {};
-
-            const existingUserId =
-              typeof nextMetadata.user_id === "string" ? nextMetadata.user_id.trim() : "";
-            const rotated = existingUserId
-              ? rotateClaudeCliUserIdSession(existingUserId, sessionId)
-              : null;
-            if (rotated) {
-              nextMetadata.user_id = rotated;
-            } else if (!existingUserId) {
-              nextMetadata.user_id = buildClaudeCliMetadataUserId(sessionId);
-            }
-            nextBody.metadata = nextMetadata;
-
-            if (isPlainObject(parsedForSend) && "body" in parsedForSend) {
-              const nextParsed: Record<string, unknown> = { ...parsedForSend };
-              const nextHeaders: Record<string, unknown> = isPlainObject(nextParsed.headers)
-                ? { ...(nextParsed.headers as Record<string, unknown>) }
-                : {};
-              // 用于历史聚合显示：同一次"综合验证"共享同一个 suite_run_id。
-              nextParsed.suite_run_id = suiteRunId;
-              nextParsed.suite_step_index = idx + 1;
-              nextParsed.suite_step_total = suiteTemplateKeys.length;
-              nextParsed.headers = nextHeaders;
-              nextParsed.body = nextBody;
-
-              // Add cross_provider_id to roundtrip config if template requires it
-              const templateRequiresCrossProvider =
-                (stepTemplate as unknown as Record<string, unknown>).requiresCrossProvider === true;
-              if (
-                templateRequiresCrossProvider &&
-                crossProviderId &&
-                isPlainObject(nextParsed.roundtrip)
-              ) {
-                nextParsed.roundtrip = {
-                  ...(nextParsed.roundtrip as Record<string, unknown>),
-                  cross_provider_id: crossProviderId,
-                };
-              }
-
-              reqTextToSendWrapper = JSON.stringify(nextParsed, null, 2);
-            } else {
-              reqTextToSendWrapper = JSON.stringify(nextBody, null, 2);
-            }
-          }
-        } catch {
-          // ignore
-        }
-
-        const preSendRequestSnapshotText =
-          buildClaudeModelValidationRequestSnapshotTextFromWrapper({
-            baseUrl: baseUrl.trim(),
-            wrapperJsonText: reqTextToSendWrapper,
-            apiKeyPlaintext: apiKeyPlaintextForSnapshot,
-          }) || reqTextToSendWrapper;
-
-        setRequestJson(preSendRequestSnapshotText);
-
-        setSuiteSteps((prev) =>
-          prev.map((s) =>
-            s.index === idx + 1 ? { ...s, request_json: preSendRequestSnapshotText } : s
-          )
-        );
-
-        let resp: ClaudeModelValidationResult | null = null;
-        try {
-          resp = await claudeProviderValidateModel({
-            provider_id: curProvider.id,
-            base_url: baseUrl.trim(),
-            request_json: reqTextToSendWrapper,
+        for (let idx = 0; idx < suiteTemplateKeys.length; idx += 1) {
+          const stepKey = suiteTemplateKeys[idx];
+          const stepTemplate = getClaudeValidationTemplate(stepKey);
+          setSuiteProgress({
+            current: idx + 1,
+            total: suiteTemplateKeys.length,
+            round,
+            totalRounds,
           });
-        } catch (err) {
-          logToConsole("error", "Claude Provider 模型验证失败（批量）", {
-            error: String(err),
-            provider_id: curProvider.id,
-            attempt: idx + 1,
-            template_key: stepTemplate.key,
-          });
+
           setSuiteSteps((prev) =>
             prev.map((s) =>
               s.index === idx + 1
-                ? { ...s, status: "error", error: String(err), result_json: "" }
-                : s
+                ? { ...s, status: "running", error: null }
+                : s.status === "pending"
+                  ? { ...s }
+                  : s
             )
           );
-          continue;
-        }
 
-        if (!resp) {
-          toast("仅在 Tauri Desktop 环境可用");
-          setSuiteSteps((prev) =>
-            prev.map((s) =>
-              s.index === idx + 1
-                ? { ...s, status: "error", error: "仅在 Tauri Desktop 环境可用" }
-                : s
-            )
+          const sessionId = newUuidV4();
+          let reqTextToSendWrapper = buildClaudeValidationRequestJson(
+            stepTemplate.key,
+            normalizedModel,
+            null
           );
-          return;
-        }
-
-        setResultTemplateKey(stepTemplate.key);
-        setSelectedHistoryKey(null);
-        setResult(resp);
-
-        const executedRequestSnapshotCandidate =
-          buildClaudeModelValidationRequestSnapshotTextFromResult(resp, apiKeyPlaintextForSnapshot);
-        const executedRequestSnapshotText = executedRequestSnapshotCandidate.trim()
-          ? executedRequestSnapshotCandidate
-          : preSendRequestSnapshotText;
-
-        setRequestJson(executedRequestSnapshotText);
-
-        const suiteResultJson = (() => {
           try {
-            return JSON.stringify(resp, null, 2);
-          } catch {
-            return "";
-          }
-        })();
+            const parsedForSend: unknown = JSON.parse(reqTextToSendWrapper);
+            const bodyForSend =
+              isPlainObject(parsedForSend) && "body" in parsedForSend
+                ? parsedForSend.body
+                : parsedForSend;
 
-        setSuiteSteps((prev) =>
-          prev.map((s) =>
-            s.index === idx + 1
-              ? {
-                  ...s,
-                  status: "done",
-                  result: resp,
-                  request_json: executedRequestSnapshotText,
-                  result_json: suiteResultJson,
-                  error: null,
+            if (isPlainObject(bodyForSend)) {
+              const nextBody: Record<string, unknown> = { ...bodyForSend };
+              const nextMetadata: Record<string, unknown> = isPlainObject(nextBody.metadata)
+                ? { ...(nextBody.metadata as Record<string, unknown>) }
+                : {};
+
+              const existingUserId =
+                typeof nextMetadata.user_id === "string" ? nextMetadata.user_id.trim() : "";
+              const rotated = existingUserId
+                ? rotateClaudeCliUserIdSession(existingUserId, sessionId)
+                : null;
+              if (rotated) {
+                nextMetadata.user_id = rotated;
+              } else if (!existingUserId) {
+                nextMetadata.user_id = buildClaudeCliMetadataUserId(sessionId);
+              }
+              nextBody.metadata = nextMetadata;
+
+              if (isPlainObject(parsedForSend) && "body" in parsedForSend) {
+                const nextParsed: Record<string, unknown> = { ...parsedForSend };
+                const nextHeaders: Record<string, unknown> = isPlainObject(nextParsed.headers)
+                  ? { ...(nextParsed.headers as Record<string, unknown>) }
+                  : {};
+                // 用于历史聚合显示：同一次"综合验证"共享同一个 suite_run_id。
+                nextParsed.suite_run_id = suiteRunId;
+                nextParsed.suite_step_index = idx + 1;
+                nextParsed.suite_step_total = suiteTemplateKeys.length;
+                nextParsed.headers = nextHeaders;
+                nextParsed.body = nextBody;
+
+                // Add cross_provider_id to roundtrip config if template requires it
+                const templateRequiresCrossProvider =
+                  (stepTemplate as unknown as Record<string, unknown>).requiresCrossProvider ===
+                  true;
+                if (
+                  templateRequiresCrossProvider &&
+                  crossProviderId &&
+                  isPlainObject(nextParsed.roundtrip)
+                ) {
+                  nextParsed.roundtrip = {
+                    ...(nextParsed.roundtrip as Record<string, unknown>),
+                    cross_provider_id: crossProviderId,
+                  };
                 }
-              : s
-          )
-        );
-      }
 
-      // 刷新历史用于左侧列表更新，但不要自动切到“历史详情”，避免用户误以为本次 suite
-      // 只执行了部分步骤（右侧需保持“当前运行”视图，历史仅用于回溯）。
-      await refreshHistory({ selectLatest: false, allowAutoSelectWhenNone: false });
-      setSelectedHistoryKey(null);
+                reqTextToSendWrapper = JSON.stringify(nextParsed, null, 2);
+              } else {
+                reqTextToSendWrapper = JSON.stringify(nextBody, null, 2);
+              }
+            }
+          } catch {
+            // ignore
+          }
+
+          const preSendRequestSnapshotText =
+            buildClaudeModelValidationRequestSnapshotTextFromWrapper({
+              baseUrl: baseUrl.trim(),
+              wrapperJsonText: reqTextToSendWrapper,
+              apiKeyPlaintext: apiKeyPlaintextForSnapshot,
+            }) || reqTextToSendWrapper;
+
+          setRequestJson(preSendRequestSnapshotText);
+
+          setSuiteSteps((prev) =>
+            prev.map((s) =>
+              s.index === idx + 1 ? { ...s, request_json: preSendRequestSnapshotText } : s
+            )
+          );
+
+          let resp: ClaudeModelValidationResult | null = null;
+          try {
+            resp = await claudeProviderValidateModel({
+              provider_id: curProvider.id,
+              base_url: baseUrl.trim(),
+              request_json: reqTextToSendWrapper,
+            });
+          } catch (err) {
+            logToConsole("error", "Claude Provider 模型验证失败（批量）", {
+              error: String(err),
+              provider_id: curProvider.id,
+              attempt: idx + 1,
+              template_key: stepTemplate.key,
+            });
+            setSuiteSteps((prev) =>
+              prev.map((s) =>
+                s.index === idx + 1
+                  ? { ...s, status: "error", error: String(err), result_json: "" }
+                  : s
+              )
+            );
+            continue;
+          }
+
+          if (!resp) {
+            toast("仅在 Tauri Desktop 环境可用");
+            setSuiteSteps((prev) =>
+              prev.map((s) =>
+                s.index === idx + 1
+                  ? { ...s, status: "error", error: "仅在 Tauri Desktop 环境可用" }
+                  : s
+              )
+            );
+            return;
+          }
+
+          setResultTemplateKey(stepTemplate.key);
+          setSelectedHistoryKey(null);
+          setResult(resp);
+
+          const executedRequestSnapshotCandidate =
+            buildClaudeModelValidationRequestSnapshotTextFromResult(
+              resp,
+              apiKeyPlaintextForSnapshot
+            );
+          const executedRequestSnapshotText = executedRequestSnapshotCandidate.trim()
+            ? executedRequestSnapshotCandidate
+            : preSendRequestSnapshotText;
+
+          setRequestJson(executedRequestSnapshotText);
+
+          const suiteResultJson = (() => {
+            try {
+              return JSON.stringify(resp, null, 2);
+            } catch {
+              return "";
+            }
+          })();
+
+          setSuiteSteps((prev) =>
+            prev.map((s) =>
+              s.index === idx + 1
+                ? {
+                    ...s,
+                    status: "done",
+                    result: resp,
+                    request_json: executedRequestSnapshotText,
+                    result_json: suiteResultJson,
+                    error: null,
+                  }
+                : s
+            )
+          );
+        }
+
+        // 每轮结束后刷新历史
+        await refreshHistory({ selectLatest: false, allowAutoSelectWhenNone: false });
+        setSelectedHistoryKey(null);
+      } // end of round loop
     } catch (err) {
       logToConsole("error", "Claude Provider 模型验证失败", {
         error: String(err),
@@ -1913,41 +1965,39 @@ export function ClaudeModelValidationDialog({
 
             <div className="sm:col-span-4">
               <FormField label="Model">
-                <Select
-                  value={model}
-                  onChange={(e) => setModel(e.currentTarget.value)}
-                  disabled={validating || modelPricesLoading || modelOptions.length === 0}
-                  mono
-                  className="h-10 bg-white/80 dark:bg-slate-900/80 text-xs shadow-sm"
-                >
-                  <option value="" disabled>
-                    {modelOptions.length === 0 ? "无可用模型" : "选择 Model..."}
-                  </option>
-                  {!modelOptions.includes(model) && model.trim() ? (
-                    <option value={model}>{model} (当前)</option>
-                  ) : null}
-                  {modelOptions.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </Select>
+                <ModelCombobox value={model} onChange={setModel} disabled={validating} />
               </FormField>
             </div>
 
-            <div className="flex items-end sm:col-span-4">
+            <div className="flex items-end gap-2 sm:col-span-4">
+              <FormField label="轮数" className="w-20 shrink-0">
+                <input
+                  type="number"
+                  min={1}
+                  max={99}
+                  value={suiteRounds}
+                  onChange={(e) => {
+                    const v = parseInt(e.currentTarget.value, 10);
+                    setSuiteRounds(Number.isFinite(v) && v >= 1 ? Math.min(v, 99) : 1);
+                  }}
+                  disabled={validating}
+                  className="h-10 w-full rounded-md border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 px-3 text-xs font-mono text-center shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                />
+              </FormField>
               <Button
                 onClick={() => void runValidationSuite()}
                 variant="primary"
                 size="md"
                 disabled={validating}
-                className="w-full h-10 shadow-sm"
+                className="flex-1 h-10 shadow-sm"
               >
                 {validating ? (
                   <>
                     <RefreshCw className="mr-2 h-3.5 w-3.5 animate-spin" />
                     {suiteProgress
-                      ? `执行中 (${suiteProgress.current}/${suiteProgress.total})...`
+                      ? suiteProgress.round > 1
+                        ? `轮次 ${suiteProgress.round}/${suiteProgress.totalRounds} · 步骤 ${suiteProgress.current}/${suiteProgress.total}...`
+                        : `执行中 (${suiteProgress.current}/${suiteProgress.total})...`
                       : "执行中..."}
                   </>
                 ) : (
@@ -2364,7 +2414,10 @@ export function ClaudeModelValidationDialog({
                       </div>
                     </details>
 
-                    <details className="group rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm open:ring-2 open:ring-indigo-500/10 transition-all">
+                    <details
+                      open
+                      className="group rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm open:ring-2 open:ring-indigo-500/10 transition-all"
+                    >
                       <summary className="flex cursor-pointer items-center justify-between px-4 py-3 select-none">
                         <div className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300 group-open:text-indigo-600 dark:group-open:text-indigo-400">
                           <Activity className="h-4 w-4" />

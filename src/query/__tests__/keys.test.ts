@@ -163,6 +163,17 @@ describe("query/keys", () => {
     expect(wslKeys.hostAddress()).toEqual(["wsl", "hostAddress"]);
     expect(wslKeys.configStatus([])).toEqual(["wsl", "configStatus"]);
     expect(wslKeys.configStatus(["Ubuntu"])).toEqual(["wsl", "configStatus", "Ubuntu"]);
+    expect(wslKeys.configStatus(["Ubuntu", "Debian"])).toEqual([
+      "wsl",
+      "configStatus",
+      "Debian",
+      "Ubuntu",
+    ]);
+    expect(wslKeys.configStatus([" Ubuntu ", "Ubuntu", ""])).toEqual([
+      "wsl",
+      "configStatus",
+      "Ubuntu",
+    ]);
     expect(wslKeys.overview()).toEqual(["wsl", "overview"]);
   });
 });

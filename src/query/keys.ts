@@ -3,6 +3,20 @@ import type { CostPeriod } from "../services/cost";
 import type { UsagePeriod, UsageRange, UsageScope } from "../services/usage";
 import type { CliSessionsSource } from "../services/cliSessions";
 
+function normalizeKeyParts(values: readonly string[]): string[] {
+  const unique: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of values) {
+    const value = raw.trim();
+    if (!value) continue;
+    if (seen.has(value)) continue;
+    seen.add(value);
+    unique.push(value);
+  }
+  unique.sort((a, b) => a.localeCompare(b));
+  return unique;
+}
+
 const providersAllKey = ["providers"] as const;
 export const providersKeys = {
   all: providersAllKey,
@@ -195,7 +209,8 @@ export const wslKeys = {
   all: wslAllKey,
   detection: () => [...wslAllKey, "detection"] as const,
   hostAddress: () => [...wslAllKey, "hostAddress"] as const,
-  configStatus: (distros: string[]) => [...wslAllKey, "configStatus", ...distros] as const,
+  configStatus: (distros: string[]) =>
+    [...wslAllKey, "configStatus", ...normalizeKeyParts(distros)] as const,
   overview: () => [...wslAllKey, "overview"] as const,
 };
 

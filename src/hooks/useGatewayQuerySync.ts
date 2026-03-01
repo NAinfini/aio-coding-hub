@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { gatewayKeys, requestLogsKeys, usageKeys } from "../query/keys";
+import { gatewayEventNames, subscribeGatewayEvent } from "../services/gatewayEventBus";
 import { hasTauriRuntime } from "../services/tauriInvoke";
 
 const CIRCUIT_INVALIDATE_THROTTLE_MS = 500;
@@ -18,9 +19,6 @@ export function useGatewayQuerySync() {
     if (!hasTauriRuntime()) return;
 
     let cancelled = false;
-    let unlistenCircuit: null | (() => void) = null;
-    let unlistenStatus: null | (() => void) = null;
-    let unlistenRequest: null | (() => void) = null;
 
     const invalidateCircuits = () => {
       queryClient.invalidateQueries({ queryKey: gatewayKeys.circuits() });
@@ -62,37 +60,24 @@ export function useGatewayQuerySync() {
       }, REQUEST_INVALIDATE_THROTTLE_MS);
     };
 
-    import("@tauri-apps/api/event")
-      .then(({ listen }) =>
-        Promise.all([
-          listen("gateway:circuit", () => {
-            if (cancelled) return;
-            scheduleInvalidateCircuits();
-          }),
-          listen("gateway:status", () => {
-            if (cancelled) return;
-            scheduleInvalidateStatus();
-          }),
-          listen("gateway:request", () => {
-            if (cancelled) return;
-            scheduleInvalidateRequestDerived();
-          }),
-        ])
-      )
-      .then(([circuit, status, request]) => {
-        unlistenCircuit = circuit;
-        unlistenStatus = status;
-        unlistenRequest = request;
-      })
-      .catch(() => {
-        // ignore: events unavailable in non-tauri environment
-      });
+    const circuitSub = subscribeGatewayEvent(gatewayEventNames.circuit, () => {
+      if (cancelled) return;
+      scheduleInvalidateCircuits();
+    });
+    const statusSub = subscribeGatewayEvent(gatewayEventNames.status, () => {
+      if (cancelled) return;
+      scheduleInvalidateStatus();
+    });
+    const requestSub = subscribeGatewayEvent(gatewayEventNames.request, () => {
+      if (cancelled) return;
+      scheduleInvalidateRequestDerived();
+    });
 
     return () => {
       cancelled = true;
-      unlistenCircuit?.();
-      unlistenStatus?.();
-      unlistenRequest?.();
+      circuitSub.unsubscribe();
+      statusSub.unsubscribe();
+      requestSub.unsubscribe();
 
       if (circuitTimerRef.current != null) {
         window.clearTimeout(circuitTimerRef.current);

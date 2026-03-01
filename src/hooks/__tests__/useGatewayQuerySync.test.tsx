@@ -17,7 +17,7 @@ describe("hooks/useGatewayQuerySync", () => {
     vi.useFakeTimers();
     setTauriRuntime();
 
-    const handlers = new Map<string, () => void>();
+    const handlers = new Map<string, (event: any) => void>();
     vi.mocked(tauriListen).mockImplementation(async (event: string, handler: any) => {
       handlers.set(event, handler);
       return tauriUnlisten;
@@ -41,22 +41,25 @@ describe("hooks/useGatewayQuerySync", () => {
     expect(handlers.has("gateway:request")).toBe(true);
 
     // Circuit invalidation throttled at 500ms.
-    handlers.get("gateway:circuit")?.();
-    handlers.get("gateway:circuit")?.(); // should be ignored while timer is set
+    const circuitHandler = handlers.get("gateway:circuit")!;
+    circuitHandler({ payload: null });
+    circuitHandler({ payload: null }); // should be ignored while timer is set
     vi.advanceTimersByTime(499);
     expect(invalidateSpy).not.toHaveBeenCalledWith({ queryKey: gatewayKeys.circuits() });
     vi.advanceTimersByTime(1);
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: gatewayKeys.circuits() });
 
     // Status invalidation throttled at 300ms.
-    handlers.get("gateway:status")?.();
-    handlers.get("gateway:status")?.();
+    const statusHandler = handlers.get("gateway:status")!;
+    statusHandler({ payload: null });
+    statusHandler({ payload: null });
     vi.advanceTimersByTime(300);
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: gatewayKeys.status() });
 
     // Request invalidation throttled at 1000ms.
-    handlers.get("gateway:request")?.();
-    handlers.get("gateway:request")?.();
+    const requestHandler = handlers.get("gateway:request")!;
+    requestHandler({ payload: null });
+    requestHandler({ payload: null });
     vi.advanceTimersByTime(1000);
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: requestLogsKeys.lists() });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: usageKeys.all });

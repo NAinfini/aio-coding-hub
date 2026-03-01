@@ -21,7 +21,7 @@ const DEFAULT_CLI_PROXY_STATUS: CliProxyStatus[] = [
 
 // Default settings matching the Rust backend defaults.
 const DEFAULT_SETTINGS: AppSettings = {
-  schema_version: 1,
+  schema_version: 18,
   preferred_port: 37123,
   gateway_listen_mode: "localhost",
   gateway_custom_listen_address: "",
@@ -33,17 +33,17 @@ const DEFAULT_SETTINGS: AppSettings = {
   tray_enabled: true,
   enable_cli_proxy_startup_recovery: true,
   log_retention_days: 7,
-  provider_cooldown_seconds: 60,
-  provider_base_url_ping_cache_ttl_seconds: 300,
-  upstream_first_byte_timeout_seconds: 120,
-  upstream_stream_idle_timeout_seconds: 60,
-  upstream_request_timeout_non_streaming_seconds: 120,
-  update_releases_url: "",
-  failover_max_attempts_per_provider: 1,
-  failover_max_providers_to_try: 3,
+  provider_cooldown_seconds: 30,
+  provider_base_url_ping_cache_ttl_seconds: 60,
+  upstream_first_byte_timeout_seconds: 0,
+  upstream_stream_idle_timeout_seconds: 0,
+  upstream_request_timeout_non_streaming_seconds: 0,
+  update_releases_url: "https://github.com/dyndynjyxa/aio-coding-hub/releases",
+  failover_max_attempts_per_provider: 5,
+  failover_max_providers_to_try: 5,
   circuit_breaker_failure_threshold: 5,
-  circuit_breaker_open_duration_minutes: 5,
-  enable_circuit_breaker_notice: true,
+  circuit_breaker_open_duration_minutes: 30,
+  enable_circuit_breaker_notice: false,
   verbose_provider_error: true,
   intercept_anthropic_warmup_requests: true,
   enable_thinking_signature_rectifier: true,
@@ -56,8 +56,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   response_fixer_fix_encoding: true,
   response_fixer_fix_sse_format: true,
   response_fixer_fix_truncated_json: true,
-  response_fixer_max_json_depth: 64,
-  response_fixer_max_fix_size: 10485760,
+  response_fixer_max_json_depth: 200,
+  response_fixer_max_fix_size: 1048576,
 };
 
 const DEFAULT_GATEWAY_STATUS: GatewayStatus = {

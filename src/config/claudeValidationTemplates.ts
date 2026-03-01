@@ -165,10 +165,10 @@ Claude Code 是 Anthropic 官方的 CLI 工具，提供以下核心能力：
   },
   {
     key: "official_effort_opus45",
-    label: "官方渠道（Opus 4.5 effort 探针）",
-    hint: "仅 Opus 4.5+ 支持 output_config.effort；非 Opus 4.x 自动跳过",
+    label: "官方渠道（Opus 4+ effort 探针）",
+    hint: "Opus 4.5+ 支持 output_config.effort；非 Opus 4.x 自动跳过",
     channelLabel: "官方渠道",
-    summary: "验证 effort 能力（Opus 4.5 only）",
+    summary: "验证 effort 能力（Opus 4+）",
     request: {
       path: "/v1/messages",
       query: "beta=true",
@@ -188,10 +188,18 @@ Claude Code 是 Anthropic 官方的 CLI 工具，提供以下核心能力：
             content: "用 3 句话解释 microservices 与 monolith 的权衡，并在最后一行输出 OK。",
           },
         ],
-        temperature: 0,
         output_config: { effort: "medium" },
+        thinking: {
+          type: "adaptive",
+        },
         tools: claudeCodeCliTools,
-        system: "You are Claude Code, Anthropic's official CLI for Claude.",
+        system: [
+          {
+            type: "text",
+            text: "You are Claude Code, Anthropic's official CLI for Claude.",
+            cache_control: { type: "ephemeral" },
+          },
+        ],
       },
     },
     evaluation: {

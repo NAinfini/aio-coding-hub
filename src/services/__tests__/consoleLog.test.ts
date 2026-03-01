@@ -37,6 +37,9 @@ describe("services/consoleLog", () => {
         cli_key: "claude",
         api_key: "SECRET",
         base_url: "https://example.com/private",
+        baseUrl: "https://example.com/private2",
+        baseOrigin: "http://127.0.0.1:37123",
+        authorization: "Bearer SECRET2",
         attempts: [{ provider_name: "P1" }, { providerName: "P2" }, { provider_name: "P1" }],
       });
     });
@@ -53,6 +56,9 @@ describe("services/consoleLog", () => {
         cli_key: "claude",
         api_key: "[REDACTED]",
         base_url: "[REDACTED]",
+        baseUrl: "[REDACTED]",
+        baseOrigin: "[REDACTED]",
+        authorization: "[REDACTED]",
       })
     );
     expect(entry.meta).toEqual(

@@ -126,7 +126,9 @@ function isSensitiveKey(key: string): boolean {
     k.includes("api_key") ||
     k.includes("apikey") ||
     k.includes("base_url") ||
+    k.includes("baseurl") ||
     k.includes("base_origin") ||
+    k.includes("baseorigin") ||
     k.includes("authorization") ||
     k === "token" ||
     k.endsWith("_token") ||

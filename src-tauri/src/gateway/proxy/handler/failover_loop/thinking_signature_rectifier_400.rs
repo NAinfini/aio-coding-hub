@@ -347,6 +347,8 @@ pub(super) async fn handle_thinking_rectifiers_400(
             error_code,
             decision.as_str()
         );
+        let selection_method = dc::selection_method(provider_index, retry_index, session_reuse);
+        let reason_code = category.reason_code();
 
         attempts.push(FailoverAttempt {
             provider_id,
@@ -361,6 +363,8 @@ pub(super) async fn handle_thinking_rectifiers_400(
             error_code: Some(error_code),
             decision: Some(decision.as_str()),
             reason: Some(reason),
+            selection_method,
+            reason_code: Some(reason_code),
             attempt_started_ms: Some(attempt_started_ms),
             attempt_duration_ms: Some(attempt_started.elapsed().as_millis()),
             circuit_state_before,

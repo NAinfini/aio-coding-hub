@@ -10,6 +10,7 @@ const DEFAULT_SESSION_TTL_SECS: i64 = 300;
 const MAX_SESSION_ID_LEN: usize = 256;
 const MAX_BINDINGS: usize = 5000;
 const SESSION_SUFFIX_LEN: usize = 8;
+const SESSION_FINGERPRINT_MAX_SEGMENTS: usize = 3;
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct ActiveSessionSnapshot {
@@ -145,7 +146,7 @@ impl SessionManager {
             }
         }
 
-        deterministic_session_id(headers).and_then(|id| sanitize_session_id(&id))
+        deterministic_session_id(headers, root).and_then(|id| sanitize_session_id(&id))
     }
 
     pub fn get_bound_provider(
@@ -347,7 +348,7 @@ fn header_string(headers: &HeaderMap, key: &str) -> Option<String> {
         .map(|s| s.to_string())
 }
 
-fn deterministic_session_id(headers: &HeaderMap) -> Option<String> {
+fn credential_fingerprint_prefix(headers: &HeaderMap) -> Option<String> {
     let api_key_prefix = header_string(headers, "x-api-key")
         .or_else(|| header_string(headers, "x-goog-api-key"))
         .and_then(|raw| {
@@ -358,6 +359,48 @@ fn deterministic_session_id(headers: &HeaderMap) -> Option<String> {
             let prefix: String = trimmed.chars().take(10).collect();
             sanitize_deterministic_part(&prefix)
         });
+    if api_key_prefix.is_some() {
+        return api_key_prefix;
+    }
+
+    let auth = header_string(headers, "authorization")?;
+    let trimmed = auth.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let token = trimmed
+        .strip_prefix("Bearer ")
+        .or_else(|| trimmed.strip_prefix("bearer "))
+        .unwrap_or(trimmed)
+        .trim();
+    if token.is_empty() {
+        return None;
+    }
+
+    let digest = Sha256::digest(token.as_bytes());
+    let hex = format!("{digest:x}");
+    let short = hex.get(..10)?;
+    sanitize_deterministic_part(short)
+}
+
+fn deterministic_session_id(headers: &HeaderMap, root: Option<&Value>) -> Option<String> {
+    let credential_prefix = credential_fingerprint_prefix(headers);
+
+    if let Some(message_fingerprint_hex) = root.and_then(extract_initial_message_fingerprint_hex32)
+    {
+        // Prefer message fingerprint for session stickiness across a conversation.
+        // Avoid mixing in user-agent/ip so CLI upgrades don't break reuse.
+        let mut raw = format!("v2|m:{message_fingerprint_hex}");
+        if let Some(prefix) = credential_prefix.as_deref() {
+            raw.push_str("|k:");
+            raw.push_str(prefix);
+        }
+
+        let hash = Sha256::digest(raw.as_bytes());
+        let hex = format!("{hash:x}");
+        let short = hex.get(..32)?;
+        return Some(format!("sess_{short}"));
+    }
 
     let user_agent =
         header_string(headers, "user-agent").and_then(|v| sanitize_deterministic_part(&v));
@@ -371,7 +414,7 @@ fn deterministic_session_id(headers: &HeaderMap) -> Option<String> {
     let real_ip = header_string(headers, "x-real-ip").and_then(|v| sanitize_deterministic_part(&v));
     let ip = forwarded_for.or(real_ip);
 
-    let parts: Vec<String> = [user_agent, ip, api_key_prefix]
+    let parts: Vec<String> = [user_agent, ip, credential_prefix]
         .into_iter()
         .flatten()
         .collect();
@@ -384,6 +427,147 @@ fn deterministic_session_id(headers: &HeaderMap) -> Option<String> {
     let hex = format!("{hash:x}");
     let short = hex.get(..32)?;
     Some(format!("sess_{short}"))
+}
+
+fn extract_initial_message_fingerprint_hex32(root: &Value) -> Option<String> {
+    if let Some(input) = root.get("input").and_then(|v| v.as_str()) {
+        let mut hasher = Sha256::new();
+        let mut segments_added = 0usize;
+        update_hasher_with_text(&mut hasher, &mut segments_added, input);
+        if segments_added > 0 {
+            let digest = hasher.finalize();
+            let hex = format!("{digest:x}");
+            return hex.get(..32).map(str::to_string);
+        }
+    }
+
+    let items: Option<&Vec<Value>> = root
+        .get("messages")
+        .and_then(|v| v.as_array())
+        .or_else(|| root.get("input").and_then(|v| v.as_array()))
+        .or_else(|| root.get("contents").and_then(|v| v.as_array()))
+        .or_else(|| {
+            root.get("request")
+                .and_then(|v| v.get("contents"))
+                .and_then(|v| v.as_array())
+        });
+
+    let items = items?;
+    if items.is_empty() {
+        return None;
+    }
+
+    let mut hasher = Sha256::new();
+    let mut segments_added = 0usize;
+
+    for item in items.iter() {
+        if segments_added >= SESSION_FINGERPRINT_MAX_SEGMENTS {
+            break;
+        }
+        update_hasher_from_message_item(&mut hasher, &mut segments_added, item);
+    }
+
+    if segments_added == 0 {
+        return None;
+    }
+
+    let digest = hasher.finalize();
+    let hex = format!("{digest:x}");
+    hex.get(..32).map(str::to_string)
+}
+
+fn update_hasher_from_message_item(hasher: &mut Sha256, segments_added: &mut usize, item: &Value) {
+    if *segments_added >= SESSION_FINGERPRINT_MAX_SEGMENTS {
+        return;
+    }
+
+    match item {
+        Value::String(s) => update_hasher_with_text(hasher, segments_added, s),
+        Value::Object(obj) => {
+            if let Some(item_type) = obj.get("type").and_then(|v| v.as_str()) {
+                if item_type != "message" {
+                    return;
+                }
+            }
+
+            let mut combined = String::new();
+
+            if let Some(content) = obj
+                .get("content")
+                .and_then(extract_fingerprint_text_from_content)
+            {
+                combined.push_str(&content);
+            }
+
+            if let Some(parts) = obj.get("parts").and_then(|v| v.as_array()) {
+                let mut joined = String::new();
+                for part in parts {
+                    let Some(part_obj) = part.as_object() else {
+                        continue;
+                    };
+                    if let Some(text) = part_obj.get("text").and_then(|v| v.as_str()) {
+                        joined.push_str(text);
+                        continue;
+                    }
+                    if let Some(text) = part_obj.get("content").and_then(|v| v.as_str()) {
+                        joined.push_str(text);
+                    }
+                }
+                if !joined.trim().is_empty() {
+                    combined.push_str(&joined);
+                }
+            }
+
+            update_hasher_with_text(hasher, segments_added, &combined);
+        }
+        _ => {}
+    }
+}
+
+fn extract_fingerprint_text_from_content(content: &Value) -> Option<String> {
+    match content {
+        Value::String(s) => Some(s.trim().to_string()).filter(|v| !v.is_empty()),
+        Value::Array(parts) => {
+            let mut joined = String::new();
+            for part in parts {
+                let Some(part_obj) = part.as_object() else {
+                    continue;
+                };
+
+                if let Some(text) = part_obj.get("text").and_then(|v| v.as_str()) {
+                    joined.push_str(text);
+                    continue;
+                }
+
+                if let Some(text) = part_obj.get("content").and_then(|v| v.as_str()) {
+                    joined.push_str(text);
+                    continue;
+                }
+            }
+            Some(joined.trim().to_string()).filter(|v| !v.is_empty())
+        }
+        Value::Object(obj) => obj
+            .get("text")
+            .and_then(|v| v.as_str())
+            .or_else(|| obj.get("content").and_then(|v| v.as_str()))
+            .and_then(|text| Some(text.trim().to_string()).filter(|v| !v.is_empty())),
+        _ => None,
+    }
+}
+
+fn update_hasher_with_text(hasher: &mut Sha256, segments_added: &mut usize, raw: &str) {
+    if *segments_added >= SESSION_FINGERPRINT_MAX_SEGMENTS {
+        return;
+    }
+
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return;
+    }
+
+    hasher.update(trimmed.as_bytes());
+    hasher.update(b"|");
+    *segments_added += 1;
 }
 
 fn sanitize_deterministic_part(raw: &str) -> Option<String> {

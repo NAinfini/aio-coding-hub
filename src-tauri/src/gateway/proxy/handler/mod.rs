@@ -29,7 +29,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use super::super::codex_session_id;
-use super::super::events::{emit_gateway_log, emit_request_start_event};
+use super::super::events::{decision_chain as dc, emit_gateway_log, emit_request_start_event};
 use super::super::manager::GatewayAppState;
 use super::super::response_fixer;
 use super::super::util::{
@@ -512,8 +512,10 @@ fn respond_warmup_intercept(ctx: &WarmupInterceptCtx<'_>) -> Response {
         session_reuse: Some(false),
         error_category: None,
         error_code: None,
-        decision: None,
+        decision: Some("success"),
         reason: None,
+        selection_method: None,
+        reason_code: Some(dc::REASON_REQUEST_SUCCESS),
         attempt_started_ms: None,
         attempt_duration_ms: None,
         circuit_state_before: None,

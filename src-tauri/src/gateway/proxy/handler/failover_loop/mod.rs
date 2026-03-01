@@ -49,7 +49,9 @@ use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-use crate::gateway::events::{emit_attempt_event, FailoverAttempt, GatewayAttemptEvent};
+use crate::gateway::events::{
+    decision_chain as dc, emit_attempt_event, FailoverAttempt, GatewayAttemptEvent,
+};
 use crate::gateway::response_fixer;
 use crate::gateway::streams::{
     spawn_usage_sse_relay_body, FirstChunkStream, GunzipStream, TimingOnlyTeeStream,
@@ -156,6 +158,8 @@ pub(super) async fn run(mut input: RequestContext) -> Response {
             continue;
         }
 
+        let skipped_open_before = skipped_open;
+        let skipped_cooldown_before = skipped_cooldown;
         let Some(gate_allow) = provider_gate::gate_provider(provider_gate::ProviderGateInput {
             ctx,
             provider_id,
@@ -165,6 +169,14 @@ pub(super) async fn run(mut input: RequestContext) -> Response {
             skipped_open: &mut skipped_open,
             skipped_cooldown: &mut skipped_cooldown,
         }) else {
+            let (reason_code, reason_label) = if skipped_open > skipped_open_before {
+                (Some(dc::REASON_CIRCUIT_OPEN), "open")
+            } else if skipped_cooldown > skipped_cooldown_before {
+                (Some(dc::REASON_CIRCUIT_COOLDOWN), "cooldown")
+            } else {
+                (None, "unknown")
+            };
+
             // Record skipped provider (circuit breaker gate)
             attempts.push(FailoverAttempt {
                 provider_id,
@@ -178,7 +190,11 @@ pub(super) async fn run(mut input: RequestContext) -> Response {
                 error_category: Some("circuit_breaker"),
                 error_code: Some(GatewayErrorCode::ProviderCircuitOpen.as_str()),
                 decision: Some("skip"),
-                reason: Some("provider skipped by circuit breaker".to_string()),
+                reason: Some(format!(
+                    "provider skipped by circuit breaker ({reason_label})"
+                )),
+                selection_method: Some(dc::SELECTION_METHOD_FILTERED),
+                reason_code,
                 attempt_started_ms: Some(started.elapsed().as_millis()),
                 attempt_duration_ms: Some(0),
                 circuit_state_before: None,
@@ -209,6 +225,8 @@ pub(super) async fn run(mut input: RequestContext) -> Response {
                 error_code: Some(GatewayErrorCode::ProviderRateLimited.as_str()),
                 decision: Some("skip"),
                 reason: Some("provider skipped by rate limit".to_string()),
+                selection_method: Some(dc::SELECTION_METHOD_FILTERED),
+                reason_code: Some(dc::REASON_RATE_LIMITED),
                 attempt_started_ms: Some(started.elapsed().as_millis()),
                 attempt_duration_ms: Some(0),
                 circuit_state_before: None,

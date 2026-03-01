@@ -2,6 +2,54 @@ use crate::{circuit_breaker, notice, settings, usage};
 use serde::Serialize;
 use tauri::Emitter;
 
+pub(in crate::gateway) mod decision_chain {
+    pub(in crate::gateway) const SELECTION_METHOD_SESSION_REUSE: &str = "session_reuse";
+    pub(in crate::gateway) const SELECTION_METHOD_ORDERED: &str = "ordered";
+    pub(in crate::gateway) const SELECTION_METHOD_FILTERED: &str = "filtered";
+
+    pub(in crate::gateway) const REASON_REQUEST_SUCCESS: &str = "request_success";
+    pub(in crate::gateway) const REASON_RETRY_SUCCESS: &str = "retry_success";
+    pub(in crate::gateway) const REASON_RETRY_FAILED: &str = "retry_failed";
+    pub(in crate::gateway) const REASON_SYSTEM_ERROR: &str = "system_error";
+    pub(in crate::gateway) const REASON_RESOURCE_NOT_FOUND: &str = "resource_not_found";
+    pub(in crate::gateway) const REASON_CLIENT_ERROR_NON_RETRYABLE: &str =
+        "client_error_non_retryable";
+    pub(in crate::gateway) const REASON_ABORTED: &str = "aborted";
+    pub(in crate::gateway) const REASON_CIRCUIT_OPEN: &str = "circuit_open";
+    pub(in crate::gateway) const REASON_CIRCUIT_COOLDOWN: &str = "circuit_cooldown";
+    pub(in crate::gateway) const REASON_RATE_LIMITED: &str = "rate_limited";
+
+    /// Determine how the provider was selected for this attempt.
+    /// Only meaningful for the first attempt (provider_index=1, retry_index=1).
+    pub(in crate::gateway) fn selection_method(
+        provider_index: u32,
+        retry_index: u32,
+        session_reuse: Option<bool>,
+    ) -> Option<&'static str> {
+        if provider_index == 1 && retry_index == 1 {
+            Some(if session_reuse == Some(true) {
+                SELECTION_METHOD_SESSION_REUSE
+            } else {
+                SELECTION_METHOD_ORDERED
+            })
+        } else {
+            None
+        }
+    }
+
+    /// Determine reason code for a successful attempt.
+    pub(in crate::gateway) fn success_reason_code(
+        provider_index: u32,
+        retry_index: u32,
+    ) -> &'static str {
+        if provider_index == 1 && retry_index == 1 {
+            REASON_REQUEST_SUCCESS
+        } else {
+            REASON_RETRY_SUCCESS
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Clone)]
 pub(super) struct FailoverAttempt {
     pub(super) provider_id: i64,
@@ -16,6 +64,8 @@ pub(super) struct FailoverAttempt {
     pub(super) error_code: Option<&'static str>,
     pub(super) decision: Option<&'static str>,
     pub(super) reason: Option<String>,
+    pub(super) selection_method: Option<&'static str>,
+    pub(super) reason_code: Option<&'static str>,
     pub(super) attempt_started_ms: Option<u128>,
     pub(super) attempt_duration_ms: Option<u128>,
     pub(super) circuit_state_before: Option<&'static str>,

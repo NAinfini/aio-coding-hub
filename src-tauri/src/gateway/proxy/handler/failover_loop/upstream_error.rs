@@ -24,6 +24,7 @@ use super::thinking_signature_rectifier_400;
 use super::{emit_attempt_event_and_log, AttemptCircuitFields};
 use super::{emit_request_event_and_enqueue_request_log, RequestEndArgs, RequestEndDeps};
 use crate::circuit_breaker;
+use crate::gateway::events::decision_chain as dc;
 use crate::gateway::events::FailoverAttempt;
 use crate::gateway::response_fixer;
 use crate::gateway::streams::GunzipStream;
@@ -295,6 +296,8 @@ pub(super) async fn handle_non_success_response(
         error_code,
         decision.as_str()
     );
+    let selection_method = dc::selection_method(provider_index, retry_index, session_reuse);
+    let reason_code = category.reason_code();
 
     attempts.push(FailoverAttempt {
         provider_id,
@@ -309,6 +312,8 @@ pub(super) async fn handle_non_success_response(
         error_code: Some(error_code),
         decision: Some(decision.as_str()),
         reason: Some(reason),
+        selection_method,
+        reason_code: Some(reason_code),
         attempt_started_ms: Some(attempt_started_ms),
         attempt_duration_ms: Some(attempt_started.elapsed().as_millis()),
         circuit_state_before,

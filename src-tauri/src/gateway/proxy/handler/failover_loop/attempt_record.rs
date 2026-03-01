@@ -3,6 +3,7 @@
 use super::super::super::provider_router;
 use super::super::super::status_override;
 use super::*;
+use crate::gateway::events::decision_chain as dc;
 
 pub(super) struct RecordSystemFailureArgs<'a> {
     pub(super) ctx: CommonCtx<'a>,
@@ -90,6 +91,8 @@ async fn record_system_failure_and_decide_impl(
         error_code: Some(error_code),
         decision: Some(decision.as_str()),
         reason: Some(reason),
+        selection_method: dc::selection_method(provider_index, retry_index, session_reuse),
+        reason_code: Some(category.reason_code()),
         attempt_started_ms: Some(attempt_started_ms),
         attempt_duration_ms: Some(attempt_started.elapsed().as_millis()),
         circuit_state_before: Some(circuit_before.state.as_str()),

@@ -33,6 +33,8 @@ pub(super) async fn handle_success_event_stream(
         attempt_started,
         circuit_before,
     } = attempt_ctx;
+    let selection_method = dc::selection_method(provider_index, retry_index, session_reuse);
+    let reason_code = dc::success_reason_code(provider_index, retry_index);
 
     let LoopState {
         attempts,
@@ -215,6 +217,8 @@ pub(super) async fn handle_success_event_stream(
             error_code: None,
             decision: Some("success"),
             reason: None,
+            selection_method,
+            reason_code: Some(reason_code),
             attempt_started_ms: Some(attempt_started_ms),
             attempt_duration_ms: Some(attempt_started.elapsed().as_millis()),
             circuit_state_before: Some(circuit_before.state.as_str()),

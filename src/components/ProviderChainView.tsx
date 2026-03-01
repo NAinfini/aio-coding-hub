@@ -21,12 +21,19 @@ type ProviderChainAttemptJson = {
   status: number | null;
   provider_index?: number | null;
   retry_index?: number | null;
+  session_reuse?: boolean | null;
   error_category?: string | null;
   error_code?: string | null;
   decision?: string | null;
   reason?: string | null;
+  selection_method?: string | null;
+  reason_code?: string | null;
   attempt_started_ms?: number | null;
   attempt_duration_ms?: number | null;
+  circuit_state_before?: string | null;
+  circuit_state_after?: string | null;
+  circuit_failure_count?: number | null;
+  circuit_failure_threshold?: number | null;
 };
 
 type ProviderChainAttempt = {
@@ -40,10 +47,17 @@ type ProviderChainAttempt = {
   attempt_duration_ms: number | null;
   provider_index: number | null;
   retry_index: number | null;
+  session_reuse: boolean | null;
   error_category: string | null;
   error_code: string | null;
   decision: string | null;
   reason: string | null;
+  selection_method: string | null;
+  reason_code: string | null;
+  circuit_state_before: string | null;
+  circuit_state_after: string | null;
+  circuit_failure_count: number | null;
+  circuit_failure_threshold: number | null;
 };
 
 export function ProviderChainView({
@@ -87,10 +101,17 @@ export function ProviderChainView({
         attempt_duration_ms: a.attempt_duration_ms ?? null,
         provider_index: a.provider_index ?? null,
         retry_index: a.retry_index ?? null,
+        session_reuse: a.session_reuse ?? null,
         error_category: a.error_category ?? null,
         error_code: a.error_code ?? null,
         decision: a.decision ?? null,
         reason: a.reason ?? null,
+        selection_method: a.selection_method ?? null,
+        reason_code: a.reason_code ?? null,
+        circuit_state_before: a.circuit_state_before ?? null,
+        circuit_state_after: a.circuit_state_after ?? null,
+        circuit_failure_count: a.circuit_failure_count ?? null,
+        circuit_failure_threshold: a.circuit_failure_threshold ?? null,
       }));
     }
 
@@ -117,10 +138,17 @@ export function ProviderChainView({
           attempt_duration_ms: log.attempt_duration_ms ?? json?.attempt_duration_ms ?? null,
           provider_index: json?.provider_index ?? null,
           retry_index: json?.retry_index ?? null,
+          session_reuse: json?.session_reuse ?? null,
           error_category: json?.error_category ?? null,
           error_code: json?.error_code ?? null,
           decision: json?.decision ?? null,
           reason: json?.reason ?? null,
+          selection_method: json?.selection_method ?? null,
+          reason_code: json?.reason_code ?? null,
+          circuit_state_before: json?.circuit_state_before ?? null,
+          circuit_state_after: json?.circuit_state_after ?? null,
+          circuit_failure_count: json?.circuit_failure_count ?? null,
+          circuit_failure_threshold: json?.circuit_failure_threshold ?? null,
         };
       });
 
@@ -212,9 +240,12 @@ export function ProviderChainView({
 
       {attempts.map((attempt) => {
         const success = attempt.outcome === "success";
+        const skipped = attempt.outcome === "skipped";
         const isFinal = Boolean(
           finalAttempt && attempt.attempt_index === finalAttempt.attempt_index
         );
+        const selectionMethod = attempt.selection_method?.trim() ?? null;
+        const reasonCode = attempt.reason_code?.trim() ?? null;
         const providerLabel =
           attempt.provider_name && attempt.provider_name !== "未知"
             ? attempt.provider_name
@@ -228,7 +259,9 @@ export function ProviderChainView({
               isFinal
                 ? success
                   ? "border-emerald-200 bg-emerald-50/40 dark:border-emerald-700 dark:bg-emerald-900/20"
-                  : "border-rose-200 bg-rose-50/40 dark:border-rose-700 dark:bg-rose-900/20"
+                  : skipped
+                    ? "border-slate-200 bg-slate-50/40 dark:border-slate-600 dark:bg-slate-700/20"
+                    : "border-rose-200 bg-rose-50/40 dark:border-rose-700 dark:bg-rose-900/20"
                 : "border-slate-200 dark:border-slate-700"
             )}
           >
@@ -244,7 +277,9 @@ export function ProviderChainView({
                         "rounded-full px-2 py-0.5 text-xs font-medium",
                         success
                           ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                          : "bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
+                          : skipped
+                            ? "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200"
+                            : "bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
                       )}
                     >
                       最终
@@ -285,6 +320,21 @@ export function ProviderChainView({
                   <span>
                     provider_id: <span className="font-mono">{attempt.provider_id}</span>
                   </span>
+                  {attempt.session_reuse === true ? (
+                    <span className="rounded-full bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 font-medium text-emerald-700 dark:text-emerald-400">
+                      session_reuse
+                    </span>
+                  ) : null}
+                  {selectionMethod ? (
+                    <span className="rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-0.5 font-medium text-slate-700 dark:text-slate-300">
+                      {selectionMethod}
+                    </span>
+                  ) : null}
+                  {reasonCode ? (
+                    <span className="rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-0.5 font-medium text-slate-700 dark:text-slate-300">
+                      {reasonCode}
+                    </span>
+                  ) : null}
                   {attempt.error_code ? (
                     <span className="rounded-full bg-amber-50 dark:bg-amber-900/30 px-2 py-0.5 font-medium text-amber-700 dark:text-amber-400">
                       {attempt.error_code}
@@ -312,10 +362,12 @@ export function ProviderChainView({
                     "rounded-full px-2 py-0.5 text-xs font-medium",
                     success
                       ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                      : "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                      : skipped
+                        ? "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200"
+                        : "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
                   )}
                 >
-                  {success ? "成功" : "失败"}
+                  {success ? "成功" : skipped ? "跳过" : "失败"}
                 </span>
                 <span className="max-w-[360px] truncate font-mono text-xs text-slate-600 dark:text-slate-400">
                   {attempt.outcome}

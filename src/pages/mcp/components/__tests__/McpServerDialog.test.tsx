@@ -37,13 +37,23 @@ describe("pages/mcp/components/McpServerDialog", () => {
     fireEvent.change(screen.getByPlaceholderText("例如：npx"), { target: { value: "node" } });
 
     // Invalid env: should fail before hitting mutation.
-    fireEvent.change(screen.getByPlaceholderText(/FOO=bar/), { target: { value: "BADLINE" } });
+    fireEvent.change(screen.getByPlaceholderText("KEY（例如 TOKEN）"), {
+      target: { value: "BADLINE" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("VALUE（例如 sk-xxx）"), {
+      target: { value: "" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "保存并同步" }));
     await waitFor(() => expect(mutateAsync).not.toHaveBeenCalled());
 
     // Valid env: mutation runs but returns null => "Tauri only" path.
     mutateAsync.mockResolvedValueOnce(null);
-    fireEvent.change(screen.getByPlaceholderText(/FOO=bar/), { target: { value: "FOO=bar" } });
+    fireEvent.change(screen.getByPlaceholderText("KEY（例如 TOKEN）"), {
+      target: { value: "FOO" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("VALUE（例如 sk-xxx）"), {
+      target: { value: "bar" },
+    });
     fireEvent.change(screen.getByPlaceholderText(/-y/), { target: { value: "-y\n@foo/bar" } });
     fireEvent.click(screen.getByRole("button", { name: "保存并同步" }));
     await waitFor(() =>
@@ -62,6 +72,30 @@ describe("pages/mcp/components/McpServerDialog", () => {
     mutateAsync.mockResolvedValueOnce({ id: 1, server_key: "fetch", transport: "stdio" });
     fireEvent.click(screen.getByRole("button", { name: "保存并同步" }));
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+  });
+
+  it("blocks invalid env keys in pair editor", async () => {
+    const mutateAsync = vi.fn();
+    vi.mocked(useMcpServerUpsertMutation).mockReturnValue({ isPending: false, mutateAsync } as any);
+
+    render(
+      <McpServerDialog workspaceId={1} open={true} editTarget={null} onOpenChange={vi.fn()} />
+    );
+
+    fireEvent.change(screen.getByPlaceholderText("例如：Fetch 工具"), {
+      target: { value: "Fetch Tool" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("例如：npx"), { target: { value: "node" } });
+
+    fireEvent.change(screen.getByPlaceholderText("KEY（例如 TOKEN）"), {
+      target: { value: "FOO-BAR" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("VALUE（例如 sk-xxx）"), {
+      target: { value: "baz" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "保存并同步" }));
+    await waitFor(() => expect(mutateAsync).not.toHaveBeenCalled());
   });
 
   it("prefills and saves http servers with headers parsing", async () => {
@@ -93,15 +127,21 @@ describe("pages/mcp/components/McpServerDialog", () => {
     expect(screen.getByDisplayValue("https://example.com/mcp")).toBeInTheDocument();
 
     // Invalid headers should block mutation.
-    fireEvent.change(screen.getByPlaceholderText(/Authorization=Bearer/), {
+    fireEvent.change(screen.getByPlaceholderText("Header（例如 Authorization）"), {
+      target: { value: "" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Value（例如 Bearer xxx）"), {
       target: { value: "BAD" },
     });
     fireEvent.click(screen.getByRole("button", { name: "保存并同步" }));
     await waitFor(() => expect(mutateAsync).not.toHaveBeenCalled());
 
     mutateAsync.mockResolvedValueOnce({ id: 7, server_key: "remote", transport: "http" });
-    fireEvent.change(screen.getByPlaceholderText(/Authorization=Bearer/), {
-      target: { value: "Authorization=Bearer y" },
+    fireEvent.change(screen.getByPlaceholderText("Header（例如 Authorization）"), {
+      target: { value: "Authorization" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Value（例如 Bearer xxx）"), {
+      target: { value: "Bearer y" },
     });
     fireEvent.click(screen.getByRole("button", { name: "保存并同步" }));
     await waitFor(() =>

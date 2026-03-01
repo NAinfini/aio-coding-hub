@@ -27,9 +27,31 @@ type McpDialogDraft = {
 
 type KVPair = { key: string; value: string };
 
+const ENV_KEY_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const HEADER_KEY_RE = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
+
 function recordToPairs(record: Record<string, string>): KVPair[] {
   const pairs = Object.entries(record).map(([key, value]) => ({ key, value }));
   return pairs.length > 0 ? pairs : [{ key: "", value: "" }];
+}
+
+function validatePairs(
+  pairs: KVPair[],
+  spec: { label: string; keyLabel: string; valueLabel: string; keyPattern: RegExp }
+): string | null {
+  for (const [i, pair] of pairs.entries()) {
+    const key = pair.key.trim();
+    const value = pair.value.trim();
+
+    if (!key && !value) continue;
+    if (!key || !value) {
+      return `${spec.label} 第 ${i + 1} 行：请填写 ${spec.keyLabel}=${spec.valueLabel}`;
+    }
+    if (!spec.keyPattern.test(key)) {
+      return `${spec.label} 第 ${i + 1} 行：${spec.keyLabel} 格式不正确`;
+    }
+  }
+  return null;
 }
 
 function pairsToRecord(pairs: KVPair[]): Record<string, string> {
@@ -366,6 +388,26 @@ export function McpServerDialog({
 
   async function save() {
     if (saving) return;
+
+    const pairError =
+      transport === "stdio"
+        ? validatePairs(envPairs, {
+            label: "Env",
+            keyLabel: "KEY",
+            valueLabel: "VALUE",
+            keyPattern: ENV_KEY_RE,
+          })
+        : validatePairs(headerPairs, {
+            label: "Headers",
+            keyLabel: "Header",
+            valueLabel: "Value",
+            keyPattern: HEADER_KEY_RE,
+          });
+    if (pairError) {
+      toast(pairError);
+      return;
+    }
+
     try {
       const next = await upsertMutation.mutateAsync({
         serverId: editTarget?.id ?? null,

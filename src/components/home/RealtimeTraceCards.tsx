@@ -318,9 +318,8 @@ export const RealtimeTraceCards = memo(function RealtimeTraceCards({
                     </span>
                   )}
 
-                  {hasSessionReuse && <SessionReuseBadge showCustomTooltip={showCustomTooltip} />}
-
-                  <span className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 ml-auto shrink-0">
+                  <span className="flex items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500 ml-auto shrink-0">
+                    {hasSessionReuse && <SessionReuseBadge showCustomTooltip={showCustomTooltip} />}
                     <Clock className="h-3 w-3" />
                     {formatUnixSeconds(Math.floor(trace.first_seen_ms / 1000))}
                   </span>

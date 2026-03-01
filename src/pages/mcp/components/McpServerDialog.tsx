@@ -25,27 +25,27 @@ type McpDialogDraft = {
   headers: Record<string, string>;
 };
 
+type KVPair = { key: string; value: string };
+
+function recordToPairs(record: Record<string, string>): KVPair[] {
+  const pairs = Object.entries(record).map(([key, value]) => ({ key, value }));
+  return pairs.length > 0 ? pairs : [{ key: "", value: "" }];
+}
+
+function pairsToRecord(pairs: KVPair[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const { key, value } of pairs) {
+    const k = key.trim();
+    if (k) out[k] = value;
+  }
+  return out;
+}
+
 function parseLines(text: string) {
   return text
     .split("\n")
     .map((l) => l.trim())
     .filter(Boolean);
-}
-
-function parseKeyValueLines(text: string, hint: string) {
-  const out: Record<string, string> = {};
-  const lines = parseLines(text);
-  for (const line of lines) {
-    const idx = line.indexOf("=");
-    if (idx <= 0) {
-      throw new Error(`${hint} 格式错误：请使用 KEY=VALUE（示例：FOO=bar）`);
-    }
-    const k = line.slice(0, idx).trim();
-    const v = line.slice(idx + 1).trim();
-    if (!k) throw new Error(`${hint} 格式错误：KEY 不能为空`);
-    out[k] = v;
-  }
-  return out;
 }
 
 function asObject(value: unknown): Record<string, unknown> | null {
@@ -194,10 +194,72 @@ function fromServerSummary(
   };
 }
 
-function mapToLines(input: Record<string, string>) {
-  return Object.entries(input)
-    .map(([k, v]) => `${k}=${v}`)
-    .join("\n");
+function KeyValuePairEditor({
+  pairs,
+  onChange,
+  keyPlaceholder = "KEY",
+  valuePlaceholder = "VALUE",
+}: {
+  pairs: KVPair[];
+  onChange: (pairs: KVPair[]) => void;
+  keyPlaceholder?: string;
+  valuePlaceholder?: string;
+}) {
+  const inputCls =
+    "rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-1.5 font-mono text-xs text-slate-900 dark:text-slate-100 shadow-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20";
+
+  const updatePair = (index: number, field: "key" | "value", val: string) => {
+    const next = pairs.map((p, i) => (i === index ? { ...p, [field]: val } : p));
+    onChange(next);
+  };
+
+  const removePair = (index: number) => {
+    const next = pairs.filter((_, i) => i !== index);
+    onChange(next.length > 0 ? next : [{ key: "", value: "" }]);
+  };
+
+  const addPair = () => {
+    onChange([...pairs, { key: "", value: "" }]);
+  };
+
+  return (
+    <div className="space-y-2">
+      {pairs.map((pair, index) => (
+        <div key={index} className="flex items-center gap-2">
+          <input
+            type="text"
+            value={pair.key}
+            onChange={(e) => updatePair(index, "key", e.currentTarget.value)}
+            placeholder={keyPlaceholder}
+            className={cn("w-[40%] shrink-0", inputCls)}
+          />
+          <span className="text-xs text-slate-400 select-none">=</span>
+          <input
+            type="text"
+            value={pair.value}
+            onChange={(e) => updatePair(index, "value", e.currentTarget.value)}
+            placeholder={valuePlaceholder}
+            className={cn("min-w-0 flex-1", inputCls)}
+          />
+          <button
+            type="button"
+            onClick={() => removePair(index)}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20 dark:hover:text-red-400 transition-colors"
+            title="删除"
+          >
+            ×
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={addPair}
+        className="text-xs text-accent hover:text-accent/80 font-medium transition-colors"
+      >
+        + 添加一行
+      </button>
+    </div>
+  );
 }
 
 export function McpServerDialog({
@@ -213,10 +275,10 @@ export function McpServerDialog({
   const [transport, setTransport] = useState<McpTransport>("stdio");
   const [command, setCommand] = useState("");
   const [argsText, setArgsText] = useState("");
-  const [envText, setEnvText] = useState("");
+  const [envPairs, setEnvPairs] = useState<KVPair[]>([{ key: "", value: "" }]);
   const [cwd, setCwd] = useState("");
   const [url, setUrl] = useState("");
-  const [headersText, setHeadersText] = useState("");
+  const [headerPairs, setHeaderPairs] = useState<KVPair[]>([{ key: "", value: "" }]);
   const [jsonText, setJsonText] = useState("");
 
   useEffect(() => {
@@ -227,10 +289,10 @@ export function McpServerDialog({
       setTransport(draft.transport);
       setCommand(draft.command);
       setArgsText(draft.args.join("\n"));
-      setEnvText(mapToLines(draft.env));
+      setEnvPairs(recordToPairs(draft.env));
       setCwd(draft.cwd);
       setUrl(draft.url);
-      setHeadersText(mapToLines(draft.headers));
+      setHeaderPairs(recordToPairs(draft.headers));
       setJsonText("");
       return;
     }
@@ -239,10 +301,10 @@ export function McpServerDialog({
     setTransport("stdio");
     setCommand("");
     setArgsText("");
-    setEnvText("");
+    setEnvPairs([{ key: "", value: "" }]);
     setCwd("");
     setUrl("");
-    setHeadersText("");
+    setHeaderPairs([{ key: "", value: "" }]);
     setJsonText("");
   }, [open, editTarget]);
 
@@ -253,10 +315,10 @@ export function McpServerDialog({
     setTransport(draft.transport);
     setCommand(draft.command);
     setArgsText(draft.args.join("\n"));
-    setEnvText(mapToLines(draft.env));
+    setEnvPairs(recordToPairs(draft.env));
     setCwd(draft.cwd);
     setUrl(draft.url);
-    setHeadersText(mapToLines(draft.headers));
+    setHeaderPairs(recordToPairs(draft.headers));
   }
 
   async function fillFromJson() {
@@ -312,10 +374,10 @@ export function McpServerDialog({
         transport,
         command: transport === "stdio" ? command : null,
         args: transport === "stdio" ? parseLines(argsText) : [],
-        env: transport === "stdio" ? parseKeyValueLines(envText, "Env") : {},
+        env: transport === "stdio" ? pairsToRecord(envPairs) : {},
         cwd: transport === "stdio" ? (cwd.trim() ? cwd : null) : null,
         url: transport === "http" ? url : null,
-        headers: transport === "http" ? parseKeyValueLines(headersText, "Headers") : {},
+        headers: transport === "http" ? pairsToRecord(headerPairs) : {},
       });
 
       if (!next) {
@@ -345,7 +407,7 @@ export function McpServerDialog({
         editTarget ? "修改后会自动同步到所有 CLI 的当前工作区配置文件。" : `类型：${transportHint}`
       }
       onOpenChange={onOpenChange}
-      className="max-w-3xl"
+      className="max-w-5xl"
     >
       <div className="grid gap-4">
         {!editTarget ? (
@@ -466,30 +528,29 @@ export function McpServerDialog({
               />
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <div className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Args（每行一个）
-                </div>
-                <textarea
-                  value={argsText}
-                  onChange={(e) => setArgsText(e.currentTarget.value)}
-                  placeholder={`例如：\n-y\n@modelcontextprotocol/server-fetch`}
-                  rows={6}
-                  className="mt-2 w-full resize-y rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 font-mono text-xs text-slate-900 dark:text-slate-100 shadow-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
-                />
+            <div>
+              <div className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                Args（每行一个）
               </div>
+              <textarea
+                value={argsText}
+                onChange={(e) => setArgsText(e.currentTarget.value)}
+                placeholder={`例如：\n-y\n@modelcontextprotocol/server-fetch`}
+                rows={4}
+                className="mt-2 w-full resize-y rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 font-mono text-xs text-slate-900 dark:text-slate-100 shadow-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
+              />
+            </div>
 
-              <div>
-                <div className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Env（每行 KEY=VALUE）
-                </div>
-                <textarea
-                  value={envText}
-                  onChange={(e) => setEnvText(e.currentTarget.value)}
-                  placeholder={`例如：\nFOO=bar\nTOKEN=xxx`}
-                  rows={6}
-                  className="mt-2 w-full resize-y rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 font-mono text-xs text-slate-900 dark:text-slate-100 shadow-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
+            <div>
+              <div className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                Env（环境变量）
+              </div>
+              <div className="mt-2">
+                <KeyValuePairEditor
+                  pairs={envPairs}
+                  onChange={setEnvPairs}
+                  keyPlaceholder="KEY（例如 TOKEN）"
+                  valuePlaceholder="VALUE（例如 sk-xxx）"
                 />
               </div>
             </div>
@@ -521,16 +582,15 @@ export function McpServerDialog({
             </div>
 
             <div>
-              <div className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                Headers（每行 KEY=VALUE）
+              <div className="text-sm font-medium text-slate-700 dark:text-slate-300">Headers</div>
+              <div className="mt-2">
+                <KeyValuePairEditor
+                  pairs={headerPairs}
+                  onChange={setHeaderPairs}
+                  keyPlaceholder="Header（例如 Authorization）"
+                  valuePlaceholder="Value（例如 Bearer xxx）"
+                />
               </div>
-              <textarea
-                value={headersText}
-                onChange={(e) => setHeadersText(e.currentTarget.value)}
-                placeholder={`例如：\nAuthorization=Bearer xxx\nX-Env=dev`}
-                rows={6}
-                className="mt-2 w-full resize-y rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 font-mono text-xs text-slate-900 dark:text-slate-100 shadow-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
-              />
             </div>
           </>
         )}

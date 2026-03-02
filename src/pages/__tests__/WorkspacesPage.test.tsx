@@ -252,7 +252,7 @@ describe("pages/WorkspacesPage", () => {
     expect(screen.getByText("mcp-view")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("tab", { name: "Skills" }));
     expect(screen.getByText("skills-view")).toBeInTheDocument();
-  }, 15000);
+  });
 
   it("covers switch dialog and preview branches across CLIs", async () => {
     const items = [
@@ -370,7 +370,7 @@ describe("pages/WorkspacesPage", () => {
     // apply success is surfaced to user; rollback is hidden when from_workspace_id is null
     await waitFor(() => expect(toast).toHaveBeenCalledWith("已切换为当前工作区"));
     expect(screen.queryByRole("button", { name: "回滚到上一个" })).not.toBeInTheDocument();
-  }, 15000);
+  });
 
   it("covers workspace card selection keyboard handlers, overview quick links, preview refresh, and dialog cancel controls", async () => {
     const createMutation = { isPending: false, mutateAsync: vi.fn() };
@@ -521,5 +521,5 @@ describe("pages/WorkspacesPage", () => {
     dialog = within(screen.getByRole("dialog"));
     fireEvent.click(dialog.getByRole("button", { name: "取消" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-  }, 15000);
+  });
 });

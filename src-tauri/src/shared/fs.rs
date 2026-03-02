@@ -2,6 +2,14 @@
 
 use std::path::Path;
 
+/// Check whether the given path is a symbolic link.
+/// Returns an error when metadata cannot be read so callers can fail-closed.
+pub(crate) fn is_symlink(path: &Path) -> crate::shared::error::AppResult<bool> {
+    std::fs::symlink_metadata(path)
+        .map(|meta| meta.file_type().is_symlink())
+        .map_err(|e| format!("failed to read metadata {}: {e}", path.display()).into())
+}
+
 pub(crate) fn copy_dir_recursive_if_missing(
     src: &Path,
     dst: &Path,

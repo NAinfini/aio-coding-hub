@@ -2,7 +2,7 @@
 
 import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { ExternalLink } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   useSkillImportLocalMutation,
@@ -16,7 +16,7 @@ import type { CliKey } from "../../services/providers";
 import { type InstalledSkillSummary, type LocalSkillSummary } from "../../services/skills";
 import { Button } from "../../ui/Button";
 import { Card } from "../../ui/Card";
-import { Dialog } from "../../ui/Dialog";
+import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { EmptyState } from "../../ui/EmptyState";
 import { Spinner } from "../../ui/Spinner";
 import { Switch } from "../../ui/Switch";
@@ -67,7 +67,7 @@ export function SkillsView({
   isActiveWorkspace = true,
   localImportMode = "single",
 }: SkillsViewProps) {
-  const canOperateLocal = useMemo(() => isActiveWorkspace, [isActiveWorkspace]);
+  const canOperateLocal = isActiveWorkspace;
   const batchInitMode = localImportMode === "batch_init";
 
   const installedQuery = useSkillsInstalledListQuery(workspaceId);
@@ -383,70 +383,46 @@ export function SkillsView({
       </div>
 
       {batchInitMode ? null : (
-        <Dialog
+        <ConfirmDialog
           open={importTarget != null}
           title="导入到技能库"
           description="导入后该 Skill 会被 AIO 记录并管理，可在其他工作区中启用/禁用。"
-          onOpenChange={(open) => {
-            if (!open) setImportTarget(null);
-          }}
+          onClose={() => setImportTarget(null)}
+          onConfirm={() => void confirmImportLocalSkill()}
+          confirmLabel="确认导入"
+          confirmingLabel="导入中…"
+          confirming={importingLocal}
+          disabled={!importTarget}
         >
-          <div className="space-y-3">
-            <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3 text-xs text-slate-600 dark:text-slate-400">
-              <div className="font-medium text-slate-800 dark:text-slate-200">
-                {importTarget?.name || importTarget?.dir_name}
-              </div>
-              <div className="mt-1 break-all font-mono">{importTarget?.path}</div>
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3 text-xs text-slate-600 dark:text-slate-400">
+            <div className="font-medium text-slate-800 dark:text-slate-200">
+              {importTarget?.name || importTarget?.dir_name}
             </div>
-
-            <div className="flex items-center justify-end gap-2">
-              <Button variant="secondary" onClick={() => setImportTarget(null)}>
-                取消
-              </Button>
-              <Button
-                variant="primary"
-                disabled={!importTarget || importingLocal}
-                onClick={() => void confirmImportLocalSkill()}
-              >
-                {importingLocal ? "导入中…" : "确认导入"}
-              </Button>
-            </div>
+            <div className="mt-1 break-all font-mono">{importTarget?.path}</div>
           </div>
-        </Dialog>
+        </ConfirmDialog>
       )}
 
-      <Dialog
+      <ConfirmDialog
         open={returnToLocalTarget != null}
         title="确认返回本机已安装"
         description="会将该 Skill 从通用技能移除，并恢复到当前 CLI 的本机技能目录。"
-        onOpenChange={(open) => {
-          if (!open) setReturnToLocalTarget(null);
-        }}
+        onClose={() => setReturnToLocalTarget(null)}
+        onConfirm={() => void confirmReturnToLocalSkill()}
+        confirmLabel="确认返回"
+        confirmingLabel="返回中…"
+        confirming={returningLocalSkillId != null}
+        disabled={!returnToLocalTarget}
       >
-        <div className="space-y-3">
-          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3 text-xs text-slate-600 dark:text-slate-400">
-            <div className="font-medium text-slate-800 dark:text-slate-200">
-              {returnToLocalTarget?.name}
-            </div>
-            <div className="mt-1 break-all font-mono">
-              {returnToLocalTarget ? sourceHint(returnToLocalTarget) : ""}
-            </div>
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3 text-xs text-slate-600 dark:text-slate-400">
+          <div className="font-medium text-slate-800 dark:text-slate-200">
+            {returnToLocalTarget?.name}
           </div>
-
-          <div className="flex items-center justify-end gap-2">
-            <Button variant="secondary" onClick={() => setReturnToLocalTarget(null)}>
-              取消
-            </Button>
-            <Button
-              variant="primary"
-              disabled={!returnToLocalTarget || returningLocalSkillId != null}
-              onClick={() => void confirmReturnToLocalSkill()}
-            >
-              {returningLocalSkillId != null ? "返回中…" : "确认返回"}
-            </Button>
+          <div className="mt-1 break-all font-mono">
+            {returnToLocalTarget ? sourceHint(returnToLocalTarget) : ""}
           </div>
         </div>
-      </Dialog>
+      </ConfirmDialog>
     </>
   );
 }

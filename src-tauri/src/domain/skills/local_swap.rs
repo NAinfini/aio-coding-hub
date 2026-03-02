@@ -2,7 +2,7 @@ use crate::app_paths;
 use crate::shared::time::now_unix_seconds;
 use std::path::{Path, PathBuf};
 
-use super::fs_ops::is_managed_dir;
+use super::fs_ops::{has_skill_md, is_managed_dir};
 use super::paths::cli_skills_root;
 
 fn stash_bucket_name(workspace_id: Option<i64>) -> String {
@@ -27,7 +27,7 @@ fn is_local_skill_dir(path: &Path) -> bool {
     if is_managed_dir(path) {
         return false;
     }
-    path.join("SKILL.md").exists()
+    has_skill_md(path)
 }
 
 fn rotate_existing_dir(dst: &Path) -> crate::shared::error::AppResult<()> {

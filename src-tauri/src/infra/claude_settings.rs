@@ -2,7 +2,7 @@
 
 use crate::shared::fs::{read_optional_file, write_file_atomic_if_changed};
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tauri::Manager;
 
 const ENV_KEY_MCP_TIMEOUT: &str = "MCP_TIMEOUT";
@@ -116,11 +116,7 @@ fn claude_settings_path<R: tauri::Runtime>(
     Ok(claude_config_dir(app)?.join("settings.json"))
 }
 
-fn is_symlink(path: &Path) -> crate::shared::error::AppResult<bool> {
-    std::fs::symlink_metadata(path)
-        .map(|m| m.file_type().is_symlink())
-        .map_err(|e| format!("failed to read metadata {}: {e}", path.display()).into())
-}
+use crate::shared::fs::is_symlink;
 
 fn sync_claude_cli_proxy_backup_if_enabled<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,

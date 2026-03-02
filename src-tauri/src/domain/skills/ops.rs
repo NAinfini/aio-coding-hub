@@ -1,5 +1,5 @@
 use super::fs_ops::{
-    copy_dir_recursive, is_managed_dir, is_symlink, remove_managed_dir, remove_marker,
+    copy_dir_recursive, has_skill_md, is_managed_dir, is_symlink, remove_managed_dir, remove_marker,
 };
 use super::installed::{generate_unique_skill_key, get_skill_by_id, get_skill_by_id_for_workspace};
 use super::paths::{cli_skills_root, ensure_skills_roots, ssot_skills_root, validate_cli_key};
@@ -8,6 +8,7 @@ use super::skill_md::parse_skill_md;
 use super::types::InstalledSkillSummary;
 use super::util::validate_relative_subdir;
 use crate::db;
+use crate::shared::cli_key::SUPPORTED_CLI_KEYS;
 use crate::shared::error::db_err;
 use crate::shared::text::normalize_name;
 use crate::shared::time::now_unix_seconds;
@@ -31,7 +32,7 @@ fn sync_to_cli<R: tauri::Runtime>(
         if is_managed_dir(&target) {
             std::fs::remove_dir_all(&target)
                 .map_err(|e| format!("failed to remove {}: {e}", target.display()))?;
-        } else if is_symlink(&target) {
+        } else if is_symlink(&target)? {
             // Compatibility: Link-based skill managers create symlinks in CLI skills dir.
             // Keep unmanaged symlink untouched instead of treating it as a hard conflict.
             return Ok(());
@@ -55,15 +56,11 @@ fn remove_from_cli<R: tauri::Runtime>(
     if !target.exists() {
         return Ok(());
     }
-    if !is_managed_dir(&target) && is_symlink(&target) {
+    if !is_managed_dir(&target) && is_symlink(&target)? {
         // Do not remove unmanaged symlink targets owned by external tooling.
         return Ok(());
     }
     remove_managed_dir(&target)
-}
-
-fn has_skill_md(path: &Path) -> bool {
-    path.join("SKILL.md").exists()
 }
 
 fn ensure_local_target_for_return(
@@ -74,7 +71,7 @@ fn ensure_local_target_for_return(
         if is_managed_dir(local_target) {
             std::fs::remove_dir_all(local_target)
                 .map_err(|e| format!("failed to remove {}: {e}", local_target.display()))?;
-        } else if is_symlink(local_target) || (local_target.is_dir() && has_skill_md(local_target))
+        } else if is_symlink(local_target)? || (local_target.is_dir() && has_skill_md(local_target))
         {
             return Ok(());
         } else {
@@ -86,13 +83,9 @@ fn ensure_local_target_for_return(
         }
     }
 
-    if !local_target.exists() {
-        copy_dir_recursive(ssot_dir, local_target)?;
-    }
-
-    if !is_symlink(local_target) {
-        remove_marker(local_target);
-    }
+    // At this point local_target does not exist (either never existed or was removed above).
+    copy_dir_recursive(ssot_dir, local_target)?;
+    remove_marker(local_target);
     Ok(())
 }
 
@@ -101,7 +94,7 @@ fn remove_managed_targets_except<R: tauri::Runtime>(
     skill_key: &str,
     keep_target: &Path,
 ) -> crate::shared::error::AppResult<()> {
-    for cli_key in ["claude", "codex", "gemini"] {
+    for cli_key in SUPPORTED_CLI_KEYS {
         let root = cli_skills_root(app, cli_key)?;
         let target = root.join(skill_key);
         if target == keep_target || !target.exists() {
@@ -112,10 +105,20 @@ fn remove_managed_targets_except<R: tauri::Runtime>(
                 .map_err(|e| format!("failed to remove {}: {e}", target.display()))?;
             continue;
         }
-        if is_symlink(&target) {
+        if is_symlink(&target)? {
             continue;
         }
         return Err(format!("SKILL_REMOVE_BLOCKED_UNMANAGED: {}", target.display()).into());
+    }
+    Ok(())
+}
+
+fn delete_skill_row(conn: &Connection, skill_id: i64) -> crate::shared::error::AppResult<()> {
+    let changed = conn
+        .execute("DELETE FROM skills WHERE id = ?1", params![skill_id])
+        .map_err(|e| db_err!("failed to delete skill: {e}"))?;
+    if changed == 0 {
+        return Err("DB_NOT_FOUND: skill not found".to_string().into());
     }
     Ok(())
 }
@@ -345,21 +348,17 @@ pub fn uninstall<R: tauri::Runtime>(
     let skill = get_skill_by_id(&conn, skill_id)?;
 
     // Safety: ensure we will only delete managed dirs.
-    let cli_roots = [
-        ("claude", cli_skills_root(app, "claude")?),
-        ("codex", cli_skills_root(app, "codex")?),
-        ("gemini", cli_skills_root(app, "gemini")?),
-    ];
-    for (_cli, root) in &cli_roots {
+    for cli_key in SUPPORTED_CLI_KEYS {
+        let root = cli_skills_root(app, cli_key)?;
         let target = root.join(&skill.skill_key);
-        if target.exists() && !is_managed_dir(&target) && !is_symlink(&target) {
+        if target.exists() && !is_managed_dir(&target) && !is_symlink(&target)? {
             return Err(format!("SKILL_REMOVE_BLOCKED_UNMANAGED: {}", target.display()).into());
         }
     }
 
-    remove_from_cli(app, "claude", &skill.skill_key)?;
-    remove_from_cli(app, "codex", &skill.skill_key)?;
-    remove_from_cli(app, "gemini", &skill.skill_key)?;
+    for cli_key in SUPPORTED_CLI_KEYS {
+        remove_from_cli(app, cli_key, &skill.skill_key)?;
+    }
 
     let ssot_dir = ssot_skills_root(app)?.join(&skill.skill_key);
     if ssot_dir.exists() {
@@ -367,13 +366,7 @@ pub fn uninstall<R: tauri::Runtime>(
             .map_err(|e| format!("failed to remove {}: {e}", ssot_dir.display()))?;
     }
 
-    let changed = conn
-        .execute("DELETE FROM skills WHERE id = ?1", params![skill_id])
-        .map_err(|e| db_err!("failed to delete skill: {e}"))?;
-    if changed == 0 {
-        return Err("DB_NOT_FOUND: skill not found".to_string().into());
-    }
-    Ok(())
+    delete_skill_row(&conn, skill_id)
 }
 
 pub fn return_to_local<R: tauri::Runtime>(
@@ -408,18 +401,10 @@ pub fn return_to_local<R: tauri::Runtime>(
     ensure_local_target_for_return(&local_target, &ssot_dir)?;
     remove_managed_targets_except(app, &skill.skill_key, &local_target)?;
 
-    if ssot_dir.exists() {
-        std::fs::remove_dir_all(&ssot_dir)
-            .map_err(|e| format!("failed to remove {}: {e}", ssot_dir.display()))?;
-    }
+    std::fs::remove_dir_all(&ssot_dir)
+        .map_err(|e| format!("failed to remove {}: {e}", ssot_dir.display()))?;
 
-    let changed = conn
-        .execute("DELETE FROM skills WHERE id = ?1", params![skill_id])
-        .map_err(|e| db_err!("failed to delete skill: {e}"))?;
-    if changed == 0 {
-        return Err("DB_NOT_FOUND: skill not found".to_string().into());
-    }
-    Ok(())
+    delete_skill_row(&conn, skill_id)
 }
 
 pub fn sync_cli_for_workspace(

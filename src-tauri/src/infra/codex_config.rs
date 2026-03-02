@@ -73,11 +73,7 @@ pub struct CodexConfigTomlValidationResult {
     pub error: Option<CodexConfigTomlValidationError>,
 }
 
-fn is_symlink(path: &Path) -> crate::shared::error::AppResult<bool> {
-    std::fs::symlink_metadata(path)
-        .map(|m| m.file_type().is_symlink())
-        .map_err(|e| format!("failed to read metadata {}: {e}", path.display()).into())
-}
+use crate::shared::fs::is_symlink;
 
 fn sync_codex_cli_proxy_backup_if_enabled<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,

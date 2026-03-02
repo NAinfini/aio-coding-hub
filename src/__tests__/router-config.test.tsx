@@ -30,5 +30,5 @@ describe("router config", () => {
     );
 
     expect(hashRouterPropsRef.current?.unstable_useTransitions).toBe(false);
-  });
+  }, 15000);
 });

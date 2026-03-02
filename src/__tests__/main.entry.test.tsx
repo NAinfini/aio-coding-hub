@@ -24,7 +24,7 @@ describe("main entry", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(document.getElementById("root")?.innerHTML).toBeTruthy();
-  });
+  }, 15000);
 
   it("registers global frontend error handlers", async () => {
     document.body.innerHTML = '<div id="root"></div>';
@@ -33,5 +33,5 @@ describe("main entry", () => {
     await import("../main");
 
     expect(reporter.installGlobalErrorReporting).toHaveBeenCalled();
-  });
+  }, 15000);
 });

@@ -55,11 +55,9 @@ fn remove_from_cli<R: tauri::Runtime>(
     if !target.exists() {
         return Ok(());
     }
-    if !is_managed_dir(&target) {
-        if is_symlink(&target) {
-            // Do not remove unmanaged symlink targets owned by external tooling.
-            return Ok(());
-        }
+    if !is_managed_dir(&target) && is_symlink(&target) {
+        // Do not remove unmanaged symlink targets owned by external tooling.
+        return Ok(());
     }
     remove_managed_dir(&target)
 }

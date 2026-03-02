@@ -8,7 +8,6 @@ import {
   useSkillImportLocalMutation,
   useSkillReturnToLocalMutation,
   useSkillSetEnabledMutation,
-  useSkillUninstallMutation,
   useSkillsInstalledListQuery,
   useSkillsLocalListQuery,
 } from "../../query/skills";
@@ -75,7 +74,6 @@ export function SkillsView({
   const localQuery = useSkillsLocalListQuery(workspaceId, { enabled: canOperateLocal });
 
   const toggleMutation = useSkillSetEnabledMutation(workspaceId);
-  const uninstallMutation = useSkillUninstallMutation(workspaceId);
   const returnToLocalMutation = useSkillReturnToLocalMutation(workspaceId);
   const importMutation = useSkillImportLocalMutation(workspaceId);
 
@@ -87,9 +85,6 @@ export function SkillsView({
   const togglingSkillId = toggleMutation.isPending
     ? (toggleMutation.variables?.skillId ?? null)
     : null;
-  const uninstallingSkillId = uninstallMutation.isPending
-    ? (uninstallMutation.variables ?? null)
-    : null;
   const returningLocalSkillId = returnToLocalMutation.isPending
     ? (returnToLocalMutation.variables ?? null)
     : null;
@@ -98,7 +93,6 @@ export function SkillsView({
   const [returnToLocalTarget, setReturnToLocalTarget] = useState<InstalledSkillSummary | null>(
     null
   );
-  const [uninstallTarget, setUninstallTarget] = useState<InstalledSkillSummary | null>(null);
   const [importTarget, setImportTarget] = useState<LocalSkillSummary | null>(null);
 
   useEffect(() => {
@@ -142,30 +136,6 @@ export function SkillsView({
         workspace_id: workspaceId,
         skill_id: skill.id,
         enabled,
-      });
-      toast(formatted.toast);
-    }
-  }
-
-  async function confirmUninstallSkill() {
-    if (!uninstallTarget) return;
-    if (uninstallMutation.isPending) return;
-    const target = uninstallTarget;
-    try {
-      const ok = await uninstallMutation.mutateAsync(target.id);
-      if (!ok) {
-        toast(TOAST_TAURI_ONLY);
-        return;
-      }
-      toast("已卸载");
-      logToConsole("info", "卸载 Skill", target);
-      setUninstallTarget(null);
-    } catch (err) {
-      const formatted = formatActionFailureToast("卸载", err);
-      logToConsole("error", "卸载 Skill 失败", {
-        error: formatted.raw,
-        error_code: formatted.error_code ?? undefined,
-        skill: target,
       });
       toast(formatted.toast);
     }
@@ -300,9 +270,7 @@ export function SkillsView({
                       <Switch
                         checked={skill.enabled}
                         disabled={
-                          togglingSkillId === skill.id ||
-                          uninstallingSkillId === skill.id ||
-                          returningLocalSkillId === skill.id
+                          togglingSkillId === skill.id || returningLocalSkillId === skill.id
                         }
                         onCheckedChange={(next) => void toggleSkillEnabled(skill, next)}
                       />
@@ -312,24 +280,10 @@ export function SkillsView({
                         title={
                           canOperateLocal ? "将该 Skill 从通用技能返回到本机已安装" : undefined
                         }
-                        disabled={
-                          !canOperateLocal ||
-                          uninstallingSkillId === skill.id ||
-                          returningLocalSkillId === skill.id
-                        }
+                        disabled={!canOperateLocal || returningLocalSkillId === skill.id}
                         onClick={() => setReturnToLocalTarget(skill)}
                       >
                         返回本机已安装
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        disabled={
-                          uninstallingSkillId === skill.id || returningLocalSkillId === skill.id
-                        }
-                        onClick={() => setUninstallTarget(skill)}
-                      >
-                        卸载
                       </Button>
                     </div>
                   </div>
@@ -432,7 +386,7 @@ export function SkillsView({
         <Dialog
           open={importTarget != null}
           title="导入到技能库"
-          description="导入后该 Skill 会被 AIO 记录并管理，可在其他工作区中启用/禁用，并支持卸载。"
+          description="导入后该 Skill 会被 AIO 记录并管理，可在其他工作区中启用/禁用。"
           onOpenChange={(open) => {
             if (!open) setImportTarget(null);
           }}
@@ -489,39 +443,6 @@ export function SkillsView({
               onClick={() => void confirmReturnToLocalSkill()}
             >
               {returningLocalSkillId != null ? "返回中…" : "确认返回"}
-            </Button>
-          </div>
-        </div>
-      </Dialog>
-
-      <Dialog
-        open={uninstallTarget != null}
-        title="确认卸载 Skill"
-        description="卸载会删除 SSOT 缓存目录，并尝试移除所有 CLI 下由 AIO 托管的对应目录。"
-        onOpenChange={(open) => {
-          if (!open) setUninstallTarget(null);
-        }}
-      >
-        <div className="space-y-3">
-          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3 text-xs text-slate-600 dark:text-slate-400">
-            <div className="font-medium text-slate-800 dark:text-slate-200">
-              {uninstallTarget?.name}
-            </div>
-            <div className="mt-1 break-all font-mono">
-              {uninstallTarget ? sourceHint(uninstallTarget) : ""}
-            </div>
-          </div>
-
-          <div className="flex items-center justify-end gap-2">
-            <Button variant="secondary" onClick={() => setUninstallTarget(null)}>
-              取消
-            </Button>
-            <Button
-              variant="danger"
-              disabled={!uninstallTarget || uninstallingSkillId != null}
-              onClick={() => void confirmUninstallSkill()}
-            >
-              {uninstallingSkillId != null ? "卸载中…" : "确认卸载"}
             </Button>
           </div>
         </div>

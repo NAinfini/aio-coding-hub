@@ -336,6 +336,7 @@ pub fn run() {
             skill_install,
             skill_set_enabled,
             skill_uninstall,
+            skill_return_to_local,
             skills_local_list,
             skill_import_local,
             skills_import_local_batch,

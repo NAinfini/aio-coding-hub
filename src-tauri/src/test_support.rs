@@ -368,6 +368,49 @@ pub fn workspace_delete<R: tauri::Runtime>(
 }
 
 // ---------------------------------------------------------------------------
+// Skills
+// ---------------------------------------------------------------------------
+
+pub fn skills_installed_list_json<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    workspace_id: i64,
+) -> crate::shared::error::AppResult<serde_json::Value> {
+    let db = crate::infra::db::init(app)?;
+    let rows = crate::skills::installed_list_for_workspace(&db, workspace_id)?;
+    serialize_json(rows)
+}
+
+pub fn skill_set_enabled_json<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    workspace_id: i64,
+    skill_id: i64,
+    enabled: bool,
+) -> crate::shared::error::AppResult<serde_json::Value> {
+    let db = crate::infra::db::init(app)?;
+    let row = crate::skills::set_enabled(app, &db, workspace_id, skill_id, enabled)?;
+    serialize_json(row)
+}
+
+pub fn skill_uninstall<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    skill_id: i64,
+) -> crate::shared::error::AppResult<bool> {
+    let db = crate::infra::db::init(app)?;
+    crate::skills::uninstall(app, &db, skill_id)?;
+    Ok(true)
+}
+
+pub fn skill_return_to_local<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    workspace_id: i64,
+    skill_id: i64,
+) -> crate::shared::error::AppResult<bool> {
+    let db = crate::infra::db::init(app)?;
+    crate::skills::return_to_local(app, &db, workspace_id, skill_id)?;
+    Ok(true)
+}
+
+// ---------------------------------------------------------------------------
 // Sort Modes
 // ---------------------------------------------------------------------------
 

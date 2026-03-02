@@ -1,4 +1,6 @@
-use super::fs_ops::{copy_dir_recursive, is_managed_dir, remove_managed_dir};
+use super::fs_ops::{
+    copy_dir_recursive, is_managed_dir, is_symlink, remove_managed_dir, remove_marker,
+};
 use super::installed::{generate_unique_skill_key, get_skill_by_id, get_skill_by_id_for_workspace};
 use super::paths::{cli_skills_root, ensure_skills_roots, ssot_skills_root, validate_cli_key};
 use super::repo_cache::ensure_repo_cache;
@@ -14,8 +16,8 @@ use rusqlite::{params, Connection, OptionalExtension};
 use std::collections::HashSet;
 use std::path::Path;
 
-fn sync_to_cli(
-    app: &tauri::AppHandle,
+fn sync_to_cli<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
     cli_key: &str,
     skill_key: &str,
     ssot_dir: &Path,
@@ -26,11 +28,16 @@ fn sync_to_cli(
     let target = cli_root.join(skill_key);
 
     if target.exists() {
-        if !is_managed_dir(&target) {
+        if is_managed_dir(&target) {
+            std::fs::remove_dir_all(&target)
+                .map_err(|e| format!("failed to remove {}: {e}", target.display()))?;
+        } else if is_symlink(&target) {
+            // Compatibility: Link-based skill managers create symlinks in CLI skills dir.
+            // Keep unmanaged symlink untouched instead of treating it as a hard conflict.
+            return Ok(());
+        } else {
             return Err(format!("SKILL_TARGET_EXISTS_UNMANAGED: {}", target.display()).into());
         }
-        std::fs::remove_dir_all(&target)
-            .map_err(|e| format!("failed to remove {}: {e}", target.display()))?;
     }
 
     copy_dir_recursive(ssot_dir, &target)?;
@@ -38,8 +45,8 @@ fn sync_to_cli(
     Ok(())
 }
 
-fn remove_from_cli(
-    app: &tauri::AppHandle,
+fn remove_from_cli<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
     cli_key: &str,
     skill_key: &str,
 ) -> crate::shared::error::AppResult<()> {
@@ -48,7 +55,71 @@ fn remove_from_cli(
     if !target.exists() {
         return Ok(());
     }
+    if !is_managed_dir(&target) {
+        if is_symlink(&target) {
+            // Do not remove unmanaged symlink targets owned by external tooling.
+            return Ok(());
+        }
+    }
     remove_managed_dir(&target)
+}
+
+fn has_skill_md(path: &Path) -> bool {
+    path.join("SKILL.md").exists()
+}
+
+fn ensure_local_target_for_return(
+    local_target: &Path,
+    ssot_dir: &Path,
+) -> crate::shared::error::AppResult<()> {
+    if local_target.exists() {
+        if is_managed_dir(local_target) {
+            std::fs::remove_dir_all(local_target)
+                .map_err(|e| format!("failed to remove {}: {e}", local_target.display()))?;
+        } else if is_symlink(local_target) || (local_target.is_dir() && has_skill_md(local_target))
+        {
+            return Ok(());
+        } else {
+            return Err(format!(
+                "SKILL_RETURN_LOCAL_TARGET_EXISTS_UNMANAGED: {}",
+                local_target.display()
+            )
+            .into());
+        }
+    }
+
+    if !local_target.exists() {
+        copy_dir_recursive(ssot_dir, local_target)?;
+    }
+
+    if !is_symlink(local_target) {
+        remove_marker(local_target);
+    }
+    Ok(())
+}
+
+fn remove_managed_targets_except<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    skill_key: &str,
+    keep_target: &Path,
+) -> crate::shared::error::AppResult<()> {
+    for cli_key in ["claude", "codex", "gemini"] {
+        let root = cli_skills_root(app, cli_key)?;
+        let target = root.join(skill_key);
+        if target == keep_target || !target.exists() {
+            continue;
+        }
+        if is_managed_dir(&target) {
+            std::fs::remove_dir_all(&target)
+                .map_err(|e| format!("failed to remove {}: {e}", target.display()))?;
+            continue;
+        }
+        if is_symlink(&target) {
+            continue;
+        }
+        return Err(format!("SKILL_REMOVE_BLOCKED_UNMANAGED: {}", target.display()).into());
+    }
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -186,8 +257,8 @@ ON CONFLICT(workspace_id, skill_id) DO UPDATE SET
     get_skill_by_id_for_workspace(&conn, workspace_id, skill_id)
 }
 
-pub fn set_enabled(
-    app: &tauri::AppHandle,
+pub fn set_enabled<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
     db: &db::Db,
     workspace_id: i64,
     skill_id: i64,
@@ -267,8 +338,8 @@ ON CONFLICT(workspace_id, skill_id) DO UPDATE SET
     get_skill_by_id_for_workspace(&conn, workspace_id, skill_id)
 }
 
-pub fn uninstall(
-    app: &tauri::AppHandle,
+pub fn uninstall<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
     db: &db::Db,
     skill_id: i64,
 ) -> crate::shared::error::AppResult<()> {
@@ -283,7 +354,7 @@ pub fn uninstall(
     ];
     for (_cli, root) in &cli_roots {
         let target = root.join(&skill.skill_key);
-        if target.exists() && !is_managed_dir(&target) {
+        if target.exists() && !is_managed_dir(&target) && !is_symlink(&target) {
             return Err(format!("SKILL_REMOVE_BLOCKED_UNMANAGED: {}", target.display()).into());
         }
     }
@@ -293,6 +364,52 @@ pub fn uninstall(
     remove_from_cli(app, "gemini", &skill.skill_key)?;
 
     let ssot_dir = ssot_skills_root(app)?.join(&skill.skill_key);
+    if ssot_dir.exists() {
+        std::fs::remove_dir_all(&ssot_dir)
+            .map_err(|e| format!("failed to remove {}: {e}", ssot_dir.display()))?;
+    }
+
+    let changed = conn
+        .execute("DELETE FROM skills WHERE id = ?1", params![skill_id])
+        .map_err(|e| db_err!("failed to delete skill: {e}"))?;
+    if changed == 0 {
+        return Err("DB_NOT_FOUND: skill not found".to_string().into());
+    }
+    Ok(())
+}
+
+pub fn return_to_local<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    db: &db::Db,
+    workspace_id: i64,
+    skill_id: i64,
+) -> crate::shared::error::AppResult<()> {
+    let conn = db.open_connection()?;
+    let cli_key = workspaces::get_cli_key_by_id(&conn, workspace_id)?;
+    validate_cli_key(&cli_key)?;
+    if !workspaces::is_active_workspace(&conn, workspace_id)? {
+        return Err(
+            "SKILL_RETURN_LOCAL_REQUIRES_ACTIVE_WORKSPACE: switch to the target workspace before returning"
+                .to_string()
+                .into(),
+        );
+    }
+
+    let skill = get_skill_by_id(&conn, skill_id)?;
+    let ssot_dir = ssot_skills_root(app)?.join(&skill.skill_key);
+    if !ssot_dir.exists() {
+        return Err("SKILL_SSOT_MISSING: ssot skill dir not found"
+            .to_string()
+            .into());
+    }
+
+    let cli_root = cli_skills_root(app, &cli_key)?;
+    std::fs::create_dir_all(&cli_root)
+        .map_err(|e| format!("failed to create {}: {e}", cli_root.display()))?;
+    let local_target = cli_root.join(&skill.skill_key);
+    ensure_local_target_for_return(&local_target, &ssot_dir)?;
+    remove_managed_targets_except(app, &skill.skill_key, &local_target)?;
+
     if ssot_dir.exists() {
         std::fs::remove_dir_all(&ssot_dir)
             .map_err(|e| format!("failed to remove {}: {e}", ssot_dir.display()))?;

@@ -3,6 +3,7 @@ import { logToConsole } from "../consoleLog";
 import { hasTauriRuntime, invokeTauriOrNull } from "../tauriInvoke";
 import {
   skillImportLocal,
+  skillReturnToLocal,
   skillInstall,
   skillRepoDelete,
   skillRepoUpsert,
@@ -115,6 +116,12 @@ describe("services/skills", () => {
 
     await skillUninstall(2);
     expect(invokeTauriOrNull).toHaveBeenCalledWith("skill_uninstall", { skillId: 2 });
+
+    await skillReturnToLocal({ workspace_id: 1, skill_id: 2 });
+    expect(invokeTauriOrNull).toHaveBeenCalledWith("skill_return_to_local", {
+      workspaceId: 1,
+      skillId: 2,
+    });
 
     await skillsLocalList(1);
     expect(invokeTauriOrNull).toHaveBeenCalledWith("skills_local_list", { workspaceId: 1 });

@@ -123,6 +123,13 @@ export async function skillUninstall(skillId: number) {
   return invokeService<boolean>("卸载技能失败", "skill_uninstall", { skillId });
 }
 
+export async function skillReturnToLocal(input: { workspace_id: number; skill_id: number }) {
+  return invokeService<boolean>("返回本机技能失败", "skill_return_to_local", {
+    workspaceId: input.workspace_id,
+    skillId: input.skill_id,
+  });
+}
+
 export async function skillsLocalList(workspaceId: number) {
   return invokeService<LocalSkillSummary[]>("读取本地技能列表失败", "skills_local_list", {
     workspaceId,

@@ -16,6 +16,7 @@ import {
   skillsPathsGet,
   skillImportLocal,
   skillsImportLocalBatch,
+  skillReturnToLocal,
   type AvailableSkillSummary,
   type InstalledSkillSummary,
   type LocalSkillSummary,
@@ -238,6 +239,24 @@ export function useSkillImportLocalMutation(workspaceId: number) {
         }
       );
       queryClient.invalidateQueries({ queryKey: skillsKeys.localList(workspaceId) });
+    },
+  });
+}
+
+export function useSkillReturnToLocalMutation(workspaceId: number) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (skillId: number) =>
+      skillReturnToLocal({ workspace_id: workspaceId, skill_id: skillId }),
+    onSuccess: (ok, skillId) => {
+      if (!ok) return;
+      queryClient.setQueryData<InstalledSkillSummary[]>(
+        skillsKeys.installedList(workspaceId),
+        (cur) => (cur ?? []).filter((s) => s.id !== skillId)
+      );
+      queryClient.invalidateQueries({ queryKey: skillsKeys.localList(workspaceId) });
+      queryClient.invalidateQueries({ queryKey: skillsKeys.discoverAvailable(false) });
     },
   });
 }

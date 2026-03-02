@@ -135,6 +135,22 @@ pub(crate) async fn skill_uninstall(
 }
 
 #[tauri::command]
+pub(crate) async fn skill_return_to_local(
+    app: tauri::AppHandle,
+    db_state: tauri::State<'_, DbInitState>,
+    workspace_id: i64,
+    skill_id: i64,
+) -> Result<bool, String> {
+    let db = ensure_db_ready(app.clone(), db_state.inner()).await?;
+    tauri::async_runtime::spawn_blocking(move || {
+        skills::return_to_local(&app, &db, workspace_id, skill_id)
+    })
+    .await
+    .map_err(|e| format!("SKILL_TASK_JOIN: {e}"))??;
+    Ok(true)
+}
+
+#[tauri::command]
 pub(crate) async fn skills_local_list(
     app: tauri::AppHandle,
     db_state: tauri::State<'_, DbInitState>,

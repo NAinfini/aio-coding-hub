@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   useSkillImportLocalMutation,
+  useSkillReturnToLocalMutation,
   useSkillSetEnabledMutation,
   useSkillUninstallMutation,
   useSkillsInstalledListQuery,
@@ -25,6 +26,7 @@ import { formatActionFailureToast } from "../../utils/errors";
 
 const TOAST_TAURI_ONLY = "仅在 Tauri Desktop 环境可用";
 const TOAST_LOCAL_IMPORT_REQUIRES_ACTIVE = "仅当前工作区可导入本机 Skill。请先切换该工作区为当前。";
+const TOAST_RETURN_LOCAL_REQUIRES_ACTIVE = "仅当前工作区可返回本机 Skill。请先切换该工作区为当前。";
 
 function formatUnixSeconds(ts: number) {
   try {
@@ -57,16 +59,24 @@ export type SkillsViewProps = {
   workspaceId: number;
   cliKey: CliKey;
   isActiveWorkspace?: boolean;
+  localImportMode?: "single" | "batch_init";
 };
 
-export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: SkillsViewProps) {
+export function SkillsView({
+  workspaceId,
+  cliKey,
+  isActiveWorkspace = true,
+  localImportMode = "single",
+}: SkillsViewProps) {
   const canOperateLocal = useMemo(() => isActiveWorkspace, [isActiveWorkspace]);
+  const batchInitMode = localImportMode === "batch_init";
 
   const installedQuery = useSkillsInstalledListQuery(workspaceId);
   const localQuery = useSkillsLocalListQuery(workspaceId, { enabled: canOperateLocal });
 
   const toggleMutation = useSkillSetEnabledMutation(workspaceId);
   const uninstallMutation = useSkillUninstallMutation(workspaceId);
+  const returnToLocalMutation = useSkillReturnToLocalMutation(workspaceId);
   const importMutation = useSkillImportLocalMutation(workspaceId);
 
   const installed: InstalledSkillSummary[] = installedQuery.data ?? [];
@@ -80,10 +90,15 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
   const uninstallingSkillId = uninstallMutation.isPending
     ? (uninstallMutation.variables ?? null)
     : null;
+  const returningLocalSkillId = returnToLocalMutation.isPending
+    ? (returnToLocalMutation.variables ?? null)
+    : null;
   const importingLocal = importMutation.isPending;
 
+  const [returnToLocalTarget, setReturnToLocalTarget] = useState<InstalledSkillSummary | null>(
+    null
+  );
   const [uninstallTarget, setUninstallTarget] = useState<InstalledSkillSummary | null>(null);
-
   const [importTarget, setImportTarget] = useState<LocalSkillSummary | null>(null);
 
   useEffect(() => {
@@ -150,6 +165,40 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
       logToConsole("error", "卸载 Skill 失败", {
         error: formatted.raw,
         error_code: formatted.error_code ?? undefined,
+        skill: target,
+      });
+      toast(formatted.toast);
+    }
+  }
+
+  async function confirmReturnToLocalSkill() {
+    if (!returnToLocalTarget) return;
+    if (!canOperateLocal) {
+      toast(TOAST_RETURN_LOCAL_REQUIRES_ACTIVE);
+      return;
+    }
+    if (returnToLocalMutation.isPending) return;
+    const target = returnToLocalTarget;
+    try {
+      const ok = await returnToLocalMutation.mutateAsync(target.id);
+      if (!ok) {
+        toast(TOAST_TAURI_ONLY);
+        return;
+      }
+      toast("已返回本机已安装");
+      logToConsole("info", "Skill 返回本机已安装", {
+        cli: cliKey,
+        workspace_id: workspaceId,
+        skill: target,
+      });
+      setReturnToLocalTarget(null);
+    } catch (err) {
+      const formatted = formatActionFailureToast("返回本机", err);
+      logToConsole("error", "Skill 返回本机已安装失败", {
+        error: formatted.raw,
+        error_code: formatted.error_code ?? undefined,
+        cli: cliKey,
+        workspace_id: workspaceId,
         skill: target,
       });
       toast(formatted.toast);
@@ -250,13 +299,34 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
                       <span className="text-xs text-slate-600 dark:text-slate-400">启用</span>
                       <Switch
                         checked={skill.enabled}
-                        disabled={togglingSkillId === skill.id || uninstallingSkillId === skill.id}
+                        disabled={
+                          togglingSkillId === skill.id ||
+                          uninstallingSkillId === skill.id ||
+                          returningLocalSkillId === skill.id
+                        }
                         onCheckedChange={(next) => void toggleSkillEnabled(skill, next)}
                       />
                       <Button
                         size="sm"
                         variant="secondary"
-                        disabled={uninstallingSkillId === skill.id}
+                        title={
+                          canOperateLocal ? "将该 Skill 从通用技能返回到本机已安装" : undefined
+                        }
+                        disabled={
+                          !canOperateLocal ||
+                          uninstallingSkillId === skill.id ||
+                          returningLocalSkillId === skill.id
+                        }
+                        onClick={() => setReturnToLocalTarget(skill)}
+                      >
+                        返回本机已安装
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={
+                          uninstallingSkillId === skill.id || returningLocalSkillId === skill.id
+                        }
                         onClick={() => setUninstallTarget(skill)}
                       >
                         卸载
@@ -329,9 +399,11 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
                       {skill.name || skill.dir_name}
                     </span>
                     <div className="ms-auto flex items-center gap-2">
-                      <Button size="sm" variant="primary" onClick={() => setImportTarget(skill)}>
-                        导入技能库
-                      </Button>
+                      {batchInitMode ? null : (
+                        <Button size="sm" variant="primary" onClick={() => setImportTarget(skill)}>
+                          导入技能库
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         variant="secondary"
@@ -356,32 +428,67 @@ export function SkillsView({ workspaceId, cliKey, isActiveWorkspace = true }: Sk
         </Card>
       </div>
 
+      {batchInitMode ? null : (
+        <Dialog
+          open={importTarget != null}
+          title="导入到技能库"
+          description="导入后该 Skill 会被 AIO 记录并管理，可在其他工作区中启用/禁用，并支持卸载。"
+          onOpenChange={(open) => {
+            if (!open) setImportTarget(null);
+          }}
+        >
+          <div className="space-y-3">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3 text-xs text-slate-600 dark:text-slate-400">
+              <div className="font-medium text-slate-800 dark:text-slate-200">
+                {importTarget?.name || importTarget?.dir_name}
+              </div>
+              <div className="mt-1 break-all font-mono">{importTarget?.path}</div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2">
+              <Button variant="secondary" onClick={() => setImportTarget(null)}>
+                取消
+              </Button>
+              <Button
+                variant="primary"
+                disabled={!importTarget || importingLocal}
+                onClick={() => void confirmImportLocalSkill()}
+              >
+                {importingLocal ? "导入中…" : "确认导入"}
+              </Button>
+            </div>
+          </div>
+        </Dialog>
+      )}
+
       <Dialog
-        open={importTarget != null}
-        title="导入到技能库"
-        description="导入后该 Skill 会被 AIO 记录并管理，可在其他工作区中启用/禁用，并支持卸载。"
+        open={returnToLocalTarget != null}
+        title="确认返回本机已安装"
+        description="会将该 Skill 从通用技能移除，并恢复到当前 CLI 的本机技能目录。"
         onOpenChange={(open) => {
-          if (!open) setImportTarget(null);
+          if (!open) setReturnToLocalTarget(null);
         }}
       >
         <div className="space-y-3">
           <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3 text-xs text-slate-600 dark:text-slate-400">
             <div className="font-medium text-slate-800 dark:text-slate-200">
-              {importTarget?.name || importTarget?.dir_name}
+              {returnToLocalTarget?.name}
             </div>
-            <div className="mt-1 break-all font-mono">{importTarget?.path}</div>
+            <div className="mt-1 break-all font-mono">
+              {returnToLocalTarget ? sourceHint(returnToLocalTarget) : ""}
+            </div>
           </div>
 
           <div className="flex items-center justify-end gap-2">
-            <Button variant="secondary" onClick={() => setImportTarget(null)}>
+            <Button variant="secondary" onClick={() => setReturnToLocalTarget(null)}>
               取消
             </Button>
             <Button
               variant="primary"
-              disabled={!importTarget || importingLocal}
-              onClick={() => void confirmImportLocalSkill()}
+              disabled={!returnToLocalTarget || returningLocalSkillId != null}
+              onClick={() => void confirmReturnToLocalSkill()}
             >
-              {importingLocal ? "导入中…" : "确认导入"}
+              {returningLocalSkillId != null ? "返回中…" : "确认返回"}
             </Button>
           </div>
         </div>

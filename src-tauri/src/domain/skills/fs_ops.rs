@@ -42,6 +42,12 @@ pub(super) fn is_managed_dir(dir: &Path) -> bool {
     dir.join(MANAGED_MARKER_FILE).exists()
 }
 
+pub(super) fn is_symlink(path: &Path) -> bool {
+    std::fs::symlink_metadata(path)
+        .map(|meta| meta.file_type().is_symlink())
+        .unwrap_or(false)
+}
+
 pub(super) fn remove_managed_dir(dir: &Path) -> crate::shared::error::AppResult<()> {
     if !dir.exists() {
         return Ok(());

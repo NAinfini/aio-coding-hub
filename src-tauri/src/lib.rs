@@ -292,6 +292,11 @@ pub fn run() {
             providers_reorder,
             provider_claude_terminal_launch_command,
             base_url_ping_ms,
+            provider_oauth_start_flow,
+            provider_oauth_refresh,
+            provider_oauth_disconnect,
+            provider_oauth_status,
+            provider_oauth_fetch_limits,
             // ── claude_model_validation ──
             claude_provider_validate_model,
             claude_provider_get_api_key_plaintext,

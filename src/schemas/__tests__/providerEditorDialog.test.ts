@@ -11,6 +11,7 @@ describe("schemas/providerEditorDialog", () => {
     const base = {
       name: "n",
       api_key: "",
+      auth_mode: "api_key",
       cost_multiplier: "1.0",
       limit_5h_usd: "",
       limit_daily_usd: "",
@@ -42,6 +43,7 @@ describe("schemas/providerEditorDialog", () => {
     const res = schema.safeParse({
       name: "n",
       api_key: "",
+      auth_mode: "api_key",
       cost_multiplier: "1.0",
       limit_5h_usd: "",
       limit_daily_usd: "",
@@ -60,6 +62,7 @@ describe("schemas/providerEditorDialog", () => {
     const bad = schema.safeParse({
       name: "n",
       api_key: "",
+      auth_mode: "api_key",
       cost_multiplier: "1.0",
       limit_5h_usd: "",
       limit_daily_usd: "",
@@ -86,6 +89,7 @@ describe("schemas/providerEditorDialog", () => {
     const ok = schema.safeParse({
       name: "n",
       api_key: "",
+      auth_mode: "api_key",
       cost_multiplier: "1.0",
       limit_5h_usd: "",
       limit_daily_usd: " 12.5 ",
@@ -105,6 +109,7 @@ describe("schemas/providerEditorDialog", () => {
     const badCost = schema.safeParse({
       name: "n",
       api_key: "",
+      auth_mode: "api_key",
       cost_multiplier: "0",
       limit_5h_usd: "",
       limit_daily_usd: "",
@@ -125,6 +130,7 @@ describe("schemas/providerEditorDialog", () => {
     const badLimit = schema.safeParse({
       name: "n",
       api_key: "",
+      auth_mode: "api_key",
       cost_multiplier: "1.0",
       limit_5h_usd: "",
       limit_daily_usd: "NaN",

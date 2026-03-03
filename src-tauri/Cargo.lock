@@ -37,13 +37,16 @@ dependencies = [
 
 [[package]]
 name = "aio-coding-hub"
-version = "0.30.8"
+version = "0.31.0"
 dependencies = [
  "axum",
+ "base64 0.22.1",
+ "bytes",
  "flate2",
  "futures-core",
  "r2d2",
  "r2d2_sqlite",
+ "rand 0.8.5",
  "reqwest",
  "rusqlite",
  "serde",

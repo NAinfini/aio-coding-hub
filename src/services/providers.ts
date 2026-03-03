@@ -28,6 +28,7 @@ export type ProviderSummary = {
   limit_monthly_usd: number | null;
   limit_total_usd: number | null;
   tags: string[];
+  note: string;
   created_at: number;
   updated_at: number;
 };
@@ -55,6 +56,7 @@ export async function providerUpsert(input: {
   limit_monthly_usd: number | null;
   limit_total_usd: number | null;
   tags?: string[];
+  note?: string;
 }) {
   return invokeService<ProviderSummary>("保存供应商失败", "provider_upsert", {
     providerId: input.provider_id ?? null,
@@ -75,6 +77,7 @@ export async function providerUpsert(input: {
     limitMonthlyUsd: input.limit_monthly_usd,
     limitTotalUsd: input.limit_total_usd,
     tags: input.tags ?? null,
+    note: input.note ?? null,
   });
 }
 
@@ -98,6 +101,10 @@ export async function providersReorder(cliKey: CliKey, orderedProviderIds: numbe
     cliKey,
     orderedProviderIds,
   });
+}
+
+export async function providerGetApiKey(providerId: number) {
+  return invokeService<string>("读取 API Key 失败", "provider_get_api_key", { providerId });
 }
 
 export async function providerClaudeTerminalLaunchCommand(providerId: number) {

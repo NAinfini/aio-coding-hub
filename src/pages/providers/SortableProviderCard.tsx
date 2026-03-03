@@ -147,11 +147,21 @@ export function SortableProviderCard({
                 </span>
               ) : null}
             </div>
-            <div
-              className="mt-1 truncate font-mono text-xs text-slate-500 dark:text-slate-400 cursor-default"
-              title={provider.base_urls.join("\n")}
-            >
-              {providerBaseUrlSummary(provider)}
+            <div className="mt-1 flex min-w-0 items-center gap-2">
+              <span
+                className="truncate font-mono text-xs text-slate-500 dark:text-slate-400 cursor-default"
+                title={provider.base_urls.join("\n")}
+              >
+                {providerBaseUrlSummary(provider)}
+              </span>
+              {provider.note ? (
+                <span
+                  className="truncate text-xs text-slate-400 dark:text-slate-500 cursor-default"
+                  title={provider.note}
+                >
+                  · {provider.note}
+                </span>
+              ) : null}
             </div>
           </div>
         </div>

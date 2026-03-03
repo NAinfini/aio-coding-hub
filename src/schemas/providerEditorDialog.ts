@@ -11,8 +11,8 @@ function parseCostMultiplier() {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "价格倍率必须是数字" });
       return z.NEVER;
     }
-    if (value <= 0) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "价格倍率必须大于 0" });
+    if (value < 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "价格倍率必须大于等于 0" });
       return z.NEVER;
     }
     if (value > 1000) {
@@ -102,6 +102,7 @@ export function createProviderEditorDialogSchema(options: { mode: "create" | "ed
       daily_reset_mode: z.enum(["fixed", "rolling"]),
       daily_reset_time: parseResetTimeHms(),
       enabled: z.boolean(),
+      note: z.string().trim().max(500, { message: "备注不能超过 500 字符" }),
     })
     .superRefine((values, ctx) => {
       if (options.mode !== "create") return;

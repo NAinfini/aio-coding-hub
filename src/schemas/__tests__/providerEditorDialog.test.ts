@@ -20,6 +20,7 @@ describe("schemas/providerEditorDialog", () => {
       daily_reset_mode: "fixed",
       daily_reset_time: "00:00:00",
       enabled: true,
+      note: "",
     } as const;
 
     const createRes = createSchema.safeParse(base);
@@ -51,6 +52,7 @@ describe("schemas/providerEditorDialog", () => {
       daily_reset_mode: "fixed",
       daily_reset_time: "01:02",
       enabled: true,
+      note: "",
     });
     expect(res.success).toBe(true);
     if (res.success) {
@@ -69,6 +71,7 @@ describe("schemas/providerEditorDialog", () => {
       daily_reset_mode: "fixed",
       daily_reset_time: "25:00:00",
       enabled: true,
+      note: "",
     });
     expect(bad.success).toBe(false);
     if (!bad.success) {
@@ -95,6 +98,7 @@ describe("schemas/providerEditorDialog", () => {
       daily_reset_mode: "fixed",
       daily_reset_time: "00:00:00",
       enabled: true,
+      note: "",
     });
     expect(ok.success).toBe(true);
     if (ok.success) {
@@ -105,7 +109,7 @@ describe("schemas/providerEditorDialog", () => {
     const badCost = schema.safeParse({
       name: "n",
       api_key: "",
-      cost_multiplier: "0",
+      cost_multiplier: "-1",
       limit_5h_usd: "",
       limit_daily_usd: "",
       limit_weekly_usd: "",
@@ -114,10 +118,11 @@ describe("schemas/providerEditorDialog", () => {
       daily_reset_mode: "fixed",
       daily_reset_time: "00:00:00",
       enabled: true,
+      note: "",
     });
     expect(badCost.success).toBe(false);
     if (!badCost.success) {
-      expect(badCost.error.issues.some((issue) => issue.message === "价格倍率必须大于 0")).toBe(
+      expect(badCost.error.issues.some((issue) => issue.message === "价格倍率必须大于等于 0")).toBe(
         true
       );
     }
@@ -134,6 +139,7 @@ describe("schemas/providerEditorDialog", () => {
       daily_reset_mode: "fixed",
       daily_reset_time: "00:00:00",
       enabled: true,
+      note: "",
     });
     expect(badLimit.success).toBe(false);
     if (!badLimit.success) {

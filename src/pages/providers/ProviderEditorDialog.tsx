@@ -7,6 +7,8 @@ import {
   DollarSign,
   CalendarDays,
   CalendarRange,
+  Eye,
+  EyeOff,
   Gauge,
   RotateCcw,
   X,
@@ -15,6 +17,7 @@ import { toast } from "sonner";
 import { cliLongLabel } from "../../constants/clis";
 import { logToConsole } from "../../services/consoleLog";
 import {
+  providerGetApiKey,
   providerUpsert,
   type ClaudeModels,
   type CliKey,
@@ -80,6 +83,9 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [saving, setSaving] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [fetchingApiKey, setFetchingApiKey] = useState(false);
+  const apiKeyFetchedRef = useRef(false);
 
   const schema = useMemo(() => createProviderEditorDialogSchema({ mode }), [mode]);
   const form = useForm<ProviderEditorDialogFormInput>({
@@ -95,6 +101,7 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
       daily_reset_mode: "fixed",
       daily_reset_time: "00:00:00",
       enabled: true,
+      note: "",
     },
   });
 
@@ -117,6 +124,7 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
     if (!open) return;
 
     baseUrlRowSeqRef.current = 1;
+    apiKeyFetchedRef.current = false;
 
     if (mode === "create") {
       setBaseUrlMode("order");
@@ -125,6 +133,7 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
       setClaudeModels({});
       setTags([]);
       setTagInput("");
+      setShowApiKey(false);
       reset({
         name: "",
         api_key: "",
@@ -137,6 +146,7 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
         daily_reset_mode: "fixed",
         daily_reset_time: "00:00:00",
         enabled: true,
+        note: "",
       });
       return;
     }
@@ -147,6 +157,7 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
     setClaudeModels(props.provider.claude_models ?? {});
     setTags(props.provider.tags ?? []);
     setTagInput("");
+    setShowApiKey(false);
     reset({
       name: props.provider.name,
       api_key: "",
@@ -163,6 +174,7 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
       daily_reset_mode: props.provider.daily_reset_mode ?? "fixed",
       daily_reset_time: props.provider.daily_reset_time ?? "00:00:00",
       enabled: props.provider.enabled,
+      note: props.provider.note ?? "",
     });
     // Only reset form when dialog opens or provider identity changes.
     // Intentionally omitting props.provider fields to avoid resetting user edits
@@ -210,6 +222,24 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
     }
   }
 
+  async function toggleApiKeyVisibility() {
+    if (!showApiKey && mode === "edit" && !apiKeyFetchedRef.current) {
+      setFetchingApiKey(true);
+      try {
+        const key = await providerGetApiKey(props.provider.id);
+        if (key) {
+          setValue("api_key", key, { shouldDirty: false });
+          apiKeyFetchedRef.current = true;
+        }
+      } catch {
+        toast("读取 API Key 失败");
+      } finally {
+        setFetchingApiKey(false);
+      }
+    }
+    setShowApiKey((prev) => !prev);
+  }
+
   async function save() {
     if (saving) return;
 
@@ -254,6 +284,7 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
         limit_monthly_usd: values.limit_monthly_usd,
         limit_total_usd: values.limit_total_usd,
         tags,
+        note: values.note,
         ...(cliKey === "claude" ? { claude_models: claudeModels } : {}),
       });
 
@@ -280,6 +311,7 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
         limit_monthly_usd: saved.limit_monthly_usd,
         limit_total_usd: saved.limit_total_usd,
         tags: saved.tags,
+        note: saved.note,
       });
       toast(mode === "create" ? "Provider 已保存" : "Provider 已更新");
 
@@ -336,47 +368,53 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
           </FormField>
         </div>
 
-        <FormField label="标签" hint="按 Enter 添加标签，用于分类筛选">
-          <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 py-1.5 dark:border-slate-700 dark:bg-slate-800">
-            {tags.map((tag) => (
-              <span
-                key={tag}
-                className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent"
-              >
-                {tag}
-                <button
-                  type="button"
-                  onClick={() => setTags((prev) => prev.filter((t) => t !== tag))}
-                  className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full hover:bg-accent/20"
-                  disabled={saving}
-                  aria-label={`移除标签 ${tag}`}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <FormField label="标签" hint="按 Enter 添加标签">
+            <div className="flex min-h-10 flex-wrap items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 shadow-sm dark:border-slate-600 dark:bg-slate-800 dark:shadow-none">
+              {tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent"
                 >
-                  <X className="h-2.5 w-2.5" />
-                </button>
-              </span>
-            ))}
-            <input
-              type="text"
-              value={tagInput}
-              onChange={(e) => setTagInput(e.currentTarget.value)}
-              onKeyDown={(e) => {
-                if (e.key !== "Enter") return;
-                e.preventDefault();
-                const trimmed = tagInput.trim();
-                if (!trimmed) return;
-                if (tags.includes(trimmed)) {
+                  {tag}
+                  <button
+                    type="button"
+                    onClick={() => setTags((prev) => prev.filter((t) => t !== tag))}
+                    className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full hover:bg-accent/20"
+                    disabled={saving}
+                    aria-label={`移除标签 ${tag}`}
+                  >
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                </span>
+              ))}
+              <input
+                type="text"
+                value={tagInput}
+                onChange={(e) => setTagInput(e.currentTarget.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter") return;
+                  e.preventDefault();
+                  const trimmed = tagInput.trim();
+                  if (!trimmed) return;
+                  if (tags.includes(trimmed)) {
+                    setTagInput("");
+                    return;
+                  }
+                  setTags((prev) => [...prev, trimmed]);
                   setTagInput("");
-                  return;
-                }
-                setTags((prev) => [...prev, trimmed]);
-                setTagInput("");
-              }}
-              placeholder={tags.length === 0 ? "输入标签后按 Enter" : ""}
-              className="min-w-[80px] flex-1 border-none bg-transparent text-sm outline-none placeholder:text-slate-400"
-              disabled={saving}
-            />
-          </div>
-        </FormField>
+                }}
+                placeholder={tags.length === 0 ? "输入标签后按 Enter" : ""}
+                className="min-w-[80px] flex-1 border-none bg-transparent text-sm outline-none placeholder:text-slate-400"
+                disabled={saving}
+              />
+            </div>
+          </FormField>
+
+          <FormField label="备注" hint="供应商列表中显示">
+            <Input placeholder="可选备注信息" disabled={saving} {...register("note")} />
+          </FormField>
+        </div>
 
         <FormField label="Base URLs">
           <BaseUrlEditor
@@ -397,18 +435,28 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
           >
             <div className="flex items-center gap-2">
               <Input
-                type="password"
+                type={showApiKey ? "text" : "password"}
                 placeholder="sk-…"
                 autoComplete="off"
                 {...register("api_key")}
               />
+              <button
+                type="button"
+                onClick={toggleApiKeyVisibility}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                tabIndex={-1}
+                disabled={fetchingApiKey}
+                aria-label={showApiKey ? "隐藏 API Key" : "显示 API Key"}
+              >
+                {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
             </div>
           </FormField>
 
           <FormField label="价格倍率">
             <Input
               type="number"
-              min="0.0001"
+              min="0"
               step="0.01"
               placeholder="1.0"
               {...register("cost_multiplier")}

@@ -52,6 +52,7 @@ pub(crate) async fn provider_upsert(
     limit_monthly_usd: Option<f64>,
     limit_total_usd: Option<f64>,
     tags: Option<Vec<String>>,
+    note: Option<String>,
 ) -> Result<providers::ProviderSummary, String> {
     let is_create = provider_id.is_none();
     let name_for_log = name.clone();
@@ -78,6 +79,7 @@ pub(crate) async fn provider_upsert(
             limit_monthly_usd,
             limit_total_usd,
             tags,
+            note.as_deref(),
         )
     })
     .await
@@ -368,6 +370,20 @@ fn powershell_single_quote(value: &str) -> String {
 
 fn windows_double_quote(value: &str) -> String {
     format!("\"{value}\"")
+}
+
+#[tauri::command]
+pub(crate) async fn provider_get_api_key(
+    app: tauri::AppHandle,
+    db_state: tauri::State<'_, DbInitState>,
+    provider_id: i64,
+) -> Result<String, String> {
+    let db = ensure_db_ready(app, db_state.inner()).await?;
+    blocking::run("provider_get_api_key", move || {
+        providers::get_api_key_plaintext(&db, provider_id)
+    })
+    .await
+    .map_err(Into::into)
 }
 
 #[tauri::command]

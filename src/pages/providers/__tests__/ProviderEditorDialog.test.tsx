@@ -33,6 +33,7 @@ function makeProvider(partial: Partial<ProviderSummary> = {}): ProviderSummary {
     limit_monthly_usd: null,
     limit_total_usd: null,
     tags: [],
+    note: "",
     created_at: 0,
     updated_at: 0,
     ...partial,
@@ -75,9 +76,9 @@ describe("pages/providers/ProviderEditorDialog", () => {
     expect(vi.mocked(toast)).toHaveBeenCalledWith("API Key 不能为空（新增 Provider 必填）");
 
     fireEvent.change(dialog.getByPlaceholderText("sk-…"), { target: { value: "sk-test" } });
-    fireEvent.change(dialog.getByPlaceholderText("1.0"), { target: { value: "0" } });
+    fireEvent.change(dialog.getByPlaceholderText("1.0"), { target: { value: "-1" } });
     fireEvent.click(dialog.getByRole("button", { name: "保存" }));
-    expect(vi.mocked(toast)).toHaveBeenCalledWith("价格倍率必须大于 0");
+    expect(vi.mocked(toast)).toHaveBeenCalledWith("价格倍率必须大于等于 0");
 
     fireEvent.change(dialog.getByPlaceholderText("1.0"), { target: { value: "1.0" } });
     fireEvent.change(dialog.getByPlaceholderText(/中转 endpoint/), {

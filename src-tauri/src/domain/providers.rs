@@ -265,6 +265,7 @@ pub struct ProviderSummary {
     pub limit_monthly_usd: Option<f64>,
     pub limit_total_usd: Option<f64>,
     pub tags: Vec<String>,
+    pub note: String,
     pub created_at: i64,
     pub updated_at: i64,
 }
@@ -390,6 +391,7 @@ fn row_to_summary(row: &rusqlite::Row<'_>) -> Result<ProviderSummary, rusqlite::
         limit_monthly_usd: row.get("limit_monthly_usd")?,
         limit_total_usd: row.get("limit_total_usd")?,
         tags: tags_from_json(&tags_json),
+        note: row.get("note")?,
         created_at: row.get("created_at")?,
         updated_at: row.get("updated_at")?,
     })
@@ -420,6 +422,7 @@ SELECT
   base_url_mode,
   claude_models_json,
   tags_json,
+  note,
   enabled,
   priority,
   cost_multiplier,
@@ -495,6 +498,24 @@ WHERE id = ?1
     Ok(ClaudeTerminalLaunchContext { api_key_plaintext })
 }
 
+/// Returns the raw API key for any provider (not limited to Claude).
+pub fn get_api_key_plaintext(
+    db: &db::Db,
+    provider_id: i64,
+) -> crate::shared::error::AppResult<String> {
+    let conn = db.open_connection()?;
+    let key: Option<String> = conn
+        .query_row(
+            "SELECT api_key_plaintext FROM providers WHERE id = ?1",
+            rusqlite::params![provider_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|e| db_err!("failed to query provider api_key: {e}"))?;
+
+    key.ok_or_else(|| "DB_NOT_FOUND: provider not found".to_string().into())
+}
+
 pub fn names_by_id(
     db: &db::Db,
     provider_ids: &[i64],
@@ -560,21 +581,22 @@ SELECT
   base_url_mode,
   claude_models_json,
   tags_json,
-	  enabled,
-	  priority,
-	  cost_multiplier,
-	  limit_5h_usd,
-	  limit_daily_usd,
-	  daily_reset_mode,
-	  daily_reset_time,
-	  limit_weekly_usd,
-	  limit_monthly_usd,
-	  limit_total_usd,
-	  created_at,
-	  updated_at
-	FROM providers
-	WHERE cli_key = ?1
-	ORDER BY sort_order ASC, id DESC
+  note,
+  enabled,
+  priority,
+  cost_multiplier,
+  limit_5h_usd,
+  limit_daily_usd,
+  daily_reset_mode,
+  daily_reset_time,
+  limit_weekly_usd,
+  limit_monthly_usd,
+  limit_total_usd,
+  created_at,
+  updated_at
+FROM providers
+WHERE cli_key = ?1
+ORDER BY sort_order ASC, id DESC
 "#,
         )
         .map_err(|e| db_err!("failed to prepare query: {e}"))?;
@@ -799,6 +821,7 @@ pub fn upsert(
     limit_monthly_usd: Option<f64>,
     limit_total_usd: Option<f64>,
     tags: Option<Vec<String>>,
+    note: Option<&str>,
 ) -> crate::shared::error::AppResult<ProviderSummary> {
     let cli_key = cli_key.trim();
     validate_cli_key(cli_key)?;
@@ -820,9 +843,9 @@ pub fn upsert(
 
     let api_key = api_key.map(str::trim).filter(|v| !v.is_empty());
 
-    if !cost_multiplier.is_finite() || cost_multiplier <= 0.0 || cost_multiplier > 1000.0 {
+    if !cost_multiplier.is_finite() || cost_multiplier < 0.0 || cost_multiplier > 1000.0 {
         return Err(
-            "SEC_INVALID_INPUT: cost_multiplier must be within (0, 1000]"
+            "SEC_INVALID_INPUT: cost_multiplier must be within [0, 1000]"
                 .to_string()
                 .into(),
         );
@@ -872,6 +895,12 @@ pub fn upsert(
             let tags_normalized = normalize_tags(tags.unwrap_or_default());
             let tags_json_value = serde_json::to_string(&tags_normalized)
                 .map_err(|e| format!("SYSTEM_ERROR: {e}"))?;
+            let note_value = note.unwrap_or("").trim().to_string();
+            if note_value.len() > 500 {
+                return Err("SEC_INVALID_INPUT: note must be at most 500 characters"
+                    .to_string()
+                    .into());
+            }
 
             conn.execute(
                 r#"
@@ -897,9 +926,10 @@ INSERT INTO providers(
   limit_monthly_usd,
   limit_total_usd,
   tags_json,
+  note,
   created_at,
   updated_at
-) VALUES (?1, ?2, ?3, ?4, ?5, ?6, '{}', '{}', ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21)
+) VALUES (?1, ?2, ?3, ?4, ?5, ?6, '{}', '{}', ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)
 "#,
                 params![
                     cli_key,
@@ -921,6 +951,7 @@ INSERT INTO providers(
                     limit_monthly_usd,
                     limit_total_usd,
                     tags_json_value,
+                    note_value,
                     now,
                     now
                 ],
@@ -944,11 +975,11 @@ INSERT INTO providers(
                 .transaction()
                 .map_err(|e| db_err!("failed to start transaction: {e}"))?;
 
-            let existing: Option<(String, String, i64, String, String, String, String)> = tx
+            let existing: Option<(String, String, i64, String, String, String, String, String)> = tx
                 .query_row(
-                    "SELECT cli_key, api_key_plaintext, priority, claude_models_json, daily_reset_mode, daily_reset_time, tags_json FROM providers WHERE id = ?1",
+                    "SELECT cli_key, api_key_plaintext, priority, claude_models_json, daily_reset_mode, daily_reset_time, tags_json, note FROM providers WHERE id = ?1",
                     params![id],
-                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?)),
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?, row.get(7)?)),
                 )
                 .optional()
                 .map_err(|e| db_err!("failed to query provider: {e}"))?;
@@ -961,6 +992,7 @@ INSERT INTO providers(
                 existing_daily_reset_mode_raw,
                 existing_daily_reset_time_raw,
                 existing_tags_json,
+                existing_note,
             )) = existing
             else {
                 return Err("DB_NOT_FOUND: provider not found".to_string().into());
@@ -1025,6 +1057,19 @@ INSERT INTO providers(
             let next_tags_json =
                 serde_json::to_string(&next_tags).map_err(|e| format!("SYSTEM_ERROR: {e}"))?;
 
+            let next_note = match note {
+                Some(v) => {
+                    let trimmed = v.trim().to_string();
+                    if trimmed.len() > 500 {
+                        return Err("SEC_INVALID_INPUT: note must be at most 500 characters"
+                            .to_string()
+                            .into());
+                    }
+                    trimmed
+                }
+                None => existing_note,
+            };
+
             tx.execute(
                 r#"
 UPDATE providers
@@ -1048,8 +1093,9 @@ SET
   limit_monthly_usd = ?15,
   limit_total_usd = ?16,
   tags_json = ?17,
-  updated_at = ?18
-WHERE id = ?19
+  note = ?18,
+  updated_at = ?19
+WHERE id = ?20
 "#,
                 params![
                     name,
@@ -1069,6 +1115,7 @@ WHERE id = ?19
                     next_limit_monthly_usd,
                     next_limit_total_usd,
                     next_tags_json,
+                    next_note,
                     now,
                     id
                 ],

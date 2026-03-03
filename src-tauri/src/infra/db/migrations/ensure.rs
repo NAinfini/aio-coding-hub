@@ -14,6 +14,7 @@ pub(super) fn apply_ensure_patches(conn: &mut Connection) -> crate::shared::erro
     ensure_sort_mode_providers_enabled(conn)?;
     ensure_usage_indexes(conn)?;
     ensure_provider_tags(conn)?;
+    ensure_provider_note(conn)?;
     Ok(())
 }
 
@@ -555,6 +556,18 @@ fn ensure_provider_tags(conn: &mut Connection) -> Result<(), String> {
 
     tx.commit()
         .map_err(|e| format!("failed to commit sqlite transaction: {e}"))?;
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// ensure_provider_note
+// ---------------------------------------------------------------------------
+
+fn ensure_provider_note(conn: &mut Connection) -> Result<(), String> {
+    if !column_exists(conn, "providers", "note")? {
+        conn.execute_batch("ALTER TABLE providers ADD COLUMN note TEXT NOT NULL DEFAULT '';")
+            .map_err(|e| format!("failed to ensure providers note column: {e}"))?;
+    }
     Ok(())
 }
 

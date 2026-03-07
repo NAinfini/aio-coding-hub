@@ -514,7 +514,12 @@ pub(crate) async fn provider_oauth_start_flow(
         .ok_or("OAuth callback missing authorization code")?;
 
     // 8. Exchange code for tokens
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .user_agent("codex_cli_rs/0.76.0")
+        .timeout(std::time::Duration::from_secs(30))
+        .connect_timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| format!("token exchange HTTP client init failed: {e}"))?;
     let token_set = crate::gateway::oauth::token_exchange::exchange_authorization_code(
         &client,
         &crate::gateway::oauth::token_exchange::TokenExchangeRequest {

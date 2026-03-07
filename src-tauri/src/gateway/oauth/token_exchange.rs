@@ -113,10 +113,18 @@ async fn parse_token_response(resp: reqwest::Response) -> Result<OAuthTokenSet, 
                 );
             }
 
-            return Err(format!("token endpoint error ({status}): {error}"));
+            return Err(format!("token endpoint error ({status}): {error}: {desc}"));
         }
+        // Non-JSON body – likely a Cloudflare challenge page or HTML error.
+        // Include a truncated snippet for diagnosis.
+        let snippet: String = body.chars().take(200).collect();
+        tracing::warn!(
+            %status,
+            body_snippet = %snippet,
+            "token endpoint returned non-JSON error; possible WAF/Cloudflare block"
+        );
         return Err(format!(
-            "token endpoint returned {status}: [body redacted for security]"
+            "token endpoint returned {status} (non-JSON response, possible Cloudflare block)"
         ));
     }
 

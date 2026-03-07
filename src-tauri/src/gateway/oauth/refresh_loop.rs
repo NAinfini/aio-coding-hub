@@ -61,6 +61,7 @@ pub(crate) fn spawn(
 
 async fn run_loop(db: crate::db::Db, mut shutdown_rx: watch::Receiver<bool>) {
     let client = match reqwest::Client::builder()
+        .user_agent("codex_cli_rs/0.76.0")
         .timeout(std::time::Duration::from_secs(30))
         .build()
     {

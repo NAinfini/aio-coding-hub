@@ -43,15 +43,31 @@ const GPT_54_CONTEXT_WINDOW = 1_000_000;
 const GPT_54_AUTO_COMPACT_TOKEN_LIMIT = 900_000;
 const FAST_SERVICE_TIER = "fast";
 
-function buildModelPatch(model: string): CodexConfigPatch {
+function buildModelPatch(
+  model: string,
+  contextWindow?: string,
+  autoCompactLimit?: string
+): CodexConfigPatch {
   const trimmed = model.trim();
-  const isGpt54Model = trimmed === GPT_54_MODEL;
+  const isGpt54 = trimmed === GPT_54_MODEL;
 
   return {
     model: trimmed,
-    model_context_window: isGpt54Model ? GPT_54_CONTEXT_WINDOW : null,
-    model_auto_compact_token_limit: isGpt54Model ? GPT_54_AUTO_COMPACT_TOKEN_LIMIT : null,
+    model_context_window: isGpt54
+      ? (parsePositiveInt(contextWindow) ?? GPT_54_CONTEXT_WINDOW)
+      : null,
+    model_auto_compact_token_limit: isGpt54
+      ? (parsePositiveInt(autoCompactLimit) ?? GPT_54_AUTO_COMPACT_TOKEN_LIMIT)
+      : null,
   };
+}
+
+/** Parse a string to a positive integer; return null on empty / NaN / <= 0. */
+function parsePositiveInt(v: string | undefined): number | null {
+  if (v == null) return null;
+  const n = Number(v.trim());
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.round(n);
 }
 
 function buildFastModePatch(enabled: boolean): CodexConfigPatch {
@@ -136,6 +152,8 @@ export function CliManagerCodexTab({
   persistCodexConfigToml,
 }: CliManagerCodexTabProps) {
   const [modelText, setModelText] = useState("");
+  const [contextWindowText, setContextWindowText] = useState("");
+  const [autoCompactLimitText, setAutoCompactLimitText] = useState("");
   const [sandboxModeText, setSandboxModeText] = useState("");
   const [webSearchText, setWebSearchText] = useState("");
   const [reasoningEffortText, setReasoningEffortText] = useState("");
@@ -176,6 +194,14 @@ export function CliManagerCodexTab({
   useEffect(() => {
     if (!codexConfig) return;
     setModelText(codexConfig.model ?? "");
+    setContextWindowText(
+      codexConfig.model_context_window != null ? String(codexConfig.model_context_window) : ""
+    );
+    setAutoCompactLimitText(
+      codexConfig.model_auto_compact_token_limit != null
+        ? String(codexConfig.model_auto_compact_token_limit)
+        : ""
+    );
     setSandboxModeText(codexConfig.sandbox_mode ?? "");
     setWebSearchText(codexConfig.web_search ?? "cached");
     setReasoningEffortText(codexConfig.model_reasoning_effort ?? "");
@@ -410,7 +436,11 @@ export function CliManagerCodexTab({
                   <Input
                     value={modelText}
                     onChange={(e) => setModelText(e.currentTarget.value)}
-                    onBlur={() => void persistCodexConfig(buildModelPatch(modelText))}
+                    onBlur={() =>
+                      void persistCodexConfig(
+                        buildModelPatch(modelText, contextWindowText, autoCompactLimitText)
+                      )
+                    }
                     placeholder="例如：gpt-5-codex"
                     className="font-mono w-[280px] max-w-full"
                     disabled={saving}
@@ -421,20 +451,43 @@ export function CliManagerCodexTab({
                   <>
                     <SettingItem
                       label="model_context_window"
-                      subtitle="仅当 model=gpt-5.4 时自动写入；切换到其他模型时自动删除。"
+                      subtitle={`仅当 model=${GPT_54_MODEL} 时生效；切换到其他模型时自动删除。默认值 ${GPT_54_CONTEXT_WINDOW.toLocaleString()}。`}
                     >
-                      <div className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-3 py-2 font-mono text-sm text-slate-700 dark:text-slate-300">
-                        {GPT_54_CONTEXT_WINDOW}
-                      </div>
+                      <Input
+                        type="number"
+                        value={contextWindowText}
+                        onChange={(e) => setContextWindowText(e.currentTarget.value)}
+                        onBlur={() =>
+                          void persistCodexConfig({
+                            model_context_window:
+                              parsePositiveInt(contextWindowText) ?? GPT_54_CONTEXT_WINDOW,
+                          })
+                        }
+                        placeholder={String(GPT_54_CONTEXT_WINDOW)}
+                        className="font-mono w-[220px] max-w-full"
+                        disabled={saving}
+                      />
                     </SettingItem>
 
                     <SettingItem
                       label="model_auto_compact_token_limit"
-                      subtitle="仅当 model=gpt-5.4 时自动写入；切换到其他模型时自动删除。"
+                      subtitle={`仅当 model=${GPT_54_MODEL} 时生效；切换到其他模型时自动删除。默认值 ${GPT_54_AUTO_COMPACT_TOKEN_LIMIT.toLocaleString()}。`}
                     >
-                      <div className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-3 py-2 font-mono text-sm text-slate-700 dark:text-slate-300">
-                        {GPT_54_AUTO_COMPACT_TOKEN_LIMIT}
-                      </div>
+                      <Input
+                        type="number"
+                        value={autoCompactLimitText}
+                        onChange={(e) => setAutoCompactLimitText(e.currentTarget.value)}
+                        onBlur={() =>
+                          void persistCodexConfig({
+                            model_auto_compact_token_limit:
+                              parsePositiveInt(autoCompactLimitText) ??
+                              GPT_54_AUTO_COMPACT_TOKEN_LIMIT,
+                          })
+                        }
+                        placeholder={String(GPT_54_AUTO_COMPACT_TOKEN_LIMIT)}
+                        className="font-mono w-[220px] max-w-full"
+                        disabled={saving}
+                      />
                     </SettingItem>
                   </>
                 ) : null}

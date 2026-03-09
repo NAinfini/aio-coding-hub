@@ -14,6 +14,7 @@ import { useSettingsQuery, useSettingsSetMutation } from "../../query/settings";
 type PersistedSettings = {
   preferred_port: number;
   auto_start: boolean;
+  start_minimized: boolean;
   tray_enabled: boolean;
   log_retention_days: number;
   provider_cooldown_seconds: number;
@@ -36,6 +37,7 @@ type PersistedSettings = {
 const DEFAULT_SETTINGS: PersistedSettings = {
   preferred_port: 37123,
   auto_start: false,
+  start_minimized: false,
   tray_enabled: true,
   log_retention_days: 7,
   provider_cooldown_seconds: 30,
@@ -70,6 +72,7 @@ export function useSettingsPersistence(options: {
 
   const [port, setPort] = useState<number>(DEFAULT_SETTINGS.preferred_port);
   const [autoStart, setAutoStart] = useState<boolean>(DEFAULT_SETTINGS.auto_start);
+  const [startMinimized, setStartMinimized] = useState<boolean>(DEFAULT_SETTINGS.start_minimized);
   const [trayEnabled, setTrayEnabled] = useState<boolean>(DEFAULT_SETTINGS.tray_enabled);
   const [logRetentionDays, setLogRetentionDays] = useState<number>(
     DEFAULT_SETTINGS.log_retention_days
@@ -103,6 +106,7 @@ export function useSettingsPersistence(options: {
     const nextSettings: PersistedSettings = {
       preferred_port: settingsValue.preferred_port,
       auto_start: settingsValue.auto_start,
+      start_minimized: settingsValue.start_minimized ?? DEFAULT_SETTINGS.start_minimized,
       tray_enabled: settingsValue.tray_enabled ?? DEFAULT_SETTINGS.tray_enabled,
       log_retention_days: settingsValue.log_retention_days,
       provider_cooldown_seconds:
@@ -154,6 +158,7 @@ export function useSettingsPersistence(options: {
 
     setPort(nextSettings.preferred_port);
     setAutoStart(nextSettings.auto_start);
+    setStartMinimized(nextSettings.start_minimized);
     setTrayEnabled(nextSettings.tray_enabled);
     setLogRetentionDays(nextSettings.log_retention_days);
     setSettingsReady(true);
@@ -189,6 +194,9 @@ export function useSettingsPersistence(options: {
         return;
       case "auto_start":
         setAutoStart(value as boolean);
+        return;
+      case "start_minimized":
+        setStartMinimized(value as boolean);
         return;
       case "tray_enabled":
         setTrayEnabled(value as boolean);
@@ -398,6 +406,7 @@ export function useSettingsPersistence(options: {
       const nextSettings = await settingsSetMutation.mutateAsync({
         preferredPort: desired.preferred_port,
         autoStart: desired.auto_start,
+        startMinimized: desired.start_minimized,
         trayEnabled: desired.tray_enabled,
         logRetentionDays: desired.log_retention_days,
         providerCooldownSeconds: desired.provider_cooldown_seconds,
@@ -421,6 +430,7 @@ export function useSettingsPersistence(options: {
       const after: PersistedSettings = {
         preferred_port: nextSettings.preferred_port,
         auto_start: nextSettings.auto_start,
+        start_minimized: nextSettings.start_minimized ?? desired.start_minimized,
         tray_enabled: nextSettings.tray_enabled ?? desired.tray_enabled,
         log_retention_days: nextSettings.log_retention_days,
         provider_cooldown_seconds:
@@ -565,6 +575,8 @@ export function useSettingsPersistence(options: {
     setPort,
     autoStart,
     setAutoStart,
+    startMinimized,
+    setStartMinimized,
     trayEnabled,
     setTrayEnabled,
     logRetentionDays,

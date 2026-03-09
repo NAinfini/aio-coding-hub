@@ -4,8 +4,8 @@ import { MemoryRouter } from "react-router-dom";
 import type { ReactElement } from "react";
 import { toast } from "sonner";
 import { CACHE_ANOMALY_MONITOR_GUIDE_COPY } from "../../../../services/cacheAnomalyMonitorConfig";
-import type { AppSettings } from "../../../../services/settings";
 import type { GatewayRectifierSettingsPatch } from "../../../../services/settingsGatewayRectifier";
+import { createTestAppSettings } from "../../../../test/fixtures/settings";
 import { CliManagerGeneralTab } from "../GeneralTab";
 
 const navigateMock = vi.fn();
@@ -24,48 +24,6 @@ vi.mock("react-router-dom", async () => {
 
 function renderTab(element: ReactElement) {
   return render(<MemoryRouter>{element}</MemoryRouter>);
-}
-
-function createAppSettings(): AppSettings {
-  return {
-    schema_version: 1,
-    preferred_port: 37123,
-    gateway_listen_mode: "localhost",
-    gateway_custom_listen_address: "",
-    wsl_auto_config: false,
-    wsl_target_cli: { claude: true, codex: false, gemini: false },
-    wsl_host_address_mode: "auto",
-    wsl_custom_host_address: "127.0.0.1",
-    auto_start: false,
-    tray_enabled: true,
-    enable_cli_proxy_startup_recovery: true,
-    log_retention_days: 7,
-    provider_cooldown_seconds: 30,
-    provider_base_url_ping_cache_ttl_seconds: 60,
-    upstream_first_byte_timeout_seconds: 0,
-    upstream_stream_idle_timeout_seconds: 0,
-    upstream_request_timeout_non_streaming_seconds: 0,
-    update_releases_url: "",
-    failover_max_attempts_per_provider: 5,
-    failover_max_providers_to_try: 5,
-    circuit_breaker_failure_threshold: 5,
-    circuit_breaker_open_duration_minutes: 30,
-    enable_circuit_breaker_notice: false,
-    verbose_provider_error: true,
-    intercept_anthropic_warmup_requests: false,
-    enable_thinking_signature_rectifier: true,
-    enable_thinking_budget_rectifier: true,
-    enable_codex_session_id_completion: true,
-    enable_claude_metadata_user_id_injection: true,
-    enable_cache_anomaly_monitor: false,
-    enable_task_complete_notify: true,
-    enable_response_fixer: true,
-    response_fixer_fix_encoding: true,
-    response_fixer_fix_sse_format: true,
-    response_fixer_fix_truncated_json: true,
-    response_fixer_max_json_depth: 200,
-    response_fixer_max_fix_size: 1024,
-  };
 }
 
 function createRectifierPatch(): GatewayRectifierSettingsPatch {
@@ -137,7 +95,11 @@ describe("cli-manager/GeneralTab", () => {
     const onPersistCircuitBreakerNotice = vi.fn();
     const onPersistCodexSessionIdCompletion = vi.fn();
     const onPersistCacheAnomalyMonitor = vi.fn();
-    const onPersistCommonSettings = vi.fn().mockResolvedValue(createAppSettings());
+    const onPersistCommonSettings = vi
+      .fn()
+      .mockResolvedValue(
+        createTestAppSettings({ wsl_target_cli: { claude: true, codex: false, gemini: false } })
+      );
 
     const setUpstreamFirstByteTimeoutSeconds = vi.fn();
     const setUpstreamStreamIdleTimeoutSeconds = vi.fn();
@@ -166,7 +128,9 @@ describe("cli-manager/GeneralTab", () => {
         taskCompleteNotifyEnabled={true}
         taskCompleteNotifySaving={false}
         onPersistTaskCompleteNotify={vi.fn()}
-        appSettings={createAppSettings()}
+        appSettings={createTestAppSettings({
+          wsl_target_cli: { claude: true, codex: false, gemini: false },
+        })}
         commonSettingsSaving={false}
         onPersistCommonSettings={onPersistCommonSettings}
         upstreamFirstByteTimeoutSeconds={0}

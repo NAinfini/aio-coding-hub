@@ -27,6 +27,8 @@ function renderSettingsMainColumn(
     commitNumberField: vi.fn(),
     autoStart: false,
     setAutoStart: vi.fn(),
+    startMinimized: false,
+    setStartMinimized: vi.fn(),
     trayEnabled: true,
     setTrayEnabled: vi.fn(),
     logRetentionDays: 30,

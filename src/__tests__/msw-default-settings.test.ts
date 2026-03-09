@@ -6,7 +6,7 @@ describe("MSW defaults", () => {
     resetMswState();
 
     expect(getSettingsState()).toEqual({
-      schema_version: 18,
+      schema_version: 19,
       preferred_port: 37123,
       gateway_listen_mode: "localhost",
       gateway_custom_listen_address: "",
@@ -15,6 +15,7 @@ describe("MSW defaults", () => {
       wsl_host_address_mode: "auto",
       wsl_custom_host_address: "127.0.0.1",
       auto_start: false,
+      start_minimized: false,
       tray_enabled: true,
       enable_cli_proxy_startup_recovery: true,
       log_retention_days: 7,

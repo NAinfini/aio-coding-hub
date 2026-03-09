@@ -9,7 +9,7 @@ use std::sync::{OnceLock, RwLock};
 use std::time::{Duration, Instant};
 use tauri::Manager;
 
-pub const SCHEMA_VERSION: u32 = 18;
+pub const SCHEMA_VERSION: u32 = 19;
 const SCHEMA_VERSION_DISABLE_UPSTREAM_TIMEOUTS: u32 = 7;
 const SCHEMA_VERSION_ADD_GATEWAY_RECTIFIERS: u32 = 8;
 const SCHEMA_VERSION_ADD_CIRCUIT_BREAKER_NOTICE: u32 = 9;
@@ -22,6 +22,7 @@ const SCHEMA_VERSION_ADD_CACHE_ANOMALY_MONITOR: u32 = 15;
 const SCHEMA_VERSION_ADD_WSL_HOST_ADDRESS_MODE: u32 = 16;
 const SCHEMA_VERSION_ADD_TASK_COMPLETE_NOTIFY: u32 = 17;
 const SCHEMA_VERSION_ADD_CCH_BASE_CONFIG: u32 = 18;
+const SCHEMA_VERSION_ADD_START_MINIMIZED: u32 = 19;
 pub const DEFAULT_GATEWAY_PORT: u16 = 37123;
 pub const MAX_GATEWAY_PORT: u16 = 37199;
 const DEFAULT_LOG_RETENTION_DAYS: u32 = 7;
@@ -138,6 +139,8 @@ pub struct AppSettings {
     pub wsl_host_address_mode: WslHostAddressMode,
     pub wsl_custom_host_address: String,
     pub auto_start: bool,
+    // Start with window hidden when auto-starting (silent startup).
+    pub start_minimized: bool,
     pub tray_enabled: bool,
     // Startup crash recovery for CLI proxy takeover (default enabled).
     pub enable_cli_proxy_startup_recovery: bool,
@@ -188,6 +191,7 @@ impl Default for AppSettings {
             wsl_host_address_mode: WslHostAddressMode::Auto,
             wsl_custom_host_address: "127.0.0.1".to_string(),
             auto_start: false,
+            start_minimized: false,
             tray_enabled: true,
             enable_cli_proxy_startup_recovery: DEFAULT_ENABLE_CLI_PROXY_STARTUP_RECOVERY,
             log_retention_days: DEFAULT_LOG_RETENTION_DAYS,
@@ -551,6 +555,15 @@ fn migrate_add_cch_base_config(settings: &mut AppSettings, schema_version_presen
     )
 }
 
+fn migrate_add_start_minimized(settings: &mut AppSettings, schema_version_present: bool) -> bool {
+    // v19: Add start_minimized toggle (default disabled).
+    migrate_bump_schema_version(
+        settings,
+        schema_version_present,
+        SCHEMA_VERSION_ADD_START_MINIMIZED,
+    )
+}
+
 fn settings_path(app: &tauri::AppHandle) -> AppResult<PathBuf> {
     Ok(app_paths::app_data_dir(app)?.join("settings.json"))
 }
@@ -669,6 +682,7 @@ pub fn read(app: &tauri::AppHandle) -> AppResult<AppSettings> {
             repaired |= migrate_add_wsl_host_address_mode(&mut settings, schema_version_present);
             repaired |= migrate_add_task_complete_notify(&mut settings, schema_version_present);
             repaired |= migrate_add_cch_base_config(&mut settings, schema_version_present);
+            repaired |= migrate_add_start_minimized(&mut settings, schema_version_present);
             repaired |= sanitize_failover_settings(&mut settings);
             repaired |= sanitize_circuit_breaker_settings(&mut settings);
             repaired |= sanitize_provider_cooldown_seconds(&mut settings);
@@ -736,6 +750,7 @@ pub fn read(app: &tauri::AppHandle) -> AppResult<AppSettings> {
     repaired |= migrate_add_wsl_host_address_mode(&mut settings, schema_version_present);
     repaired |= migrate_add_task_complete_notify(&mut settings, schema_version_present);
     repaired |= migrate_add_cch_base_config(&mut settings, schema_version_present);
+    repaired |= migrate_add_start_minimized(&mut settings, schema_version_present);
     repaired |= sanitize_failover_settings(&mut settings);
     repaired |= sanitize_circuit_breaker_settings(&mut settings);
     repaired |= sanitize_provider_cooldown_seconds(&mut settings);

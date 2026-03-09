@@ -133,6 +133,14 @@ pub fn run() {
                     .state::<resident::ResidentState>()
                     .set_tray_enabled(settings.tray_enabled);
 
+                // Window starts hidden (visible:false in tauri.conf.json) to prevent flash.
+                // Show it unless start_minimized is active.
+                if settings.start_minimized {
+                    resident::hide_main_window_on_startup(&app_handle);
+                } else {
+                    resident::show_main_window(&app_handle);
+                }
+
                 let preferred_port = settings.preferred_port;
                 let enable_cli_proxy_startup_recovery = settings.enable_cli_proxy_startup_recovery;
                 #[cfg(windows)]

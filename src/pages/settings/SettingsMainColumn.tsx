@@ -12,6 +12,7 @@ import { cn } from "../../utils/cn";
 import type { NoticePermissionStatus } from "./useSystemNotification";
 
 type PersistKey = "preferred_port" | "log_retention_days";
+type BooleanPersistKey = "auto_start" | "start_minimized" | "tray_enabled";
 
 export type SettingsMainColumnProps = {
   gateway: GatewayStatus | null;
@@ -31,11 +32,13 @@ export type SettingsMainColumnProps = {
 
   autoStart: boolean;
   setAutoStart: (next: boolean) => void;
+  startMinimized: boolean;
+  setStartMinimized: (next: boolean) => void;
   trayEnabled: boolean;
   setTrayEnabled: (next: boolean) => void;
   logRetentionDays: number;
   setLogRetentionDays: (next: number) => void;
-  requestPersist: (patch: { auto_start?: boolean; tray_enabled?: boolean }) => void;
+  requestPersist: (patch: Partial<Record<BooleanPersistKey, boolean>>) => void;
 
   noticePermissionStatus: NoticePermissionStatus;
   requestingNoticePermission: boolean;
@@ -57,6 +60,8 @@ export function SettingsMainColumn({
   commitNumberField,
   autoStart,
   setAutoStart,
+  startMinimized,
+  setStartMinimized,
   trayEnabled,
   setTrayEnabled,
   logRetentionDays,
@@ -189,26 +194,50 @@ export function SettingsMainColumn({
               系统偏好
             </h3>
             <div className="space-y-1">
-              <SettingsRow label="开机自启">
-                <Switch
-                  checked={autoStart}
-                  onCheckedChange={(checked) => {
-                    setAutoStart(checked);
-                    requestPersist({ auto_start: checked });
-                  }}
-                  disabled={!settingsReady}
-                />
-              </SettingsRow>
-              <SettingsRow label="托盘常驻">
-                <Switch
-                  checked={trayEnabled}
-                  onCheckedChange={(checked) => {
-                    setTrayEnabled(checked);
-                    requestPersist({ tray_enabled: checked });
-                  }}
-                  disabled={!settingsReady}
-                />
-              </SettingsRow>
+              {(
+                [
+                  {
+                    label: "开机自启",
+                    key: "auto_start" as const,
+                    checked: autoStart,
+                    setter: setAutoStart,
+                    disabled: !settingsReady,
+                  },
+                  {
+                    label: "静默启动",
+                    key: "start_minimized" as const,
+                    checked: startMinimized,
+                    setter: setStartMinimized,
+                    disabled: !settingsReady || !autoStart,
+                  },
+                  {
+                    label: "托盘常驻",
+                    key: "tray_enabled" as const,
+                    checked: trayEnabled,
+                    setter: setTrayEnabled,
+                    disabled: !settingsReady,
+                  },
+                ] satisfies {
+                  label: string;
+                  key: BooleanPersistKey;
+                  checked: boolean;
+                  setter: (v: boolean) => void;
+                  disabled: boolean;
+                }[]
+              ).map(({ label, key, checked, setter, disabled }) => (
+                <SettingsRow key={key} label={label}>
+                  <Switch
+                    checked={checked}
+                    onCheckedChange={(next) => {
+                      setter(next);
+                      const patch: Partial<Record<BooleanPersistKey, boolean>> = {};
+                      patch[key] = next;
+                      requestPersist(patch);
+                    }}
+                    disabled={disabled}
+                  />
+                </SettingsRow>
+              ))}
               <SettingsRow label="日志保留">
                 <div className="flex items-center gap-2">
                   <Input

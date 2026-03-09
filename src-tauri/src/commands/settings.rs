@@ -11,6 +11,7 @@ pub(crate) struct SettingsUpdate {
     pub gateway_listen_mode: Option<settings::GatewayListenMode>,
     pub gateway_custom_listen_address: Option<String>,
     pub auto_start: bool,
+    pub start_minimized: Option<bool>,
     pub tray_enabled: Option<bool>,
     pub enable_cli_proxy_startup_recovery: Option<bool>,
     pub log_retention_days: u32,
@@ -60,6 +61,7 @@ pub(crate) async fn settings_set(
         gateway_listen_mode,
         gateway_custom_listen_address,
         auto_start,
+        start_minimized,
         tray_enabled,
         enable_cli_proxy_startup_recovery,
         log_retention_days,
@@ -97,6 +99,7 @@ pub(crate) async fn settings_set(
             let previous = settings::read(&app_for_work).unwrap_or_default();
             let update_releases_url = update_releases_url.unwrap_or(previous.update_releases_url);
             let tray_enabled = tray_enabled.unwrap_or(previous.tray_enabled);
+            let start_minimized = start_minimized.unwrap_or(previous.start_minimized);
             let enable_cli_proxy_startup_recovery = enable_cli_proxy_startup_recovery
                 .unwrap_or(previous.enable_cli_proxy_startup_recovery);
             let provider_cooldown_seconds =
@@ -185,6 +188,7 @@ pub(crate) async fn settings_set(
                 wsl_host_address_mode,
                 wsl_custom_host_address,
                 auto_start: next_auto_start,
+                start_minimized,
                 tray_enabled,
                 enable_cli_proxy_startup_recovery,
                 log_retention_days,

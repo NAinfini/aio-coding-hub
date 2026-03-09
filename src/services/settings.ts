@@ -20,6 +20,7 @@ export type AppSettings = {
   wsl_host_address_mode: WslHostAddressMode;
   wsl_custom_host_address: string;
   auto_start: boolean;
+  start_minimized: boolean;
   tray_enabled: boolean;
   enable_cli_proxy_startup_recovery: boolean;
   log_retention_days: number;
@@ -55,6 +56,7 @@ export type SettingsSetInput = {
   gatewayListenMode?: GatewayListenMode;
   gatewayCustomListenAddress?: string;
   autoStart: boolean;
+  startMinimized?: boolean;
   trayEnabled?: boolean;
   enableCliProxyStartupRecovery?: boolean;
   logRetentionDays: number;

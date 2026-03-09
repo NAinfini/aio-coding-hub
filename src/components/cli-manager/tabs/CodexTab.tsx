@@ -53,12 +53,8 @@ function buildModelPatch(
 
   return {
     model: trimmed,
-    model_context_window: isGpt54
-      ? (parsePositiveInt(contextWindow) ?? GPT_54_CONTEXT_WINDOW)
-      : null,
-    model_auto_compact_token_limit: isGpt54
-      ? (parsePositiveInt(autoCompactLimit) ?? GPT_54_AUTO_COMPACT_TOKEN_LIMIT)
-      : null,
+    model_context_window: isGpt54 ? parsePositiveInt(contextWindow) : null,
+    model_auto_compact_token_limit: isGpt54 ? parsePositiveInt(autoCompactLimit) : null,
   };
 }
 
@@ -451,7 +447,7 @@ export function CliManagerCodexTab({
                   <>
                     <SettingItem
                       label="model_context_window"
-                      subtitle={`仅当 model=${GPT_54_MODEL} 时生效；切换到其他模型时自动删除。默认值 ${GPT_54_CONTEXT_WINDOW.toLocaleString()}。`}
+                      subtitle={`模型上下文窗口大小。仅当 model=${GPT_54_MODEL} 时生效；切换到其他模型时自动删除。留空则不写入配置，默认参考值 ${GPT_54_CONTEXT_WINDOW.toLocaleString()}。`}
                     >
                       <Input
                         type="number"
@@ -459,8 +455,7 @@ export function CliManagerCodexTab({
                         onChange={(e) => setContextWindowText(e.currentTarget.value)}
                         onBlur={() =>
                           void persistCodexConfig({
-                            model_context_window:
-                              parsePositiveInt(contextWindowText) ?? GPT_54_CONTEXT_WINDOW,
+                            model_context_window: parsePositiveInt(contextWindowText),
                           })
                         }
                         placeholder={String(GPT_54_CONTEXT_WINDOW)}
@@ -471,7 +466,7 @@ export function CliManagerCodexTab({
 
                     <SettingItem
                       label="model_auto_compact_token_limit"
-                      subtitle={`仅当 model=${GPT_54_MODEL} 时生效；切换到其他模型时自动删除。默认值 ${GPT_54_AUTO_COMPACT_TOKEN_LIMIT.toLocaleString()}。`}
+                      subtitle={`自动压缩 token 上限。仅当 model=${GPT_54_MODEL} 时生效；切换到其他模型时自动删除。留空则不写入配置，默认参考值 ${GPT_54_AUTO_COMPACT_TOKEN_LIMIT.toLocaleString()}。`}
                     >
                       <Input
                         type="number"
@@ -479,9 +474,7 @@ export function CliManagerCodexTab({
                         onChange={(e) => setAutoCompactLimitText(e.currentTarget.value)}
                         onBlur={() =>
                           void persistCodexConfig({
-                            model_auto_compact_token_limit:
-                              parsePositiveInt(autoCompactLimitText) ??
-                              GPT_54_AUTO_COMPACT_TOKEN_LIMIT,
+                            model_auto_compact_token_limit: parsePositiveInt(autoCompactLimitText),
                           })
                         }
                         placeholder={String(GPT_54_AUTO_COMPACT_TOKEN_LIMIT)}

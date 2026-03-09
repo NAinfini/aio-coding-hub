@@ -1,6 +1,6 @@
 // Usage: Used by ProvidersView to create/edit a Provider with toast-based validation.
 
-import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown,
   Clock,
@@ -40,6 +40,7 @@ import { Input } from "../../ui/Input";
 import { Switch } from "../../ui/Switch";
 import { TabList } from "../../ui/TabList";
 import { normalizeBaseUrlRows } from "./baseUrl";
+import { formatUnixSeconds } from "../../utils/formatters";
 import { BaseUrlEditor } from "./BaseUrlEditor";
 import { LimitCard } from "./LimitCard";
 import { RadioButtonGroup } from "./RadioButtonGroup";
@@ -223,11 +224,9 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
           toast(`加载 OAuth 状态失败：${String(err)}`);
         });
     }
-  }, [editProvider]);
-
-  const setBaseUrlRowsFromUser: Dispatch<SetStateAction<BaseUrlRow[]>> = (action) => {
-    setBaseUrlRows(action);
-  };
+    // Re-fetch only when identity or auth mode changes; name/cli_key are for logging only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editProvider?.id, editProvider?.auth_mode]);
 
   function toastFirstSchemaIssue(issues: Array<{ path: Array<PropertyKey>; message: string }>) {
     const orderedFields: Array<keyof ProviderEditorDialogFormInput> = [
@@ -582,11 +581,6 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
     }
   }
 
-  function formatExpiresAt(expiresAt: number | undefined) {
-    if (!expiresAt) return null;
-    return new Date(expiresAt * 1000).toLocaleString("zh-CN");
-  }
-
   return (
     <Dialog
       open={open}
@@ -642,7 +636,7 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
                     {oauthStatus.expires_at && (
                       <p className="text-xs text-slate-500 dark:text-slate-400">
                         <span className="font-medium">到期：</span>
-                        {formatExpiresAt(oauthStatus.expires_at)}
+                        {formatUnixSeconds(oauthStatus.expires_at)}
                       </p>
                     )}
                     <div className="flex items-center gap-2">
@@ -760,7 +754,7 @@ export function ProviderEditorDialog(props: ProviderEditorDialogProps) {
             <FormField label="Base URLs">
               <BaseUrlEditor
                 rows={baseUrlRows}
-                setRows={setBaseUrlRowsFromUser}
+                setRows={setBaseUrlRows}
                 pingingAll={pingingAll}
                 setPingingAll={setPingingAll}
                 newRow={newBaseUrlRow}

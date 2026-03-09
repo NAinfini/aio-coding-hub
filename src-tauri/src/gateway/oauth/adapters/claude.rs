@@ -1,7 +1,7 @@
 //! Usage: Claude (Anthropic) OAuth adapter.
 
 use crate::gateway::oauth::provider_trait::*;
-use axum::http::{header, HeaderMap, HeaderValue};
+use axum::http::{HeaderMap, HeaderValue};
 use std::future::Future;
 use std::pin::Pin;
 
@@ -52,11 +52,7 @@ impl OAuthProvider for ClaudeOAuthProvider {
         headers: &mut HeaderMap,
         access_token: &str,
     ) -> Result<(), String> {
-        let bearer = format!("Bearer {access_token}");
-        let bearer_val = HeaderValue::from_str(&bearer).map_err(|e| {
-            format!("claude oauth: invalid access_token for Authorization header: {e}")
-        })?;
-        headers.insert(header::AUTHORIZATION, bearer_val);
+        insert_bearer_auth(headers, access_token, "claude oauth")?;
 
         let key_val = HeaderValue::from_str(access_token)
             .map_err(|e| format!("claude oauth: invalid access_token for x-api-key header: {e}"))?;

@@ -397,16 +397,6 @@ pub(crate) async fn base_url_ping_ms(base_url: String) -> Result<u64, String> {
     base_url_probe::probe_base_url_ms(&client, &base_url, std::time::Duration::from_secs(3)).await
 }
 
-fn resolve_oauth_adapter_for_details(
-    details: &providers::ProviderOAuthDetails,
-) -> Result<&'static dyn crate::gateway::oauth::provider_trait::OAuthProvider, String> {
-    crate::gateway::oauth::registry::resolve_oauth_adapter(
-        &details.cli_key,
-        details.id,
-        Some(details.oauth_provider_type.as_str()),
-    )
-}
-
 #[tauri::command]
 pub(crate) async fn provider_oauth_start_flow(
     app: tauri::AppHandle,
@@ -504,7 +494,7 @@ pub(crate) async fn provider_oauth_start_flow(
         .ok_or("OAuth callback missing authorization code")?;
 
     // 8. Exchange code for tokens
-    let client = crate::gateway::oauth::build_oauth_http_client("codex_cli_rs/0.76.0", 30, 15)?;
+    let client = crate::gateway::oauth::build_default_oauth_http_client()?;
     let token_set = crate::gateway::oauth::token_exchange::exchange_authorization_code(
         &client,
         &crate::gateway::oauth::token_exchange::TokenExchangeRequest {
@@ -591,7 +581,7 @@ pub(crate) async fn provider_oauth_refresh(
         .ok_or("provider missing refresh_token")?
         .to_string();
 
-    let client = crate::gateway::oauth::build_oauth_http_client("codex_cli_rs/0.76.0", 30, 15)?;
+    let client = crate::gateway::oauth::build_default_oauth_http_client()?;
     let token_set = crate::gateway::oauth::refresh::refresh_provider_token_with_retry(
         &client,
         &token_uri,
@@ -603,7 +593,7 @@ pub(crate) async fn provider_oauth_refresh(
     .map_err(|e| format!("token refresh failed: {e}"))?;
 
     // Resolve effective token via validated adapter.
-    let adapter = resolve_oauth_adapter_for_details(&details)?;
+    let adapter = crate::gateway::oauth::registry::resolve_oauth_adapter_for_details(&details)?;
     let (effective_token, id_token) =
         adapter.resolve_effective_token(&token_set, details.oauth_id_token.as_deref());
 
@@ -724,7 +714,7 @@ pub(crate) async fn provider_oauth_fetch_limits(
         return Err("OAuth access token is empty".to_string());
     }
 
-    let adapter = resolve_oauth_adapter_for_details(&details)?;
+    let adapter = crate::gateway::oauth::registry::resolve_oauth_adapter_for_details(&details)?;
 
     let client = crate::gateway::oauth::build_oauth_http_client(
         &format!("aio-coding-hub-oauth-command/{}", env!("CARGO_PKG_VERSION")),

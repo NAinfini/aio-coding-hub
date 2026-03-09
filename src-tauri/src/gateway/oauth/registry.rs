@@ -88,3 +88,14 @@ pub(crate) fn resolve_oauth_adapter(
 
     Ok(adapter)
 }
+
+/// Convenience wrapper: resolve adapter from a `ProviderOAuthDetails` struct.
+pub(crate) fn resolve_oauth_adapter_for_details(
+    details: &crate::providers::ProviderOAuthDetails,
+) -> Result<&'static dyn super::provider_trait::OAuthProvider, String> {
+    resolve_oauth_adapter(
+        &details.cli_key,
+        details.id,
+        Some(details.oauth_provider_type.as_str()),
+    )
+}

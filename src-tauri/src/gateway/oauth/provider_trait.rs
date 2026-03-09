@@ -70,3 +70,20 @@ pub(crate) fn make_redirect_uri(endpoints: &OAuthEndpoints, port: u16) -> String
         endpoints.redirect_host, port, endpoints.callback_path
     )
 }
+
+/// Insert a `Bearer` Authorization header into the given header map.
+///
+/// Shared by all OAuth adapters to avoid duplicating the HeaderValue
+/// construction and error formatting.
+pub(crate) fn insert_bearer_auth(
+    headers: &mut HeaderMap,
+    access_token: &str,
+    provider_label: &str,
+) -> Result<(), String> {
+    let bearer = format!("Bearer {access_token}");
+    let bearer_val = axum::http::HeaderValue::from_str(&bearer).map_err(|e| {
+        format!("{provider_label}: invalid access_token for Authorization header: {e}")
+    })?;
+    headers.insert(axum::http::header::AUTHORIZATION, bearer_val);
+    Ok(())
+}

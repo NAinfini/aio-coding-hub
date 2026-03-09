@@ -1,7 +1,7 @@
 //! Usage: Gemini (Google) OAuth adapter.
 
 use crate::gateway::oauth::provider_trait::*;
-use axum::http::{header, HeaderMap, HeaderValue};
+use axum::http::{HeaderMap, HeaderValue};
 
 pub(crate) struct GeminiOAuthProvider {
     endpoints: OAuthEndpoints,
@@ -86,11 +86,7 @@ impl OAuthProvider for GeminiOAuthProvider {
         headers: &mut HeaderMap,
         access_token: &str,
     ) -> Result<(), String> {
-        let bearer = format!("Bearer {access_token}");
-        let bearer_val = HeaderValue::from_str(&bearer).map_err(|e| {
-            format!("gemini oauth: invalid access_token for Authorization header: {e}")
-        })?;
-        headers.insert(header::AUTHORIZATION, bearer_val);
+        insert_bearer_auth(headers, access_token, "gemini oauth")?;
         if !headers.contains_key("x-goog-api-client") {
             headers.insert(
                 "x-goog-api-client",

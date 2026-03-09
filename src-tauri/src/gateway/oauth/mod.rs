@@ -28,6 +28,22 @@ pub(crate) fn cancel_previous_flow() -> watch::Receiver<()> {
     rx
 }
 
+/// Default User-Agent for OAuth HTTP requests (mirrors official Codex CLI).
+pub(crate) const DEFAULT_OAUTH_USER_AGENT: &str = "codex_cli_rs/0.76.0";
+/// Default request timeout in seconds for OAuth HTTP requests.
+pub(crate) const DEFAULT_OAUTH_TIMEOUT_SECS: u64 = 30;
+/// Default connect timeout in seconds for OAuth HTTP requests.
+pub(crate) const DEFAULT_OAUTH_CONNECT_TIMEOUT_SECS: u64 = 15;
+
+/// Build an HTTP client with default OAuth settings.
+pub(crate) fn build_default_oauth_http_client() -> Result<reqwest::Client, String> {
+    build_oauth_http_client(
+        DEFAULT_OAUTH_USER_AGENT,
+        DEFAULT_OAUTH_TIMEOUT_SECS,
+        DEFAULT_OAUTH_CONNECT_TIMEOUT_SECS,
+    )
+}
+
 /// Build an HTTP client suitable for OAuth token exchange and refresh requests.
 ///
 /// Respects standard proxy environment variables (`HTTPS_PROXY`, `HTTP_PROXY`,

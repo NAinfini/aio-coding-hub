@@ -11,16 +11,6 @@ use tokio::sync::watch;
 /// How often the loop polls for providers needing refresh.
 const POLL_INTERVAL_SECS: u64 = 60;
 
-fn resolve_oauth_adapter_for_details(
-    details: &providers::ProviderOAuthDetails,
-) -> Result<&'static dyn crate::gateway::oauth::provider_trait::OAuthProvider, String> {
-    super::registry::resolve_oauth_adapter(
-        &details.cli_key,
-        details.id,
-        Some(details.oauth_provider_type.as_str()),
-    )
-}
-
 /// Spawns the background OAuth refresh loop.
 ///
 /// The loop runs until `shutdown_rx` receives a signal (the gateway stop path
@@ -35,7 +25,7 @@ pub(crate) fn spawn(
 }
 
 async fn run_loop(db: crate::db::Db, mut shutdown_rx: watch::Receiver<bool>) {
-    let client = match super::build_oauth_http_client("codex_cli_rs/0.76.0", 30, 15) {
+    let client = match super::build_default_oauth_http_client() {
         Ok(client) => client,
         Err(err) => {
             tracing::error!("oauth_refresh_loop: failed to build http client: {err}");
@@ -89,7 +79,7 @@ async fn run_loop(db: crate::db::Db, mut shutdown_rx: watch::Receiver<bool>) {
 
             let provider_id = details.id;
             let provider_type = details.oauth_provider_type.clone();
-            let oauth_adapter = match resolve_oauth_adapter_for_details(&details) {
+            let oauth_adapter = match super::registry::resolve_oauth_adapter_for_details(&details) {
                 Ok(adapter) => adapter,
                 Err(err) => {
                     tracing::warn!(

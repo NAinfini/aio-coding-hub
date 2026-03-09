@@ -1,7 +1,7 @@
 //! Usage: Codex (OpenAI / ChatGPT) OAuth adapter.
 
 use crate::gateway::oauth::provider_trait::*;
-use axum::http::{header, HeaderMap, HeaderValue};
+use axum::http::{HeaderMap, HeaderValue};
 use std::future::Future;
 use std::pin::Pin;
 
@@ -72,11 +72,7 @@ impl OAuthProvider for CodexOAuthProvider {
         headers: &mut HeaderMap,
         access_token: &str,
     ) -> Result<(), String> {
-        let bearer = format!("Bearer {access_token}");
-        let bearer_val = HeaderValue::from_str(&bearer).map_err(|e| {
-            format!("codex oauth: invalid access_token for Authorization header: {e}")
-        })?;
-        headers.insert(header::AUTHORIZATION, bearer_val);
+        insert_bearer_auth(headers, access_token, "codex oauth")?;
         headers.insert("originator", HeaderValue::from_static("codex_cli_rs"));
         Ok(())
     }
@@ -94,7 +90,10 @@ impl OAuthProvider for CodexOAuthProvider {
                 .header("Authorization", format!("Bearer {}", token))
                 .header(
                     "User-Agent",
-                    "codex_cli_rs/0.76.0 (Debian 13.0.0; x86_64) WindowsTerminal",
+                    format!(
+                        "{} (Debian 13.0.0; x86_64) WindowsTerminal",
+                        crate::gateway::oauth::DEFAULT_OAUTH_USER_AGENT
+                    ),
                 )
                 .header("Content-Type", "application/json")
                 .send()

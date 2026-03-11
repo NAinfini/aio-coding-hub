@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import type { CliKey } from "../../services/providers";
 import type { CliFilterKey } from "../../constants/clis";
 import type {
@@ -14,7 +15,6 @@ import {
   useUsageSummaryV2Query,
 } from "../../query/usage";
 import { formatUnknownError } from "../../utils/errors";
-import { LEADERBOARD_LIMIT } from "./constants";
 import type { UsageTableTab } from "./types";
 
 type UsagePageDataModelArgs = {
@@ -22,6 +22,7 @@ type UsagePageDataModelArgs = {
   scope: UsageScope;
   period: UsagePeriod;
   cliKey: CliFilterKey;
+  providerId: number | null;
   customApplied: CustomDateRangeApplied | null;
   bounds: CustomDateRangeBounds;
 };
@@ -59,13 +60,19 @@ function providerCountFromRows(rows: UsageProviderCacheRateTrendRowV1[]): number
 function useUsagePageQueryInput({
   period,
   cliKey,
+  providerId,
   customApplied,
   bounds,
-}: Pick<UsagePageDataModelArgs, "period" | "cliKey" | "customApplied" | "bounds">) {
+}: Pick<UsagePageDataModelArgs, "period" | "cliKey" | "providerId" | "customApplied" | "bounds">) {
   const tauriAvailable = true;
   const shouldLoad = period !== "custom" || customApplied != null;
   const customPending = period === "custom" && !customApplied;
-  const input = { startTs: bounds.startTs, endTs: bounds.endTs, cliKey: toCliKeyOrNull(cliKey) };
+  const input = {
+    startTs: bounds.startTs,
+    endTs: bounds.endTs,
+    cliKey: toCliKeyOrNull(cliKey),
+    providerId,
+  };
 
   return { tauriAvailable, shouldLoad, customPending, input };
 }
@@ -78,7 +85,12 @@ function useUsagePageQueries({
   input,
 }: Pick<UsagePageDataModelArgs, "scope" | "period" | "tableTab"> & {
   shouldLoad: boolean;
-  input: { startTs: number | null; endTs: number | null; cliKey: CliKey | null };
+  input: {
+    startTs: number | null;
+    endTs: number | null;
+    cliKey: CliKey | null;
+    providerId: number | null;
+  };
 }) {
   const dataEnabled = shouldLoad;
   const cacheTrendEnabled = shouldLoad && tableTab === "cacheTrend";
@@ -86,7 +98,7 @@ function useUsagePageQueries({
   const leaderboardQuery = useUsageLeaderboardV2Query(
     scope,
     period,
-    { ...input, limit: LEADERBOARD_LIMIT },
+    { ...input, limit: null },
     { enabled: dataEnabled }
   );
   const cacheTrendQuery = useUsageProviderCacheRateTrendV1Query(
@@ -132,12 +144,14 @@ export function useUsagePageDataModel({
   scope,
   period,
   cliKey,
+  providerId,
   customApplied,
   bounds,
 }: UsagePageDataModelArgs): UsagePageDataModel {
   const { tauriAvailable, shouldLoad, customPending, input } = useUsagePageQueryInput({
     period,
     cliKey,
+    providerId,
     customApplied,
     bounds,
   });
@@ -157,8 +171,11 @@ export function useUsagePageDataModel({
   const rows: UsageLeaderboardRow[] = leaderboardQuery.data ?? [];
   const cacheTrendRows: UsageProviderCacheRateTrendRowV1[] = cacheTrendQuery.data ?? [];
 
-  const cacheTrendProviderCount = providerCountFromRows(cacheTrendRows);
-  const totalCostUsd = totalCostUsdFromRows(rows);
+  const cacheTrendProviderCount = useMemo(
+    () => providerCountFromRows(cacheTrendRows),
+    [cacheTrendRows]
+  );
+  const totalCostUsd = useMemo(() => totalCostUsdFromRows(rows), [rows]);
 
   const err =
     tableTab === "cacheTrend"

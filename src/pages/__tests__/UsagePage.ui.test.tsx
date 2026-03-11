@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
@@ -12,6 +12,7 @@ import {
   useUsageProviderCacheRateTrendV1Query,
   useUsageSummaryV2Query,
 } from "../../query/usage";
+import { useProvidersListQuery } from "../../query/providers";
 
 vi.mock("sonner", () => ({ toast: vi.fn() }));
 
@@ -32,6 +33,12 @@ vi.mock("../../query/usage", async () => {
   };
 });
 
+vi.mock("../../query/providers", async () => {
+  const actual =
+    await vi.importActual<typeof import("../../query/providers")>("../../query/providers");
+  return { ...actual, useProvidersListQuery: vi.fn() };
+});
+
 function renderWithProviders(element: ReactElement) {
   const client = createTestQueryClient();
   return render(
@@ -41,9 +48,28 @@ function renderWithProviders(element: ReactElement) {
   );
 }
 
+function mockProvidersListQuery() {
+  vi.mocked(useProvidersListQuery).mockImplementation((cliKey) => {
+    if (cliKey === "claude") {
+      return {
+        data: [{ id: 11, cli_key: "claude", name: "Anthropic A" }],
+        isFetching: false,
+      } as any;
+    }
+    if (cliKey === "codex") {
+      return {
+        data: [{ id: 21, cli_key: "codex", name: "OpenAI A" }],
+        isFetching: false,
+      } as any;
+    }
+    return { data: [], isFetching: false } as any;
+  });
+}
+
 describe("pages/UsagePage (ui)", () => {
   it("renders usage tab table when data is available", () => {
     setTauriRuntime();
+    mockProvidersListQuery();
 
     vi.mocked(useCustomDateRange).mockReturnValue({
       customStartDate: "",
@@ -122,6 +148,7 @@ describe("pages/UsagePage (ui)", () => {
 
   it("switches to cache trend tab, locks provider scope, and restores previous scope", () => {
     setTauriRuntime();
+    mockProvidersListQuery();
 
     vi.mocked(useCustomDateRange).mockReturnValue({
       customStartDate: "",
@@ -157,17 +184,18 @@ describe("pages/UsagePage (ui)", () => {
     renderWithProviders(<UsagePage />);
 
     fireEvent.click(screen.getByRole("button", { name: "CLI" }));
-    expect(screen.getByText("Top 50 · CLI（按请求数）")).toBeInTheDocument();
+    expect(screen.getByLabelText("供应商筛选")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("tab", { name: "缓存走势图" }));
     expect(screen.queryByRole("button", { name: "CLI" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("tab", { name: "用量" }));
-    expect(screen.getByText("Top 50 · CLI（按请求数）")).toBeInTheDocument();
+    expect(screen.getByLabelText("供应商筛选")).toBeInTheDocument();
   });
 
   it("shows custom range form and wires apply/clear handlers", async () => {
     setTauriRuntime();
+    mockProvidersListQuery();
 
     const applyCustomRange = vi.fn();
     const clearCustomRange = vi.fn();
@@ -226,5 +254,62 @@ describe("pages/UsagePage (ui)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "清空" }));
     expect(clearCustomRange).toHaveBeenCalled();
+  });
+
+  it("applies provider filter and clears it after switching to an incompatible CLI", async () => {
+    setTauriRuntime();
+    mockProvidersListQuery();
+
+    vi.mocked(useCustomDateRange).mockReturnValue({
+      customStartDate: "",
+      setCustomStartDate: vi.fn(),
+      customEndDate: "",
+      setCustomEndDate: vi.fn(),
+      customApplied: null,
+      bounds: { startTs: 1, endTs: 2 },
+      showCustomForm: false,
+      applyCustomRange: vi.fn(),
+      clearCustomRange: vi.fn(),
+    } as any);
+
+    vi.mocked(useUsageSummaryV2Query).mockReturnValue({
+      data: null,
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useUsageLeaderboardV2Query).mockReturnValue({
+      data: [],
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(useUsageProviderCacheRateTrendV1Query).mockReturnValue({
+      data: [],
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+
+    renderWithProviders(<UsagePage />);
+
+    fireEvent.change(screen.getByLabelText("供应商筛选"), { target: { value: "11" } });
+
+    expect(useUsageSummaryV2Query).toHaveBeenLastCalledWith(
+      "daily",
+      expect.objectContaining({ cliKey: null, providerId: 11 }),
+      expect.objectContaining({ enabled: true })
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Codex" }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("供应商筛选")).toHaveValue("all");
+    });
+    expect(useUsageSummaryV2Query).toHaveBeenLastCalledWith(
+      "daily",
+      expect.objectContaining({ cliKey: "codex", providerId: null }),
+      expect.objectContaining({ enabled: true })
+    );
   });
 });

@@ -63,20 +63,22 @@ describe("services/usage", () => {
     await usageHourlySeries(15);
 
     await usageSummaryV2("custom");
-    await usageSummaryV2("custom", { startTs: 1, endTs: 2, cliKey: "gemini" });
+    await usageSummaryV2("custom", { startTs: 1, endTs: 2, cliKey: "gemini", providerId: 7 });
 
     await usageLeaderboardV2("provider", "custom");
     await usageLeaderboardV2("provider", "custom", {
       startTs: 1,
       endTs: 2,
       cliKey: "claude",
-      limit: 50,
+      providerId: 9,
+      limit: null,
     });
 
     await usageProviderCacheRateTrendV1("daily", {
       startTs: 1,
       endTs: 2,
       cliKey: "claude",
+      providerId: 11,
       limit: 20,
     });
 
@@ -89,16 +91,41 @@ describe("services/usage", () => {
         ["usage_leaderboard_day", { range: "today", cliKey: null, limit: undefined }],
         ["usage_leaderboard_day", { range: "today", cliKey: "gemini", limit: 20 }],
         ["usage_hourly_series", { days: 15 }],
-        ["usage_summary_v2", { period: "custom", startTs: null, endTs: null, cliKey: null }],
-        ["usage_summary_v2", { period: "custom", startTs: 1, endTs: 2, cliKey: "gemini" }],
+        [
+          "usage_summary_v2",
+          {
+            params: {
+              period: "custom",
+              startTs: null,
+              endTs: null,
+              cliKey: null,
+              providerId: null,
+            },
+          },
+        ],
+        [
+          "usage_summary_v2",
+          {
+            params: {
+              period: "custom",
+              startTs: 1,
+              endTs: 2,
+              cliKey: "gemini",
+              providerId: 7,
+            },
+          },
+        ],
         [
           "usage_leaderboard_v2",
           {
             scope: "provider",
-            period: "custom",
-            startTs: null,
-            endTs: null,
-            cliKey: null,
+            params: {
+              period: "custom",
+              startTs: null,
+              endTs: null,
+              cliKey: null,
+              providerId: null,
+            },
             limit: undefined,
           },
         ],
@@ -106,11 +133,27 @@ describe("services/usage", () => {
           "usage_leaderboard_v2",
           {
             scope: "provider",
-            period: "custom",
-            startTs: 1,
-            endTs: 2,
-            cliKey: "claude",
-            limit: 50,
+            params: {
+              period: "custom",
+              startTs: 1,
+              endTs: 2,
+              cliKey: "claude",
+              providerId: 9,
+            },
+            limit: null,
+          },
+        ],
+        [
+          "usage_provider_cache_rate_trend_v1",
+          {
+            params: {
+              period: "daily",
+              startTs: 1,
+              endTs: 2,
+              cliKey: "claude",
+              providerId: 11,
+            },
+            limit: 20,
           },
         ],
       ])

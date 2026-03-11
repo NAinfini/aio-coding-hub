@@ -61,12 +61,32 @@ export const usageKeys = {
   hourlySeries: (days: number) => [...usageAllKey, "hourlySeries", days] as const,
   summaryV2: (
     period: UsagePeriod,
-    input: { startTs: number | null; endTs: number | null; cliKey: CliKey | null }
-  ) => [...usageAllKey, "summaryV2", period, input.startTs, input.endTs, input.cliKey] as const,
+    input: {
+      startTs: number | null;
+      endTs: number | null;
+      cliKey: CliKey | null;
+      providerId: number | null;
+    }
+  ) =>
+    [
+      ...usageAllKey,
+      "summaryV2",
+      period,
+      input.startTs,
+      input.endTs,
+      input.cliKey,
+      input.providerId,
+    ] as const,
   leaderboardV2: (
     scope: UsageScope,
     period: UsagePeriod,
-    input: { startTs: number | null; endTs: number | null; cliKey: CliKey | null; limit: number }
+    input: {
+      startTs: number | null;
+      endTs: number | null;
+      cliKey: CliKey | null;
+      providerId: number | null;
+      limit: number | null;
+    }
   ) =>
     [
       ...usageAllKey,
@@ -76,6 +96,7 @@ export const usageKeys = {
       input.startTs,
       input.endTs,
       input.cliKey,
+      input.providerId,
       input.limit,
     ] as const,
   providerCacheRateTrendV1: (
@@ -84,6 +105,7 @@ export const usageKeys = {
       startTs: number | null;
       endTs: number | null;
       cliKey: CliKey | null;
+      providerId: number | null;
       limit: number | null;
     }
   ) =>
@@ -94,6 +116,7 @@ export const usageKeys = {
       input.startTs,
       input.endTs,
       input.cliKey,
+      input.providerId,
       input.limit,
     ] as const,
 };

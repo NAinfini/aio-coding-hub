@@ -2,82 +2,15 @@ use crate::db;
 use crate::shared::error::db_err;
 use rusqlite::{params_from_iter, Connection, OptionalExtension};
 
-use super::{
-    compute_bounds_v2, extract_final_provider, has_valid_provider_key, normalize_cli_filter,
-    parse_period_v2, parse_scope_v2, sql_effective_input_tokens_expr_with_alias,
-    sql_effective_total_tokens_expr, sql_effective_total_tokens_expr_with_alias, ProviderAgg,
-    ProviderKey, UsageLeaderboardRow, UsageScopeV2, SQL_EFFECTIVE_INPUT_TOKENS_EXPR,
+use super::filters::{
+    build_optional_range_cli_provider_filters, build_optional_range_filters_with_offset, SqlValues,
 };
-
-type SqlValues = Vec<rusqlite::types::Value>;
-
-fn build_optional_range_cli_filters(
-    created_at_column: &str,
-    cli_key_column: &str,
-    start_ts: Option<i64>,
-    end_ts: Option<i64>,
-    cli_key: Option<&str>,
-) -> (String, SqlValues) {
-    let mut clauses = Vec::new();
-    let mut values: SqlValues = Vec::with_capacity(3);
-
-    if let Some(ts) = start_ts {
-        values.push(ts.into());
-        clauses.push(format!("{created_at_column} >= ?{}", values.len()));
-    }
-
-    if let Some(ts) = end_ts {
-        values.push(ts.into());
-        clauses.push(format!("{created_at_column} < ?{}", values.len()));
-    }
-
-    if let Some(cli) = cli_key {
-        values.push(cli.to_string().into());
-        clauses.push(format!("{cli_key_column} = ?{}", values.len()));
-    }
-
-    let sql = if clauses.is_empty() {
-        String::new()
-    } else {
-        format!("\nAND {}", clauses.join("\nAND "))
-    };
-
-    (sql, values)
-}
-
-fn build_optional_range_filters_with_offset(
-    created_at_column: &str,
-    start_ts: Option<i64>,
-    end_ts: Option<i64>,
-    placeholder_offset: usize,
-) -> (String, SqlValues) {
-    let mut clauses = Vec::new();
-    let mut values: SqlValues = Vec::with_capacity(2);
-
-    if let Some(ts) = start_ts {
-        values.push(ts.into());
-        clauses.push(format!(
-            "{created_at_column} >= ?{}",
-            placeholder_offset + values.len()
-        ));
-    }
-
-    if let Some(ts) = end_ts {
-        values.push(ts.into());
-        clauses.push(format!(
-            "{created_at_column} < ?{}",
-            placeholder_offset + values.len()
-        ));
-    }
-
-    let sql = if clauses.is_empty() {
-        String::new()
-    } else {
-        format!("\nAND {}", clauses.join("\nAND "))
-    };
-
-    (sql, values)
-}
+use super::{
+    extract_final_provider, has_valid_provider_key, parse_scope_v2, resolve_query_params,
+    sql_effective_input_tokens_expr_with_alias, sql_effective_total_tokens_expr,
+    sql_effective_total_tokens_expr_with_alias, ProviderAgg, ProviderKey, UsageLeaderboardRow,
+    UsageQueryParams, UsageScopeV2, SQL_EFFECTIVE_INPUT_TOKENS_EXPR,
+};
 
 pub(super) fn leaderboard_v2_with_conn(
     conn: &Connection,
@@ -85,14 +18,29 @@ pub(super) fn leaderboard_v2_with_conn(
     start_ts: Option<i64>,
     end_ts: Option<i64>,
     cli_key: Option<&str>,
-    limit: usize,
+    provider_id: Option<i64>,
+    limit: Option<usize>,
 ) -> Result<Vec<UsageLeaderboardRow>, String> {
     let effective_input_expr = SQL_EFFECTIVE_INPUT_TOKENS_EXPR;
     let effective_total_expr = sql_effective_total_tokens_expr();
-    let (where_clause, where_params) =
-        build_optional_range_cli_filters("created_at", "cli_key", start_ts, end_ts, cli_key);
-    let (provider_where_clause, provider_where_params) =
-        build_optional_range_cli_filters("r.created_at", "r.cli_key", start_ts, end_ts, cli_key);
+    let (where_clause, where_params) = build_optional_range_cli_provider_filters(
+        "created_at",
+        "cli_key",
+        "final_provider_id",
+        start_ts,
+        end_ts,
+        cli_key,
+        provider_id,
+    );
+    let (provider_where_clause, provider_where_params) = build_optional_range_cli_provider_filters(
+        "r.created_at",
+        "r.cli_key",
+        "r.final_provider_id",
+        start_ts,
+        end_ts,
+        cli_key,
+        provider_id,
+    );
     let (provider_fallback_where_clause, provider_fallback_range_params) =
         build_optional_range_filters_with_offset("r.created_at", start_ts, end_ts, 2);
 
@@ -575,25 +523,30 @@ LIMIT 1
             .then_with(|| a.name.cmp(&b.name))
             .then_with(|| a.key.cmp(&b.key))
     });
-    out.truncate(limit.clamp(1, 200));
+    if let Some(limit) = limit {
+        out.truncate(limit.clamp(1, 200));
+    } else {
+        out.truncate(200);
+    }
     Ok(out)
 }
 
 pub fn leaderboard_v2(
     db: &db::Db,
     scope: &str,
-    period: &str,
-    start_ts: Option<i64>,
-    end_ts: Option<i64>,
-    cli_key: Option<&str>,
-    limit: usize,
+    params: &UsageQueryParams,
+    limit: Option<usize>,
 ) -> crate::shared::error::AppResult<Vec<UsageLeaderboardRow>> {
     let conn = db.open_connection()?;
     let scope = parse_scope_v2(scope)?;
-    let period = parse_period_v2(period)?;
-    let (start_ts, end_ts) = compute_bounds_v2(&conn, period, start_ts, end_ts)?;
-    let cli_key = normalize_cli_filter(cli_key)?;
+    let resolved = resolve_query_params(&conn, params)?;
     Ok(leaderboard_v2_with_conn(
-        &conn, scope, start_ts, end_ts, cli_key, limit,
+        &conn,
+        scope,
+        resolved.start_ts,
+        resolved.end_ts,
+        resolved.cli_key,
+        resolved.provider_id,
+        limit,
     )?)
 }

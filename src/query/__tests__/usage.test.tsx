@@ -116,15 +116,23 @@ describe("query/usage", () => {
     const client = createTestQueryClient();
     const wrapper = createQueryWrapper(client);
 
-    renderHook(() => useUsageSummaryV2Query("daily", { startTs: 1, endTs: 2, cliKey: "claude" }), {
-      wrapper,
-    });
+    renderHook(
+      () =>
+        useUsageSummaryV2Query("daily", {
+          startTs: 1,
+          endTs: 2,
+          cliKey: "claude",
+          providerId: 7,
+        }),
+      { wrapper }
+    );
 
     await waitFor(() => {
       expect(usageSummaryV2).toHaveBeenCalledWith("daily", {
         startTs: 1,
         endTs: 2,
         cliKey: "claude",
+        providerId: 7,
       });
     });
   });
@@ -139,7 +147,7 @@ describe("query/usage", () => {
       () =>
         useUsageSummaryV2Query(
           "daily",
-          { startTs: 1, endTs: 2, cliKey: "claude" },
+          { startTs: 1, endTs: 2, cliKey: "claude", providerId: null },
           { enabled: false }
         ),
       { wrapper }
@@ -163,7 +171,8 @@ describe("query/usage", () => {
           startTs: 1,
           endTs: 2,
           cliKey: "claude",
-          limit: 10,
+          providerId: 9,
+          limit: null,
         }),
       { wrapper }
     );
@@ -173,7 +182,8 @@ describe("query/usage", () => {
         startTs: 1,
         endTs: 2,
         cliKey: "claude",
-        limit: 10,
+        providerId: 9,
+        limit: null,
       });
     });
   });
@@ -193,7 +203,8 @@ describe("query/usage", () => {
             startTs: 1,
             endTs: 2,
             cliKey: "claude",
-            limit: 10,
+            providerId: null,
+            limit: null,
           },
           { enabled: false }
         ),
@@ -218,6 +229,7 @@ describe("query/usage", () => {
           startTs: 1,
           endTs: 2,
           cliKey: "claude",
+          providerId: 11,
           limit: 20,
         }),
       { wrapper }
@@ -228,6 +240,7 @@ describe("query/usage", () => {
         startTs: 1,
         endTs: 2,
         cliKey: "claude",
+        providerId: 11,
         limit: 20,
       });
     });
@@ -247,6 +260,7 @@ describe("query/usage", () => {
             startTs: 1,
             endTs: 2,
             cliKey: "claude",
+            providerId: null,
             limit: 20,
           },
           { enabled: false }

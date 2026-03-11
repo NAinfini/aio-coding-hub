@@ -89,6 +89,23 @@ export type UsageLeaderboardRow = {
   cost_usd: number | null;
 };
 
+type UsageQueryInputV2 = {
+  startTs?: number | null;
+  endTs?: number | null;
+  cliKey?: CliKey | null;
+  providerId?: number | null;
+};
+
+function buildQueryParamsV2(period: UsagePeriod, input?: UsageQueryInputV2) {
+  return {
+    period,
+    startTs: input?.startTs ?? null,
+    endTs: input?.endTs ?? null,
+    cliKey: input?.cliKey ?? null,
+    providerId: input?.providerId ?? null,
+  };
+}
+
 export async function usageSummary(range: UsageRange, input?: { cliKey?: CliKey | null }) {
   return invokeService<UsageSummary>("读取用量汇总失败", "usage_summary", {
     range,
@@ -126,50 +143,33 @@ export async function usageHourlySeries(days: number) {
   return invokeService<UsageHourlyRow[]>("读取小时用量序列失败", "usage_hourly_series", { days });
 }
 
-export async function usageSummaryV2(
-  period: UsagePeriod,
-  input?: { startTs?: number | null; endTs?: number | null; cliKey?: CliKey | null }
-) {
+export async function usageSummaryV2(period: UsagePeriod, input?: UsageQueryInputV2) {
   return invokeService<UsageSummary>("读取用量汇总失败", "usage_summary_v2", {
-    period,
-    startTs: input?.startTs ?? null,
-    endTs: input?.endTs ?? null,
-    cliKey: input?.cliKey ?? null,
+    params: buildQueryParamsV2(period, input),
   });
 }
 
 export async function usageLeaderboardV2(
   scope: UsageScope,
   period: UsagePeriod,
-  input?: { startTs?: number | null; endTs?: number | null; cliKey?: CliKey | null; limit?: number }
+  input?: UsageQueryInputV2 & { limit?: number | null }
 ) {
   return invokeService<UsageLeaderboardRow[]>("读取用量排行榜失败", "usage_leaderboard_v2", {
     scope,
-    period,
-    startTs: input?.startTs ?? null,
-    endTs: input?.endTs ?? null,
-    cliKey: input?.cliKey ?? null,
+    params: buildQueryParamsV2(period, input),
     limit: input?.limit,
   });
 }
 
 export async function usageProviderCacheRateTrendV1(
   period: UsagePeriod,
-  input?: {
-    startTs?: number | null;
-    endTs?: number | null;
-    cliKey?: CliKey | null;
-    limit?: number | null;
-  }
+  input?: UsageQueryInputV2 & { limit?: number | null }
 ) {
   return invokeService<UsageProviderCacheRateTrendRowV1[]>(
     "读取供应商缓存命中趋势失败",
     "usage_provider_cache_rate_trend_v1",
     {
-      period,
-      startTs: input?.startTs ?? null,
-      endTs: input?.endTs ?? null,
-      cliKey: input?.cliKey ?? null,
+      params: buildQueryParamsV2(period, input),
       limit: input?.limit,
     }
   );

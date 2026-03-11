@@ -7,19 +7,24 @@ import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { PageHeader } from "../ui/PageHeader";
 import { UsageDataPanel } from "./usage/UsageDataPanel";
+import { PROVIDER_FILTER_ALL } from "./usage/constants";
 import { useUsagePageDataModel, type UsagePageDataModel } from "./usage/useUsagePageDataModel";
 import { useUsagePageErrorToast } from "./usage/useUsagePageErrorToast";
 import { useUsagePageFiltersState } from "./usage/useUsagePageFiltersState";
+import { useUsagePageProviderFilter } from "./usage/useUsagePageProviderFilter";
 import { useUsagePageTableState } from "./usage/useUsagePageTableState";
 
 export function UsagePage() {
-  const filters = useUsagePageFiltersState();
+  const baseFilters = useUsagePageFiltersState();
+  const providerFilter = useUsagePageProviderFilter(baseFilters.cliKey);
+  const filters = { ...baseFilters, ...providerFilter };
   const table = useUsagePageTableState();
   const model = useUsagePageDataModel({
     tableTab: table.tableTab,
     scope: table.scope,
     period: filters.period,
     cliKey: filters.cliKey,
+    providerId: filters.providerId,
     customApplied: filters.customApplied,
     bounds: filters.bounds,
   });
@@ -29,7 +34,8 @@ export function UsagePage() {
   return <UsagePageView filters={filters} table={table} model={model} />;
 }
 
-type UsagePageFiltersState = ReturnType<typeof useUsagePageFiltersState>;
+type UsagePageFiltersState = ReturnType<typeof useUsagePageFiltersState> &
+  ReturnType<typeof useUsagePageProviderFilter>;
 type UsagePageTableState = ReturnType<typeof useUsagePageTableState>;
 
 function tableTitleForScope(scope: UsageScope) {
@@ -155,6 +161,12 @@ function UsageDataPanelSection({
       totalCostUsd={model.totalCostUsd}
       cacheTrendRows={model.cacheTrendRows}
       cacheTrendProviderCount={model.cacheTrendProviderCount}
+      providerSelectValue={
+        filters.providerId == null ? PROVIDER_FILTER_ALL : String(filters.providerId)
+      }
+      providerOptions={filters.providerOptions}
+      onProviderIdChange={filters.setProviderId}
+      providersLoading={filters.providersLoading}
       period={filters.period}
       customApplied={filters.customApplied}
       customPending={model.customPending}

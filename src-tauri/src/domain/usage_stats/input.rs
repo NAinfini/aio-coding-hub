@@ -1,3 +1,16 @@
+use rusqlite::Connection;
+use serde::Deserialize;
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageQueryParams {
+    pub period: String,
+    pub start_ts: Option<i64>,
+    pub end_ts: Option<i64>,
+    pub cli_key: Option<String>,
+    pub provider_id: Option<i64>,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub(super) enum UsageRange {
     Today,
@@ -66,4 +79,48 @@ pub(super) fn normalize_cli_filter(
         return Ok(Some(k));
     }
     Ok(None)
+}
+
+pub(super) fn normalize_provider_id_filter(
+    provider_id: Option<i64>,
+) -> crate::shared::error::AppResult<Option<i64>> {
+    if let Some(id) = provider_id {
+        if id <= 0 {
+            return Err("SEC_INVALID_INPUT: provider_id must be > 0".into());
+        }
+        return Ok(Some(id));
+    }
+    Ok(None)
+}
+
+/// Validated and resolved query parameters ready for SQL execution.
+pub(super) struct ResolvedQueryParams<'a> {
+    pub period: UsagePeriodV2,
+    pub start_ts: Option<i64>,
+    pub end_ts: Option<i64>,
+    pub cli_key: Option<&'a str>,
+    pub provider_id: Option<i64>,
+}
+
+/// Parse, validate, and compute bounds from raw [`UsageQueryParams`].
+///
+/// Consolidates the 4-step resolution sequence (parse period, compute bounds,
+/// normalize cli_key, normalize provider_id) that was previously duplicated
+/// across `summary_v2`, `leaderboard_v2`, and `provider_cache_rate_trend_v1`.
+pub(super) fn resolve_query_params<'a>(
+    conn: &Connection,
+    params: &'a UsageQueryParams,
+) -> crate::shared::error::AppResult<ResolvedQueryParams<'a>> {
+    let period = parse_period_v2(&params.period)?;
+    let (start_ts, end_ts) =
+        super::compute_bounds_v2(conn, period, params.start_ts, params.end_ts)?;
+    let cli_key = normalize_cli_filter(params.cli_key.as_deref())?;
+    let provider_id = normalize_provider_id_filter(params.provider_id)?;
+    Ok(ResolvedQueryParams {
+        period,
+        start_ts,
+        end_ts,
+        cli_key,
+        provider_id,
+    })
 }

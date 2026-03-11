@@ -13,6 +13,7 @@ import {
   useUsageProviderCacheRateTrendV1Query,
   useUsageSummaryV2Query,
 } from "../../query/usage";
+import { useProvidersListQuery } from "../../query/providers";
 
 vi.mock("sonner", () => ({ toast: vi.fn() }));
 
@@ -33,6 +34,12 @@ vi.mock("../../query/usage", async () => {
   };
 });
 
+vi.mock("../../query/providers", async () => {
+  const actual =
+    await vi.importActual<typeof import("../../query/providers")>("../../query/providers");
+  return { ...actual, useProvidersListQuery: vi.fn() };
+});
+
 function renderWithProviders(element: ReactElement) {
   const client = createTestQueryClient();
   return render(
@@ -45,6 +52,7 @@ function renderWithProviders(element: ReactElement) {
 describe("pages/UsagePage (error)", () => {
   it("renders error card, toasts once, and allows retry", async () => {
     setTauriRuntime();
+    vi.mocked(useProvidersListQuery).mockReturnValue({ data: [], isFetching: false } as any);
 
     vi.mocked(useCustomDateRange).mockReturnValue({
       customStartDate: "",

@@ -41,7 +41,12 @@ export function useUsageHourlySeriesQuery(
 
 export function useUsageSummaryV2Query(
   period: UsagePeriod,
-  input: { startTs: number | null; endTs: number | null; cliKey: CliKey | null },
+  input: {
+    startTs: number | null;
+    endTs: number | null;
+    cliKey: CliKey | null;
+    providerId: number | null;
+  },
   options?: { enabled?: boolean }
 ) {
   return useQuery({
@@ -55,7 +60,13 @@ export function useUsageSummaryV2Query(
 export function useUsageLeaderboardV2Query(
   scope: UsageScope,
   period: UsagePeriod,
-  input: { startTs: number | null; endTs: number | null; cliKey: CliKey | null; limit: number },
+  input: {
+    startTs: number | null;
+    endTs: number | null;
+    cliKey: CliKey | null;
+    providerId: number | null;
+    limit: number | null;
+  },
   options?: { enabled?: boolean }
 ) {
   return useQuery({
@@ -72,6 +83,7 @@ export function useUsageProviderCacheRateTrendV1Query(
     startTs: number | null;
     endTs: number | null;
     cliKey: CliKey | null;
+    providerId: number | null;
     limit: number | null;
   },
   options?: { enabled?: boolean }

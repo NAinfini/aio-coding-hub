@@ -72,7 +72,7 @@ function buildCardConfigs({
       title: "总消耗金额",
       value: formatUsdCompact(totalCostUsd),
       accent: "orange",
-      hint: leaderboardCount > 0 ? `Top ${leaderboardCount} 维度合计` : undefined,
+      hint: leaderboardCount > 0 ? `${leaderboardCount} 个维度合计` : undefined,
     },
     {
       key: "io_total_tokens",

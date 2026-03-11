@@ -3,7 +3,7 @@ import type { UsageDataPanelProps } from "./UsageDataPanel";
 import { Button } from "../../ui/Button";
 import { TabList } from "../../ui/TabList";
 import { formatInteger } from "../../utils/formatters";
-import { LEADERBOARD_LIMIT, SCOPE_ITEMS, USAGE_TABLE_TAB_ITEMS } from "./constants";
+import { PROVIDER_FILTER_ALL, SCOPE_ITEMS, USAGE_TABLE_TAB_ITEMS } from "./constants";
 import { CacheTrendBody, UsageTableBody } from "./UsageDataPanelBodies";
 
 function UsageScopeGroup({
@@ -33,15 +33,48 @@ function UsageScopeGroup({
 function UsagePanelTitle({
   tableTab,
   cacheTrendProviderCount,
-  tableTitle,
-}: Pick<UsageDataPanelProps, "tableTab" | "cacheTrendProviderCount" | "tableTitle">) {
+}: Pick<UsageDataPanelProps, "tableTab" | "cacheTrendProviderCount">) {
   if (tableTab === "cacheTrend") {
     if (cacheTrendProviderCount > 0) {
       return `${formatInteger(cacheTrendProviderCount)} 供应商 · 命中率走势`;
     }
     return "命中率走势";
   }
-  return `Top ${LEADERBOARD_LIMIT} · ${tableTitle}（按请求数）`;
+  return null;
+}
+
+function UsageProviderFilterSelect({
+  providerSelectValue,
+  providerOptions,
+  onProviderIdChange,
+  loading,
+}: Pick<UsageDataPanelProps, "providerSelectValue" | "providerOptions" | "onProviderIdChange"> & {
+  loading: boolean;
+}) {
+  return (
+    <label className="flex items-center gap-2">
+      <span className="text-xs font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap">
+        供应商
+      </span>
+      <select
+        value={providerSelectValue}
+        aria-label="供应商筛选"
+        onChange={(e) => {
+          const next = e.currentTarget.value;
+          onProviderIdChange(next === PROVIDER_FILTER_ALL ? null : Number(next));
+        }}
+        disabled={loading}
+        className="h-8 min-w-44 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 text-xs text-slate-900 dark:text-slate-100 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20 disabled:cursor-not-allowed disabled:bg-slate-50 dark:disabled:bg-slate-900"
+      >
+        <option value={PROVIDER_FILTER_ALL}>全部</option>
+        {providerOptions.map((option) => (
+          <option key={option.id} value={String(option.id)}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
 }
 
 function UsageDataPanelHeader({
@@ -51,7 +84,10 @@ function UsageDataPanelHeader({
   onChangeScope,
   loading,
   cacheTrendProviderCount,
-  tableTitle,
+  providerSelectValue,
+  providerOptions,
+  onProviderIdChange,
+  providersLoading,
 }: Pick<
   UsageDataPanelProps,
   | "tableTab"
@@ -60,8 +96,16 @@ function UsageDataPanelHeader({
   | "onChangeScope"
   | "loading"
   | "cacheTrendProviderCount"
-  | "tableTitle"
+  | "providerSelectValue"
+  | "providerOptions"
+  | "onProviderIdChange"
+  | "providersLoading"
 >) {
+  const titleText = UsagePanelTitle({
+    tableTab,
+    cacheTrendProviderCount,
+  });
+
   return (
     <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 px-6 pb-0 pt-5">
       <div className="flex items-center gap-4">
@@ -77,11 +121,15 @@ function UsageDataPanelHeader({
           <UsageScopeGroup scope={scope} onChangeScope={onChangeScope} loading={loading} />
         ) : null}
       </div>
-      <div className="text-xs text-slate-500 dark:text-slate-400">
-        <UsagePanelTitle
-          tableTab={tableTab}
-          cacheTrendProviderCount={cacheTrendProviderCount}
-          tableTitle={tableTitle}
+      <div className="flex items-center gap-3">
+        {titleText ? (
+          <div className="text-xs text-slate-500 dark:text-slate-400">{titleText}</div>
+        ) : null}
+        <UsageProviderFilterSelect
+          providerSelectValue={providerSelectValue}
+          providerOptions={providerOptions}
+          onProviderIdChange={onProviderIdChange}
+          loading={loading || providersLoading}
         />
       </div>
     </div>
@@ -251,7 +299,10 @@ export function UsageDataPanelContent({
         onChangeScope={props.onChangeScope}
         loading={props.loading}
         cacheTrendProviderCount={props.cacheTrendProviderCount}
-        tableTitle={props.tableTitle}
+        providerSelectValue={props.providerSelectValue}
+        providerOptions={props.providerOptions}
+        onProviderIdChange={props.onProviderIdChange}
+        providersLoading={props.providersLoading}
       />
       <UsageStaleBar active={activeStale} />
       <UsageDataPanelBody

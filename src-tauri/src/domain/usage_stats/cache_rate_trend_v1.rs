@@ -3,81 +3,14 @@ use crate::shared::error::db_err;
 use rusqlite::{params_from_iter, Connection, OptionalExtension};
 use std::collections::HashMap;
 
-use super::{
-    compute_bounds_v2, extract_final_provider, has_valid_provider_key, normalize_cli_filter,
-    parse_period_v2, sql_effective_input_tokens_expr_with_alias, ProviderKey, UsagePeriodV2,
-    UsageProviderCacheRateTrendRowV1,
+use super::filters::{
+    build_optional_range_cli_provider_filters, build_optional_range_filters_with_offset, SqlValues,
 };
-
-type SqlValues = Vec<rusqlite::types::Value>;
-
-fn build_optional_range_cli_filters(
-    created_at_column: &str,
-    cli_key_column: &str,
-    start_ts: Option<i64>,
-    end_ts: Option<i64>,
-    cli_key: Option<&str>,
-) -> (String, SqlValues) {
-    let mut clauses = Vec::new();
-    let mut values: SqlValues = Vec::with_capacity(3);
-
-    if let Some(ts) = start_ts {
-        values.push(ts.into());
-        clauses.push(format!("{created_at_column} >= ?{}", values.len()));
-    }
-
-    if let Some(ts) = end_ts {
-        values.push(ts.into());
-        clauses.push(format!("{created_at_column} < ?{}", values.len()));
-    }
-
-    if let Some(cli) = cli_key {
-        values.push(cli.to_string().into());
-        clauses.push(format!("{cli_key_column} = ?{}", values.len()));
-    }
-
-    let sql = if clauses.is_empty() {
-        String::new()
-    } else {
-        format!("\nAND {}", clauses.join("\nAND "))
-    };
-
-    (sql, values)
-}
-
-fn build_optional_range_filters_with_offset(
-    created_at_column: &str,
-    start_ts: Option<i64>,
-    end_ts: Option<i64>,
-    placeholder_offset: usize,
-) -> (String, SqlValues) {
-    let mut clauses = Vec::new();
-    let mut values: SqlValues = Vec::with_capacity(2);
-
-    if let Some(ts) = start_ts {
-        values.push(ts.into());
-        clauses.push(format!(
-            "{created_at_column} >= ?{}",
-            placeholder_offset + values.len()
-        ));
-    }
-
-    if let Some(ts) = end_ts {
-        values.push(ts.into());
-        clauses.push(format!(
-            "{created_at_column} < ?{}",
-            placeholder_offset + values.len()
-        ));
-    }
-
-    let sql = if clauses.is_empty() {
-        String::new()
-    } else {
-        format!("\nAND {}", clauses.join("\nAND "))
-    };
-
-    (sql, values)
-}
+use super::{
+    extract_final_provider, has_valid_provider_key, resolve_query_params,
+    sql_effective_input_tokens_expr_with_alias, ProviderKey, UsagePeriodV2,
+    UsageProviderCacheRateTrendRowV1, UsageQueryParams,
+};
 
 #[derive(Debug, Clone, Copy)]
 enum TrendBucketV1 {
@@ -102,6 +35,7 @@ pub(super) fn provider_cache_rate_trend_v1_with_conn(
     start_ts: Option<i64>,
     end_ts: Option<i64>,
     cli_key: Option<&str>,
+    provider_id: Option<i64>,
     limit: Option<usize>,
 ) -> Result<Vec<UsageProviderCacheRateTrendRowV1>, String> {
     let bucket = bucket_for_period(period);
@@ -134,8 +68,15 @@ pub(super) fn provider_cache_rate_trend_v1_with_conn(
         "({effective_input_expr}) + COALESCE(r.cache_creation_input_tokens, 0) + COALESCE(r.cache_read_input_tokens, 0)",
         effective_input_expr = effective_input_expr
     );
-    let (where_clause, where_params) =
-        build_optional_range_cli_filters("r.created_at", "r.cli_key", start_ts, end_ts, cli_key);
+    let (where_clause, where_params) = build_optional_range_cli_provider_filters(
+        "r.created_at",
+        "r.cli_key",
+        "r.final_provider_id",
+        start_ts,
+        end_ts,
+        cli_key,
+        provider_id,
+    );
     let (fallback_where_clause, fallback_range_params) =
         build_optional_range_filters_with_offset("r.created_at", start_ts, end_ts, 2);
 
@@ -323,17 +264,18 @@ LIMIT 1
 #[allow(clippy::too_many_arguments)]
 pub fn provider_cache_rate_trend_v1(
     db: &db::Db,
-    period: &str,
-    start_ts: Option<i64>,
-    end_ts: Option<i64>,
-    cli_key: Option<&str>,
+    params: &UsageQueryParams,
     limit: Option<usize>,
 ) -> crate::shared::error::AppResult<Vec<UsageProviderCacheRateTrendRowV1>> {
     let conn = db.open_connection()?;
-    let period = parse_period_v2(period)?;
-    let (start_ts, end_ts) = compute_bounds_v2(&conn, period, start_ts, end_ts)?;
-    let cli_key = normalize_cli_filter(cli_key)?;
+    let resolved = resolve_query_params(&conn, params)?;
     Ok(provider_cache_rate_trend_v1_with_conn(
-        &conn, period, start_ts, end_ts, cli_key, limit,
+        &conn,
+        resolved.period,
+        resolved.start_ts,
+        resolved.end_ts,
+        resolved.cli_key,
+        resolved.provider_id,
+        limit,
     )?)
 }

@@ -2,6 +2,7 @@
 
 mod bounds;
 mod cache_rate_trend_v1;
+mod filters;
 mod hourly;
 mod input;
 mod leaderboard_range;
@@ -12,6 +13,7 @@ mod types;
 
 pub use cache_rate_trend_v1::provider_cache_rate_trend_v1;
 pub use hourly::hourly_series;
+pub use input::UsageQueryParams;
 pub use leaderboard_range::{leaderboard_day, leaderboard_provider};
 pub use leaderboard_v2::leaderboard_v2;
 pub use summary::{summary, summary_v2};
@@ -22,8 +24,8 @@ pub use types::{
 
 use bounds::{compute_bounds_v2, compute_start_ts, compute_start_ts_last_n_days};
 use input::{
-    normalize_cli_filter, parse_period_v2, parse_range, parse_scope_v2, UsagePeriodV2, UsageRange,
-    UsageScopeV2,
+    normalize_cli_filter, parse_range, parse_scope_v2, resolve_query_params, UsagePeriodV2,
+    UsageRange, UsageScopeV2,
 };
 use leaderboard_range::{extract_final_provider, has_valid_provider_key, ProviderAgg, ProviderKey};
 use tokens::{

@@ -30,6 +30,10 @@ export type UsageDataPanelProps = {
   totalCostUsd: number;
   cacheTrendRows: UsageProviderCacheRateTrendRowV1[];
   cacheTrendProviderCount: number;
+  providerSelectValue: string;
+  providerOptions: readonly { id: number; label: string }[];
+  onProviderIdChange: (providerId: number | null) => void;
+  providersLoading: boolean;
   period: UsagePeriod;
   customApplied: CustomDateRangeApplied | null;
   customPending: boolean;

@@ -59,6 +59,8 @@ macro_rules! generated_command_registry {
             cli_manager_claude_env_set => crate::commands::cli_manager::cli_manager_claude_env_set,
             cli_manager_claude_settings_get => crate::commands::cli_manager::cli_manager_claude_settings_get,
             cli_manager_claude_settings_set => crate::commands::cli_manager::cli_manager_claude_settings_set,
+            cli_manager_claude_hooks_get => crate::commands::cli_manager::cli_manager_claude_hooks_get,
+            cli_manager_claude_hooks_set => crate::commands::cli_manager::cli_manager_claude_hooks_set,
             cli_check_latest_version => crate::commands::cli_update::cli_check_latest_version,
             cli_update => crate::commands::cli_update::cli_update,
             // ── gateway ──
@@ -93,6 +95,7 @@ macro_rules! generated_command_registry {
             provider_claude_terminal_launch_command => crate::commands::providers::provider_claude_terminal_launch_command,
             provider_copy_api_key_to_clipboard => crate::commands::providers::provider_copy_api_key_to_clipboard,
             base_url_ping_ms => crate::commands::providers::base_url_ping_ms,
+            provider_test_availability => crate::commands::provider_availability::provider_test_availability,
             provider_oauth_start_flow => crate::commands::providers::provider_oauth_start_flow,
             provider_oauth_refresh => crate::commands::providers::provider_oauth_refresh,
             provider_oauth_disconnect => crate::commands::providers::provider_oauth_disconnect,

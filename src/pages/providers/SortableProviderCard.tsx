@@ -2,7 +2,7 @@ import { memo, type ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Copy, FlaskConical, Pencil, RefreshCw, Terminal, Trash2 } from "lucide-react";
+import { Copy, FlaskConical, Pencil, RefreshCw, Terminal, Trash2, Zap } from "lucide-react";
 import { FREE_TAG } from "../../constants/providers";
 import type { GatewayProviderCircuitStatus } from "../../services/gateway/gateway";
 import { getGatewayCircuitDerivedState } from "../../query/gateway";
@@ -108,6 +108,8 @@ export type SortableProviderCardProps = {
   onCopyTerminalLaunchCommand?: (provider: ProviderSummary) => void;
   terminalLaunchCopying?: boolean;
   onValidateModel?: (provider: ProviderSummary) => void;
+  onTestAvailability?: (provider: ProviderSummary) => void;
+  testAvailabilityLoading?: boolean;
   onDuplicate?: (provider: ProviderSummary) => void;
   duplicateLoading?: boolean;
   onEdit: (provider: ProviderSummary) => void;
@@ -125,6 +127,8 @@ export const SortableProviderCard = memo(function SortableProviderCard({
   onCopyTerminalLaunchCommand,
   terminalLaunchCopying = false,
   onValidateModel,
+  onTestAvailability,
+  testAvailabilityLoading = false,
   onDuplicate,
   duplicateLoading = false,
   onEdit,
@@ -461,6 +465,20 @@ export const SortableProviderCard = memo(function SortableProviderCard({
               >
                 <Terminal className="h-3.5 w-3.5" />
                 {terminalLaunchCopying ? "复制中…" : "终端启动"}
+              </Button>
+            ) : null}
+
+            {onTestAvailability ? (
+              <Button
+                onClick={() => onTestAvailability(provider)}
+                variant="secondary"
+                size="sm"
+                className="px-2 py-1 text-[11px] gap-1.5"
+                disabled={testAvailabilityLoading}
+                title="测试供应商可用性"
+              >
+                <Zap className="h-3.5 w-3.5" />
+                {testAvailabilityLoading ? "测试中…" : "测试"}
               </Button>
             ) : null}
 

@@ -3,6 +3,7 @@ import {
   type ClaudeModels as GeneratedClaudeModels,
   type DailyResetMode as GeneratedDailyResetMode,
   type ProviderAuthMode as GeneratedProviderAuthMode,
+  type ProviderAvailabilityResult,
   type ProviderBaseUrlMode as GeneratedProviderBaseUrlMode,
   type ProviderOAuthDisconnectResult,
   type ProviderOAuthLimitsResult,
@@ -26,6 +27,7 @@ import {
 import { createRiskyIpcConfirm } from "../ipcConfirm";
 
 export type {
+  ProviderAvailabilityResult,
   ProviderOAuthDisconnectResult,
   ProviderOAuthLimitsResult,
   ProviderOAuthRefreshResult,
@@ -342,6 +344,20 @@ export async function providerOAuthFetchLimits(
     invoke: () =>
       commands.providerOauthFetchLimits(providerId) as Promise<
         GeneratedCommandResult<OAuthLimitsResult>
+      >,
+  });
+}
+
+export async function providerTestAvailability(
+  providerId: number
+): Promise<ProviderAvailabilityResult | null> {
+  return invokeGeneratedIpc<ProviderAvailabilityResult>({
+    title: "测试供应商可用性失败",
+    cmd: "provider_test_availability",
+    args: { providerId },
+    invoke: () =>
+      commands.providerTestAvailability(providerId) as Promise<
+        GeneratedCommandResult<ProviderAvailabilityResult>
       >,
   });
 }

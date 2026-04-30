@@ -373,6 +373,24 @@ export const commands = {
       else return { status: "error", error: e as any };
     }
   },
+  async cliManagerClaudeHooksGet(): Promise<Result<ClaudeHooksState, string>> {
+    try {
+      return { status: "ok", data: await TAURI_INVOKE("cli_manager_claude_hooks_get") };
+    } catch (e) {
+      if (e instanceof Error) throw e;
+      else return { status: "error", error: e as any };
+    }
+  },
+  async cliManagerClaudeHooksSet(
+    input: ClaudeHooksSetInput
+  ): Promise<Result<ClaudeHooksState, string>> {
+    try {
+      return { status: "ok", data: await TAURI_INVOKE("cli_manager_claude_hooks_set", { input }) };
+    } catch (e) {
+      if (e instanceof Error) throw e;
+      else return { status: "error", error: e as any };
+    }
+  },
   async cliCheckLatestVersion(cliKey: string): Promise<Result<CliVersionCheck, string>> {
     try {
       return { status: "ok", data: await TAURI_INVOKE("cli_check_latest_version", { cliKey }) };
@@ -663,6 +681,19 @@ export const commands = {
   async baseUrlPingMs(baseUrl: string): Promise<Result<number, string>> {
     try {
       return { status: "ok", data: await TAURI_INVOKE("base_url_ping_ms", { baseUrl }) };
+    } catch (e) {
+      if (e instanceof Error) throw e;
+      else return { status: "error", error: e as any };
+    }
+  },
+  async providerTestAvailability(
+    providerId: number
+  ): Promise<Result<ProviderAvailabilityResult, string>> {
+    try {
+      return {
+        status: "ok",
+        data: await TAURI_INVOKE("provider_test_availability", { providerId }),
+      };
     } catch (e) {
       if (e instanceof Error) throw e;
       else return { status: "error", error: e as any };
@@ -1720,6 +1751,10 @@ export type ClaudeEnvState = {
   mcp_timeout_ms: number | null;
   disable_error_reporting: boolean;
 };
+export type ClaudeHookEntry = { hook_type: string; command: string; timeout?: number | null };
+export type ClaudeHookGroup = { event: string; matcher: string; hooks: ClaudeHookEntry[] };
+export type ClaudeHooksSetInput = { groups: ClaudeHookGroup[] };
+export type ClaudeHooksState = { settings_path: string; groups: ClaudeHookGroup[] };
 export type ClaudeModelValidationResult = {
   ok: boolean;
   provider_id: number;
@@ -2329,6 +2364,16 @@ export type PromptSummary = {
   updated_at: number;
 };
 export type ProviderAuthMode = "api_key" | "oauth";
+export type ProviderAvailabilityResult = {
+  ok: boolean;
+  provider_id: number;
+  provider_name: string;
+  base_url: string;
+  status: number | null;
+  latency_ms: number;
+  error: string | null;
+  response_preview: string | null;
+};
 export type ProviderBaseUrlMode = "order" | "ping";
 export type ProviderLimitUsageRow = {
   cli_key: string;

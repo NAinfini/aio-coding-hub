@@ -139,6 +139,18 @@ use context::{
     MAX_NON_SSE_BODY_BYTES,
 };
 
+/// Fallback stream detection from raw body bytes when introspection_json
+/// parsing failed (e.g. gzip decompression exceeded limit). Looks for the
+/// `"stream":true` pattern in the first 2 KB of the body.
+fn stream_flag_from_raw_body(body: &[u8]) -> bool {
+    let search_window = &body[..body.len().min(2048)];
+    let haystack = match std::str::from_utf8(search_window) {
+        Ok(s) => s,
+        Err(_) => return false,
+    };
+    haystack.contains("\"stream\":true") || haystack.contains("\"stream\": true")
+}
+
 /// Main failover loop: iterate providers, retry attempts, handle responses.
 ///
 /// This is a thin orchestrator that delegates to:
@@ -188,7 +200,8 @@ pub(super) async fn run(mut input: RequestContext) -> Response {
     let max_providers_to_try = (input.max_providers_to_try as usize).max(1);
     let mut counters = provider_iterator::IterationCounters::new();
     let anthropic_stream_requested =
-        original_anthropic_stream_requested(input.introspection_json.as_ref());
+        original_anthropic_stream_requested(input.introspection_json.as_ref())
+            || stream_flag_from_raw_body(&introspection_body);
 
     let providers: Vec<_> = input.providers.clone();
 

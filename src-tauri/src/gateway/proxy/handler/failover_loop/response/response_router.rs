@@ -73,9 +73,15 @@ pub(super) async fn route_response(
     };
 
     if status.is_success() {
-        if (prepared.anthropic_stream_requested || !prepared.cx2cc_active)
-            && is_event_stream(&response_headers)
-        {
+        // When upstream returns SSE, always route to the stream handler.
+        // Previous logic required `anthropic_stream_requested` for cx2cc,
+        // but that flag is derived from introspection_json which can fail
+        // (e.g. gzipped body exceeding introspection limit), causing SSE
+        // responses to be buffered in the non-stream handler and timing out.
+        // The stream handler already handles cx2cc translation via BridgeStream,
+        // and the non-stream handler can still synthesize SSE from buffered JSON
+        // when the upstream returns a non-SSE response.
+        if is_event_stream(&response_headers) {
             return success_event_stream::handle_success_event_stream(
                 ctx,
                 provider_ctx,

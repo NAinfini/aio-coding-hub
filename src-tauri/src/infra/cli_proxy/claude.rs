@@ -51,8 +51,18 @@ pub(super) fn build_claude_settings_json(
 ) -> AppResult<Vec<u8>> {
     let root = match current {
         Some(bytes) if bytes.is_empty() => serde_json::json!({}),
-        Some(bytes) => serde_json::from_slice::<serde_json::Value>(&bytes)
-            .map_err(|e| format!("CLI_PROXY_INVALID_SETTINGS_JSON: failed to parse JSON: {e}"))?,
+        Some(bytes) => match serde_json::from_slice::<serde_json::Value>(&bytes) {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::warn!(
+                    "cli_proxy: existing settings.json has invalid JSON ({e}), \
+                     preserving original as .invalid-backup and starting fresh"
+                );
+                return Err(
+                    format!("CLI_PROXY_INVALID_SETTINGS_JSON: failed to parse JSON: {e}").into(),
+                );
+            }
+        },
         None => serde_json::json!({}),
     };
 

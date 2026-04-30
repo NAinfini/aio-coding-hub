@@ -62,6 +62,8 @@ export function ProvidersView({ activeCli }: ProvidersViewProps) {
     sourceProvidersById,
     terminalCopyingByProviderId,
     duplicatingByProviderId,
+    testProviderAvailability,
+    testingByProviderId,
   } = model;
 
   return (
@@ -223,6 +225,8 @@ export function ProvidersView({ activeCli }: ProvidersViewProps) {
                       onValidateModel={
                         activeCli === "claude" ? requestValidateProviderModel : undefined
                       }
+                      onTestAvailability={testProviderAvailability}
+                      testAvailabilityLoading={Boolean(testingByProviderId[provider.id])}
                       onDuplicate={duplicateProvider}
                       duplicateLoading={Boolean(duplicatingByProviderId[provider.id])}
                       onEdit={setEditTarget}

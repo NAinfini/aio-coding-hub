@@ -171,6 +171,27 @@ pub(super) fn is_managed_dir(dir: &Path) -> bool {
     dir.join(MANAGED_MARKER_FILE).exists()
 }
 
+pub(super) fn is_managed_link_to_ssot(dir: &Path, ssot_root: &Path) -> bool {
+    if !is_symlink_or_junction(dir) {
+        return false;
+    }
+    let Ok(target) = std::fs::read_link(dir) else {
+        return false;
+    };
+    let resolved = if target.is_absolute() {
+        target
+    } else {
+        dir.parent().unwrap_or_else(|| Path::new(".")).join(&target)
+    };
+    let Ok(canonical_target) = resolved.canonicalize() else {
+        return false;
+    };
+    let Ok(canonical_ssot) = ssot_root.canonicalize() else {
+        return false;
+    };
+    canonical_target.starts_with(&canonical_ssot)
+}
+
 pub(super) use crate::shared::fs::is_symlink;
 
 pub(super) fn has_skill_md(path: &Path) -> bool {
@@ -181,6 +202,9 @@ pub(super) fn remove_managed_dir(dir: &Path) -> crate::shared::error::AppResult<
     if !dir.exists() {
         return Ok(());
     }
+    if is_symlink_or_junction(dir) {
+        return remove_symlink_or_junction(dir);
+    }
     if !is_managed_dir(dir) {
         return Err(format!(
             "SKILL_REMOVE_BLOCKED_UNMANAGED: target exists but is not managed: {}",
@@ -189,5 +213,73 @@ pub(super) fn remove_managed_dir(dir: &Path) -> crate::shared::error::AppResult<
         .into());
     }
     std::fs::remove_dir_all(dir).map_err(|e| format!("failed to remove {}: {e}", dir.display()))?;
+    Ok(())
+}
+
+pub(super) fn is_symlink_or_junction(path: &Path) -> bool {
+    match std::fs::symlink_metadata(path) {
+        Ok(meta) => {
+            if meta.file_type().is_symlink() {
+                return true;
+            }
+            #[cfg(windows)]
+            {
+                use std::os::windows::fs::MetadataExt;
+                const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+                if meta.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+                    return true;
+                }
+            }
+            false
+        }
+        Err(_) => false,
+    }
+}
+
+fn remove_symlink_or_junction(path: &Path) -> crate::shared::error::AppResult<()> {
+    #[cfg(windows)]
+    {
+        std::fs::remove_dir(path)
+            .map_err(|e| format!("failed to remove junction/symlink {}: {e}", path.display()))?;
+    }
+    #[cfg(not(windows))]
+    {
+        std::fs::remove_file(path)
+            .map_err(|e| format!("failed to remove symlink {}: {e}", path.display()))?;
+    }
+    Ok(())
+}
+
+pub(super) fn create_skill_link(
+    ssot_dir: &Path,
+    target: &Path,
+) -> crate::shared::error::AppResult<()> {
+    if let Some(parent) = target.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("failed to create {}: {e}", parent.display()))?;
+    }
+
+    #[cfg(windows)]
+    {
+        junction::create(ssot_dir, target).map_err(|e| {
+            format!(
+                "failed to create junction {} -> {}: {e}",
+                target.display(),
+                ssot_dir.display()
+            )
+        })?;
+    }
+
+    #[cfg(not(windows))]
+    {
+        std::os::unix::fs::symlink(ssot_dir, target).map_err(|e| {
+            format!(
+                "failed to create symlink {} -> {}: {e}",
+                target.display(),
+                ssot_dir.display()
+            )
+        })?;
+    }
+
     Ok(())
 }

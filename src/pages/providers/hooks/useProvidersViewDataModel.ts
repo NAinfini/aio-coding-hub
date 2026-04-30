@@ -20,6 +20,7 @@ import {
   useProviderDeleteMutation,
   useProviderDuplicateMutation,
   useProviderSetEnabledMutation,
+  useProviderTestAvailabilityMutation,
   useProvidersListQuery,
   useProvidersReorderMutation,
 } from "../../../query/providers";
@@ -84,6 +85,7 @@ export function useProvidersViewDataModel(activeCli: CliKey) {
   const [duplicatingByProviderId, setDuplicatingByProviderId] = useState<Record<number, boolean>>(
     {}
   );
+  const [testingByProviderId, setTestingByProviderId] = useState<Record<number, boolean>>({});
   const [validateDialogOpen, setValidateDialogOpen] = useState(false);
   const [validateProvider, setValidateProvider] = useState<ProviderSummary | null>(null);
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
@@ -96,6 +98,7 @@ export function useProvidersViewDataModel(activeCli: CliKey) {
   const providerDuplicateMutation = useProviderDuplicateMutation();
   const providersReorderMutation = useProvidersReorderMutation();
   const terminalLaunchCommandMutation = useProviderClaudeTerminalLaunchCommandMutation();
+  const testAvailabilityMutation = useProviderTestAvailabilityMutation();
 
   const tagCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -147,6 +150,7 @@ export function useProvidersViewDataModel(activeCli: CliKey) {
     setCircuitResetting({});
     setCircuitResettingAll(false);
     setDuplicatingByProviderId({});
+    setTestingByProviderId({});
   }, [activeCli]);
 
   const sensors = useSensors(
@@ -355,6 +359,42 @@ export function useProvidersViewDataModel(activeCli: CliKey) {
     [duplicatingByProviderId, providerDuplicateMutation]
   );
 
+  const testProviderAvailability = useCallback(
+    async (provider: ProviderSummary) => {
+      if (testingByProviderId[provider.id]) return;
+
+      setTestingByProviderId((current) => ({ ...current, [provider.id]: true }));
+      try {
+        const result = await testAvailabilityMutation.mutateAsync({
+          providerId: provider.id,
+        });
+        if (!result) return;
+
+        if (result.ok) {
+          toast(`${provider.name}: 可用 (${result.latency_ms}ms)`);
+        } else {
+          toast(`${provider.name}: 不可用 — ${result.error ?? "未知错误"}`);
+        }
+        logToConsole("info", "供应商可用性测试", {
+          provider_id: provider.id,
+          ok: result.ok,
+          latency_ms: result.latency_ms,
+          status: result.status,
+          error: result.error,
+        });
+      } catch (error) {
+        logToConsole("error", "供应商可用性测试失败", {
+          provider_id: provider.id,
+          error: String(error),
+        });
+        toast(`测试失败：${String(error)}`);
+      } finally {
+        setTestingByProviderId((current) => ({ ...current, [provider.id]: false }));
+      }
+    },
+    [testingByProviderId, testAvailabilityMutation]
+  );
+
   async function persistProvidersOrder(cliKey: CliKey, nextProviders: ProviderSummary[]) {
     try {
       const saved = await providersReorderMutation.mutateAsync({
@@ -434,5 +474,7 @@ export function useProvidersViewDataModel(activeCli: CliKey) {
     sourceProvidersById,
     terminalCopyingByProviderId,
     duplicatingByProviderId,
+    testProviderAvailability,
+    testingByProviderId,
   };
 }

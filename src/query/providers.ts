@@ -10,8 +10,10 @@ import {
   providerSetEnabled,
   providersList,
   providersReorder,
+  providerTestAvailability,
   type CliKey,
   type OAuthLimitsResult,
+  type ProviderAvailabilityResult,
   type ProviderUpsertInput,
   type ProviderSummary,
 } from "../services/providers/providers";
@@ -227,5 +229,11 @@ export function useOAuthLimitsQuery(providerId: number, enabled: boolean) {
     enabled,
     staleTime: 180_000,
     refetchInterval: 180_000,
+  });
+}
+
+export function useProviderTestAvailabilityMutation() {
+  return useMutation<ProviderAvailabilityResult | null, Error, { providerId: number }>({
+    mutationFn: (input) => providerTestAvailability(input.providerId),
   });
 }

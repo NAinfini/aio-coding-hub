@@ -265,19 +265,55 @@ fn apply_proxy_config<R: tauri::Runtime>(
 
     for t in targets {
         let current = read_optional_file(&t.path)?;
+
         let bytes = match cli_key {
             "claude" => {
-                claude::build_claude_settings_json(current, &format!("{base_origin}/claude"))?
+                match claude::build_claude_settings_json(
+                    current.clone(),
+                    &format!("{base_origin}/claude"),
+                ) {
+                    Ok(b) => b,
+                    Err(err) => {
+                        // Preserve the original file — never clobber user data on parse failure.
+                        if let Some(original_bytes) = current.as_ref() {
+                            let backup_path = t.path.with_extension("json.invalid-backup");
+                            let _ = write_file_atomic(&backup_path, original_bytes);
+                            tracing::warn!(
+                                "cli_proxy: preserved invalid config as {}",
+                                backup_path.display()
+                            );
+                        }
+                        return Err(err);
+                    }
+                }
             }
             "codex" => {
                 if t.kind == "codex_config_toml" {
-                    codex::build_codex_config_toml(
-                        current,
+                    match codex::build_codex_config_toml(
+                        current.clone(),
                         &format!("{base_origin}/v1"),
                         codex::CodexConfigPlatform::current(),
-                    )?
+                    ) {
+                        Ok(b) => b,
+                        Err(err) => {
+                            if let Some(original_bytes) = current.as_ref() {
+                                let backup_path = t.path.with_extension("toml.invalid-backup");
+                                let _ = write_file_atomic(&backup_path, original_bytes);
+                            }
+                            return Err(err);
+                        }
+                    }
                 } else {
-                    codex::build_codex_auth_json(current)?
+                    match codex::build_codex_auth_json(current.clone()) {
+                        Ok(b) => b,
+                        Err(err) => {
+                            if let Some(original_bytes) = current.as_ref() {
+                                let backup_path = t.path.with_extension("json.invalid-backup");
+                                let _ = write_file_atomic(&backup_path, original_bytes);
+                            }
+                            return Err(err);
+                        }
+                    }
                 }
             }
             "gemini" => gemini::build_gemini_env(current, &format!("{base_origin}/gemini"))?,
@@ -833,8 +869,13 @@ pub fn set_enabled<R: tauri::Runtime>(
                 ))
             }
             Err(err) => {
-                // Best-effort rollback if we just created a new snapshot.
-                if should_backup {
+                let is_parse_error = err.to_string().contains("CLI_PROXY_INVALID_");
+
+                // Only rollback if we actually wrote proxy config (not on parse
+                // failure where the file was never modified). On parse failure
+                // the invalid file is already preserved as .invalid-backup by
+                // apply_proxy_config, so restoring would clobber user changes.
+                if should_backup && !is_parse_error {
                     let _ = restore_from_manifest(app, &manifest);
                     manifest.enabled = false;
                     manifest.updated_at = now_unix_seconds();

@@ -195,6 +195,7 @@ export const cliManagerKeys = {
   all: cliManagerAllKey,
   claudeInfo: () => [...cliManagerAllKey, "claude", "info"] as const,
   claudeSettings: () => [...cliManagerAllKey, "claude", "settings"] as const,
+  claudeHooks: () => [...cliManagerAllKey, "claude", "hooks"] as const,
   codexInfo: () => [...cliManagerAllKey, "codex", "info"] as const,
   codexConfig: () => [...cliManagerAllKey, "codex", "config"] as const,
   codexConfigToml: () => [...cliManagerAllKey, "codex", "configToml"] as const,

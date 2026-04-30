@@ -33,6 +33,12 @@ const LazyGeminiTab = lazy(() =>
   }))
 );
 
+const LazyHooksTab = lazy(() =>
+  import("../components/cli-manager/tabs/HooksTab").then((m) => ({
+    default: m.CliManagerHooksTab,
+  }))
+);
+
 const TAB_FALLBACK = <div className="p-6 text-sm text-slate-500 dark:text-slate-400">加载中…</div>;
 
 export function CliManagerPage() {
@@ -76,6 +82,12 @@ export function CliManagerPage() {
         {model.tab === "gemini" ? (
           <Suspense fallback={TAB_FALLBACK}>
             <LazyGeminiTab {...model.geminiTabProps} />
+          </Suspense>
+        ) : null}
+
+        {model.tab === "hooks" ? (
+          <Suspense fallback={TAB_FALLBACK}>
+            <LazyHooksTab />
           </Suspense>
         ) : null}
       </div>

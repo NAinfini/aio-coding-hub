@@ -37,7 +37,7 @@ import {
 } from "../../query/cliManager";
 import { formatActionFailureToast } from "../../utils/errors";
 
-export type CliManagerTabKey = "general" | "claude" | "codex" | "cx2cc" | "gemini";
+export type CliManagerTabKey = "general" | "claude" | "codex" | "cx2cc" | "gemini" | "hooks";
 
 export const CLI_MANAGER_TABS: Array<{ key: CliManagerTabKey; label: string }> = [
   { key: "general", label: "通用" },
@@ -45,6 +45,7 @@ export const CLI_MANAGER_TABS: Array<{ key: CliManagerTabKey; label: string }> =
   { key: "codex", label: "Codex" },
   { key: "cx2cc", label: "CX2CC" },
   { key: "gemini", label: "Gemini" },
+  { key: "hooks", label: "Hooks" },
 ];
 
 const DEFAULT_RECTIFIER: GatewayRectifierSettingsPatch = {

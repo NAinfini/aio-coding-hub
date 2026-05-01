@@ -169,3 +169,46 @@ fn skill_uninstall_does_not_block_on_unmanaged_plain_skill_dir() {
         "unmanaged plain skill dir should remain after uninstall"
     );
 }
+
+#[test]
+fn skill_uninstall_removes_managed_ssot_link_without_deleting_ssot_target_first() {
+    let app = support::TestApp::new();
+    let handle = app.handle();
+
+    aio_coding_hub_lib::test_support::init_db(&handle).expect("init db");
+    let fix = SkillTestFixture::new(&app, &handle, "codex", "Codex Managed Link");
+
+    let enabled = aio_coding_hub_lib::test_support::skill_set_enabled_json(
+        &handle,
+        fix.workspace_id,
+        fix.skill_id,
+        true,
+    )
+    .expect("enable skill");
+    assert!(json_bool(&enabled, "enabled"), "skill should be enabled");
+
+    let linked_skill_dir = fix.cli_skills_root.join(&fix.skill_key);
+    assert!(
+        std::fs::symlink_metadata(&linked_skill_dir)
+            .expect("managed link metadata")
+            .file_type()
+            .is_symlink(),
+        "active codex skill target should be a managed symlink"
+    );
+    assert!(
+        fix.ssot_skill_dir.join("SKILL.md").exists(),
+        "ssot target should exist before uninstall"
+    );
+
+    aio_coding_hub_lib::test_support::skill_uninstall(&handle, fix.skill_id)
+        .expect("uninstall managed link");
+
+    assert!(
+        std::fs::symlink_metadata(&linked_skill_dir).is_err(),
+        "managed symlink should be removed"
+    );
+    assert!(
+        !fix.ssot_skill_dir.exists(),
+        "ssot target should be deleted by uninstall after links are removed"
+    );
+}

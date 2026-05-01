@@ -155,6 +155,12 @@ fn build_probe_request(
     }
 }
 
+fn redact_key_param(msg: &str) -> String {
+    regex::Regex::new(r"([?&])key=[^&\s]*")
+        .map(|re| re.replace_all(msg, "${1}key=***").to_string())
+        .unwrap_or_else(|_| msg.to_string())
+}
+
 pub async fn test_provider_availability(
     db: db::Db,
     provider_id: i64,
@@ -234,12 +240,6 @@ pub async fn test_provider_availability(
 
     let latency_ms = started.elapsed().as_millis().min(i64::MAX as u128) as i64;
 
-    fn redact_key_param(msg: &str) -> String {
-        regex::Regex::new(r"[?&]key=[^&\s]*")
-            .map(|re| re.replace_all(msg, "?key=***").to_string())
-            .unwrap_or_else(|_| msg.to_string())
-    }
-
     match result {
         Ok(resp) => {
             let status = resp.status().as_u16();
@@ -298,5 +298,79 @@ pub async fn test_provider_availability(
                 response_preview: None,
             })
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn header_value(headers: &HeaderMap, key: &str) -> String {
+        headers
+            .get(key)
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or_default()
+            .to_string()
+    }
+
+    #[test]
+    fn build_probe_request_for_claude_uses_messages_endpoint_and_x_api_key() {
+        let (url, headers, body) =
+            build_probe_request("claude", "https://api.example.com/", "sk-claude")
+                .expect("claude request");
+
+        assert_eq!(url, "https://api.example.com/v1/messages");
+        assert_eq!(header_value(&headers, "x-api-key"), "sk-claude");
+        assert_eq!(header_value(&headers, "anthropic-version"), "2023-06-01");
+        assert_eq!(body["messages"][0]["content"], "ping");
+    }
+
+    #[test]
+    fn build_probe_request_for_codex_uses_chat_completions_and_bearer_auth() {
+        let (url, headers, body) =
+            build_probe_request("codex", "https://api.example.com", "sk-openai")
+                .expect("codex request");
+
+        assert_eq!(url, "https://api.example.com/v1/chat/completions");
+        assert_eq!(header_value(&headers, "authorization"), "Bearer sk-openai");
+        assert_eq!(body["messages"][0]["content"], "ping");
+    }
+
+    #[test]
+    fn build_probe_request_for_gemini_uses_generate_content_key_param() {
+        let (url, headers, body) = build_probe_request(
+            "gemini",
+            "https://generativelanguage.googleapis.com/",
+            "sk-google",
+        )
+        .expect("gemini request");
+
+        assert_eq!(
+            url,
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=sk-google"
+        );
+        assert_eq!(header_value(&headers, "content-type"), "application/json");
+        assert_eq!(body["contents"][0]["parts"][0]["text"], "ping");
+    }
+
+    #[test]
+    fn build_probe_request_rejects_unsupported_cli_key() {
+        let err = build_probe_request("unknown", "https://api.example.com", "secret")
+            .unwrap_err()
+            .to_string();
+
+        assert_eq!(err, "UNSUPPORTED_CLI_KEY: unknown");
+    }
+
+    #[test]
+    fn redact_key_param_preserves_delimiters_and_hides_gemini_key() {
+        let redacted =
+            redact_key_param("连接失败: https://host/v1beta/models?alt=sse&key=sk-secret&other=1");
+
+        assert_eq!(
+            redacted,
+            "连接失败: https://host/v1beta/models?alt=sse&key=***&other=1"
+        );
+        assert!(!redacted.contains("sk-secret"));
     }
 }

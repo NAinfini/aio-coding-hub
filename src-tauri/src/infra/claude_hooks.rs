@@ -38,11 +38,14 @@ fn claude_settings_path<R: tauri::Runtime>(
         .join("settings.json"))
 }
 
-fn json_root_from_bytes(bytes: Option<Vec<u8>>) -> serde_json::Value {
+fn json_root_from_bytes(
+    bytes: Option<Vec<u8>>,
+    action: &str,
+) -> crate::shared::error::AppResult<serde_json::Value> {
     match bytes {
         Some(b) => serde_json::from_slice::<serde_json::Value>(&b)
-            .unwrap_or_else(|_| serde_json::json!({})),
-        None => serde_json::json!({}),
+            .map_err(|e| format!("settings.json 解析失败，拒绝{action}以保护现有配置: {e}").into()),
+        None => Ok(serde_json::json!({})),
     }
 }
 
@@ -142,7 +145,14 @@ pub fn claude_hooks_get<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
 ) -> crate::shared::error::AppResult<ClaudeHooksState> {
     let path = claude_settings_path(app)?;
-    let root = json_root_from_bytes(read_optional_file(&path)?);
+    let root = json_root_from_bytes(read_optional_file(&path)?, "读取 Hooks 空配置")?;
+    if !root.is_object() {
+        return Err(
+            "settings.json 根节点不是 JSON 对象，拒绝读取 Hooks 空配置以保护现有配置"
+                .to_string()
+                .into(),
+        );
+    }
     let groups = parse_hooks_from_root(&root);
     Ok(ClaudeHooksState {
         settings_path: path.to_string_lossy().to_string(),
@@ -164,11 +174,7 @@ pub fn claude_hooks_set<R: tauri::Runtime>(
     }
 
     let current = read_optional_file(&path)?;
-    let mut root = match current {
-        Some(bytes) => serde_json::from_slice::<serde_json::Value>(&bytes)
-            .map_err(|e| format!("settings.json 解析失败，拒绝覆写以保护现有配置: {e}"))?,
-        None => serde_json::json!({}),
-    };
+    let mut root = json_root_from_bytes(current, "覆写")?;
     if !root.is_object() {
         return Err("settings.json 根节点不是 JSON 对象，拒绝覆写以保护现有配置"
             .to_string()
@@ -188,3 +194,6 @@ pub fn claude_hooks_set<R: tauri::Runtime>(
     let _ = write_file_atomic_if_changed(&path, &out)?;
     claude_hooks_get(app)
 }
+
+#[cfg(test)]
+mod tests;

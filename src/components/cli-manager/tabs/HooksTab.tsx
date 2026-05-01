@@ -6,6 +6,7 @@ import { Plus, Pencil, Trash2, Zap, RefreshCw } from "lucide-react";
 import { Button } from "../../../ui/Button";
 import { Dialog } from "../../../ui/Dialog";
 import { EmptyState } from "../../../ui/EmptyState";
+import { ErrorState } from "../../../ui/ErrorState";
 import { Input } from "../../../ui/Input";
 import { Select } from "../../../ui/Select";
 import { Spinner } from "../../../ui/Spinner";
@@ -64,6 +65,7 @@ export function CliManagerHooksTab() {
 
   const groups = hooksQuery.data?.groups ?? [];
   const loading = hooksQuery.isLoading;
+  const loadError = hooksQuery.isError ? String(hooksQuery.error) : "";
   const saving = hooksMutation.isPending;
 
   const [editor, setEditor] = useState<EditorState | null>(null);
@@ -171,7 +173,13 @@ export function CliManagerHooksTab() {
             <RefreshCw className="mr-1 h-3 w-3" />
             刷新
           </Button>
-          <Button onClick={openCreate} variant="secondary" size="sm" className="h-8">
+          <Button
+            onClick={openCreate}
+            variant="secondary"
+            size="sm"
+            className="h-8"
+            disabled={loading || hooksQuery.isError}
+          >
             <Plus className="mr-1 h-3 w-3" />
             添加
           </Button>
@@ -183,6 +191,12 @@ export function CliManagerHooksTab() {
           <Spinner size="sm" />
           加载中…
         </div>
+      ) : hooksQuery.isError ? (
+        <ErrorState
+          title="读取 Hooks 失败"
+          message={loadError}
+          onRetry={() => void hooksQuery.refetch()}
+        />
       ) : groups.length === 0 ? (
         <EmptyState
           title="暂无 Hooks 配置"

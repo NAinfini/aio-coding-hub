@@ -4,6 +4,7 @@ import type { ProviderSummary } from "../../services/providers/providers";
 import {
   providerClaudeTerminalLaunchCommand,
   providerDelete,
+  providerTestAvailability,
   providerUpsert,
   providerSetEnabled,
   providersList,
@@ -13,6 +14,7 @@ import {
   useProviderClaudeTerminalLaunchCommandMutation,
   useProviderDeleteMutation,
   useProviderSetEnabledMutation,
+  useProviderTestAvailabilityMutation,
   useProviderUpsertMutation,
   useProvidersListQuery,
   useProvidersReorderMutation,
@@ -31,6 +33,7 @@ vi.mock("../../services/providers/providers", async () => {
     providerUpsert: vi.fn(),
     providerSetEnabled: vi.fn(),
     providerDelete: vi.fn(),
+    providerTestAvailability: vi.fn(),
     providersReorder: vi.fn(),
     providerClaudeTerminalLaunchCommand: vi.fn(),
   };
@@ -354,5 +357,30 @@ describe("query/providers", () => {
     });
 
     expect(providerClaudeTerminalLaunchCommand).toHaveBeenCalledWith(8);
+  });
+
+  it("useProviderTestAvailabilityMutation calls service with provider id", async () => {
+    setTauriRuntime();
+
+    vi.mocked(providerTestAvailability).mockResolvedValue({
+      ok: true,
+      provider_id: 8,
+      provider_name: "P1",
+      base_url: "https://api.example.com",
+      status: 200,
+      latency_ms: 42,
+      error: null,
+      response_preview: null,
+    });
+
+    const client = createTestQueryClient();
+    const wrapper = createQueryWrapper(client);
+
+    const { result } = renderHook(() => useProviderTestAvailabilityMutation(), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync({ providerId: 8 });
+    });
+
+    expect(providerTestAvailability).toHaveBeenCalledWith(8);
   });
 });

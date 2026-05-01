@@ -12,6 +12,7 @@ import {
   providerOAuthStartFlow,
   providerOAuthStatus,
   providerSetEnabled,
+  providerTestAvailability,
   providersList,
   providersReorder,
   providerUpsert,
@@ -41,6 +42,7 @@ vi.mock("../../../generated/bindings", async () => {
       providerOauthDisconnect: vi.fn(),
       providerOauthStatus: vi.fn(),
       providerOauthFetchLimits: vi.fn(),
+      providerTestAvailability: vi.fn(),
     },
   };
 });
@@ -207,6 +209,19 @@ describe("services/providers/providers", () => {
       status: "ok",
       data: "bash '/tmp/aio.sh'" as any,
     });
+    vi.mocked(commands.providerTestAvailability).mockResolvedValueOnce({
+      status: "ok",
+      data: {
+        ok: true,
+        provider_id: 5,
+        provider_name: "P1",
+        base_url: "https://api.example.com",
+        status: 200,
+        latency_ms: 42,
+        error: null,
+        response_preview: null,
+      } as any,
+    });
 
     await providersList("claude");
     await baseUrlPingMs("https://api.example.com");
@@ -214,6 +229,7 @@ describe("services/providers/providers", () => {
     await providerDelete(1);
     await providersReorder("claude", [2, 1]);
     await providerClaudeTerminalLaunchCommand(5);
+    await providerTestAvailability(5);
 
     expect(commands.providersList).toHaveBeenCalledWith("claude");
     expect(commands.baseUrlPingMs).toHaveBeenCalledWith("https://api.example.com");
@@ -221,6 +237,7 @@ describe("services/providers/providers", () => {
     expect(commands.providerDelete).toHaveBeenCalledWith(1);
     expect(commands.providersReorder).toHaveBeenCalledWith("claude", [2, 1]);
     expect(commands.providerClaudeTerminalLaunchCommand).toHaveBeenCalledWith(5);
+    expect(commands.providerTestAvailability).toHaveBeenCalledWith(5);
   });
 
   it("provider duplicate and clipboard copy both use generated ipc", async () => {

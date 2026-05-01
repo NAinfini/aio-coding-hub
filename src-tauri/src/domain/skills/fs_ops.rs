@@ -199,11 +199,11 @@ pub(super) fn has_skill_md(path: &Path) -> bool {
 }
 
 pub(super) fn remove_managed_dir(dir: &Path) -> crate::shared::error::AppResult<()> {
-    if !dir.exists() {
-        return Ok(());
-    }
     if is_symlink_or_junction(dir) {
         return remove_symlink_or_junction(dir);
+    }
+    if !dir.exists() {
+        return Ok(());
     }
     if !is_managed_dir(dir) {
         return Err(format!(

@@ -104,6 +104,10 @@ fn remove_from_cli<R: tauri::Runtime>(
     if !target.exists() {
         return Ok(());
     }
+    let ssot_root = ssot_skills_root(app)?;
+    if is_managed_link_to_ssot(&target, &ssot_root) {
+        return remove_managed_dir(&target);
+    }
     if is_external_local_skill_dir(&target)? {
         // Do not remove unmanaged local skill targets owned by external tooling.
         return Ok(());

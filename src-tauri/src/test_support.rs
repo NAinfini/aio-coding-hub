@@ -422,6 +422,23 @@ pub fn cli_manager_claude_settings_set_json<R: tauri::Runtime>(
     serialize_json(state)
 }
 
+pub fn cli_manager_claude_hooks_get_json<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> crate::shared::error::AppResult<serde_json::Value> {
+    let state = crate::infra::claude_hooks::claude_hooks_get(app)?;
+    serialize_json(state)
+}
+
+pub fn cli_manager_claude_hooks_set_json<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    input: serde_json::Value,
+) -> crate::shared::error::AppResult<serde_json::Value> {
+    let input: crate::infra::claude_hooks::ClaudeHooksSetInput = serde_json::from_value(input)
+        .map_err(|e| format!("SEC_INVALID_INPUT: invalid claude hooks input json: {e}"))?;
+    let state = crate::infra::claude_hooks::claude_hooks_set(app, input)?;
+    serialize_json(state)
+}
+
 pub fn cli_manager_claude_env_set_json<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     mcp_timeout_ms: Option<u64>,

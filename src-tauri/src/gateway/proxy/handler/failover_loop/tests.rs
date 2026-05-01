@@ -116,3 +116,24 @@ fn attempt_outcome_preserves_terminal_error_pair() {
         GatewayErrorCode::UpstreamConnectFailed.as_str()
     );
 }
+
+#[test]
+fn stream_flag_from_raw_body_detects_compact_and_spaced_json_flags() {
+    assert!(super::stream_flag_from_raw_body(br#"{"stream":true}"#));
+    assert!(super::stream_flag_from_raw_body(
+        br#"{"model":"claude","stream": true}"#
+    ));
+}
+
+#[test]
+fn stream_flag_from_raw_body_only_scans_first_two_kb() {
+    let mut body = vec![b' '; 2048];
+    body.extend_from_slice(br#"{"stream":true}"#);
+
+    assert!(!super::stream_flag_from_raw_body(&body));
+}
+
+#[test]
+fn stream_flag_from_raw_body_ignores_non_utf8_payloads() {
+    assert!(!super::stream_flag_from_raw_body(&[0xff, 0xfe, b'{']));
+}

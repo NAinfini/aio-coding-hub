@@ -533,6 +533,28 @@ Test-env checklist:
   mtime with session logs for `cargo test` / `pnpm tauri:test` and search for
   temp fixture names before assuming the user edited the file.
 
+### Mistake 22: Editing Third-Party Configs Through a Narrow Projection
+
+**Bad**: Read a third-party config node into a simplified UI model, then write
+that simplified model back over the whole node. Any upstream-supported fields
+outside the UI model, such as unknown handler types, conditions, async flags, or
+future extension fields, disappear after the user edits one visible row.
+
+**Good**: Treat third-party config as a preserve-by-default document. The UI may
+present a supported subset, but save flows must patch only the selected item or
+carry unknown fields through a raw JSON model.
+
+Third-party config checklist:
+- Before adding a GUI editor for a third-party config file, compare the UI model
+  against the upstream schema and decide which fields are first-class, read-only,
+  or pass-through.
+- Round-trip tests must include unknown fields and unsupported item types. A
+  save of one visible item must preserve sibling items and extra fields.
+- If the product intentionally supports only a subset, expose unsupported rows as
+  read-only instead of silently dropping them on save.
+- Invalid JSON must fail closed. Do not downgrade parse failures into `{}` and
+  then write defaults back over user config.
+
 ---
 
 ## Checklist for Cross-Layer Features
@@ -592,6 +614,8 @@ After implementation:
       assuming persisted settings are already applied
 - [ ] Verified high-frequency events have an explicit payload owner and
       visibility/backpressure rule
+- [ ] If editing a third-party config file, verified unsupported fields and
+      unknown item types survive read-modify-write round trips
 
 ---
 

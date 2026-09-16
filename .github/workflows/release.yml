@@ -1,8 +1,11 @@
 name: release
 
 on:
-  push:
+  pull_request:
     branches: [main]
+    types: [closed]
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:

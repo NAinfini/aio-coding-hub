@@ -2,7 +2,7 @@ name: sync-release-pr-cargo-lock
 
 on:
   pull_request:
-    types: [opened, reopened, synchronize]
+    types: [opened, reopened, ready_for_review]
 
 permissions:
   contents: write
